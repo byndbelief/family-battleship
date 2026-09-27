@@ -620,14 +620,22 @@ function renderGauntlets(all, cards) {
     const dots = Array.from({ length: g.rounds }, (_, i) => { const h = done[i], cur = !h && i === g.round - 1;
       return `<i class="${h ? 'done' : cur ? 'cur' : ''}">${h ? KIND_ICON[h.kind] : cur ? KIND_ICON[g.current_kind] : i + 1}</i>`; }).join('');
     const others = g.players.filter((p) => p !== me.id).map(nm).join(' & ');
-    return `<a class="gtcard ${myMove ? 'mine' : ''}" href="${href}">
+    return `<div class="gtwrap"><a class="gtcard ${myMove ? 'mine' : ''}" href="${href}">
       <span class="gtrival"><strong>vs ${others}</strong><span>Gauntlet #${past.length + 1}${past.length ? ` · 🏆 ${g.players.map((p, i) => `${p === me.id ? 'You' : nm(p)} ${titles[i]}`).join(' · ')}` : ''}</span></span>
       <span class="gtscore">${g.players.map((p, i) => `<span class="${g.scores[i] === lead && lead > 0 ? 'lead' : ''}">${g.scores[i] === lead && lead > 0 ? '👑 ' : ''}${p === me.id ? 'You' : nm(p)} <b>${g.scores[i]}</b></span>`).join('')}</span>
       <span class="gttrack">${dots}</span>
       <span class="gtnow">Round ${g.round} of ${g.rounds}: ${KIND_ICON[g.current_kind]} ${KIND_NAME[g.current_kind]}${whoseMove ? ` · <strong>${whoseMove}</strong>` : ''}</span>
       <span class="gtplay">${myMove ? `Play round ${g.round} ›` : 'Watch ›'}</span>
-    </a>`;
+    </a>${g.created_by === me.id ? `<button type="button" class="gtoff" data-off="${g.id}">Call off</button>` : ''}</div>`;
   }).join('');
+  // Calling a Gauntlet off ends it for everyone: its round in progress goes, finished rounds and past titles stay.
+  box.querySelectorAll('[data-off]').forEach((b) => { b.onclick = async () => {
+    if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Tap to confirm'; b.classList.add('armed'); setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.textContent = 'Call off'; b.classList.remove('armed'); } }, 4000); return; }
+    b.disabled = true;
+    const { error } = await sb.rpc('gauntlet_delete', { p_gauntlet: b.dataset.off });
+    if (error) { note(friendly(error), 'error'); b.disabled = false; return; }
+    note('Gauntlet called off.'); loadGames(); loadChaos();
+  }; });
   document.getElementById('gtLabel').textContent = live.length ? 'New rival' : 'Start a rivalry';
 }
 
