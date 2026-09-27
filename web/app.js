@@ -334,6 +334,10 @@ async function lobby() {
         <div class="row between"><h2>Your games</h2><span class="live" id="live">Live</span></div>
         <div id="games"><p class="muted">Loading games…</p></div>
       </section>
+      <div class="lobby-cols">
+        <section class="card" id="packCard" hidden></section>
+        <section class="card" id="chaosCard" hidden></section>
+      </div>
       <section class="stack" id="newSec">
         <h2>New game</h2>
         <div class="ncards" role="radiogroup" aria-label="Pick a game">
@@ -363,10 +367,6 @@ async function lobby() {
           <div><button class="primary" type="submit" id="start" disabled>Start game</button></div>
         </form>
       </section>
-      <div class="lobby-cols">
-        <section class="card" id="packCard" hidden></section>
-        <section class="card" id="chaosCard" hidden></section>
-      </div>
       <section class="card" id="alerts"></section>
     </div>`);
   document.getElementById('signout').onclick = signOut;
