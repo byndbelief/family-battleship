@@ -18,6 +18,8 @@ let channel = null;       // the realtime subscription for the current screen
 let G = null;             // the open game: { game, shots, myFleet, fleets }
 let aims = { target: null, cells: new Set() };
 let busy = false;
+// Phones show one board at a time: which one (an owner's id), and the turn state it was picked for.
+let boardTab = null, boardTabFor = null;
 let peekMode = false;           // next tap on an opponent's board spends a peek cheat
 let sonarLoot = null;           // next tap on an opponent's board spends this Sonar Ping
 const seenShots = new Map();    // game id -> Set of shot ids already animated
@@ -171,6 +173,7 @@ function animateShots(newShots) {
   Object.values(byMove).forEach((batch) => {
     batch.forEach((s, k) => {
       setTimeout(() => {
+        showBoard(s.target);
         const el = cellEl(s.target, s.cell);
         if (!el) { pending.delete(s.id); renderGame(); return; }
         const [x, y] = centerOf(el);
@@ -330,6 +333,7 @@ async function lobby() {
   G = null;
   if (document.querySelector('.fs-on')) fsExit();
   document.getElementById('nextUp')?.remove();   // the lobby has its own Your move strip
+  document.body.classList.remove('has-firebar');
   const others = Object.entries(names).filter(([id]) => id !== me.id).sort((a, b) => a[1].localeCompare(b[1]));
   view(`
     <div class="lobby">
@@ -803,6 +807,13 @@ function feedHTML() {
   return `<section class="card"><h2>Latest shots</h2><ul class="feed">${items}</ul></section>`;
 }
 
+// Switch a phone to one board without redrawing (the tabs; also used so a shot is always seen landing).
+function showBoard(owner) {
+  if (!owner) return;
+  boardTab = owner;
+  app.querySelectorAll('.bsec').forEach((el) => el.classList.toggle('tab-on', el.dataset.owner === owner));
+  app.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === owner)));
+}
 function renderGame() {
   if (!G) return;
   const { game } = G;
@@ -842,24 +853,35 @@ function renderGame() {
       <section class="card narrow" style="margin:0"><h2>Your fleet</h2>${boardHTML({ owner: me.id, ships: G.fleets[me.id] })}</section>`;
   } else {
     const over = game.status === 'over';
+    // Which board a phone shows: your target on your turn, your fleet otherwise, until you pick one.
+    const tabState = `${game.move}|${myTurn}`;
+    if (boardTabFor !== tabState || ![...opponents, me.id].includes(boardTab)) {
+      boardTabFor = tabState;
+      boardTab = myTurn ? (aims.target || opponents.find((p) => !game.eliminated.includes(p)) || opponents[0]) : me.id;
+    }
+    const left = (p) => MODES[game.mode].ships.length - new Set(G.shots.filter((s) => s.target === p && s.sunk_ship != null).map((s) => s.sunk_ship)).size;
+    const tabs = `<div class="boardtabs" role="tablist" aria-label="Boards">${opponents.map((p) => `<button type="button" role="tab" data-tab="${p}" aria-selected="${boardTab === p}">🎯 ${nm(p)} <small>${left(p)} left</small></button>`).join('')}<button type="button" role="tab" data-tab="${me.id}" aria-selected="${boardTab === me.id}">🚢 Your fleet <small>${left(me.id)} left</small></button></div>`;
     const targets = opponents.map((p) => {
       const out = game.eliminated.includes(p);
-      const cls = ['card'];
+      const cls = ['card', 'bsec'];
+      if (boardTab === p) cls.push('tab-on');
       if (aims.target === p) cls.push('target-active');
       if (out) cls.push('eliminated');
-      return `<section class="${cls.join(' ')}">
+      return `<section class="${cls.join(' ')}" data-owner="${p}">
         <div class="row between"><h2>${nm(p)}'s waters</h2>${out ? '<span class="pill out">Sunk</span>' : ''}</div>
         ${boardHTML({ owner: p, ships: over ? G.fleets[p] : null, clickable: myTurn && !out, fresh: true })}
         ${fleetListHTML(p)}
       </section>`;
     }).join('');
-    body = `${callOutHTML()}${myTurn ? cheatBarHTML() + backpackBarHTML(G.pack || [], 'battleship', !busy) + (sonarLoot ? '<p class="status">📡 Tap a square on an opponent\'s board to ping the 3×3 patch around it.</p>' : '') : ''}${over ? cheatLogHTML() : ''}${feedHTML()}
+    body = `${callOutHTML()}${sonarLoot && myTurn ? '<p class="status">📡 Tap a square on an opponent\'s board to ping the 3×3 patch around it.</p>' : ''}${peekMode && myTurn ? '<p class="status">👀 Tap a square on an opponent\'s board to peek.</p>' : ''}
+      ${tabs}
       <div class="boards">${targets}
-        <section class="card"><div class="row between"><h2>Your fleet</h2>${imOut ? '<span class="pill out">Sunk</span>' : ''}</div>
+        <section class="card bsec ${boardTab === me.id ? 'tab-on' : ''}" data-owner="${me.id}"><div class="row between"><h2>Your fleet</h2>${imOut ? '<span class="pill out">Sunk</span>' : ''}</div>
           ${boardHTML({ owner: me.id, ships: G.fleets[me.id], fresh: true })}
           ${fleetListHTML(me.id)}
           <p class="muted small">Yellow outlines mark the latest shots.</p></section>
       </div>
+      ${myTurn ? cheatBarHTML() + backpackBarHTML(G.pack || [], 'battleship', !busy) : ''}${over ? cheatLogHTML() : ''}${feedHTML()}
       ${legend}`;
   }
 
@@ -873,7 +895,17 @@ function renderGame() {
     </header>
     ${body}
     ${canDelete ? `<p><button class="link danger" id="del">Delete this game</button></p>` : ''}
-    ${myTurn ? `<div class="firebar"><span id="aimtext">${aims.target ? `Aimed ${aims.cells.size} of ${need} at ${nm(aims.target)}` : 'Tap squares to aim'}</span><button class="fire" id="fire" ${aims.target && aims.cells.size === need && !busy ? '' : 'disabled'}>Fire!</button><span class="error" id="fireerr" hidden></span></div>` : ''}`);
+    ${myTurn ? `<div class="firebar">
+      <span class="aimwrap"><span class="aimdots" aria-hidden="true">${Array.from({ length: need }, (_, i) => `<i class="${i < aims.cells.size ? 'on' : ''}"></i>`).join('')}</span>
+      <span id="aimtext">${aims.target ? (aims.cells.size === need ? `Ready: ${need} at ${nm(aims.target)}` : `Aimed ${aims.cells.size} of ${need}`) : `Tap ${need === 1 ? 'a square' : `${need} squares`} to aim`}</span></span>
+      ${aims.cells.size ? '<button class="link" id="clearAim">Clear</button>' : ''}
+      <button class="fire ${aims.target && aims.cells.size === need && !busy ? 'ready' : ''}" id="fire" ${aims.target && aims.cells.size === need && !busy ? '' : 'disabled'}>Fire!</button><span class="error" id="fireerr" hidden></span></div>` : ''}`);
+  document.body.classList.toggle('has-firebar', myTurn);
+  const fb = app.querySelector('.firebar');   // keep the ▶ Next chip and 🔊 above it, whatever its height
+  if (fb) document.documentElement.style.setProperty('--fbh', `${Math.ceil(fb.getBoundingClientRect().height)}px`);
+  app.querySelectorAll('[data-tab]').forEach((b) => { b.onclick = () => showBoard(b.dataset.tab); });
+  const clr = document.getElementById('clearAim');
+  if (clr) clr.onclick = () => { aims = { target: null, cells: new Set() }; renderGame(); };
 
   if (channel) { const l = document.getElementById('live'); l.classList.toggle('off', channel.state !== 'joined'); }
   fsRefresh();
@@ -910,6 +942,7 @@ function renderGame() {
     if (aims.cells.has(cell)) aims.cells.delete(cell);
     else if (aims.cells.size < max) aims.cells.add(cell);
     else if (max === 1) aims.cells = new Set([cell]);
+    navigator.vibrate?.(8);
     renderGame();
   }));
 

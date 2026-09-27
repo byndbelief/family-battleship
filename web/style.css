@@ -246,3 +246,31 @@ body.quake { animation: quake .45s linear 1; }
   .nfull { display: none; } .nshort { display: inline; }
   #newgame.card { padding: 14px; }
 }
+
+/* ---------------------------------------------------------------- Battleship on phones */
+.boardtabs { display: none; }
+@media (max-width: 640px) {
+  .boardtabs { display: flex; gap: 6px; overflow-x: auto; position: sticky; top: 0; z-index: 4; background: var(--bg); padding: 6px 0; margin: -6px 0; }
+  .boardtabs button { flex: 1 1 0; min-width: 0; min-height: 48px; padding: 6px 8px; border-radius: 12px; font-weight: 700; font-size: 14px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .boardtabs button small { display: block; font-weight: 400; font-size: 12px; color: var(--muted); margin: 0; }
+  .boardtabs button[aria-selected=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .boardtabs button[aria-selected=true] small { color: inherit; opacity: .85; }
+  .boards .bsec:not(.tab-on) { display: none; }
+  .boards .bsec { padding: 12px; }
+  .boards .bsec h2 { font-size: 16px; }
+}
+.firebar { gap: 10px; flex-wrap: nowrap; justify-content: space-between; }
+.firebar .aimwrap { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.firebar #aimtext { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.firebar #clearAim { flex: none; }
+.firebar .error { position: absolute; left: 16px; right: 16px; bottom: 100%; background: var(--paper); padding: 6px 10px; }
+.firebar .aimdots { display: flex; gap: 5px; }
+.firebar .aimdots i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--hit); }
+.firebar .aimdots i.on { background: var(--hit); }
+.firebar #aimtext { font-weight: 700; }
+.firebar .fire { min-height: 52px; min-width: 110px; font-size: 18px; }
+.firebar .fire.ready { animation: readyPulse 1.2s ease-in-out infinite; }
+@keyframes readyPulse { 50% { transform: scale(1.06); box-shadow: 0 0 0 6px #D8403A33; } }
+@media (prefers-reduced-motion: reduce) { .firebar .fire.ready { animation: none; } }
+body.has-firebar #nextUp, body.has-firebar #sfxToggle { bottom: calc(var(--fbh, 80px) + 10px) !important; }
+body.has-firebar { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }

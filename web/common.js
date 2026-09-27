@@ -19,7 +19,7 @@ fsStyle.textContent = `
   .fs-on{position:fixed!important;inset:0;z-index:60;margin:0!important;max-width:none!important;width:auto!important;overflow:auto;overscroll-behavior:contain;
     background:var(--bg,#101024);box-sizing:border-box;padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))}
   body.fs-lock{overflow:hidden}
-  body.fs-lock #sfxToggle{bottom:auto;top:calc(8px + env(safe-area-inset-top,0px))}`;
+  body.fs-lock #sfxToggle{bottom:auto!important;top:calc(8px + env(safe-area-inset-top,0px))}`;
 document.head.appendChild(fsStyle);
 const fsNative = () => document.fullscreenElement || document.webkitFullscreenElement;
 function fsLabels() {
