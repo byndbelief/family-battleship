@@ -310,6 +310,7 @@ async function renderAlerts() {
     unsupported: `<p class="muted">This browser can't show turn alerts. The game still updates live while it's open.</p>`,
   }[st];
   box.innerHTML = `<h2>Turn alerts</h2>${text}`;
+  const t = document.getElementById('alertsT'); if (t) t.textContent = st === 'on' ? '🔔 On' : st === 'off' ? '🔔 Turn on alerts' : '🔔 Alerts';
   const btn = document.getElementById('alertsOn');
   if (btn) btn.onclick = async () => {
     btn.disabled = true;
@@ -339,7 +340,7 @@ async function lobby() {
   view(`
     <div class="lobby">
       <header class="row between">
-        <div class="stack"><span class="eyebrow">Family Game Room</span><h1>Ahoy, ${esc(me.username)}</h1></div>
+        <div class="stack lobhead"><span class="eyebrow">Family Game Room</span><h1>Ahoy, ${esc(me.username)}</h1></div>
         <button class="link" id="signout">Sign out</button>
       </header>
       <section class="stack upsec" id="upSec" hidden>
@@ -381,6 +382,11 @@ async function lobby() {
         <div id="games"><p class="muted">Loading games…</p></div>
       </section>
       <div class="lobby-cols">
+        <div class="lobtoggles" role="group" aria-label="More">
+          <button type="button" data-show="packCard" aria-expanded="false">🎒 Backpack <b id="packN"></b></button>
+          <button type="button" data-show="chaosCard" aria-expanded="false">🌀 Chaos <b id="chaosN"></b></button>
+          <button type="button" data-show="alerts" aria-expanded="false" id="alertsT">🔔 Alerts</button>
+        </div>
         <section class="card" id="packCard" hidden></section>
         <section class="card" id="chaosCard" hidden></section>
       </div>
@@ -455,12 +461,23 @@ async function lobby() {
     else location.href = `${k}.html#game=${data}`;
   });
   renderAlerts();
+  // Phones: Backpack, Chaos feed and Turn alerts sit behind one row of small buttons.
+  app.querySelectorAll('[data-show]').forEach((b) => { b.onclick = () => {
+    const el = document.getElementById(b.dataset.show), on = !el.classList.contains('show');
+    app.querySelectorAll('[data-show]').forEach((o) => { document.getElementById(o.dataset.show).classList.remove('show'); o.setAttribute('aria-expanded', 'false'); });
+    if (on) { el.classList.add('show'); b.setAttribute('aria-expanded', 'true'); }
+  }; });
   const reload = () => { loadGames(); loadChaos(); };
   setChannel(['games', 'golf_games', 'duel_games', 'gauntlets', 'chaos_events'].reduce(
     (ch, table) => ch.on('postgres_changes', { event: '*', schema: 'public', table }, reload), sb.channel('lobby'))
     .subscribe((st) => { const l = document.getElementById('live'); if (l) l.classList.toggle('off', st !== 'SUBSCRIBED'); }));
   loadGames(); loadChaos();
+  // Deletes don't always arrive over realtime, so also refresh when you come back and every 30s.
+  clearInterval(lobbyTimer);
+  lobbyTimer = setInterval(() => { if (!document.hidden && document.getElementById('games')) reload(); }, 30000);
 }
+let lobbyTimer = null;
+document.addEventListener('visibilitychange', () => { if (!document.hidden && document.getElementById('games')) { loadGames(); loadChaos(); } });
 
 // ---- your games, as a list of game states
 async function loadGames() {
@@ -473,7 +490,10 @@ async function loadGames() {
   const list = document.getElementById('games');
   if (!list) return;
   if (bsRes.error) { list.innerHTML = `<p class="error">Couldn't load games: ${esc(friendly(bsRes.error))}</p>`; return; }
-  const bs = bsRes.data ?? [], golf = golfRes.data ?? [], duel = duelRes.data ?? [], gts = gtRes.data ?? [];
+  const bs = bsRes.data ?? [], golf = golfRes.data ?? [], duel = duelRes.data ?? [];
+  // A Gauntlet still in progress whose current round is gone (deleted) is dead; don't list it.
+  const alive = new Set([...bs, ...golf, ...duel].map((g) => g.id));
+  const gts = (gtRes.data ?? []).filter((g) => g.status === 'over' || alive.has(g.current_game));
   const bsIds = bs.map((g) => g.id), golfIds = golf.map((g) => g.id);
   const [{ data: myFleets }, { data: atMe }, { data: golfTurns }] = await Promise.all([
     bsIds.length ? sb.from('fleets').select('game_id, ships').eq('player_id', me.id).in('game_id', bsIds) : { data: [] },
@@ -665,6 +685,7 @@ async function loadChaos() {
   packCard.hidden = false;
   const others = Object.entries(names).filter(([id]) => id !== me.id && !bots.has(id));
   const packMore = Object.keys(counts).length - 3;
+  const pn = document.getElementById('packN'); if (pn) pn.textContent = items.length || '';
   packCard.innerHTML = `<div class="row between"><h2>🎒 Backpack</h2>${packMore > 0 ? `<button type="button" class="link" id="packMore" aria-expanded="${packOpen}">${packOpen ? 'Show less' : `Show ${packMore} more`}</button>` : ''}</div>
     ${items.length ? `<ul class="pack">${Object.entries(counts).map(([it, ids], i) => `<li ${i >= 3 && !packOpen ? 'hidden' : ''}><span class="big">${ITEMS[it].icon}</span><span><strong>${ITEMS[it].name}${ids.length > 1 ? ` ×${ids.length}` : ''}</strong><br><span class="muted small">${ITEMS[it].desc} ${ITEMS[it].game === 'any' ? '' : `Use it in ${KIND_ICON[ITEMS[it].game]} ${KIND_NAME[ITEMS[it].game]}.`}</span></span></li>`).join('')}</ul>`
       : '<p class="muted small">Empty. Good plays in any game can drop loot: hits, sinkings, birdies, holes in one, big shell hits.</p>'}
@@ -684,6 +705,8 @@ async function loadChaos() {
   };
   const feed = feedRes.data ?? [];
   feedCard.hidden = !feed.length;
+  const cn = document.getElementById('chaosN'), fresh = feed.filter((e) => !e.seen_at).length;
+  if (cn) { cn.textContent = fresh ? `${fresh} new` : ''; cn.closest('button').hidden = !feed.length; }
   const more = feed.length - 3;
   feedCard.innerHTML = `<div class="row between"><h2>🌀 Chaos feed</h2>${more > 0 ? `<button type="button" class="link" id="feedMore" aria-expanded="${feedOpen}">${feedOpen ? 'Show less' : `Show ${more} more`}</button>` : ''}</div>
     <ul class="chaosfeed">${feed.map((e, i) => `<li class="${e.seen_at ? '' : 'new'}" ${i >= 3 && !feedOpen ? 'hidden' : ''}><span class="big">${e.icon}</span><span>${esc(e.message)}<br><span class="muted small">${new Date(e.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span></span></li>`).join('')}</ul>`;

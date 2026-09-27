@@ -290,3 +290,29 @@ body.has-firebar { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)
 }
 #app.fs-on header h1, #app.fs-on .gsub, #app.fs-on .players, #app.fs-on .legend, #app.fs-on #feedFold, #app.fs-on #del,
 #app.fs-on .fleet-list, #app.fs-on .bsec > p.muted.small, #app.fs-on .cheatlog { display: none !important; }
+
+/* ---------------------------------------------------------------- lobby on phones: compact */
+.lobtoggles { display: none; }
+@media (max-width: 640px) {
+  .lobby { gap: 14px; }
+  .lobby .lobhead { gap: 0; }
+  .lobby .lobhead h1 { font-size: 22px; }
+  .lobby h2 { font-size: 18px; }
+  .lobby-cols { display: flex; flex-direction: column; gap: 10px; }
+  .lobtoggles { display: flex; gap: 8px; overflow-x: auto; }
+  .lobtoggles button { flex: none; min-height: 40px; padding: 6px 12px; border-radius: 99px; font-weight: 700; font-size: 14px; white-space: nowrap; }
+  .lobtoggles button b { background: var(--flag); color: var(--flag-ink); border-radius: 99px; padding: 0 7px; font-size: 12px; }
+  .lobtoggles button b:empty { display: none; }
+  .lobtoggles button[aria-expanded=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  #packCard:not(.show), #chaosCard:not(.show), #alerts:not(.show) { display: none !important; }
+  /* Your move: slim horizontal cards, picture on the left */
+  .upstrip { grid-auto-columns: 86%; gap: 10px; padding-bottom: 6px; }
+  .upcard { flex-direction: row; align-items: stretch; }
+  .upcard .preview { width: 40%; aspect-ratio: 16 / 10; height: auto; flex: none; align-self: center; }
+  .upcard .upbody { padding: 8px 10px; gap: 1px; font-size: 14px; }
+  .upcard .upgo { margin-top: 4px; padding: 2px 12px; }
+  .upnav { width: 34px; height: 34px; font-size: 20px; }
+  .ncard .preview { aspect-ratio: 4 / 3; }
+  .grow { padding: 6px 10px 6px 6px; gap: 10px; }
+  .glist { gap: 6px; }
+}
