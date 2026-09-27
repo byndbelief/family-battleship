@@ -71,8 +71,8 @@ function setChannel(ch) {
   channel = ch;
 }
 // Ask the server to send "your turn" alerts. Never blocks the game.
-function notify(gameId) {
-  sb.functions.invoke('notify', { body: { game_id: gameId } }).catch(() => {});
+function notify(gameId, kind = 'battleship') {
+  sb.functions.invoke('notify', { body: { game_id: gameId, kind } }).catch(() => {});
 }
 
 // ---------------------------------------------------------------- battle effects
@@ -317,7 +317,7 @@ async function lobby() {
   view(`
     <div class="narrow">
       <header class="row between">
-        <div class="stack"><span class="eyebrow">Family Battleship</span><h1>Ahoy, ${esc(me.username)}</h1></div>
+        <div class="stack"><span class="eyebrow">Family Game Room</span><h1>Ahoy, ${esc(me.username)}</h1></div>
         <button class="link" id="signout">Sign out</button>
       </header>
       <section class="card">
@@ -327,13 +327,24 @@ async function lobby() {
       <section class="card">
         <h2>New game</h2>
         <form id="newgame" class="stack" style="gap:14px">
-          <div class="stack"><span class="eyebrow">Opponents (pick one, or two for a 3-way battle)</span>
-            <div class="choice">${others.map(([id, u]) => `<button type="button" class="chip" data-opp="${esc(u)}" aria-pressed="false">${bots.has(id) ? '🤖 ' : ''}${esc(u)}${bots.has(id) ? ' (robot)' : ''}</button>`).join('')}</div>
+          <div class="stack"><span class="eyebrow">Game</span>
+            <div class="choice">
+              <label><input type="radio" name="kind" value="battleship" checked>⚓ Battleship</label>
+              <label><input type="radio" name="kind" value="golf">⛳ Putt Post</label>
+              <label><input type="radio" name="kind" value="duel">💥 Hilltop Duel</label>
+            </div></div>
+          <div class="stack"><span class="eyebrow" id="oppHint">Opponents (pick one, or two for a 3-way battle)</span>
+            <div class="choice">${others.map(([id, u]) => `<button type="button" class="chip" data-opp="${esc(u)}" data-id="${id}" aria-pressed="false">${bots.has(id) ? '🤖 ' : ''}${esc(u)}${bots.has(id) ? ' (robot)' : ''}</button>`).join('')}</div>
             ${bots.size ? '<p class="muted small">The robot plays its turn the instant yours ends. It hunts smart, cheats now and then, and will call you out.</p>' : ''}</div>
-          <div class="stack"><span class="eyebrow">Board</span>
+          <div class="stack" data-for="battleship"><span class="eyebrow">Board</span>
             <div class="choice"><label><input type="radio" name="mode" value="0">Quick 8×8 · 4 ships</label><label><input type="radio" name="mode" value="1" checked>Classic 10×10 · 5 ships</label></div></div>
-          <div class="stack"><span class="eyebrow">Shots per turn</span>
+          <div class="stack" data-for="battleship"><span class="eyebrow">Shots per turn</span>
             <div class="choice"><label><input type="radio" name="spt" value="1">1 shot</label><label><input type="radio" name="spt" value="3" checked>3 shots</label></div></div>
+          <div class="stack" data-for="golf" hidden><span class="eyebrow">Course</span>
+            <div class="choice"><label><input type="radio" name="course" value="0,18" checked>All 18</label><label><input type="radio" name="course" value="0,9">Front 9</label><label><input type="radio" name="course" value="9,9">Back 9</label></div>
+            <div class="choice"><label><input type="checkbox" id="golfRandom" checked>Random obstacles</label></div></div>
+          <div class="stack" data-for="botlevel" hidden><span class="eyebrow">Robot skill</span>
+            <div class="choice"><label><input type="radio" name="botlvl" value="0">🟢 Rookie</label><label><input type="radio" name="botlvl" value="1" checked>🟡 Pro</label><label><input type="radio" name="botlvl" value="2">🔴 Ace</label></div></div>
           <p class="error" id="newerr" hidden></p>
           <div><button class="primary" type="submit" id="start" disabled>Start game</button></div>
         </form>
@@ -343,48 +354,91 @@ async function lobby() {
   document.getElementById('signout').onclick = signOut;
   const chips = [...app.querySelectorAll('[data-opp]')];
   const start = document.getElementById('start');
+  const kind = () => app.querySelector('input[name=kind]:checked').value;
+  const picked = () => chips.filter((x) => x.getAttribute('aria-pressed') === 'true');
+  // Each game allows a different number of opponents.
+  const LIMITS = { battleship: [1, 2, 'Opponents (pick one, or two for a 3-way battle)'], golf: [0, 3, 'Opponents (none for a solo round, up to three)'], duel: [1, 1, 'Opponent (pick one)'] };
+  const refreshForm = () => {
+    const k = kind(), [lo, hi, hint] = LIMITS[k];
+    let sel = picked();
+    while (sel.length > hi) { sel[0].setAttribute('aria-pressed', 'false'); sel = picked(); }
+    document.getElementById('oppHint').textContent = hint;
+    app.querySelectorAll('[data-for]').forEach((el) => {
+      el.hidden = el.dataset.for === 'botlevel' ? !(k !== 'battleship' && sel.some((c) => bots.has(c.dataset.id))) : el.dataset.for !== k;
+    });
+    start.disabled = sel.length < lo || sel.length > hi;
+    start.textContent = k === 'golf' && sel.length === 0 ? 'Start a solo round' : 'Start game';
+  };
   chips.forEach((c) => c.addEventListener('click', () => {
     c.setAttribute('aria-pressed', c.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
-    start.disabled = !chips.some((x) => x.getAttribute('aria-pressed') === 'true');
+    if (kind() === 'duel') chips.forEach((o) => { if (o !== c) o.setAttribute('aria-pressed', 'false'); });
+    refreshForm();
   }));
+  app.querySelectorAll('input[name=kind]').forEach((r) => r.addEventListener('change', refreshForm));
+  refreshForm();
   document.getElementById('newgame').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const opponents = chips.filter((x) => x.getAttribute('aria-pressed') === 'true').map((x) => x.dataset.opp);
-    const mode = +app.querySelector('input[name=mode]:checked').value;
-    const spt = +app.querySelector('input[name=spt]:checked').value;
+    const opponents = picked().map((x) => x.dataset.opp);
+    const k = kind(), botLevel = +app.querySelector('input[name=botlvl]:checked').value;
     start.disabled = true;
-    const { data, error } = await sb.rpc('create_game', { opponents, p_mode: mode, p_spt: spt });
+    let res;
+    if (k === 'golf') {
+      const [st, ct] = app.querySelector('input[name=course]:checked').value.split(',').map(Number);
+      res = await sb.rpc('golf_create', { opponents, p_start: st, p_count: ct, p_random: document.getElementById('golfRandom').checked, p_bot_level: botLevel });
+    } else if (k === 'duel') {
+      res = await sb.rpc('duel_create', { p_opponent: opponents[0], p_bot_level: botLevel });
+    } else {
+      res = await sb.rpc('create_game', { opponents, p_mode: +app.querySelector('input[name=mode]:checked').value, p_spt: +app.querySelector('input[name=spt]:checked').value });
+    }
+    const { data, error } = res;
     if (error) { const el = document.getElementById('newerr'); el.hidden = false; el.textContent = friendly(error); start.disabled = false; return; }
-    notify(data);
-    location.hash = `game=${data}`;
+    notify(data, k);
+    if (k === 'battleship') location.hash = `game=${data}`;
+    else location.href = `${k}.html#game=${data}`;
   });
   renderAlerts();
   setChannel(sb.channel('lobby')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, () => loadGames())
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'golf_games' }, () => loadGames())
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'duel_games' }, () => loadGames())
     .subscribe((s) => { const l = document.getElementById('live'); if (l) l.classList.toggle('off', s !== 'SUBSCRIBED'); }));
   loadGames();
 }
 
 async function loadGames() {
-  const [{ data: games, error }, { data: placed }] = await Promise.all([
+  const [{ data: games, error }, { data: placed }, golfRes, duelRes] = await Promise.all([
     sb.from('games').select('*').order('updated_at', { ascending: false }),
     sb.from('fleets').select('game_id').eq('player_id', me.id),
+    sb.from('golf_games').select('*').order('updated_at', { ascending: false }),
+    sb.from('duel_games').select('*').order('updated_at', { ascending: false }),
   ]);
   const list = document.getElementById('games');
   if (!list) return;
   if (error) { list.innerHTML = `<li class="error">Couldn't load games: ${esc(friendly(error))}</li>`; return; }
-  if (!games.length) { list.innerHTML = `<li class="muted">No games yet. Start one below.</li>`; return; }
   const mine = new Set((placed ?? []).map((f) => f.game_id));
-  list.innerHTML = games.map((g) => {
-    const vs = g.players.filter((p) => p !== me.id).map(nm).join(' & ');
+  const turnPill = (id) => (id === me.id ? `<span class="pill turn">Your turn</span>` : `<span class="pill wait">${nm(id)}'s turn</span>`);
+  const vsOf = (players) => { const o = players.filter((p) => p !== me.id); return o.length ? `vs <strong>${o.map(nm).join(' & ')}</strong>` : '<strong>Solo round</strong>'; };
+  const rows = [];
+  (games ?? []).forEach((g) => {
     let pill;
     if (g.status === 'over') pill = g.winner === me.id ? `<span class="pill done">You won</span>` : `<span class="pill done">${nm(g.winner)} won</span>`;
     else if (g.status === 'setup') pill = mine.has(g.id) ? `<span class="pill wait">Waiting for ships</span>` : `<span class="pill turn">Place your ships</span>`;
     else if (g.eliminated.includes(me.id)) pill = `<span class="pill out">You're out</span>`;
-    else pill = g.players[g.turn] === me.id ? `<span class="pill turn">Your turn</span>` : `<span class="pill wait">${nm(g.players[g.turn])}'s turn</span>`;
-    return `<li><button data-game="${g.id}"><span>vs <strong>${vs}</strong><br><span class="muted small">${g.players.length}-player · ${MODES[g.mode].n}×${MODES[g.mode].n}${g.move ? ` · move ${g.move}` : ''}</span></span>${pill}</button></li>`;
-  }).join('');
-  list.querySelectorAll('[data-game]').forEach((b) => b.addEventListener('click', () => { location.hash = `game=${b.dataset.game}`; }));
+    else pill = turnPill(g.players[g.turn]);
+    rows.push({ at: g.updated_at, href: `#game=${g.id}`, html: `<span>⚓ ${vsOf(g.players)}<br><span class="muted small">Battleship · ${g.players.length}-player · ${MODES[g.mode].n}×${MODES[g.mode].n}${g.move ? ` · move ${g.move}` : ''}</span></span>${pill}` });
+  });
+  (golfRes.data ?? []).forEach((g) => {
+    const n = g.players.length, hole = g.start + Math.floor(g.t / n) + 1;
+    const pill = g.status === 'over' ? `<span class="pill done">Finished</span>` : turnPill(g.players[g.t % n]);
+    rows.push({ at: g.updated_at, href: `golf.html#game=${g.id}`, html: `<span>⛳ ${vsOf(g.players)}<br><span class="muted small">Putt Post · ${g.status === 'over' ? `${g.count} holes` : `hole ${hole} of ${g.start + g.count}`}</span></span>${pill}` });
+  });
+  (duelRes.data ?? []).forEach((g) => {
+    const pill = g.status === 'over' ? (g.winner === me.id ? `<span class="pill done">You won</span>` : `<span class="pill done">${nm(g.winner)} won</span>`) : turnPill(g.players[g.turn]);
+    rows.push({ at: g.updated_at, href: `duel.html#game=${g.id}`, html: `<span>💥 ${vsOf(g.players)}<br><span class="muted small">Hilltop Duel · ${g.hp[0]}–${g.hp[1]}${g.move ? ` · shot ${g.move}` : ''}</span></span>${pill}` });
+  });
+  if (!rows.length) { list.innerHTML = `<li class="muted">No games yet. Start one below.</li>`; return; }
+  rows.sort((a, b) => (a.at < b.at ? 1 : -1));
+  list.innerHTML = rows.map((r) => `<li><a class="gamebtn" href="${r.href}">${r.html}</a></li>`).join('');
 }
 
 // ---------------------------------------------------------------- game

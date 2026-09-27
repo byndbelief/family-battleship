@@ -168,3 +168,8 @@ body.quake { animation: quake .45s linear 1; }
 .callout { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; border-radius: 14px; padding: 12px 14px; background: #D8403A1f; border: 1.5px solid #D8403A66; }
 .feed li.accuse { border-color: #B37BFF; }
 .skipnote { font-size: 12px; }
+
+/* game list rows are links now (they can open other pages) */
+.games a.gamebtn { display: flex; justify-content: space-between; align-items: center; gap: 10px; text-decoration: none; color: var(--ink);
+  border: 1.5px solid var(--line); border-radius: 10px; padding: 10px 16px; background: var(--paper); }
+.games a.gamebtn:focus-visible { outline: 3px solid var(--flag); outline-offset: 2px; }

@@ -1,4 +1,9 @@
-# Family Battleship
+# Family Game Room
+
+Three games behind one login: ⚓ Battleship, ⛳ Putt Post (mini golf) and 💥 Hilltop Duel (artillery).
+Every game shows in one list, and turn alerts cover all three.
+
+## Battleship
 
 Live Battleship for three players: `dad_commander`, `phoenix_lord` and `obanai_rocks`.
 Games are one-on-one or a three-way battle. Moves show up instantly on any open
@@ -40,13 +45,25 @@ sees what the board shows, plus whatever it peeks at.
 Setup: add a user `admiral_bot@<your domain>` in Supabase (any long random password, Auto
 Confirm), and run `003_robot.sql`. Either order works.
 
+## Putt Post and Hilltop Duel
+
+`web/golf.html` and `web/duel.html`, with `supabase/migrations/004_golf_and_duel.sql`.
+Both run their physics in the browser (the same code on every phone, so a putt or a shell
+replays identically for everyone); the server keeps turns, scores, secret cheats, sneak attacks,
+accusations and personal bests. The robot plays both: its moves are worked out on the device of
+the player who went before it, then saved.
+
+Putt Post: 18 holes, 1-4 players (solo rounds keep a personal best), random obstacles, sneak
+attacks, cheats you can be busted for, and the robot at Rookie / Pro / Ace. Hilltop Duel: two
+tanks, destructible hills, wind, and a robot gunner.
+
 ## One-time setup
 
 ### 1. Supabase (free plan)
 
 1. Create a project at https://supabase.com.
 2. **SQL Editor** → paste all of `supabase/schema.sql` → **Run**.
-   Then do the same with each file in `supabase/migrations/`, in order.
+   Then do the same with each file in `supabase/migrations/`, in order (002, 003, 004).
 3. **Authentication → Sign In / Providers**: turn **off** "Allow new users to sign up"
    (only the three players below may play), and turn off "Confirm email".
 4. **Authentication → Users → Add user → Create new user**, three times, with

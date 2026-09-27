@@ -1,6 +1,6 @@
 {
-  "name": "Family Battleship",
-  "short_name": "Battleship",
+  "name": "Family Game Room",
+  "short_name": "Game Room",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

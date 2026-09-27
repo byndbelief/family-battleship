@@ -28,9 +28,9 @@ webpush.setVapidDetails(
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
 
-  let gameId: string;
+  let gameId: string, kind = 'battleship';
   try {
-    ({ game_id: gameId } = await req.json());
+    ({ game_id: gameId, kind = 'battleship' } = await req.json());
   } catch {
     return json({ error: 'Send {"game_id": "..."}' }, 400);
   }
@@ -42,6 +42,7 @@ Deno.serve(async (req) => {
   });
   const { data: { user } } = await caller.auth.getUser();
   if (!user) return json({ error: 'Sign in first' }, 401);
+  if (kind === 'golf' || kind === 'duel') return otherGame(kind, gameId, user.id, caller);
   const { data: game } = await caller.from('games').select('*').eq('id', gameId).maybeSingle();
   if (!game) return json({ error: 'Game not found' }, 404);
 
@@ -72,10 +73,37 @@ Deno.serve(async (req) => {
     title = 'New game';
     body = `${me} started a game with you. Place your ships.`;
   }
-  if (!recipients.length) return json({ sent: 0 });
+  return send(recipients, title, body, `./#game=${gameId}`, gameId);
+});
 
+// Putt Post and Hilltop Duel: tell whoever is up next.
+async function otherGame(kind: string, gameId: string, callerId: string, caller: ReturnType<typeof createClient>) {
+  const { data: game } = await caller.from(kind === 'golf' ? 'golf_games' : 'duel_games').select('*').eq('id', gameId).maybeSingle();
+  if (!game) return json({ error: 'Game not found' }, 404);
+  const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  const { data: profiles } = await admin.from('profiles').select('id, username').in('id', game.players);
+  const name = (id: string) => profiles?.find((p) => p.id === id)?.username ?? 'Someone';
+  const others = (game.players as string[]).filter((id) => id !== callerId);
+  const label = kind === 'golf' ? 'Putt Post' : 'Hilltop Duel';
+  let recipients: string[] = [], title = label, body = '';
+  if (game.status === 'over') {
+    recipients = others;
+    title = `${label}: game over`;
+    body = kind === 'duel' ? `${name(game.winner)} took the hill. Tap to see.` : 'The round is over. Tap for the final scores.';
+  } else {
+    const next = kind === 'golf' ? game.players[game.t % game.players.length] : game.players[game.turn];
+    if (next !== callerId) recipients = [next];
+    title = `Your turn: ${label}`;
+    body = kind === 'golf' ? `Hole ${game.start + Math.floor(game.t / game.players.length) + 1} is waiting. ${name(callerId)} just played.` : `${name(callerId)} just fired. Your shot.`;
+  }
+  return send(recipients, title, body, `./${kind}.html#game=${gameId}`, gameId);
+}
+
+async function send(recipients: string[], title: string, body: string, url: string, gameId: string) {
+  if (!recipients.length) return json({ sent: 0 });
+  const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
   const { data: subs } = await admin.from('push_subscriptions').select('*').in('user_id', recipients);
-  const payload = JSON.stringify({ title, body, url: `./#game=${gameId}`, tag: `game-${gameId}` });
+  const payload = JSON.stringify({ title, body, url, tag: `game-${gameId}` });
   let sent = 0;
   await Promise.all((subs ?? []).map(async (s) => {
     try {
@@ -88,4 +116,4 @@ Deno.serve(async (req) => {
     }
   }));
   return json({ sent });
-});
+}
