@@ -288,7 +288,8 @@ export async function gauntletBar(gauntletId, gameId, meId, nameOf) {
   }
   const thisRound = done.findIndex((h) => h.game === gameId);
   const label = gt.status === 'over' ? 'Final' : `Round ${thisRound >= 0 ? thisRound + 1 : gt.round} of ${gt.rounds}`;
-  const html = `<div class="gtbar"><span class="gtt">🏆 Gauntlet · ${label}</span><span class="gtdots">${dots}</span><span class="gtscores">${table}</span>${go}</div>`;
+  const off = gt.status === 'playing' && gt.created_by === meId ? `<button type="button" class="gtoffbar" data-gtoff="${gt.id}">Call off</button>` : '';
+  const html = `<div class="gtbar"><span class="gtt">🏆 Gauntlet · ${label}</span><span class="gtdots">${dots}</span><span class="gtscores">${table}</span>${go}${off}</div>`;
   const now = document.getElementById('gtbar'); if (now) now.innerHTML = html;
   return html;
 }
@@ -297,6 +298,25 @@ document.addEventListener('click', (e) => {
   if (!a) return;
   const u = new URL(a.getAttribute('href'), location.href);
   if (u.pathname === location.pathname && !/\/(index\.html)?$/.test(u.pathname)) { e.preventDefault(); location.hash = u.hash; location.reload(); }
+});
+// Call off from the bar: tap twice (within 4s). Remembered here, not on the button, because
+// some pages redraw the bar between taps.
+let gtOffArmed = null, gtOffAt = 0;
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest?.('[data-gtoff]');
+  if (!b) return;
+  const id = b.dataset.gtoff;
+  if (gtOffArmed !== id || Date.now() - gtOffAt > 4000) {
+    gtOffArmed = id; gtOffAt = Date.now();
+    b.textContent = 'Tap to confirm'; b.classList.add('armed');
+    setTimeout(() => { if (b.isConnected && gtOffArmed === id && Date.now() - gtOffAt >= 4000) { b.textContent = 'Call off'; b.classList.remove('armed'); } }, 4100);
+    return;
+  }
+  gtOffArmed = null; b.disabled = true;
+  const { error } = await sb.rpc('gauntlet_delete', { p_gauntlet: id });
+  if (error) { note(error.message.replace(/^.*?ERROR:\s*/, ''), 'error'); b.disabled = false; return; }
+  note('Gauntlet called off.');
+  setTimeout(() => { location.href = './'; }, 900);
 });
 const gtCss = document.createElement('style');
 gtCss.textContent = `
@@ -309,6 +329,11 @@ gtCss.textContent = `
   .gtbar .gtscores{display:flex;flex-wrap:wrap;gap:8px}
   .gtbar .gtp b{color:#FFC857}
   .gtbar .gtp.lead{color:#fff}
+  .gtbar .gtoffbar{min-height:30px;padding:3px 10px;border-radius:99px;font:700 12px/1 system-ui,sans-serif;background:#00000044;color:#F3D9A6;border:1.5px solid #FFC85766;cursor:pointer}
+  .gtbar .gtoffbar.armed{background:#C0392B;color:#fff;border-color:#C0392B}
+  .gtbar .gtoffbar:first-child,.gtbar .gtgo + .gtoffbar{margin-left:0}
+  .gtbar > .gtoffbar{margin-left:auto}
+  .gtbar .gtgo + .gtoffbar{margin-left:0}
   .gtbar .gtgo{margin-left:auto;background:#FFC857;color:#2A1600;border-radius:99px;padding:6px 14px;font-weight:800;text-decoration:none;animation:gtPulse 1.4s ease-in-out infinite}
   @keyframes gtPulse{50%{transform:scale(1.05)}}
   @media (prefers-reduced-motion:reduce){.gtbar .gtgo{animation:none}}
