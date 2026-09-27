@@ -53,8 +53,11 @@ takes a bare username.
 - **Database:** every schema change is a new numbered, re-runnable file in
   `supabase/migrations/` (use `create or replace`, `drop trigger if exists`, etc.).
   Commit it, then apply it. With the Supabase connector, apply via `apply_migration`;
-  otherwise the owner pastes it into Supabase → SQL Editor. **All of `schema.sql` and
-  002–007 are applied to production** (verified 2026-09-27).
+  otherwise the owner pastes it into Supabase → SQL Editor.
+- **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
+  identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
+  `008_…` onward, applied with `apply_migration` under the same name so Supabase's history
+  matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.
 - Ask before running anything destructive against production data.
