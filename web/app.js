@@ -584,6 +584,7 @@ function drawPreview(cv, card, myFleets, atMe) {
 
 // ---- backpack and chaos feed
 let feedOpen = false;   // the feed shows its last 3 events until expanded
+let packOpen = false;   // the backpack shows its first 3 kinds of item until expanded
 async function loadChaos() {
   const packCard = document.getElementById('packCard'), feedCard = document.getElementById('chaosCard');
   if (!packCard) return;
@@ -592,10 +593,17 @@ async function loadChaos() {
   const counts = {}; items.forEach((l) => { (counts[l.item] ||= []).push(l.id); });
   packCard.hidden = false;
   const others = Object.entries(names).filter(([id]) => id !== me.id && !bots.has(id));
-  packCard.innerHTML = `<h2>🎒 Backpack</h2>
-    ${items.length ? `<ul class="pack">${Object.entries(counts).map(([it, ids]) => `<li><span class="big">${ITEMS[it].icon}</span><span><strong>${ITEMS[it].name}${ids.length > 1 ? ` ×${ids.length}` : ''}</strong><br><span class="muted small">${ITEMS[it].desc} ${ITEMS[it].game === 'any' ? '' : `Use it in ${KIND_ICON[ITEMS[it].game]} ${KIND_NAME[ITEMS[it].game]}.`}</span></span></li>`).join('')}</ul>`
+  const packMore = Object.keys(counts).length - 3;
+  packCard.innerHTML = `<div class="row between"><h2>🎒 Backpack</h2>${packMore > 0 ? `<button type="button" class="link" id="packMore" aria-expanded="${packOpen}">${packOpen ? 'Show less' : `Show ${packMore} more`}</button>` : ''}</div>
+    ${items.length ? `<ul class="pack">${Object.entries(counts).map(([it, ids], i) => `<li ${i >= 3 && !packOpen ? 'hidden' : ''}><span class="big">${ITEMS[it].icon}</span><span><strong>${ITEMS[it].name}${ids.length > 1 ? ` ×${ids.length}` : ''}</strong><br><span class="muted small">${ITEMS[it].desc} ${ITEMS[it].game === 'any' ? '' : `Use it in ${KIND_ICON[ITEMS[it].game]} ${KIND_NAME[ITEMS[it].game]}.`}</span></span></li>`).join('')}</ul>`
       : '<p class="muted small">Empty. Good plays in any game can drop loot: hits, sinkings, birdies, holes in one, big shell hits.</p>'}
     ${counts.scroll ? `<div class="row"><select id="curseWho">${others.map(([id, u]) => `<option value="${id}">${esc(u)}</option>`).join('')}</select><button id="curseGo">📜 Cast a curse</button></div><p class="small muted" id="curseMsg"></p>` : ''}`;
+  const pbtn = document.getElementById('packMore');
+  if (pbtn) pbtn.onclick = () => {
+    packOpen = !packOpen;
+    packCard.querySelectorAll('.pack li').forEach((li, i) => { li.hidden = i >= 3 && !packOpen; });
+    pbtn.setAttribute('aria-expanded', packOpen); pbtn.textContent = packOpen ? 'Show less' : `Show ${packMore} more`;
+  };
   const go = document.getElementById('curseGo');
   if (go) go.onclick = async () => {
     go.disabled = true;
