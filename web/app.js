@@ -27,7 +27,8 @@ const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 // ---------------------------------------------------------------- helpers
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const nm = (id) => esc(names[id] ?? 'someone');
+let bots = new Set();      // profile ids of robot players
+const nm = (id) => (bots.has(id) ? '🤖 ' : '') + esc(names[id] ?? 'someone');
 const cellName = (mode, i) => ROWS[Math.floor(i / MODES[mode].n)] + ((i % MODES[mode].n) + 1);
 function shipName(mode, idx) {
   const lens = MODES[mode].ships, L = lens[idx];
@@ -207,6 +208,8 @@ async function boot() {
 async function loadMe(uid) {
   const { data } = await sb.from('profiles').select('id, username');
   names = Object.fromEntries((data ?? []).map((p) => [p.id, p.username]));
+  const { data: botRows } = await sb.from('bots').select('profile_id');   // missing table = no robot yet
+  bots = new Set((botRows ?? []).map((b) => b.profile_id));
   me = { id: uid, username: names[uid] };
 }
 function route() {
@@ -324,8 +327,9 @@ async function lobby() {
       <section class="card">
         <h2>New game</h2>
         <form id="newgame" class="stack" style="gap:14px">
-          <div class="stack"><span class="eyebrow">Opponents (pick one, or both for a 3-way battle)</span>
-            <div class="choice">${others.map(([id, u]) => `<button type="button" class="chip" data-opp="${esc(u)}" aria-pressed="false">${esc(u)}</button>`).join('')}</div></div>
+          <div class="stack"><span class="eyebrow">Opponents (pick one, or two for a 3-way battle)</span>
+            <div class="choice">${others.map(([id, u]) => `<button type="button" class="chip" data-opp="${esc(u)}" aria-pressed="false">${bots.has(id) ? '🤖 ' : ''}${esc(u)}${bots.has(id) ? ' (robot)' : ''}</button>`).join('')}</div>
+            ${bots.size ? '<p class="muted small">The robot plays its turn the instant yours ends. It hunts smart, cheats now and then, and will call you out.</p>' : ''}</div>
           <div class="stack"><span class="eyebrow">Board</span>
             <div class="choice"><label><input type="radio" name="mode" value="0">Quick 8×8 · 4 ships</label><label><input type="radio" name="mode" value="1" checked>Classic 10×10 · 5 ships</label></div></div>
           <div class="stack"><span class="eyebrow">Shots per turn</span>
@@ -709,7 +713,7 @@ function playEffects() {
       if (game.winner === me.id) { stamp('Victory!'); if (!reduceMotion) fx.fireworks(10); } else stamp('Defeated', 'red', 2800);
     } else if (G.prevStatus === 'setup' && game.status === 'playing') {
       banner(nowMine ? 'Battle stations! You fire first' : 'Battle stations!');
-    } else if (nowMine && G.prevTurnMine === false) banner('Your turn');
+    } else if (nowMine && (G.prevTurnMine === false || fresh.some((s) => s.shooter !== me.id))) banner('Your turn');
   }, wait);
 }
 

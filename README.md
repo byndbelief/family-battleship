@@ -29,6 +29,17 @@ Cheats are secret until the game ends. After any turn, another player can
 turn; if they're wrong, the accuser fires one shot fewer next time. At the end,
 everyone sees who cheated and when, plus awards for Sneakiest and Sharpest eye.
 
+## The robot
+
+`admiral_bot` is a player that lives in the database (see `supabase/migrations/003_robot.sql`).
+Pick it as an opponent like anyone else, in a 1-on-1 or as part of a 3-way battle. It takes its
+turn the instant the player before it fires: it hunts on a checkerboard and finishes off ships it
+has hit, uses the same cheats (2 per game), and calls cheater when something looks off. It only
+sees what the board shows, plus whatever it peeks at.
+
+Setup: add a user `admiral_bot@<your domain>` in Supabase (any long random password, Auto
+Confirm), and run `003_robot.sql`. Either order works.
+
 ## One-time setup
 
 ### 1. Supabase (free plan)
