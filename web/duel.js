@@ -1,6 +1,6 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx } from './common.js';
 import { W, H, TANK_X, CRATER_R, BERTHA_R, rng, buildTop, windFor, tankPos, simulate, damage } from './duel-engine.js';
 
 const $ = (id) => document.getElementById(id);
@@ -78,6 +78,7 @@ function drawHint(t) {
 }
 function loop(t) { particles.forEach((q) => { q.x += q.vx; q.y += q.vy; q.vy += 0.12; q.life -= 0.018; }); particles = particles.filter((q) => q.life > 0); draw(t); requestAnimationFrame(loop); }
 function boom(x, y, big = 1) {
+  sfx('boom', { size: big });
   const cols = ['#FFF4D6', '#FFC857', '#FF6B5A', '#B79CFF'];
   for (let i = 0; i < 70 * big; i++) { const a = Math.random() * 6.28, v = Math.random() * 5 * big + 1; particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2, life: 1, s: Math.random() * 3 + 1, c: cols[i % 4] }); }
 }
@@ -89,6 +90,7 @@ function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1) {
     top = buildTop(G.game.seed, beforeCraters);
     const sim = simulate(G.game.seed, move, top, p, angle, power, windX);
     shot = { p, angle, path: sim.path, i: reduceMotion ? sim.path.length : 0 };
+    sfx('cannon'); if (!reduceMotion) sfx('whistle', { delay: 0.15, dur: Math.max(0.3, sim.path.length / 3 / 60 - 0.15) });
     const step = () => {
       shot.i = Math.min(shot.path.length, shot.i + 3);
       if (shot.i < shot.path.length) return requestAnimationFrame(step);
@@ -122,7 +124,7 @@ function render() {
       b.disabled = true;
       const { error } = await useLoot(+b.dataset.loot, g.id);
       if (error) { $('err').textContent = friendly(error); return; }
-      stamp(`${ITEMS[item].icon} ${ITEMS[item].name}!`, '', 1500);
+      stamp(`${ITEMS[item].icon} ${ITEMS[item].name}!`, '', 1500); sfx('pop');
       pack = await backpack(); await load(g.id); render();
     };
   });
@@ -170,7 +172,7 @@ async function decide() {
   }
   top = buildTop(g.seed, g.craters);
   render();
-  if (g.status === 'over') { stamp(g.winner === me.id ? 'Victory!' : 'Defeated', g.winner === me.id ? '' : 'red', 2800); return; }
+  if (g.status === 'over') { stamp(g.winner === me.id ? 'Victory!' : 'Defeated', g.winner === me.id ? '' : 'red', 2800); sfx(g.winner === me.id ? 'fanfare' : 'lose', { delay: 0.3 }); return; }
   const cur = turnId();
   if (isBot(cur)) {
     const stale = Date.now() - new Date(g.updated_at).getTime() > 15000;

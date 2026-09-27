@@ -1,5 +1,5 @@
 // Putt Post, live: turns and scores are saved on the server; putts replay for everyone.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx } from './common.js';
 import {
   LW, LH, HOLES, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, drawHole,
   inPoly, inRect, segDist, reduceMotion,
@@ -69,12 +69,14 @@ function bigText(html, ms) { const el = $('hio'); el.innerHTML = html; el.hidden
 function shake() { if (reduceMotion) return; cv.classList.remove('shake'); void cv.offsetWidth; cv.classList.add('shake'); }
 function celebrate(s, par) {
   if (s === 1) {
-    bigText('<span>HOLE<br>IN ONE!</span>', 2900); shake();
+    bigText('<span>HOLE<br>IN ONE!</span>', 2900); shake(); sfx('fanfare', { delay: 0.25 });
+    for (let i = 0; i < 9; i++) sfx('pop', { delay: 0.3 + i * 0.26 });
     const cols = ['#F2C14E', '#E4572E', '#7FD3F7', '#fff', '#B6F09C', '#FF8AD8'];
     for (let i = 0; i < 9; i++) setTimeout(() => { const x = 50 + Math.random() * 260, y = 70 + Math.random() * 260; burst(x, y, cols, 70, 0.03);
       for (let k = 0; k < 24; k++) { const a = (k / 24) * 6.283; scene.fx.push({ x, y, vx: Math.cos(a) * 4.2, vy: Math.sin(a) * 4.2, g: 0.02, life: 1.2, s: 2.2, c: cols[k % cols.length] }); } }, i * 260);
     for (let i = 0; i < 120; i++) scene.fx.push({ x: Math.random() * LW, y: -20 - Math.random() * 200, vx: (Math.random() - 0.5) * 1.2, vy: 1 + Math.random() * 2, g: 0.02, life: 2.2, s: 2 + Math.random() * 2, c: cols[i % cols.length] });
   } else if (s < par) {
+    sfx('birdie', { delay: 0.2 });
     bigText(`<span class="small-pop">${{ '-1': 'Birdie!', '-2': 'Eagle!', '-3': 'Albatross!' }[s - par] || 'Amazing!'}</span>`, 1700);
   }
 }
@@ -84,10 +86,15 @@ function roll(stroke, h, speed = 2) {
   return new Promise((done) => {
     const b = { x: stroke.x, y: stroke.y, vx: stroke.vx, vy: stroke.vy, ticks: 0, clock: scene.clock || 0 };
     scene.ball = b; scene.trail = []; scene.bumpLit = scene.bumpLit || [];
+    const quiet = skipReplay && mode === 'replay';
+    if (!quiet) sfx('putt', { power: Math.hypot(b.vx, b.vy) / 8 });
+    let lastClack = 0;
     const step = () => {
       const per = skipReplay && mode === 'replay' ? 400 : speed;
       for (let i = 0; i < per; i++) {
         const ev = tick(b, h);
+        if (!quiet && ev === 'wall' && performance.now() - lastClack > 70) { lastClack = performance.now(); sfx('clack'); }
+        if (!quiet && ev === 'bump') sfx('boing');
         if (ev === 'bump') h.bumpers.forEach(([x, y, r], j) => { const dx = b.x - x, dy = b.y - y; if (dx * dx + dy * dy < (r + R + 2) ** 2) scene.bumpLit[j] = performance.now() + 180; });
         if (ev === 'cup' || ev === 'water' || ev === 'stop') { scene.trail = []; scene.clock = b.clock; return done({ ev, b }); }
       }
@@ -98,8 +105,8 @@ function roll(stroke, h, speed = 2) {
   });
 }
 function afterStroke(ev, b, h, sx, sy) {
-  if (ev === 'cup') { b.hidden = true; scene.flagOut = true; burst(h.cup[0], h.cup[1], ['#F2C14E', '#fff', '#E4572E', '#7FD3F7'], 60, 0.04); return { holed: true, penalty: 0 }; }
-  if (ev === 'water') { burst(b.x, b.y, ['#BFE9FF', '#fff', '#3FA7E0'], 30, 0.08); b.x = sx; b.y = sy; b.vx = b.vy = 0; return { holed: false, penalty: 1 }; }
+  if (ev === 'cup') { if (!(skipReplay && mode === 'replay')) sfx('cup'); b.hidden = true; scene.flagOut = true; burst(h.cup[0], h.cup[1], ['#F2C14E', '#fff', '#E4572E', '#7FD3F7'], 60, 0.04); return { holed: true, penalty: 0 }; }
+  if (ev === 'water') { if (!(skipReplay && mode === 'replay')) sfx('plunk'); burst(b.x, b.y, ['#BFE9FF', '#fff', '#3FA7E0'], 30, 0.08); b.x = sx; b.y = sy; b.vx = b.vy = 0; return { holed: false, penalty: 1 }; }
   b.x = q20(b.x); b.y = q20(b.y); b.vx = b.vy = 0; return { holed: false, penalty: 0 };
 }
 const toStroke = ([x, y, vx, vy]) => ({ x, y, vx, vy });
@@ -233,7 +240,7 @@ function judge(prev) {
       const { data, error } = await sb.rpc('golf_call', { p_game: G.game.id });
       if (error) { closeModal(); resolve(); return; }
       if (data.busted) {
-        bigText('<span class="busted">BUSTED!</span>', 2600); shake();
+        bigText('<span class="busted">BUSTED!</span>', 2600); shake(); sfx('buzz');
         modal(`<h2 style="color:#FF7A6E">🚨 Busted!</h2><p>${who(prev.player)} used ${[1, 2, 4].filter((k) => data.cheats & k).map((k) => CHEAT_NAMES[k]).join(', ')}.</p>
           <p class="small muted">+${2 + (data.cheats & 4 ? 1 : 0)} strokes for them. You win a sneak attack.</p><button class="go" id="onward">Tee off</button>`);
       } else {
@@ -311,12 +318,12 @@ function renderPack() {
       b.disabled = true;
       const { error } = await useLoot(+b.dataset.loot, G.game.id);
       if (error) { $('tip').textContent = friendly(error); return; }
-      if (item === 'magnet') { magnetOn = true; scene.hole = H(); bigText('<span class="small-pop">🧲 Magnet Cup!</span>', 1500); $('tip').textContent = 'The cup just got huge and hungry.'; }
+      if (item === 'magnet') { sfx('pop'); magnetOn = true; scene.hole = H(); bigText('<span class="small-pop">🧲 Magnet Cup!</span>', 1500); $('tip').textContent = 'The cup just got huge and hungry.'; }
       else {   // Golden Tee: an honest mulligan
         const L = lastStroke;
         current.pop(); strokes -= 1 + L.penalty; scene.clock = L.clockBefore; scene.flagOut = false;
         scene.ball = { x: L.s.x, y: L.s.y }; lastStroke = null; $('strokes').textContent = strokes;
-        bigText('<span class="small-pop">🏌️ Golden Tee!</span>', 1500); $('tip').textContent = 'A free do-over. Totally legal.';
+        sfx('pop'); bigText('<span class="small-pop">🏌️ Golden Tee!</span>', 1500); $('tip').textContent = 'A free do-over. Totally legal.';
       }
       pack = await backpack(); renderCheats();
     };
@@ -393,7 +400,7 @@ function renderAfter() {
     plant.disabled = true;
     const { error } = await sb.rpc('golf_plant', { p_game: G.game.id, p_target: pick.target, p_type: pick.type });
     if (error) { $('plantErr').textContent = friendly(error); return; }
-    planted = { ...pick }; pick = { target: null, type: 0 }; await load(G.game.id); renderAfter();
+    sfx('sneaky'); planted = { ...pick }; pick = { target: null, type: 0 }; await load(G.game.id); renderAfter();
   };
   const close = () => { el.hidden = true; afterPanel = false; planted = null; pick = { target: null, type: 0 }; };
   const bg = $('botGo'); if (bg) bg.onclick = () => { close(); window.scrollTo(0, 0); decide(); };
@@ -429,7 +436,7 @@ async function robotTurn() {
   cheatsUsed = 0; strokes = 0; current = []; mode = 'bot'; $('pack').innerHTML = '';
   scene = { hole: h, fx: [], clock: 0, ball: { x: h.tee[0], y: h.tee[1] } };
   setHud(curHole(), bot, 0, false); renderCard();
-  if (curAttack) { bigText(`<span class="small-pop">${ATTACKS[curAttack].icon} ${ATTACKS[curAttack].name}!</span>`, 1700); $('tip').textContent = `${nm(bot).replace(/<[^>]+>/g, '')} got hit with ${ATTACKS[curAttack].name}. Heh.`; await sleep(1500); }
+  if (curAttack) { sfx('sneaky'); bigText(`<span class="small-pop">${ATTACKS[curAttack].icon} ${ATTACKS[curAttack].name}!</span>`, 1700); $('tip').textContent = `${nm(bot).replace(/<[^>]+>/g, '')} got hit with ${ATTACKS[curAttack].name}. Heh.`; await sleep(1500); }
   let holed = false;
   while (strokes < MAX_STROKES) {
     // Foot wedge when nobody's looking.
@@ -468,7 +475,7 @@ async function robotTurn() {
   const call = G.acc.find((a) => a.t === t - 1 && a.accuser === bot);
   if (call) {
     await new Promise((resolve) => {
-      if (call.busted) { bigText('<span class="busted">BUSTED!</span>', 2600); shake(); }
+      if (call.busted) { bigText('<span class="busted">BUSTED!</span>', 2600); shake(); sfx('buzz'); }
       modal(`<div style="font-size:44px;line-height:1">🤖</div><h2 ${call.busted ? 'style="color:#FF7A6E"' : ''}>"CHEATER DETECTED."</h2>
         <p>${call.busted ? `It caught ${who(call.accused)}: ${[1, 2, 4].filter((k) => call.cheats & k).map((k) => CHEAT_NAMES[k]).join(', ')}.` : `…except ${who(call.accused)} played it straight. False alarm!`}</p>
         <p class="small muted">${call.busted ? `+${2 + (call.cheats & 4 ? 1 : 0)} strokes on that hole.` : 'The robot takes +1 stroke on its next hole.'}</p><button class="go" id="onward">${call.busted ? 'Fine…' : 'Ha!'}</button>`);

@@ -2,6 +2,10 @@
 // player names, which players are robots, and turn alerts.
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+import { sfx, soundButton } from './sfx.js';
+export { sfx };
+
+soundButton();
 
 export const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 export const me = { id: null, username: null };
@@ -76,6 +80,7 @@ function toast(icon, message, kind) {
     t.innerHTML = `<span style="font-size:28px;line-height:1">${icon}</span><span></span>`;
     t.lastChild.textContent = message;
     box.appendChild(t);
+    sfx({ loot: 'chime', curse: 'curse', twist: 'twist', gauntlet: 'birdie' }[kind] || 'pop');
     requestAnimationFrame(() => { t.style.transform = 'none'; t.style.opacity = '1'; });
     setTimeout(done, 900);
     const bye = () => { t.style.opacity = '0'; t.style.transform = 'translateY(-10px)'; setTimeout(() => t.remove(), 300); };

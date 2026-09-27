@@ -1,5 +1,5 @@
 import { VAPID_PUBLIC_KEY, USERNAME_DOMAIN } from './config.js';
-import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML } from './common.js';
+import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx } from './common.js';
 import { HOLES, holeWithAttack, drawHole, LW, LH } from './golf-engine.js';
 import { W as DW, H as DH, TANK_X, buildTop } from './duel-engine.js';
 const app = document.getElementById('app');
@@ -135,7 +135,7 @@ const fx = (() => {
       for (let i = 0; i < n; i++) setTimeout(() => {
         const x = innerWidth * (0.15 + Math.random() * 0.7), y = innerHeight * (0.15 + Math.random() * 0.35), col = cols[i % cols.length];
         this.shell(x + (Math.random() - 0.5) * 80, innerHeight + 10, x, y, () => {
-          ring(x, y, col, 70, 36, 2);
+          ring(x, y, col, 70, 36, 2); sfx('pop');
           for (let k = 0; k < 60; k++) { const a = k / 60 * 6.283, v = 3 + Math.random() * 2.5; spark(x, y, Math.cos(a) * v, Math.sin(a) * v, col, 2.2, 60, 0.05, 0.985); }
         }, 700);
       }, i * 280);
@@ -173,12 +173,13 @@ function animateShots(newShots) {
         const [x, y] = centerOf(el);
         const incoming = s.target === me.id;
         const fromX = x + (Math.random() - 0.5) * 120, fromY = incoming ? -20 : innerHeight + 20;
+        sfx(incoming ? 'whistle' : 'cannon', { dur: 0.5 });
         fx.shell(fromX, fromY, x, y, () => {
           pending.delete(s.id);
           renderGame();
           const el2 = cellEl(s.target, s.cell);
           if (el2) { el2.classList.add('land'); }
-          if (s.hit) { fx.explode(x, y, s.sunk_ship != null ? 1.6 : 1); if (incoming) quake(true); } else fx.splash(x, y);
+          if (s.hit) { fx.explode(x, y, s.sunk_ship != null ? 1.6 : 1); sfx('boom', { size: s.sunk_ship != null ? 1.6 : 0.8 }); if (incoming) quake(true); } else { fx.splash(x, y); sfx('splash'); }
           if (s.sunk_ship != null) {
             (s.sunk_cells || []).forEach((c, j) => setTimeout(() => { const e = cellEl(s.target, c); if (e) { const [cx, cy] = centerOf(e); fx.explode(cx, cy, 0.7); } }, 120 * j));
             const ship = shipName(game.mode, s.sunk_ship);
@@ -934,14 +935,14 @@ async function doPeek(target, cell) {
   const { data, error } = await sb.rpc('cheat_peek', { p_game: G.game.id, p_target: target, p_center: cell });
   if (error) { renderGame(); cheatError(error); return; }
   await afterCheat();
-  stamp(data.ships.length ? `👀 ${data.ships.length} ship square${data.ships.length > 1 ? 's' : ''}!` : '👀 Nothing there', 'purple', 1800);
+  stamp(data.ships.length ? `👀 ${data.ships.length} ship square${data.ships.length > 1 ? 's' : ''}!` : '👀 Nothing there', 'purple', 1800); sfx('sneaky');
 }
 async function doSonar(target, cell) {
   const id = sonarLoot; sonarLoot = null;
   const { data, error } = await useLoot(id, G.game.id, target, cell);
   if (error) { renderGame(); cheatError(error); return; }
   await loadGame(G.game.id); renderGame();
-  stamp(data.ships.length ? `📡 ${data.ships.length} ship square${data.ships.length > 1 ? 's' : ''}!` : '📡 Just fish', 'blue', 1800);
+  stamp(data.ships.length ? `📡 ${data.ships.length} ship square${data.ships.length > 1 ? 's' : ''}!` : '📡 Just fish', 'blue', 1800); sfx('ping');
 }
 function wireCheats() {
   app.querySelectorAll('.backpack [data-loot]').forEach((b) => {
@@ -950,7 +951,7 @@ function wireCheats() {
       b.disabled = true;
       const { error } = await useLoot(+b.dataset.loot, G.game.id);
       if (error) { cheatError(error); return; }
-      await loadGame(G.game.id); renderGame(); stamp('🎆 Double Salvo!', 'purple', 1600);
+      await loadGame(G.game.id); renderGame(); stamp('🎆 Double Salvo!', 'purple', 1600); sfx('pop');
     };
   });
   const peek = document.getElementById('chPeek');
@@ -960,14 +961,14 @@ function wireCheats() {
     extra.disabled = true;
     const { error } = await sb.rpc('cheat_extra_shot', { p_game: G.game.id });
     if (error) return cheatError(error);
-    await afterCheat(); stamp('➕ Extra shot 🤫', 'purple', 1600);
+    await afterCheat(); stamp('➕ Extra shot 🤫', 'purple', 1600); sfx('sneaky');
   };
   const mv = document.getElementById('chMove');
   if (mv) mv.onclick = async () => {
     mv.disabled = true;
     const { data, error } = await sb.rpc('cheat_move_ship', { p_game: G.game.id });
     if (error) return cheatError(error);
-    await afterCheat(); stamp(`🚢 Your ${shipName(G.game.mode, data.ship)}<br>slipped away`, 'purple', 1900);
+    await afterCheat(); stamp(`🚢 Your ${shipName(G.game.mode, data.ship)}<br>slipped away`, 'purple', 1900); sfx('sneaky');
   };
   const call = document.getElementById('callIt');
   if (call) call.onclick = async () => {
@@ -987,12 +988,12 @@ function playEffects() {
   const wait = animateShots(fresh.filter((s) => pending.has(s.id))) || 0;
   setTimeout(() => {
     freshA.forEach((a) => {
-      if (a.busted) { stamp(`Busted!<br><small style="font-size:.4em">${a.accused === me.id ? 'You were' : nm(a.accused) + ' was'} caught: ${a.kinds.map(cheatLabel).join(', ')}</small>`, 'red', 2800); quake(a.accused === me.id); }
+      if (a.busted) { stamp(`Busted!<br><small style="font-size:.4em">${a.accused === me.id ? 'You were' : nm(a.accused) + ' was'} caught: ${a.kinds.map(cheatLabel).join(', ')}</small>`, 'red', 2800); sfx('buzz'); quake(a.accused === me.id); }
       else stamp(`False alarm!<br><small style="font-size:.4em">${a.accuser === me.id ? 'You fire' : nm(a.accuser) + ' fires'} one shot fewer</small>`, 'blue', 2600);
     });
     const nowMine = game.status === 'playing' && game.players[game.turn] === me.id;
     if (G.prevStatus === 'playing' && game.status === 'over') {
-      if (game.winner === me.id) { stamp('Victory!'); if (!reduceMotion) fx.fireworks(10); } else stamp('Defeated', 'red', 2800);
+      if (game.winner === me.id) { stamp('Victory!'); sfx('fanfare'); if (!reduceMotion) fx.fireworks(10); } else { stamp('Defeated', 'red', 2800); sfx('lose'); }
     } else if (G.prevStatus === 'setup' && game.status === 'playing') {
       banner(nowMine ? 'Battle stations! You fire first' : 'Battle stations!');
     } else if (nowMine && (G.prevTurnMine === false || fresh.some((s) => s.shooter !== me.id))) banner('Your turn');
