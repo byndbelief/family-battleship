@@ -115,7 +115,7 @@ function loginView(msg) {
     // Accept a bare username or the full login email.
     const email = user.includes('@') ? user : `${user}@${USERNAME_DOMAIN}`;
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
-    if (error) return loginView(`That username and password don't match (signed in as ${email}). Check the spelling and try again.`);
+    if (error) return loginView(`That username and password don't match (tried ${email}). Check the spelling and try again.`);
     await loadMe(data.user.id);
     route();
   });
