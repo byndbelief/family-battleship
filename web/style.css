@@ -208,7 +208,6 @@ body.quake { animation: quake .45s linear 1; }
 .grow .gstate { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .prog { display: block; height: 4px; border-radius: 99px; background: var(--water); overflow: hidden; max-width: 220px; margin-top: 2px; }
 .prog i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
-.glist-fold summary { cursor: pointer; padding: 4px 0 8px; }
 @media (max-width: 480px) {
   .grow { grid-template-columns: 56px minmax(0, 1fr); padding-right: 10px; }
   .grow .thumb { width: 56px; height: 35px; }

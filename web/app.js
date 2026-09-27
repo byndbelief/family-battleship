@@ -511,29 +511,37 @@ async function loadGames() {
       <span class="gstate">${c.extra}${c.pill}</span>
     </a></li>`;
   list.innerHTML = groups.filter(([, cs]) => cs.length).map(([title, cs]) => title === 'Finished'
-    ? `<details class="glist-fold" ${finishedOpen ? 'open' : ''}><summary class="eyebrow">Finished (${cs.length})</summary><ul class="glist">${cs.map(row).join('')}</ul></details>`
+    ? `<div class="stack glist-fold" style="gap:6px"><div class="row between"><span class="eyebrow">Finished (${cs.length})</span><button type="button" class="link small" id="finMore" hidden></button></div><ul class="glist">${cs.map(row).join('')}</ul></div>`
     : `<div class="stack" style="gap:6px"><span class="eyebrow">${title} (${cs.length})</span><ul class="glist">${cs.map(row).join('')}</ul></div>`).join('');
   foldGames();
-  const fold = list.querySelector('.glist-fold');
-  if (fold) fold.addEventListener('toggle', () => { finishedOpen = fold.open; });
   list.querySelectorAll('canvas.thumb').forEach((cv) => drawPreview(cv, cards[+cv.dataset.i], myFleets ?? [], atMe ?? []));
 }
 let finishedOpen = false;
 let gamesOpen = false;   // Your games shows its first 3 rows until expanded
 
-// Collapsed, Your games shows only its first 3 rows (your move first) and hides the Finished fold.
+// Collapsed, Your games shows only its first 3 active rows (your move first) and hides Finished,
+// unless nothing is active. Finished shows its 3 most recent games until expanded on its own.
 function foldGames() {
   const list = document.getElementById('games'), btn = document.getElementById('gamesMore');
   if (!list || !btn) return;
-  const rows = [...list.querySelectorAll(':scope > .stack .glist > li')], fold = list.querySelector('.glist-fold');
-  const more = rows.length - 3 + (fold ? fold.querySelectorAll('li').length : 0);
+  const rows = [...list.querySelectorAll(':scope > .stack:not(.glist-fold) .glist > li')], fold = list.querySelector('.glist-fold');
+  const done = fold ? [...fold.querySelectorAll('li')] : [];
+  const showDone = gamesOpen || !rows.length;
+  const more = Math.max(0, rows.length - 3) + (rows.length ? (finishedOpen ? done.length : Math.min(3, done.length)) : 0);
   btn.hidden = more <= 0;
   rows.forEach((li, i) => { li.hidden = i >= 3 && !gamesOpen; });
+  done.forEach((li, i) => { li.hidden = !showDone || (i >= 3 && !finishedOpen); });
   list.querySelectorAll(':scope > .stack').forEach((g) => { g.hidden = ![...g.querySelectorAll('li')].some((li) => !li.hidden); });
-  if (fold) fold.hidden = !gamesOpen;
   btn.setAttribute('aria-expanded', gamesOpen);
   btn.textContent = gamesOpen ? 'Show less' : `Show ${more} more`;
   btn.onclick = () => { gamesOpen = !gamesOpen; foldGames(); };
+  const fin = document.getElementById('finMore');
+  if (fin) {
+    fin.hidden = done.length <= 3;
+    fin.setAttribute('aria-expanded', finishedOpen);
+    fin.textContent = finishedOpen ? 'Show less' : `Show ${done.length - 3} more`;
+    fin.onclick = () => { finishedOpen = !finishedOpen; foldGames(); };
+  }
 }
 
 // Sample pictures for the new-game cards.
