@@ -18,6 +18,11 @@ let channel = null;       // the realtime subscription for the current screen
 let G = null;             // the open game: { game, shots, myFleet, fleets }
 let aims = { target: null, cells: new Set() };
 let busy = false;
+let peekMode = false;           // next tap on an opponent's board spends a peek cheat
+const seenShots = new Map();    // game id -> Set of shot ids already animated
+const seenAccusations = new Map();
+const pending = new Set();      // shot ids whose shell is still in the air
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // ---------------------------------------------------------------- helpers
 
@@ -67,6 +72,124 @@ function setChannel(ch) {
 // Ask the server to send "your turn" alerts. Never blocks the game.
 function notify(gameId) {
   sb.functions.invoke('notify', { body: { game_id: gameId } }).catch(() => {});
+}
+
+// ---------------------------------------------------------------- battle effects
+// One full-screen canvas for shells, explosions, splashes and fireworks.
+const fx = (() => {
+  const c = document.createElement('canvas'); c.id = 'fx'; document.body.appendChild(c);
+  const ctx = c.getContext('2d'); let parts = [], running = false;
+  const size = () => { const d = Math.min(2, devicePixelRatio || 1); c.width = innerWidth * d; c.height = innerHeight * d; ctx.setTransform(d, 0, 0, d, 0, 0); };
+  size(); addEventListener('resize', size);
+  const loop = () => {
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    parts = parts.filter((p) => p.step());
+    ctx.globalCompositeOperation = 'lighter';
+    parts.forEach((p) => p.draw(ctx));
+    ctx.globalCompositeOperation = 'source-over';
+    if (parts.length) requestAnimationFrame(loop); else running = false;
+  };
+  const add = (p) => { parts.push(p); if (!running) { running = true; requestAnimationFrame(loop); } };
+  const spark = (x, y, vx, vy, color, size, life, g = 0.12, drag = 0.97) => add({
+    x, y, vx, vy, life, max: life,
+    step() { this.x += this.vx; this.y += this.vy; this.vy += g; this.vx *= drag; this.vy *= drag; return --this.life > 0; },
+    draw(k) { const a = this.life / this.max; k.globalAlpha = a; k.fillStyle = color; k.beginPath(); k.arc(this.x, this.y, size * (0.4 + a * 0.6), 0, 7); k.fill(); k.globalAlpha = 1; },
+  });
+  const ring = (x, y, color, maxR, life, width = 3) => add({
+    t: 0, step() { return ++this.t < life; },
+    draw(k) { const f = this.t / life; k.globalAlpha = 1 - f; k.strokeStyle = color; k.lineWidth = width * (1 - f) + 0.5; k.beginPath(); k.arc(x, y, maxR * f, 0, 7); k.stroke(); k.globalAlpha = 1; },
+  });
+  const smoke = (x, y) => add({
+    x, y, r: 4, life: 60, vy: -0.6 - Math.random() * 0.6, vx: (Math.random() - 0.5) * 0.8,
+    step() { this.x += this.vx; this.y += this.vy; this.r += 0.5; return --this.life > 0; },
+    draw(k) { k.globalCompositeOperation = 'source-over'; k.globalAlpha = this.life / 60 * 0.35; k.fillStyle = '#3a3a44'; k.beginPath(); k.arc(this.x, this.y, this.r, 0, 7); k.fill(); k.globalAlpha = 1; k.globalCompositeOperation = 'lighter'; },
+  });
+  return {
+    explode(x, y, big = 1) {
+      ring(x, y, '#FFF3C4', 46 * big, 22, 5); ring(x, y, '#FF8A3D', 30 * big, 30, 3);
+      const cols = ['#FFF3C4', '#FFD166', '#FF8A3D', '#FF4D3D'];
+      for (let i = 0; i < 46 * big; i++) { const a = Math.random() * 6.283, v = (1.5 + Math.random() * 5) * big; spark(x, y, Math.cos(a) * v, Math.sin(a) * v - 1.5, cols[i % 4], 2 + Math.random() * 2.5, 30 + Math.random() * 25); }
+      for (let i = 0; i < 7; i++) smoke(x + (Math.random() - 0.5) * 14, y + (Math.random() - 0.5) * 10);
+    },
+    splash(x, y) {
+      ring(x, y, '#BFE9FF', 34, 34, 3); setTimeout(() => ring(x, y, '#7FC8F8', 24, 34, 2), 120);
+      for (let i = 0; i < 26; i++) { const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.6, v = 2 + Math.random() * 4; spark(x, y, Math.cos(a) * v, Math.sin(a) * v, i % 2 ? '#DFF4FF' : '#6FC3F5', 1.5 + Math.random() * 1.5, 34, 0.22); }
+    },
+    shell(fromX, fromY, x, y, onArrive, dur = 520) {
+      const t0 = performance.now(), lift = Math.min(160, Math.abs(y - fromY) * 0.35 + 40);
+      add({
+        px: fromX, py: fromY,
+        step() {
+          const f = Math.min(1, (performance.now() - t0) / dur);
+          this.px = fromX + (x - fromX) * f; this.py = fromY + (y - fromY) * f - Math.sin(f * Math.PI) * lift;
+          spark(this.px, this.py, (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.6, '#FFB25A', 1.6, 16, 0);
+          if (f >= 1) { onArrive(); return false; } return true;
+        },
+        draw(k) { k.fillStyle = '#FFF6D8'; k.shadowColor = '#FFB25A'; k.shadowBlur = 16; k.beginPath(); k.arc(this.px, this.py, 4, 0, 7); k.fill(); k.shadowBlur = 0; },
+      });
+    },
+    fireworks(n = 8) {
+      const cols = ['#FFD166', '#FF6B5A', '#7FD3F7', '#B6F09C', '#FF8AD8', '#FFFFFF'];
+      for (let i = 0; i < n; i++) setTimeout(() => {
+        const x = innerWidth * (0.15 + Math.random() * 0.7), y = innerHeight * (0.15 + Math.random() * 0.35), col = cols[i % cols.length];
+        this.shell(x + (Math.random() - 0.5) * 80, innerHeight + 10, x, y, () => {
+          ring(x, y, col, 70, 36, 2);
+          for (let k = 0; k < 60; k++) { const a = k / 60 * 6.283, v = 3 + Math.random() * 2.5; spark(x, y, Math.cos(a) * v, Math.sin(a) * v, col, 2.2, 60, 0.05, 0.985); }
+        }, 700);
+      }, i * 280);
+    },
+  };
+})();
+function stamp(text, tone = '', ms = 2400) {
+  if (!text) return;
+  const el = document.createElement('div'); el.className = `stamp ${tone}`; el.innerHTML = `<span>${text}</span>`;
+  document.body.appendChild(el); setTimeout(() => el.remove(), ms);
+}
+function banner(text) { const el = document.createElement('div'); el.className = 'banner'; el.innerHTML = `<span>${text}</span>`; document.body.appendChild(el); setTimeout(() => el.remove(), 1900); }
+function quake(red) {
+  if (reduceMotion) return;
+  document.body.classList.remove('quake'); void document.body.offsetWidth; document.body.classList.add('quake');
+  if (red) { const v = document.createElement('div'); v.className = 'vignette'; document.body.appendChild(v); setTimeout(() => v.remove(), 800); }
+}
+const cellEl = (owner, i) => app.querySelector(`[data-o="${owner}"][data-i="${i}"]`);
+const centerOf = (el) => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+
+// Flies a shell at each new shot, then reveals the result where it lands.
+function animateShots(newShots) {
+  const { game } = G;
+  if (reduceMotion || !newShots.length) { newShots.forEach((s) => pending.delete(s.id)); if (newShots.length) renderGame(); return; }
+  const byMove = newShots.reduce((m, s) => ((m[s.move] ||= []).push(s), m), {});
+  let delay = 0;
+  // Bring the impact into view first.
+  const first = cellEl(newShots[0].target, newShots[0].cell);
+  if (first) { const r = first.getBoundingClientRect(); if (r.top < 60 || r.bottom > innerHeight - 90) { first.scrollIntoView({ block: 'center', behavior: 'smooth' }); delay = 450; } }
+  Object.values(byMove).forEach((batch) => {
+    batch.forEach((s, k) => {
+      setTimeout(() => {
+        const el = cellEl(s.target, s.cell);
+        if (!el) { pending.delete(s.id); renderGame(); return; }
+        const [x, y] = centerOf(el);
+        const incoming = s.target === me.id;
+        const fromX = x + (Math.random() - 0.5) * 120, fromY = incoming ? -20 : innerHeight + 20;
+        fx.shell(fromX, fromY, x, y, () => {
+          pending.delete(s.id);
+          renderGame();
+          const el2 = cellEl(s.target, s.cell);
+          if (el2) { el2.classList.add('land'); }
+          if (s.hit) { fx.explode(x, y, s.sunk_ship != null ? 1.6 : 1); if (incoming) quake(true); } else fx.splash(x, y);
+          if (s.sunk_ship != null) {
+            (s.sunk_cells || []).forEach((c, j) => setTimeout(() => { const e = cellEl(s.target, c); if (e) { const [cx, cy] = centerOf(e); fx.explode(cx, cy, 0.7); } }, 120 * j));
+            const ship = shipName(game.mode, s.sunk_ship);
+            if (incoming) stamp(`Your ${ship}<br>is sunk!`, 'red');
+            else if (s.shooter === me.id) stamp(`Sunk!<br><small style="font-size:.45em">${ship}</small>`);
+            else stamp(`${ship} sunk!`, 'blue', 1800);
+          }
+        });
+      }, delay + k * 260);
+    });
+    delay += batch.length * 260 + 700;
+  });
+  return delay;
 }
 
 // ---------------------------------------------------------------- boot & routing
@@ -276,21 +399,37 @@ async function openGame(id) {
   setChannel(sb.channel(`game-${id}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: `id=eq.${id}` }, refresh)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shots', filter: `game_id=eq.${id}` }, refresh)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'accusations', filter: `game_id=eq.${id}` }, refresh)
     .subscribe((s) => { const l = document.getElementById('live'); if (l) l.classList.toggle('off', s !== 'SUBSCRIBED'); }));
   renderGame();
 }
 
 async function loadGame(id) {
-  const [{ data: game }, { data: shots }, { data: fleets }] = await Promise.all([
+  const [{ data: game }, { data: shots }, { data: fleets }, cheatsRes, accRes, modRes] = await Promise.all([
     sb.from('games').select('*').eq('id', id).maybeSingle(),
     sb.from('shots').select('*').eq('game_id', id).order('id'),
     sb.from('fleets').select('*').eq('game_id', id),
+    sb.from('cheats').select('*').eq('game_id', id).order('id'),
+    sb.from('accusations').select('*').eq('game_id', id).order('move'),
+    sb.from('player_mods').select('*').eq('game_id', id),
   ]);
   if (!game) return false;
   const same = G?.game.id === id;
   const prevMove = same ? G.game.move : null;
+  const prevStatus = same ? G.game.status : null, prevTurnMine = same ? G.game.status === 'playing' && G.game.players[G.game.turn] === me.id : null;
+  // Which shots and accusations are new since we last looked?
+  const seen = seenShots.get(id), fresh = [];
+  if (!seen) seenShots.set(id, new Set((shots ?? []).map((s) => s.id)));
+  else (shots ?? []).forEach((s) => { if (!seen.has(s.id)) { seen.add(s.id); pending.add(s.id); fresh.push(s); } });
+  const seenA = seenAccusations.get(id), freshA = [];
+  if (!seenA) seenAccusations.set(id, new Set((accRes.data ?? []).map((a) => a.move)));
+  else (accRes.data ?? []).forEach((a) => { if (!seenA.has(a.move)) { seenA.add(a.move); freshA.push(a); } });
   G = {
     game, shots: shots ?? [],
+    cheats: cheatsRes.data ?? [], accusations: accRes.data ?? [],
+    cheatsOn: !cheatsRes.error && !accRes.error,
+    shotMod: (modRes.data ?? []).find((m) => m.player_id === me.id)?.shot_mod ?? 0,
+    fresh, freshA, prevStatus, prevTurnMine, fxDue: true,
     draft: same ? G.draft : null, // keep an unsaved ship layout across live refreshes
     fleets: Object.fromEntries((fleets ?? []).map((f) => [f.player_id, f.ships])),
   };
@@ -301,8 +440,10 @@ async function loadGame(id) {
 function boardHTML({ owner, ships, clickable, fresh }) {
   const { game, shots } = G;
   const { n } = MODES[game.mode];
-  const at = shots.filter((s) => s.target === owner);
+  const at = shots.filter((s) => s.target === owner && !pending.has(s.id));
   const shotAt = new Map(at.map((s) => [s.cell, s]));
+  const peeks = (G.cheats || []).filter((c) => c.kind === 'peek' && c.player_id === me.id && c.detail?.target === owner);
+  const peekShip = new Set(peeks.flatMap((c) => c.detail.ships)), peekArea = new Set(peeks.flatMap((c) => c.detail.area));
   const sunk = new Set(at.flatMap((s) => s.sunk_cells ?? []));
   const shipAt = new Set(ships ? fleetCells(game.mode, ships).flat() : []);
   const aiming = aims.target === owner ? aims.cells : null;
@@ -317,10 +458,11 @@ function boardHTML({ owner, ships, clickable, fresh }) {
       else if (s) cls.push(s.hit ? 'hit' : 'miss');
       if (aiming?.has(i)) cls.push('aim');
       if (s && fresh && s.move === game.move) cls.push('new');
+      if (!s && peekShip.has(i)) cls.push('peek-ship'); else if (!s && peekArea.has(i)) cls.push('peek-empty');
       const label = cellName(game.mode, i);
       h += clickable && !s
-        ? `<button class="${cls.join(' ')}" data-target="${owner}" data-cell="${i}" aria-label="Aim at ${label}"></button>`
-        : `<span class="${cls.join(' ')}" aria-label="${label}"></span>`;
+        ? `<button class="${cls.join(' ')}" data-o="${owner}" data-i="${i}" data-target="${owner}" data-cell="${i}" aria-label="Aim at ${label}"></button>`
+        : `<span class="${cls.join(' ')}" data-o="${owner}" data-i="${i}" aria-label="${label}"></span>`;
     }
   }
   return h + '</div>';
@@ -343,7 +485,9 @@ function feedHTML() {
     const tgt = ss[0].target === me.id ? 'you' : nm(ss[0].target);
     const cells = ss.map((s) => `${cellName(game.mode, s.cell)} ${s.hit ? 'hit' : 'miss'}`).join(', ');
     const sank = ss.filter((s) => s.sunk_ship != null).map((s) => shipName(game.mode, s.sunk_ship));
-    return `<li class="${hits ? 'hit' : ''}"><strong>${who}</strong> fired at <strong>${tgt}</strong>: ${cells}.${sank.length ? ` Sank the ${sank.join(' and ')}.` : ''}</li>`;
+    const acc = (G.accusations || []).find((a) => a.move === m);
+    const accLine = acc ? `<li class="accuse">🚨 <strong>${acc.accuser === me.id ? 'You' : nm(acc.accuser)}</strong> called cheater on <strong>${acc.accused === me.id ? 'you' : nm(acc.accused)}</strong>: ${acc.busted ? `busted! (${acc.kinds.map(cheatLabel).join(', ')})` : 'false alarm.'}</li>` : '';
+    return `${accLine}<li class="${hits ? 'hit' : ''}"><strong>${who}</strong> fired at <strong>${tgt}</strong>: ${cells}.${sank.length ? ` Sank the ${sank.join(' and ')}.` : ''}</li>`;
   }).join('');
   return `<section class="card"><h2>Latest shots</h2><ul class="feed">${items}</ul></section>`;
 }
@@ -354,20 +498,21 @@ function renderGame() {
   const opponents = game.players.filter((p) => p !== me.id);
   const myTurn = game.status === 'playing' && game.players[game.turn] === me.id;
   const imOut = game.eliminated.includes(me.id);
-  const need = aims.target ? Math.min(game.spt, MODES[game.mode].n ** 2 - G.shots.filter((s) => s.target === aims.target).length) : game.spt;
+  const perTurn = Math.max(1, game.spt + (myTurn ? G.shotMod : 0));
+  const need = aims.target ? Math.min(perTurn, MODES[game.mode].n ** 2 - G.shots.filter((s) => s.target === aims.target).length) : perTurn;
 
   let title, sub = '';
   if (game.status === 'setup') title = G.fleets[me.id] ? 'Waiting for ships' : 'Place your fleet';
   else if (game.status === 'over') title = game.winner === me.id ? 'You win!' : `${nm(game.winner)} wins!`;
   else if (imOut) { title = "You're out"; sub = 'Your fleet is sunk. You can keep watching the battle.'; }
-  else if (myTurn) { title = 'Your turn'; sub = `Pick ${game.spt === 1 ? 'a square' : `${game.spt} squares`} on ${opponents.length > 1 ? "one opponent's" : `${nm(opponents[0])}'s`} board, then fire.`; }
+  else if (myTurn) { title = 'Your turn'; sub = `Pick ${perTurn === 1 ? 'a square' : `${perTurn} squares`}${G.shotMod < 0 ? ' (one fewer for that false accusation)' : G.shotMod > 0 ? ' (one sneaky extra 🤫)' : ''} on ${opponents.length > 1 ? "one opponent's" : `${nm(opponents[0])}'s`} board, then fire.`; }
   else { title = `${nm(game.players[game.turn])}'s turn`; sub = 'This page updates as soon as they fire.'; }
 
   const playersStrip = `<div class="players">${game.players.map((p) => {
     const cls = ['player'];
     if (game.status === 'playing' && game.players[game.turn] === p) cls.push('turn');
     if (game.eliminated.includes(p)) cls.push('out');
-    return `<span class="${cls.join(' ')}">${p === me.id ? 'You' : nm(p)}${game.winner === p ? ' 🏆' : ''}</span>`;
+    return `<span class="${cls.join(' ')}">${p === me.id ? 'You' : nm(p)}${game.winner === p ? ' 🏆' : ''}${(game.skip_next || []).includes(p) ? ' <span class="skipnote" title="Busted: loses their next turn">⏭</span>' : ''}</span>`;
   }).join('')}</div>`;
 
   let body = '';
@@ -397,7 +542,7 @@ function renderGame() {
         ${fleetListHTML(p)}
       </section>`;
     }).join('');
-    body = `${feedHTML()}
+    body = `${callOutHTML()}${myTurn ? cheatBarHTML() : ''}${over ? cheatLogHTML() : ''}${feedHTML()}
       <div class="boards">${targets}
         <section class="card"><div class="row between"><h2>Your fleet</h2>${imOut ? '<span class="pill out">Sunk</span>' : ''}</div>
           ${boardHTML({ owner: me.id, ships: G.fleets[me.id], fresh: true })}
@@ -443,15 +588,19 @@ function renderGame() {
     };
   }
 
+  wireCheats();
   app.querySelectorAll('[data-cell]').forEach((b) => b.addEventListener('click', () => {
     const target = b.dataset.target, cell = +b.dataset.cell;
+    if (peekMode) { doPeek(target, cell); return; }
     if (aims.target !== target) aims = { target, cells: new Set() };
-    const max = Math.min(game.spt, MODES[game.mode].n ** 2 - G.shots.filter((s) => s.target === target).length);
+    const max = Math.min(Math.max(1, game.spt + G.shotMod), MODES[game.mode].n ** 2 - G.shots.filter((s) => s.target === target).length);
     if (aims.cells.has(cell)) aims.cells.delete(cell);
     else if (aims.cells.size < max) aims.cells.add(cell);
     else if (max === 1) aims.cells = new Set([cell]);
     renderGame();
   }));
+
+  playEffects();
 
   const fire = document.getElementById('fire');
   if (fire) fire.onclick = async () => {
@@ -464,6 +613,104 @@ function renderGame() {
     await loadGame(game.id);
     renderGame();
   };
+}
+
+// ---------------------------------------------------------------- cheating (server-run, 2 per player per game)
+const CHEATS = { peek: '👀 Peek', extra: '➕ Extra shot', move: '🚢 Ship slipped away' };
+const cheatLabel = (k) => CHEATS[k] || k;
+function lastShooter() { const s = [...G.shots].reverse().find((x) => x.move === G.game.move); return s?.shooter; }
+function cheatBarHTML() {
+  if (!G.cheatsOn || G.game.eliminated.includes(me.id)) return '';
+  const mine = G.cheats.filter((c) => c.player_id === me.id);
+  const left = Math.max(0, 2 - mine.length);
+  const extraNow = mine.some((c) => c.kind === 'extra' && c.move === G.game.move + 1);
+  return `<section class="cheatbar">
+    <div class="row between"><h2>Cheat (if you dare)</h2><span class="small">${'🃏'.repeat(left) || '—'} ${left} left this game</span></div>
+    <div class="row">
+      <button id="chPeek" ${left ? '' : 'disabled'} aria-pressed="${peekMode}">👀 Peek</button>
+      <button id="chExtra" ${left && !extraNow ? '' : 'disabled'}>➕ Extra shot</button>
+      <button id="chMove" ${left ? '' : 'disabled'}>🚢 Sneak a ship away</button>
+      <span class="error small" id="cheatErr" hidden></span>
+    </div>
+    <p class="muted small">${peekMode ? 'Tap any square on an opponent’s board to spy on the 3×3 patch around it.' : 'Anyone can call cheater after your turn. Caught: you lose your next turn.'}</p>
+  </section>`;
+}
+function callOutHTML() {
+  const g = G.game;
+  if (!G.cheatsOn || g.status !== 'playing' || !g.move || g.eliminated.includes(me.id)) return '';
+  const shooter = lastShooter();
+  if (!shooter || shooter === me.id || G.accusations.some((a) => a.move === g.move)) return '';
+  return `<div class="callout"><span><strong>${nm(shooter)}</strong> just fired. Something fishy?<br><span class="muted small">Right: they lose their next turn. Wrong: you fire one shot fewer.</span></span>
+    <button class="fire" id="callIt" style="animation:none">🚨 Call cheater!</button></div>`;
+}
+function cheatLogHTML() {
+  if (!G.cheatsOn) return '';
+  const byPlayer = G.game.players.map((p) => {
+    const used = G.cheats.filter((c) => c.player_id === p);
+    const caught = G.accusations.filter((a) => a.accused === p && a.busted).length;
+    const catches = G.accusations.filter((a) => a.accuser === p && a.busted).length;
+    const away = new Set(used.map((c) => c.move)).size - caught;
+    return { p, used, caught, catches, away };
+  });
+  const top = (k) => { const m = Math.max(...byPlayer.map((x) => x[k])); return m > 0 ? byPlayer.filter((x) => x[k] === m).map((x) => (x.p === me.id ? 'You' : nm(x.p))).join(' & ') + ` (${m})` : null; };
+  const awards = [['away', '🦊 Sneakiest'], ['catches', '🔍 Sharpest eye'], ['caught', '🚨 Most busted']].map(([k, l]) => top(k) && `<li>${l}: <strong>${top(k)}</strong></li>`).filter(Boolean).join('');
+  const log = byPlayer.map((x) => `<li><strong>${x.p === me.id ? 'You' : nm(x.p)}</strong>: ${x.used.length ? x.used.map((c) => `${cheatLabel(c.kind)} on move ${c.move}`).join(', ') : 'played it straight 😇'}</li>`).join('');
+  return `<section class="card"><h2>The truth comes out</h2>${awards ? `<ul class="feed">${awards}</ul>` : ''}<ul class="feed">${log}</ul></section>`;
+}
+function cheatError(e) { const el = document.getElementById('cheatErr'); if (el) { el.hidden = false; el.textContent = friendly(e); } }
+async function afterCheat() { await loadGame(G.game.id); renderGame(); }
+async function doPeek(target, cell) {
+  peekMode = false;
+  const { data, error } = await sb.rpc('cheat_peek', { p_game: G.game.id, p_target: target, p_center: cell });
+  if (error) { renderGame(); cheatError(error); return; }
+  await afterCheat();
+  stamp(data.ships.length ? `👀 ${data.ships.length} ship square${data.ships.length > 1 ? 's' : ''}!` : '👀 Nothing there', 'purple', 1800);
+}
+function wireCheats() {
+  const peek = document.getElementById('chPeek');
+  if (peek) peek.onclick = () => { peekMode = !peekMode; renderGame(); };
+  const extra = document.getElementById('chExtra');
+  if (extra) extra.onclick = async () => {
+    extra.disabled = true;
+    const { error } = await sb.rpc('cheat_extra_shot', { p_game: G.game.id });
+    if (error) return cheatError(error);
+    await afterCheat(); stamp('➕ Extra shot 🤫', 'purple', 1600);
+  };
+  const mv = document.getElementById('chMove');
+  if (mv) mv.onclick = async () => {
+    mv.disabled = true;
+    const { data, error } = await sb.rpc('cheat_move_ship', { p_game: G.game.id });
+    if (error) return cheatError(error);
+    await afterCheat(); stamp(`🚢 Your ${shipName(G.game.mode, data.ship)}<br>slipped away`, 'purple', 1900);
+  };
+  const call = document.getElementById('callIt');
+  if (call) call.onclick = async () => {
+    call.disabled = true;
+    const { error } = await sb.rpc('call_cheater', { p_game: G.game.id });
+    if (error) { call.textContent = friendly(error); return; }
+    await loadGame(G.game.id); renderGame();
+  };
+}
+
+// ---------------------------------------------------------------- what changed since the last look
+function playEffects() {
+  if (!G.fxDue) return;          // effects run once per fresh load, not on every re-render
+  G.fxDue = false;
+  const { game } = G;
+  const fresh = G.fresh || [], freshA = G.freshA || [];
+  const wait = animateShots(fresh.filter((s) => pending.has(s.id))) || 0;
+  setTimeout(() => {
+    freshA.forEach((a) => {
+      if (a.busted) { stamp(`Busted!<br><small style="font-size:.4em">${a.accused === me.id ? 'You were' : nm(a.accused) + ' was'} caught: ${a.kinds.map(cheatLabel).join(', ')}</small>`, 'red', 2800); quake(a.accused === me.id); }
+      else stamp(`False alarm!<br><small style="font-size:.4em">${a.accuser === me.id ? 'You fire' : nm(a.accuser) + ' fires'} one shot fewer</small>`, 'blue', 2600);
+    });
+    const nowMine = game.status === 'playing' && game.players[game.turn] === me.id;
+    if (G.prevStatus === 'playing' && game.status === 'over') {
+      if (game.winner === me.id) { stamp('Victory!'); if (!reduceMotion) fx.fireworks(10); } else stamp('Defeated', 'red', 2800);
+    } else if (G.prevStatus === 'setup' && game.status === 'playing') {
+      banner(nowMine ? 'Battle stations! You fire first' : 'Battle stations!');
+    } else if (nowMine && G.prevTurnMine === false) banner('Your turn');
+  }, wait);
 }
 
 boot();

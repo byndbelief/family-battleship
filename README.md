@@ -16,12 +16,26 @@ squares are real and unused, and works out hits and sinks. Each fleet is readabl
 only by its owner until the game ends, so nobody can peek at ships from the
 browser.
 
+## Cheating (on purpose)
+
+Each player gets 2 cheats per game, run by the server so nobody can fake them:
+
+- **👀 Peek**: spy on a 3×3 patch of an opponent's waters.
+- **➕ Extra shot**: fire one more shot this turn.
+- **🚢 Sneak a ship away**: one of your unhit ships slips to a new spot.
+
+Cheats are secret until the game ends. After any turn, another player can
+**call cheater** (once per turn): if they're right, the cheater loses their next
+turn; if they're wrong, the accuser fires one shot fewer next time. At the end,
+everyone sees who cheated and when, plus awards for Sneakiest and Sharpest eye.
+
 ## One-time setup
 
 ### 1. Supabase (free plan)
 
 1. Create a project at https://supabase.com.
 2. **SQL Editor** → paste all of `supabase/schema.sql` → **Run**.
+   Then do the same with each file in `supabase/migrations/`, in order.
 3. **Authentication → Sign In / Providers**: turn **off** "Allow new users to sign up"
    (only the three players below may play), and turn off "Confirm email".
 4. **Authentication → Users → Add user → Create new user**, three times, with

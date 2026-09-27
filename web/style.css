@@ -115,3 +115,56 @@ button.cell:hover { background: var(--water-2); }
 .live { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
 .live::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #2FA36B; }
 .live.off::before { background: var(--muted); }
+
+/* ---------------------------------------------------------------- battle effects */
+#fx { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 40; }
+.board .cell:not(.ship):not(.hit):not(.sunk):not(.aim) {
+  background: linear-gradient(115deg, var(--water) 0%, var(--water-2) 45%, var(--water) 55%, var(--water) 100%);
+  background-size: 300% 100%; animation: shimmer 7s linear infinite;
+}
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -200% 0; } }
+.cell.ship { background: linear-gradient(160deg, #7C8BA0, var(--ship) 55%, #3E4A5A); box-shadow: inset 0 1px 0 #ffffff33; }
+.cell.hit::after { animation: burn .9s ease-in-out infinite alternate; box-shadow: 0 0 10px #FF7A30; }
+@keyframes burn { from { transform: scale(.9); filter: brightness(1); } to { transform: scale(1.08); filter: brightness(1.35); } }
+.cell.sunk { background: radial-gradient(circle at 50% 60%, #FF8A3D, var(--hit) 55%, #5A1410) !important; animation: embers 1.6s ease-in-out infinite alternate; }
+@keyframes embers { from { filter: brightness(.9); } to { filter: brightness(1.25); } }
+.cell.aim { animation: lockon .8s ease-in-out infinite alternate; }
+@keyframes lockon { from { box-shadow: 0 0 0 0 var(--flag); } to { box-shadow: 0 0 0 4px #F2C23055; } }
+.cell.land { animation: land .5s cubic-bezier(.2, 1.8, .4, 1); z-index: 2; }
+.cell.pending::after { content: none !important; }
+.cell.peek-ship { box-shadow: inset 0 0 0 2px #B37BFF, 0 0 10px #B37BFF; }
+.cell.peek-ship::before { content: "👁"; font-size: clamp(9px, 2.2vw, 13px); position: absolute; }
+.cell.peek-empty { box-shadow: inset 0 0 0 1.5px #B37BFF88; }
+button.fire:not(:disabled) { animation: ready 1s ease-in-out infinite alternate; }
+@keyframes ready { from { box-shadow: 0 0 0 0 #D8403A88; } to { box-shadow: 0 0 0 10px #D8403A00; transform: scale(1.04); } }
+body.quake { animation: quake .45s linear 1; }
+@keyframes quake { 0%,100% { transform: none; } 20% { transform: translate(-7px, 3px); } 40% { transform: translate(6px, -4px); } 60% { transform: translate(-5px, -2px); } 80% { transform: translate(4px, 3px); } }
+.vignette { position: fixed; inset: 0; pointer-events: none; z-index: 39; box-shadow: inset 0 0 120px 40px #D8403Acc; animation: vig .7s ease-out forwards; }
+@keyframes vig { from { opacity: 1; } to { opacity: 0; } }
+.stamp { position: fixed; inset: 0; z-index: 45; display: flex; align-items: center; justify-content: center; pointer-events: none; padding: 16px; text-align: center; }
+.stamp span {
+  font-family: var(--display); font-size: clamp(38px, 11vw, 88px); line-height: .95; color: #FFE08A;
+  -webkit-text-stroke: 3px #3A1D00; paint-order: stroke fill; text-shadow: 0 6px 0 #3A1D00, 0 0 40px #F2C230;
+  animation: stampin 2.4s cubic-bezier(.2, 1.6, .4, 1) both;
+}
+.stamp.red span { color: #FF6B5E; -webkit-text-stroke-color: #2A0000; text-shadow: 0 6px 0 #2A0000, 0 0 40px #FF5A4E; }
+.stamp.blue span { color: #BDE7FF; -webkit-text-stroke-color: #0A2238; text-shadow: 0 6px 0 #0A2238, 0 0 40px #5AB8FF; }
+.stamp.purple span { color: #E3CCFF; -webkit-text-stroke-color: #22103A; text-shadow: 0 6px 0 #22103A, 0 0 40px #B37BFF; }
+@keyframes stampin { 0% { transform: scale(2.4) rotate(-8deg); opacity: 0; } 14% { transform: scale(.92) rotate(2deg); opacity: 1; } 24% { transform: scale(1.04) rotate(-1deg); }
+  34%, 78% { transform: scale(1) rotate(0); opacity: 1; } 100% { transform: scale(1.3); opacity: 0; } }
+.banner { position: fixed; left: 0; right: 0; top: 30%; z-index: 44; pointer-events: none; display: flex; justify-content: center; }
+.banner span { font-family: var(--display); font-size: clamp(30px, 9vw, 60px); color: #fff; background: linear-gradient(90deg, transparent, #1E5A96ee 18%, #1E5A96ee 82%, transparent);
+  padding: 10px 18vw; letter-spacing: .06em; animation: sweep 1.9s cubic-bezier(.3, .8, .3, 1) both; text-shadow: 0 3px 0 #0A2238; }
+@keyframes sweep { 0% { transform: translateX(-110%); } 22%, 72% { transform: translateX(0); } 100% { transform: translateX(110%); } }
+@media (prefers-reduced-motion: reduce) {
+  .board .cell, .cell.hit::after, .cell.sunk, .cell.aim, button.fire, body.quake, .cell.land { animation: none !important; }
+  .stamp span, .banner span { animation: vig 2.4s linear both; }
+}
+
+/* ---------------------------------------------------------------- cheating */
+.cheatbar { border: 1.5px dashed #D8403A99; border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; background: color-mix(in srgb, var(--hit-soft) 45%, var(--paper)); }
+.cheatbar h2 { color: var(--hit); }
+.cheatbar .row button[aria-pressed=true] { border-color: #B37BFF; box-shadow: 0 0 0 2px #B37BFF55; }
+.callout { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; border-radius: 14px; padding: 12px 14px; background: #D8403A1f; border: 1.5px solid #D8403A66; }
+.feed li.accuse { border-color: #B37BFF; }
+.skipnote { font-size: 12px; }
