@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
   if (game.status === 'over') {
     recipients = others;
     title = `${name(game.winner)} won!`;
-    body = `The game is over. Tap to see both fleets.`;
+    body = `The game is over. Tap to see every fleet.`;
   } else if (game.status === 'playing') {
     const next = game.players[game.turn];
     if (next !== user.id) recipients = [next];
