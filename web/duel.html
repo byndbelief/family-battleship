@@ -66,6 +66,7 @@
   button.go#fire{min-height:64px;min-width:120px;font-size:20px}
   .aimtip{margin:0}
   #play.fs-on .aimtip{display:none}
+  @media (max-width:640px){h1{font-size:22px} .wrap{gap:12px} #play{gap:10px} #controls{padding:12px}}
   .controls{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center}
   @media (max-width:520px){.controls{grid-template-columns:1fr} button.go#fire{width:100%}}
   .status{font-weight:700}
@@ -112,7 +113,7 @@
     <span class="fsslot"><button type="button" class="fsbtn" data-fs="#play" aria-label="Full screen">⛶</button></span>
   </div>
   <section class="panel" id="controls" hidden>
-    <p class="small muted aimtip">Drag on the battlefield to aim: which way sets the angle, how far sets the power. Fine-tune below.</p>
+    <p class="small muted aimtip noteline">Drag on the battlefield to aim: which way sets the angle, how far sets the power. Fine-tune below.</p>
     <div class="controls">
       <div class="sliders">
         <div class="slider"><label for="angle">Angle</label><button type="button" class="step" data-step="angle" data-d="-1" aria-label="Lower the angle">−</button><input type="range" id="angle" min="5" max="85" value="45"><button type="button" class="step" data-step="angle" data-d="1" aria-label="Raise the angle">+</button><output id="angleOut">45°</output></div>
@@ -125,8 +126,8 @@
   <div id="pack"></div>
   </div>
   <section class="panel" id="endPanel" hidden></section>
-  <section class="panel"><h2>Shots</h2><ul class="feed" id="feed"></ul>
-    <p><button class="link" id="del" hidden>Delete this duel</button></p></section>
+  <details class="panel mfold" id="shotsFold"><summary><h2>Shots</h2></summary><ul class="feed" id="feed"></ul>
+    <p><button class="link" id="del" hidden>Delete this duel</button></p></details>
 </div>
 <script type="module" src="duel.js"></script>
 </body>

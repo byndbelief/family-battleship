@@ -1,6 +1,6 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, isPhone, note, noteMirror } from './common.js';
 import { W, H, TANK_X, CRATER_R, BERTHA_R, rng, buildTop, windFor, tankPos, simulate, damage } from './duel-engine.js';
 
 const $ = (id) => document.getElementById(id);
@@ -127,6 +127,7 @@ function render() {
   $('title').innerHTML = over ? (g.winner === me.id ? 'You win!' : `${nm(g.winner)} wins!`) : mine ? 'Your shot' : `${nm(turnId())}'s shot`;
   $('status').textContent = over ? '' : mine ? `Move ${g.move + 1}` : busy ? '' : 'Waiting…';
   $('controls').hidden = !mine || busy;
+  if (mine && !busy && isPhone()) { try { if (!sessionStorage.getItem('duel.tip')) { sessionStorage.setItem('duel.tip', '1'); note('Drag on the battlefield to aim: direction sets the angle, distance the power.'); } } catch {} }
   cv.style.touchAction = mine && !busy ? 'none' : 'manipulation';   // dragging aims on your turn instead of scrolling
   cv.style.cursor = mine && !busy ? 'crosshair' : '';
   $('pack').innerHTML = over ? '' : backpackBarHTML(pack, 'duel', !busy);
@@ -329,6 +330,8 @@ $('del').onclick = async () => {
   if (!id || !(await load(id))) { $('title').textContent = 'Duel not found'; return; }
   try { const a = JSON.parse(localStorage.getItem(`duel.aim.${id}`) || 'null'); if (a) { $('angle').value = a.angle; $('power').value = a.power; } } catch {}
   showAim();
+  $('shotsFold').open = !isPhone();
+  noteMirror($('err'), 'error');
   pack = await backpack();
   announceChaos({ gameId: id });
   requestAnimationFrame(loop);

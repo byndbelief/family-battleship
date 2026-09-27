@@ -212,3 +212,47 @@ export async function nextUpChip(meId, currentId, nameOf) {
     chip.setAttribute('aria-label', `Next game waiting on you: ${n.kind} versus ${vs}${list.length > 1 ? `, and ${list.length - 1} more` : ''}`);
   } finally { nextBusy = false; }
 }
+
+// ---------------------------------------------------------------- phones: game first
+export const isPhone = () => matchMedia('(max-width: 640px)').matches;
+// A section that is open on big screens and folded to a one-line header on phones.
+export const foldOpen = () => (isPhone() ? '' : 'open');
+// A quick message that pops in at the top and fades, instead of a line of text on the page.
+let lastNote = '', lastNoteAt = 0;
+export function note(text, tone = '') {
+  text = String(text || '').trim();
+  if (!text || (text === lastNote && Date.now() - lastNoteAt < 4000)) return;
+  lastNote = text; lastNoteAt = Date.now();
+  let box = document.getElementById('notes');
+  if (!box) {
+    box = document.createElement('div'); box.id = 'notes'; box.setAttribute('role', 'status'); box.setAttribute('aria-live', 'polite');
+    box.style.cssText = 'position:fixed;left:50%;top:calc(10px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:85;display:flex;flex-direction:column;gap:6px;align-items:center;width:min(420px,calc(100vw - 24px));pointer-events:none';
+    document.body.appendChild(box);
+  }
+  while (box.children.length >= 2) box.firstChild.remove();
+  const n = document.createElement('div');
+  const bg = tone === 'error' ? '#8E1F1Af2' : '#141026ee';
+  n.style.cssText = `pointer-events:auto;padding:9px 14px;border-radius:12px;background:${bg};color:#fff;font:600 14px/1.35 system-ui,sans-serif;box-shadow:0 8px 20px #0007;text-align:center;opacity:0;transform:translateY(-8px);transition:opacity .2s,transform .2s`;
+  n.textContent = text; n.onclick = () => n.remove();
+  box.appendChild(n);
+  requestAnimationFrame(() => { n.style.opacity = '1'; n.style.transform = 'none'; });
+  setTimeout(() => { n.style.opacity = '0'; setTimeout(() => n.remove(), 250); }, Math.min(5000, 1800 + text.length * 35));
+}
+// Turns a line of page text (like a tip or an error) into quick notes on phones and in full screen:
+// the line is hidden there, and each new message it shows pops up instead.
+export function noteMirror(el, tone = '') {
+  if (!el) return;
+  el.classList.add('noteline');
+  new MutationObserver(() => { if (isPhone() || document.querySelector('.fs-on')) note(el.textContent, tone); })
+    .observe(el, { childList: true, characterData: true, subtree: true });
+}
+const foldCss = document.createElement('style');
+foldCss.textContent = `
+  details.mfold > summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px}
+  details.mfold > summary::-webkit-details-marker{display:none}
+  details.mfold > summary::after{content:'▾';font-size:18px;opacity:.7;transition:transform .2s}
+  details.mfold:not([open]) > summary::after{transform:rotate(-90deg)}
+  details.mfold > summary > *{margin:0}
+  @media (max-width:640px){.noteline{display:none!important}}
+  .fs-on .noteline{display:none!important}`;
+document.head.appendChild(foldCss);

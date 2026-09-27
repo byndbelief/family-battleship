@@ -1,5 +1,5 @@
 // Putt Post, live: turns and scores are saved on the server; putts replay for everyone.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, isPhone, noteMirror } from './common.js';
 import {
   LW, LH, HOLES, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, drawHole,
   inPoly, inRect, segDist, reduceMotion,
@@ -311,7 +311,7 @@ cv.addEventListener('pointermove', (e) => {
   const p = toLogical(e), dx = drag.x - p.x, dy = drag.y - p.y, d = Math.sqrt(dx * dx + dy * dy);
   if (d < 6) { scene.aim = null; showAim(null); return; }
   const pw = Math.min(1, d / 150); scene.aim = { bx: scene.ball.x, by: scene.ball.y, dx: dx / d, dy: dy / d, p: pw };
-  showAim(scene.aim); $('tip').textContent = 'Let go to set it up. Slide back to the ball to cancel.';
+  showAim(scene.aim);
 });
 cv.addEventListener('pointercancel', () => { drag = null; scene.aim = null; showAim(null); });
 cv.addEventListener('pointerup', async (e) => {
@@ -570,6 +570,8 @@ $('del').onclick = async () => {
   const id = (location.hash.match(/game=([0-9a-f-]{36})/) || [])[1];
   if (!id || !(await load(id))) { $('holeName').textContent = 'Game not found'; $('holeNo').textContent = 'It may have been deleted.'; return; }
   sizeCanvas(); addEventListener('resize', sizeCanvas);
+  $('cardFold').open = !isPhone();
+  noteMirror($('tip'));
   pack = await backpack();
   announceChaos({ gameId: id });
   requestAnimationFrame(loop);

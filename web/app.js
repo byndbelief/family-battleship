@@ -1,5 +1,5 @@
 import { VAPID_PUBLIC_KEY, USERNAME_DOMAIN } from './config.js';
-import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip } from './common.js';
+import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note } from './common.js';
 import { HOLES, holeWithAttack, drawHole, LW, LH } from './golf-engine.js';
 import { W as DW, H as DH, TANK_X, buildTop } from './duel-engine.js';
 const app = document.getElementById('app');
@@ -20,6 +20,7 @@ let aims = { target: null, cells: new Set() };
 let busy = false;
 // Phones show one board at a time: which one (an owner's id), and the turn state it was picked for.
 let boardTab = null, boardTabFor = null;
+let shotsOpen = null, lastNoteKey = '';   // Latest shots folded or open; the last message popped up on a phone
 let peekMode = false;           // next tap on an opponent's board spends a peek cheat
 let sonarLoot = null;           // next tap on an opponent's board spends this Sonar Ping
 const seenShots = new Map();    // game id -> Set of shot ids already animated
@@ -804,7 +805,8 @@ function feedHTML() {
     const accLine = acc ? `<li class="accuse">🚨 <strong>${acc.accuser === me.id ? 'You' : nm(acc.accuser)}</strong> called cheater on <strong>${acc.accused === me.id ? 'you' : nm(acc.accused)}</strong>: ${acc.busted ? `busted! (${acc.kinds.map(cheatLabel).join(', ')})` : 'false alarm.'}</li>` : '';
     return `${accLine}<li class="${hits ? 'hit' : ''}"><strong>${who}</strong> fired at <strong>${tgt}</strong>: ${cells}.${sank.length ? ` Sank the ${sank.join(' and ')}.` : ''}</li>`;
   }).join('');
-  return `<section class="card"><h2>Latest shots</h2><ul class="feed">${items}</ul></section>`;
+  if (shotsOpen === null) shotsOpen = !isPhone();   // folded on phones until opened, and remembered while you play
+  return `<details class="card mfold" id="feedFold" ${shotsOpen ? 'open' : ''}><summary><h2>Latest shots</h2></summary><ul class="feed">${items}</ul></details>`;
 }
 
 // Switch a phone to one board without redrawing (the tabs; also used so a shot is always seen landing).
@@ -873,7 +875,7 @@ function renderGame() {
         ${fleetListHTML(p)}
       </section>`;
     }).join('');
-    body = `${callOutHTML()}${sonarLoot && myTurn ? '<p class="status">📡 Tap a square on an opponent\'s board to ping the 3×3 patch around it.</p>' : ''}${peekMode && myTurn ? '<p class="status">👀 Tap a square on an opponent\'s board to peek.</p>' : ''}
+    body = `${callOutHTML()}${sonarLoot && myTurn ? '<p class="status noteline">📡 Tap a square on an opponent\'s board to ping the 3×3 patch around it.</p>' : ''}${peekMode && myTurn ? '<p class="status noteline">👀 Tap a square on an opponent\'s board to peek.</p>' : ''}
       ${tabs}
       <div class="boards">${targets}
         <section class="card bsec ${boardTab === me.id ? 'tab-on' : ''}" data-owner="${me.id}"><div class="row between"><h2>Your fleet</h2>${imOut ? '<span class="pill out">Sunk</span>' : ''}</div>
@@ -890,7 +892,7 @@ function renderGame() {
     <header class="stack">
       <div class="row between"><button class="link" id="back">← All games</button><span class="row" style="gap:10px"><span class="live" id="live">Live</span>${fsButton('#app')}</span></div>
       <h1>${title}</h1>
-      ${sub ? `<p class="muted">${sub}</p>` : ''}
+      ${sub ? `<p class="muted gsub">${sub}</p>` : ''}
       ${playersStrip}
     </header>
     ${body}
@@ -901,6 +903,12 @@ function renderGame() {
       ${aims.cells.size ? '<button class="link" id="clearAim">Clear</button>' : ''}
       <button class="fire ${aims.target && aims.cells.size === need && !busy ? 'ready' : ''}" id="fire" ${aims.target && aims.cells.size === need && !busy ? '' : 'disabled'}>Fire!</button><span class="error" id="fireerr" hidden></span></div>` : ''}`);
   document.body.classList.toggle('has-firebar', myTurn);
+  // Phones and full screen: instructions pop up once instead of taking up room on the page.
+  const tipNow = sonarLoot && myTurn ? '📡 Tap a square on their board to ping the 3×3 around it.' : peekMode && myTurn ? '👀 Tap a square on their board to peek.' : myTurn || game.status === 'setup' ? sub.replace(/<[^>]+>/g, '') : '';
+  const key = `${game.id}|${game.move}|${game.status}|${tipNow}`;
+  if ((isPhone() || app.classList.contains('fs-on')) && key !== lastNoteKey && tipNow) note(tipNow);
+  lastNoteKey = key;
+  const ff = document.getElementById('feedFold'); if (ff) ff.addEventListener('toggle', () => { shotsOpen = ff.open; });
   const fb = app.querySelector('.firebar');   // keep the ▶ Next chip and 🔊 above it, whatever its height
   if (fb) document.documentElement.style.setProperty('--fbh', `${Math.ceil(fb.getBoundingClientRect().height)}px`);
   app.querySelectorAll('[data-tab]').forEach((b) => { b.onclick = () => showBoard(b.dataset.tab); });
@@ -953,7 +961,7 @@ function renderGame() {
     busy = true; fire.disabled = true;
     const { error } = await sb.rpc('fire', { p_game: game.id, p_target: aims.target, p_cells: [...aims.cells] });
     busy = false;
-    if (error) { const el = document.getElementById('fireerr'); el.hidden = false; el.textContent = friendly(error); fire.disabled = false; return; }
+    if (error) { const el = document.getElementById('fireerr'); el.hidden = false; el.textContent = friendly(error); if (isPhone()) note(friendly(error), 'error'); fire.disabled = false; return; }
     aims = { target: null, cells: new Set() };
     notify(game.id);
     await loadGame(game.id);

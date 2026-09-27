@@ -274,3 +274,19 @@ body.quake { animation: quake .45s linear 1; }
 @media (prefers-reduced-motion: reduce) { .firebar .fire.ready { animation: none; } }
 body.has-firebar #nextUp, body.has-firebar #sfxToggle { bottom: calc(var(--fbh, 80px) + 10px) !important; }
 body.has-firebar { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
+
+/* ---------------------------------------------------------------- phones and full screen: the game first */
+@media (max-width: 640px) {
+  #app h1 { font-size: 24px; }
+  #app header.stack { gap: 6px; }
+  #app .gsub, #app .players, .boards ~ .legend, .legend, .bsec .fleet-list, .bsec > p.muted.small, #fireerr { display: none !important; }
+  .cheatbar, #app .backpack { padding: 8px 10px !important; }
+  .cheatbar h2 { font-size: 13px; }
+  .cheatbar { gap: 6px !important; }
+  .cheatbar > p, .cheatbar .muted { display: none; }
+  .cheatbar > .row:not(.between), #app .backpack { flex-wrap: nowrap !important; overflow-x: auto; }
+  .cheatbar button, #app .backpack button { flex: none; white-space: nowrap; padding: 6px 10px; font-size: 14px; }
+  #app .backpack > span:first-child { font-size: 0 !important; } #app .backpack > span:first-child::before { content: '🎒'; font-size: 18px; }
+}
+#app.fs-on header h1, #app.fs-on .gsub, #app.fs-on .players, #app.fs-on .legend, #app.fs-on #feedFold, #app.fs-on #del,
+#app.fs-on .fleet-list, #app.fs-on .bsec > p.muted.small, #app.fs-on .cheatlog { display: none !important; }
