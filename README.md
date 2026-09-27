@@ -103,7 +103,7 @@ card with a live preview, plus your backpack and the chaos feed.
 
 **Settings → Pages → Source: GitHub Actions.** The `Publish site` workflow then
 publishes `web/` on every push to `main`, at
-`https://<user>.github.io/family-battleship/`.
+`https://<user>.github.io/game-room/`.
 
 GitHub Pages needs a public repository on a free GitHub plan. Nothing secret is in
 the repo: the anon key is designed to be public, and the database rules do the
