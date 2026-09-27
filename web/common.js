@@ -277,7 +277,12 @@ export async function gauntletBar(gauntletId, gameId, meId, nameOf) {
   let go = '';
   if (gt.status === 'over') {
     const champs = gt.players.filter((_, i) => gt.scores[i] === lead).map(who).join(' & ');
-    go = `<a class="gtgo" href="./">👑 ${champs} ${champs === 'You' ? 'win' : 'wins'} the Gauntlet! ›</a>`;
+    // The rivalry rolls straight into its next Gauntlet: offer its first round.
+    const key = [...gt.players].sort().join(',');
+    const { data: nextOnes } = await sb.from('gauntlets').select('*').eq('status', 'playing').order('created_at', { ascending: false }).limit(20);
+    const nx = (nextOnes ?? []).find((x) => [...x.players].sort().join(',') === key);
+    go = nx ? `<a class="gtgo" data-reload href="${nx.current_kind === 'battleship' ? `./#game=${nx.current_game}` : `${nx.current_kind}.html#game=${nx.current_game}`}">👑 ${champs} ${champs === 'You' ? 'win' : 'wins'}! Next Gauntlet: ${GT_ICON[nx.current_kind]} ›</a>`
+      : `<a class="gtgo" href="./">👑 ${champs} ${champs === 'You' ? 'win' : 'wins'} the Gauntlet! ›</a>`;
   } else if (gt.current_game !== gameId) {
     go = `<a class="gtgo" data-reload href="${gt.current_kind === 'battleship' ? `./#game=${gt.current_game}` : `${gt.current_kind}.html#game=${gt.current_game}`}">Round ${gt.round}: ${GT_ICON[gt.current_kind]} Play ›</a>`;
   }

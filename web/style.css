@@ -361,3 +361,7 @@ body.has-firebar { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)
   .ncards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .gtbtn { flex: 1 1 100%; margin-left: 0; }
 }
+
+.gtrival { display: flex; flex-direction: column; gap: 1px; }
+.gtrival strong { font-size: 17px; color: #fff; }
+.gtrival span { font-size: 13px; color: #F3D9A6; }

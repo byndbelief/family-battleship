@@ -344,11 +344,11 @@ async function lobby() {
         <button class="link" id="signout">Sign out</button>
       </header>
       <section class="gthero" id="gtSec">
-        <div class="gthead"><span class="gtcup" aria-hidden="true">🏆</span><div><h2>The Gauntlet</h2><p class="small">A best-of series of surprise rounds: putts, duels and sea battles. Most rounds wins the crown.</p></div></div>
+        <div class="gthead"><span class="gtcup" aria-hidden="true">🏆</span><div><h2>The Gauntlet</h2><p class="small">One running Gauntlet per rival: surprise rounds of putts, duels and sea battles. Win the most rounds for the crown, and the next Gauntlet starts on its own.</p></div></div>
         <div class="gtlive" id="gtLive"></div>
         <form class="gtstart" id="gtStart">
-          <span class="gtlabel">Start a Gauntlet</span>
-          <div class="choice">${others.map(([id, u]) => `<button type="button" class="chip" data-gopp="${esc(u)}" aria-pressed="false">${bots.has(id) ? '🤖 ' : ''}${esc(u)}</button>`).join('')}</div>
+          <span class="gtlabel" id="gtLabel">New rival</span>
+          <div class="choice">${others.map(([id, u]) => `<button type="button" class="chip" data-gopp="${esc(u)}" data-gid="${id}" aria-pressed="false">${bots.has(id) ? '🤖 ' : ''}${esc(u)}</button>`).join('')}</div>
           <div class="row gtrow">
             <div class="seg" role="radiogroup" aria-label="Rounds">${[3, 5, 7].map((r) => `<label><input type="radio" name="gtRounds" value="${r}" ${r === 3 ? 'checked' : ''}>${r} rounds</label>`).join('')}</div>
             <button class="gtbtn" type="submit" id="gtGo" disabled>Start 🏆</button>
@@ -413,6 +413,10 @@ async function lobby() {
     const on = c.getAttribute('aria-pressed') !== 'true';
     if (on && gPicked().length >= 3) return note('Up to three opponents.');
     c.setAttribute('aria-pressed', String(on)); gtGo.disabled = !gPicked().length;
+    const ids = gchips.filter((x) => x.getAttribute('aria-pressed') === 'true').map((x) => x.dataset.gid);
+    const exists = ids.length && rivalGroups.has([me.id, ...ids].sort().join(','));
+    gtGo.textContent = exists ? 'Go to your Gauntlet ›' : 'Start 🏆';
+    app.querySelector('.gtrow .seg').hidden = !!exists;
   }));
   document.getElementById('gtStart').addEventListener('submit', async (e) => {
     e.preventDefault(); gtGo.disabled = true;
@@ -465,6 +469,16 @@ async function lobby() {
     const opponents = picked().map((x) => x.dataset.opp);
     const k = kind(), botLevel = +app.querySelector('input[name=botlvl]:checked').value;
     start.disabled = true;
+    // One game of each kind per group of players: if it's already going, pick it back up.
+    const ids = picked().map((x) => x.dataset.id), group = [me.id, ...ids].sort().join(',');
+    const table = { battleship: 'games', golf: 'golf_games', duel: 'duel_games' }[k];
+    const { data: running } = await sb.from(table).select('id, players, gauntlet_id').neq('status', 'over').is('gauntlet_id', null).limit(100);
+    const same = (running ?? []).find((g) => [...g.players].sort().join(',') === group);
+    if (same) {
+      note(`You already have ${KIND_NAME[k]} going with ${ids.length ? ids.map(nm).join(' & ').replace(/<[^>]+>/g, '') : 'yourself'}. Picking it back up.`);
+      setTimeout(() => { if (k === 'battleship') location.hash = `game=${same.id}`; else location.href = `${k}.html#game=${same.id}`; }, 900);
+      return;
+    }
     let res;
     if (k === 'golf') {
       const [st, ct] = app.querySelector('input[name=course]:checked').value.split(',').map(Number);
@@ -514,7 +528,7 @@ async function loadGames() {
     sb.from('games').select('*').order('updated_at', { ascending: false }).limit(40),
     sb.from('golf_games').select('*').order('updated_at', { ascending: false }).limit(40),
     sb.from('duel_games').select('*').order('updated_at', { ascending: false }).limit(40),
-    sb.from('gauntlets').select('*').order('updated_at', { ascending: false }).limit(20),
+    sb.from('gauntlets').select('*').order('updated_at', { ascending: false }).limit(200),
   ]);
   const list = document.getElementById('games');
   if (!list) return;
@@ -556,10 +570,10 @@ async function loadGames() {
     const lead = Math.max(...g.scores);
     const table = g.players.map((p, i) => `${g.scores[i] === lead && lead > 0 ? '👑 ' : ''}${p === me.id ? 'You' : nm(p)} ${g.scores[i]}`).join(' · ');
     const href = g.status === 'over' ? '#' : g.current_kind === 'battleship' ? `#game=${g.current_game}` : `${g.current_kind}.html#game=${g.current_game}`;
-    if (g.status !== 'over') return;   // live Gauntlets have their own cards at the top
+    return;   // Gauntlets live on the rival cards at the top (running ones, and titles won)
     cards.push({ at: g.updated_at, kind: 'gauntlet', g, href, mine: false, over: g.status === 'over', prog: (g.history || []).length / g.rounds, pill: g.status === 'over' ? `<span class="pill done">Champion decided</span>` : `<span class="pill gt">Round ${g.round} of ${g.rounds}: ${KIND_ICON[g.current_kind]}</span>`, sub: table, vs: vsOf(g.players), extra: '' });
   });
-  renderGauntlets(gts.filter((g) => g.status !== 'over'), cards);
+  renderGauntlets(gts, cards);
   if (!cards.length) { renderUpStrip([], [], [], []); list.innerHTML = `<p class="muted">No games yet. Pick one above.</p>`; return; }
   // Your move first, then games waiting on someone else, then finished ones (folded away).
   cards.sort((a, b) => (a.at < b.at ? 1 : -1));
@@ -587,24 +601,34 @@ async function loadGames() {
 }
 let finishedOpen = false;
 
-// The Gauntlet's live series, one card each: scoreboard, round track, and the way into this round.
-function renderGauntlets(live, cards) {
+// One card per rival (a group of players): their running Gauntlet, which one it is, and
+// how many Gauntlets each of them has won.
+const groupKey = (players) => [...players].sort().join(',');
+let rivalGroups = new Set();
+function renderGauntlets(all, cards) {
   const box = document.getElementById('gtLive');
   if (!box) return;
+  const live = all.filter((g) => g.status !== 'over');
+  rivalGroups = new Set(live.map((g) => groupKey(g.players)));
   box.innerHTML = live.map((g) => {
+    const past = all.filter((x) => x.status === 'over' && groupKey(x.players) === groupKey(g.players));
+    const titles = g.players.map((p) => past.filter((x) => { const i = x.players.indexOf(p), top = Math.max(...x.scores); return top > 0 && x.scores[i] === top; }).length);
     const lead = Math.max(...g.scores), done = g.history || [];
     const round = cards.find((c) => c.g.id === g.current_game), myMove = !!round?.mine;
     const href = g.current_kind === 'battleship' ? `#game=${g.current_game}` : `${g.current_kind}.html#game=${g.current_game}`;
     const whoseMove = round ? (myMove ? 'Your move' : round.pill.replace(/<[^>]+>/g, '')) : '';
     const dots = Array.from({ length: g.rounds }, (_, i) => { const h = done[i], cur = !h && i === g.round - 1;
       return `<i class="${h ? 'done' : cur ? 'cur' : ''}">${h ? KIND_ICON[h.kind] : cur ? KIND_ICON[g.current_kind] : i + 1}</i>`; }).join('');
+    const others = g.players.filter((p) => p !== me.id).map(nm).join(' & ');
     return `<a class="gtcard ${myMove ? 'mine' : ''}" href="${href}">
+      <span class="gtrival"><strong>vs ${others}</strong><span>Gauntlet #${past.length + 1}${past.length ? ` · 🏆 ${g.players.map((p, i) => `${p === me.id ? 'You' : nm(p)} ${titles[i]}`).join(' · ')}` : ''}</span></span>
       <span class="gtscore">${g.players.map((p, i) => `<span class="${g.scores[i] === lead && lead > 0 ? 'lead' : ''}">${g.scores[i] === lead && lead > 0 ? '👑 ' : ''}${p === me.id ? 'You' : nm(p)} <b>${g.scores[i]}</b></span>`).join('')}</span>
       <span class="gttrack">${dots}</span>
       <span class="gtnow">Round ${g.round} of ${g.rounds}: ${KIND_ICON[g.current_kind]} ${KIND_NAME[g.current_kind]}${whoseMove ? ` · <strong>${whoseMove}</strong>` : ''}</span>
       <span class="gtplay">${myMove ? `Play round ${g.round} ›` : 'Watch ›'}</span>
     </a>`;
   }).join('');
+  document.getElementById('gtLabel').textContent = live.length ? 'New rival' : 'Start a rivalry';
 }
 
 // The Your move strip: one big card per game waiting on you, swipe (or ‹ ›) through them.
