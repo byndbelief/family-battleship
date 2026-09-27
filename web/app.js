@@ -313,6 +313,13 @@ async function renderAlerts() {
 // ---------------------------------------------------------------- lobby
 const KIND_ICON = { battleship: '⚓', golf: '⛳', duel: '💥', gauntlet: '🏆' };
 const KIND_NAME = { battleship: 'Battleship', golf: 'Putt Post', duel: 'Hilltop Duel', gauntlet: 'The Gauntlet' };
+const KIND_BLURB = {
+  battleship: 'Hide your fleet, hunt theirs. Peeking is allowed.',
+  golf: '18 wild holes, sneak attacks and mulligans.',
+  duel: 'Tanks on hills. Mind the wind.',
+  gauntlet: 'A best-of series of random games. Winner takes the crown.',
+};
+const KIND_WHO = { battleship: '2–3 players', golf: 'Solo or up to 4', duel: '2 players', gauntlet: '2–4 players · 3, 5 or 7 rounds' };
 
 async function lobby() {
   G = null;
@@ -325,22 +332,19 @@ async function lobby() {
       </header>
       <section class="stack">
         <div class="row between"><h2>Your games</h2><span class="live" id="live">Live</span></div>
-        <div class="cards" id="games"><p class="muted">Loading games…</p></div>
+        <div id="games"><p class="muted">Loading games…</p></div>
       </section>
-      <div class="lobby-cols">
-        <section class="card" id="packCard" hidden></section>
-        <section class="card" id="chaosCard" hidden></section>
-      </div>
-      <section class="card">
+      <section class="stack" id="newSec">
         <h2>New game</h2>
-        <form id="newgame" class="stack" style="gap:14px">
-          <div class="stack"><span class="eyebrow">Game</span>
-            <div class="choice">
-              <label><input type="radio" name="kind" value="battleship" checked>⚓ Battleship</label>
-              <label><input type="radio" name="kind" value="golf">⛳ Putt Post</label>
-              <label><input type="radio" name="kind" value="duel">💥 Hilltop Duel</label>
-              <label><input type="radio" name="kind" value="gauntlet">🏆 The Gauntlet</label>
-            </div></div>
+        <div class="ncards" role="radiogroup" aria-label="Pick a game">
+          ${Object.keys(KIND_NAME).map((k) => `
+          <button type="button" class="ncard k-${k}" data-kind="${k}" role="radio" aria-checked="false">
+            <canvas class="preview" data-kind="${k}" width="320" height="200" aria-hidden="true"></canvas>
+            <span class="nbody"><strong>${KIND_ICON[k]} ${KIND_NAME[k]}</strong><span class="muted small">${KIND_BLURB[k]}</span><span class="eyebrow">${KIND_WHO[k]}</span></span>
+          </button>`).join('')}
+        </div>
+        <form id="newgame" class="card" style="gap:14px" hidden>
+          <h2 id="setupTitle"></h2>
           <div class="stack"><span class="eyebrow" id="oppHint">Opponents</span>
             <div class="choice">${others.map(([id, u]) => `<button type="button" class="chip" data-opp="${esc(u)}" data-id="${id}" aria-pressed="false">${bots.has(id) ? '🤖 ' : ''}${esc(u)}${bots.has(id) ? ' (robot)' : ''}</button>`).join('')}</div></div>
           <div class="stack" data-for="battleship"><span class="eyebrow">Board</span>
@@ -359,18 +363,24 @@ async function lobby() {
           <div><button class="primary" type="submit" id="start" disabled>Start game</button></div>
         </form>
       </section>
+      <div class="lobby-cols">
+        <section class="card" id="packCard" hidden></section>
+        <section class="card" id="chaosCard" hidden></section>
+      </div>
       <section class="card" id="alerts"></section>
     </div>`);
   document.getElementById('signout').onclick = signOut;
   const chips = [...app.querySelectorAll('[data-opp]')];
   const start = document.getElementById('start');
-  const kind = () => app.querySelector('input[name=kind]:checked').value;
+  let chosen = null;
+  const kind = () => chosen;
   const picked = () => chips.filter((x) => x.getAttribute('aria-pressed') === 'true');
   const LIMITS = {
     battleship: [1, 2, 'Opponents (pick one, or two for a 3-way battle)'], golf: [0, 3, 'Opponents (none for a solo round, up to three)'],
     duel: [1, 1, 'Opponent (pick one)'], gauntlet: [1, 3, 'Opponents (one to three)'],
   };
   const refreshForm = () => {
+    if (!chosen) return;
     const k = kind(), [lo, hi, hint] = LIMITS[k];
     let sel = picked();
     while (sel.length > hi) { sel[0].setAttribute('aria-pressed', 'false'); sel = picked(); }
@@ -386,8 +396,18 @@ async function lobby() {
     if (kind() === 'duel') chips.forEach((o) => { if (o !== c) o.setAttribute('aria-pressed', 'false'); });
     refreshForm();
   }));
-  app.querySelectorAll('input[name=kind]').forEach((r) => r.addEventListener('change', refreshForm));
-  refreshForm();
+  const form = document.getElementById('newgame');
+  app.querySelectorAll('.ncard').forEach((card) => card.addEventListener('click', () => {
+    chosen = card.dataset.kind;
+    app.querySelectorAll('.ncard').forEach((o) => o.setAttribute('aria-checked', String(o === card)));
+    document.getElementById('setupTitle').textContent = `${KIND_ICON[chosen]} ${KIND_NAME[chosen]}`;
+    document.getElementById('newerr').hidden = true;
+    form.hidden = false;
+    refreshForm();
+    const r = form.getBoundingClientRect();
+    if (r.bottom > innerHeight) form.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest' });
+  }));
+  app.querySelectorAll('canvas.preview[data-kind]').forEach((cv) => drawSample(cv, cv.dataset.kind));
   document.getElementById('newgame').addEventListener('submit', async (e) => {
     e.preventDefault();
     const opponents = picked().map((x) => x.dataset.opp);
@@ -425,7 +445,7 @@ async function lobby() {
   loadGames(); loadChaos();
 }
 
-// ---- game cards with previews
+// ---- your games, as a list of game states
 async function loadGames() {
   const [bsRes, golfRes, duelRes, gtRes] = await Promise.all([
     sb.from('games').select('*').order('updated_at', { ascending: false }).limit(40),
@@ -454,38 +474,63 @@ async function loadGames() {
     else if (g.status === 'setup') pill = (myFleets ?? []).some((f) => f.game_id === g.id) ? `<span class="pill wait">Waiting for ships</span>` : `<span class="pill turn">Place your ships</span>`;
     else if (g.eliminated.includes(me.id)) pill = `<span class="pill out">You're out</span>`;
     else pill = turnPill(g.players[g.turn]);
-    cards.push({ at: g.updated_at, kind: 'battleship', g, href: `#game=${g.id}`, mine: pill.includes('turn"'), pill, sub: `${MODES[g.mode].n}×${MODES[g.mode].n}${g.move ? ` · move ${g.move}` : ''}`, vs: vsOf(g.players), extra: round(g) });
+    cards.push({ at: g.updated_at, kind: 'battleship', g, href: `#game=${g.id}`, mine: pill.includes('turn"'), over: g.status === 'over', prog: null, pill, sub: `${MODES[g.mode].n}×${MODES[g.mode].n}${g.move ? ` · move ${g.move}` : ''}`, vs: vsOf(g.players), extra: round(g) });
   });
   golf.forEach((g) => {
     const n = g.players.length, hole = g.start + Math.floor(Math.min(g.t, g.count * n - 1) / n);
     const pill = g.status === 'over' ? `<span class="pill done">Finished</span>` : turnPill(g.players[g.t % n]);
     const mine = (golfTurns ?? []).filter((t) => t.game_id === g.id && t.player === me.id && !t.skipped).reduce((a, t) => a + t.written + t.fine, 0);
-    cards.push({ at: g.updated_at, kind: 'golf', g, hole, href: `golf.html#game=${g.id}`, mine: pill.includes('turn"'), pill, sub: `${g.status === 'over' ? 'Final' : `Hole ${hole + 1}`} · ${HOLES[hole].name}${mine ? ` · you: ${mine}` : ''}`, vs: vsOf(g.players), extra: round(g) });
+    cards.push({ at: g.updated_at, kind: 'golf', g, hole, href: `golf.html#game=${g.id}`, mine: pill.includes('turn"'), over: g.status === 'over', prog: g.status === 'over' ? 1 : g.t / (g.count * n), pill, sub: `${g.status === 'over' ? 'Final' : `Hole ${hole + 1}`} · ${HOLES[hole].name}${mine ? ` · you: ${mine}` : ''}`, vs: vsOf(g.players), extra: round(g) });
   });
   duel.forEach((g) => {
     const pill = g.status === 'over' ? (g.winner === me.id ? `<span class="pill done">You won</span>` : `<span class="pill done">${nm(g.winner)} won</span>`) : turnPill(g.players[g.turn]);
-    cards.push({ at: g.updated_at, kind: 'duel', g, href: `duel.html#game=${g.id}`, mine: pill.includes('turn"'), pill, sub: `${g.hp[0]} – ${g.hp[1]} HP${g.move ? ` · shot ${g.move}` : ''}`, vs: vsOf(g.players), extra: round(g) });
+    cards.push({ at: g.updated_at, kind: 'duel', g, href: `duel.html#game=${g.id}`, mine: pill.includes('turn"'), over: g.status === 'over', prog: null, pill, sub: `${g.hp[0]} – ${g.hp[1]} HP${g.move ? ` · shot ${g.move}` : ''}`, vs: vsOf(g.players), extra: round(g) });
   });
   gts.forEach((g) => {
     const lead = Math.max(...g.scores);
     const table = g.players.map((p, i) => `${g.scores[i] === lead && lead > 0 ? '👑 ' : ''}${p === me.id ? 'You' : nm(p)} ${g.scores[i]}`).join(' · ');
     const href = g.status === 'over' ? '#' : g.current_kind === 'battleship' ? `#game=${g.current_game}` : `${g.current_kind}.html#game=${g.current_game}`;
-    cards.push({ at: g.updated_at, kind: 'gauntlet', g, href, mine: false, pill: g.status === 'over' ? `<span class="pill done">Champion decided</span>` : `<span class="pill gt">Round ${g.round} of ${g.rounds}: ${KIND_ICON[g.current_kind]}</span>`, sub: table, vs: vsOf(g.players), extra: '' });
+    cards.push({ at: g.updated_at, kind: 'gauntlet', g, href, mine: false, over: g.status === 'over', prog: (g.history || []).length / g.rounds, pill: g.status === 'over' ? `<span class="pill done">Champion decided</span>` : `<span class="pill gt">Round ${g.round} of ${g.rounds}: ${KIND_ICON[g.current_kind]}</span>`, sub: table, vs: vsOf(g.players), extra: '' });
   });
-  if (!cards.length) { list.innerHTML = `<p class="muted">No games yet. Start one below.</p>`; return; }
-  // Your turn first, then most recent.
-  cards.sort((a, b) => (a.mine !== b.mine ? (a.mine ? -1 : 1) : a.at < b.at ? 1 : -1));
-  list.innerHTML = cards.map((c, i) => `
-    <a class="gcard ${c.mine ? 'mine' : ''} k-${c.kind}" href="${c.href}">
-      <canvas class="preview" data-i="${i}" width="320" height="200" aria-hidden="true"></canvas>
-      <div class="gbody">
-        <div class="row between"><strong>${KIND_ICON[c.kind]} ${KIND_NAME[c.kind]}</strong>${c.extra}</div>
-        <span class="small">${c.vs}</span>
+  if (!cards.length) { list.innerHTML = `<p class="muted">No games yet. Pick one below.</p>`; return; }
+  // Your move first, then games waiting on someone else, then finished ones (folded away).
+  cards.sort((a, b) => (a.at < b.at ? 1 : -1));
+  const groups = [
+    ['Your move', cards.filter((c) => c.mine)],
+    ['Waiting on others', cards.filter((c) => !c.mine && !c.over)],
+    ['Finished', cards.filter((c) => c.over)],
+  ];
+  const row = (c) => `
+    <li><a class="grow ${c.mine ? 'mine' : ''} ${c.over ? 'over' : ''} k-${c.kind}" href="${c.href}">
+      <canvas class="thumb" data-i="${cards.indexOf(c)}" width="160" height="100" aria-hidden="true"></canvas>
+      <span class="gmain">
+        <span class="gtitle"><strong>${KIND_ICON[c.kind]} ${KIND_NAME[c.kind]}</strong> <span class="small">${c.vs}</span></span>
         <span class="muted small">${c.sub}</span>
-        <div>${c.pill}</div>
-      </div>
-    </a>`).join('');
-  list.querySelectorAll('canvas.preview').forEach((cv) => drawPreview(cv, cards[+cv.dataset.i], myFleets ?? [], atMe ?? []));
+        ${c.prog != null ? `<span class="prog" aria-hidden="true"><i style="width:${Math.round(Math.max(0, Math.min(1, c.prog)) * 100)}%"></i></span>` : ''}
+      </span>
+      <span class="gstate">${c.extra}${c.pill}</span>
+    </a></li>`;
+  list.innerHTML = groups.filter(([, cs]) => cs.length).map(([title, cs]) => title === 'Finished'
+    ? `<details class="glist-fold" ${finishedOpen ? 'open' : ''}><summary class="eyebrow">Finished (${cs.length})</summary><ul class="glist">${cs.map(row).join('')}</ul></details>`
+    : `<div class="stack" style="gap:6px"><span class="eyebrow">${title} (${cs.length})</span><ul class="glist">${cs.map(row).join('')}</ul></div>`).join('');
+  const fold = list.querySelector('.glist-fold');
+  if (fold) fold.addEventListener('toggle', () => { finishedOpen = fold.open; });
+  list.querySelectorAll('canvas.thumb').forEach((cv) => drawPreview(cv, cards[+cv.dataset.i], myFleets ?? [], atMe ?? []));
+}
+let finishedOpen = false;
+
+// Sample pictures for the new-game cards.
+let sampleFleet = null;
+function drawSample(cv, kind) {
+  if (kind === 'battleship') {
+    sampleFleet ??= randomFleet(1);
+    const ships = new Set(fleetCells(1, sampleFleet).flat());
+    const shots = [];
+    for (let i = 0; i < 100; i++) if ((i * 37) % 11 === 3) shots.push({ game_id: 'sample', cell: i, hit: ships.has(i), sunk_cells: [] });
+    drawPreview(cv, { kind, g: { id: 'sample', mode: 1 } }, [{ game_id: 'sample', ships: sampleFleet }], shots);
+  } else if (kind === 'golf') drawPreview(cv, { kind, g: { seed: 20260927 }, hole: 6 });
+  else if (kind === 'duel') drawPreview(cv, { kind, g: { seed: 4242, craters: [], hp: [80, 45] } });
+  else drawPreview(cv, { kind, g: { rounds: 5, round: 3, status: 'playing', current_kind: 'battleship', history: [{ kind: 'golf' }, { kind: 'duel' }] } });
 }
 
 // Little live pictures of each game.
