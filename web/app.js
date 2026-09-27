@@ -330,14 +330,6 @@ async function lobby() {
         <div class="stack"><span class="eyebrow">Family Game Room</span><h1>Ahoy, ${esc(me.username)}</h1></div>
         <button class="link" id="signout">Sign out</button>
       </header>
-      <section class="stack">
-        <div class="row between"><h2>Your games</h2><span class="live" id="live">Live</span></div>
-        <div id="games"><p class="muted">Loading games…</p></div>
-      </section>
-      <div class="lobby-cols">
-        <section class="card" id="packCard" hidden></section>
-        <section class="card" id="chaosCard" hidden></section>
-      </div>
       <section class="stack" id="newSec">
         <h2>New game</h2>
         <div class="ncards" role="radiogroup" aria-label="Pick a game">
@@ -367,6 +359,14 @@ async function lobby() {
           <div><button class="primary" type="submit" id="start" disabled>Start game</button></div>
         </form>
       </section>
+      <section class="stack">
+        <div class="row between"><h2>Your games</h2><span class="live" id="live">Live</span></div>
+        <div id="games"><p class="muted">Loading games…</p></div>
+      </section>
+      <div class="lobby-cols">
+        <section class="card" id="packCard" hidden></section>
+        <section class="card" id="chaosCard" hidden></section>
+      </div>
       <section class="card" id="alerts"></section>
     </div>`);
   document.getElementById('signout').onclick = signOut;
@@ -492,7 +492,7 @@ async function loadGames() {
     const href = g.status === 'over' ? '#' : g.current_kind === 'battleship' ? `#game=${g.current_game}` : `${g.current_kind}.html#game=${g.current_game}`;
     cards.push({ at: g.updated_at, kind: 'gauntlet', g, href, mine: false, over: g.status === 'over', prog: (g.history || []).length / g.rounds, pill: g.status === 'over' ? `<span class="pill done">Champion decided</span>` : `<span class="pill gt">Round ${g.round} of ${g.rounds}: ${KIND_ICON[g.current_kind]}</span>`, sub: table, vs: vsOf(g.players), extra: '' });
   });
-  if (!cards.length) { list.innerHTML = `<p class="muted">No games yet. Pick one below.</p>`; return; }
+  if (!cards.length) { list.innerHTML = `<p class="muted">No games yet. Pick one above.</p>`; return; }
   // Your move first, then games waiting on someone else, then finished ones (folded away).
   cards.sort((a, b) => (a.at < b.at ? 1 : -1));
   const groups = [
@@ -583,6 +583,7 @@ function drawPreview(cv, card, myFleets, atMe) {
 }
 
 // ---- backpack and chaos feed
+let feedOpen = false;   // the feed shows its last 3 events until expanded
 async function loadChaos() {
   const packCard = document.getElementById('packCard'), feedCard = document.getElementById('chaosCard');
   if (!packCard) return;
@@ -604,7 +605,15 @@ async function loadChaos() {
   };
   const feed = feedRes.data ?? [];
   feedCard.hidden = !feed.length;
-  feedCard.innerHTML = `<h2>🌀 Chaos feed</h2><ul class="chaosfeed">${feed.map((e) => `<li class="${e.seen_at ? '' : 'new'}"><span class="big">${e.icon}</span><span>${esc(e.message)}<br><span class="muted small">${new Date(e.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span></span></li>`).join('')}</ul>`;
+  const more = feed.length - 3;
+  feedCard.innerHTML = `<div class="row between"><h2>🌀 Chaos feed</h2>${more > 0 ? `<button type="button" class="link" id="feedMore" aria-expanded="${feedOpen}">${feedOpen ? 'Show less' : `Show ${more} more`}</button>` : ''}</div>
+    <ul class="chaosfeed">${feed.map((e, i) => `<li class="${e.seen_at ? '' : 'new'}" ${i >= 3 && !feedOpen ? 'hidden' : ''}><span class="big">${e.icon}</span><span>${esc(e.message)}<br><span class="muted small">${new Date(e.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span></span></li>`).join('')}</ul>`;
+  const btn = document.getElementById('feedMore');
+  if (btn) btn.onclick = () => {
+    feedOpen = !feedOpen;
+    feedCard.querySelectorAll('.chaosfeed li').forEach((li, i) => { li.hidden = i >= 3 && !feedOpen; });
+    btn.setAttribute('aria-expanded', feedOpen); btn.textContent = feedOpen ? 'Show less' : `Show ${more} more`;
+  };
   announceChaos();
 }
 
