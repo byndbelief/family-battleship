@@ -226,8 +226,8 @@ function loginView(msg) {
   setChannel(null);
   view(`
     <div class="narrow">
-      <header class="stack"><span class="eyebrow">Family Battleship</span><h1>Report for duty</h1>
-        <p class="muted">Sign in with your player name and password.</p></header>
+      <header class="stack"><span class="eyebrow">Family Game Room</span><h1>Game on</h1>
+        <p class="muted">Sign in with your player name to jump into Battleship, Putt Post, Hilltop Duel and the Gauntlet.</p></header>
       <form class="card" id="login">
         <label class="field" for="user">Username<input type="text" id="user" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
         <label class="field" for="pass">Password<input type="password" id="pass" autocomplete="current-password" required></label>
@@ -298,7 +298,7 @@ async function renderAlerts() {
     on: `<p>Turn alerts are on for this device.</p>`,
     off: `<p>Get a notification when it's your turn, even with this page closed.</p><div><button class="primary" id="alertsOn">Turn on turn alerts</button></div>`,
     blocked: `<p class="muted">Notifications are blocked for this site. Allow them in your browser's site settings, then reload.</p>`,
-    'ios-install': `<p>On iPhone or iPad, alerts work once the game is on your home screen: tap <strong>Share</strong>, then <strong>Add to Home Screen</strong>, and open Battleship from there.</p>`,
+    'ios-install': `<p>On iPhone or iPad, alerts work once the game is on your home screen: tap <strong>Share</strong>, then <strong>Add to Home Screen</strong>, and open the Game Room from there.</p>`,
     unsupported: `<p class="muted">This browser can't show turn alerts. The game still updates live while it's open.</p>`,
   }[st];
   box.innerHTML = `<h2>Turn alerts</h2>${text}`;
@@ -360,7 +360,7 @@ async function lobby() {
         </form>
       </section>
       <section class="stack">
-        <div class="row between"><h2>Your games</h2><span class="live" id="live">Live</span></div>
+        <div class="row between"><h2>Your games</h2><span class="row" style="gap:14px"><button type="button" class="link" id="gamesMore" hidden></button><span class="live" id="live">Live</span></span></div>
         <div id="games"><p class="muted">Loading games…</p></div>
       </section>
       <div class="lobby-cols">
@@ -513,11 +513,28 @@ async function loadGames() {
   list.innerHTML = groups.filter(([, cs]) => cs.length).map(([title, cs]) => title === 'Finished'
     ? `<details class="glist-fold" ${finishedOpen ? 'open' : ''}><summary class="eyebrow">Finished (${cs.length})</summary><ul class="glist">${cs.map(row).join('')}</ul></details>`
     : `<div class="stack" style="gap:6px"><span class="eyebrow">${title} (${cs.length})</span><ul class="glist">${cs.map(row).join('')}</ul></div>`).join('');
+  foldGames();
   const fold = list.querySelector('.glist-fold');
   if (fold) fold.addEventListener('toggle', () => { finishedOpen = fold.open; });
   list.querySelectorAll('canvas.thumb').forEach((cv) => drawPreview(cv, cards[+cv.dataset.i], myFleets ?? [], atMe ?? []));
 }
 let finishedOpen = false;
+let gamesOpen = false;   // Your games shows its first 3 rows until expanded
+
+// Collapsed, Your games shows only its first 3 rows (your move first) and hides the Finished fold.
+function foldGames() {
+  const list = document.getElementById('games'), btn = document.getElementById('gamesMore');
+  if (!list || !btn) return;
+  const rows = [...list.querySelectorAll(':scope > .stack .glist > li')], fold = list.querySelector('.glist-fold');
+  const more = rows.length - 3 + (fold ? fold.querySelectorAll('li').length : 0);
+  btn.hidden = more <= 0;
+  rows.forEach((li, i) => { li.hidden = i >= 3 && !gamesOpen; });
+  list.querySelectorAll(':scope > .stack').forEach((g) => { g.hidden = ![...g.querySelectorAll('li')].some((li) => !li.hidden); });
+  if (fold) fold.hidden = !gamesOpen;
+  btn.setAttribute('aria-expanded', gamesOpen);
+  btn.textContent = gamesOpen ? 'Show less' : `Show ${more} more`;
+  btn.onclick = () => { gamesOpen = !gamesOpen; foldGames(); };
+}
 
 // Sample pictures for the new-game cards.
 let sampleFleet = null;

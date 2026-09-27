@@ -6,7 +6,7 @@ self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener('push', (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch {}
-  e.waitUntil(self.registration.showNotification(d.title || 'Family Battleship', {
+  e.waitUntil(self.registration.showNotification(d.title || 'Family Game Room', {
     body: d.body || '',
     tag: d.tag,
     renotify: true,
