@@ -51,11 +51,23 @@
   .hp.right{text-align:right;align-items:flex-end}
   .wind{align-self:flex-start;background:#0008;border-radius:999px;padding:3px 10px;white-space:nowrap}
   @media (max-width:520px){.hud{font-size:11px;inset:8px 8px auto 8px}}
-  label.slider{display:grid;grid-template-columns:70px 1fr 48px;align-items:center;gap:10px;font-weight:700;font-size:14px;width:100%}
-  label.slider output{font-variant-numeric:tabular-nums;text-align:right;color:var(--gold)}
-  input[type=range]{accent-color:var(--gold);width:100%}
+  .sliders{display:flex;flex-direction:column;gap:10px}
+  .slider{display:grid;grid-template-columns:52px 44px minmax(0,1fr) 44px 44px;align-items:center;gap:8px;font-weight:700;font-size:14px;width:100%}
+  .slider output{font-variant-numeric:tabular-nums;text-align:right;color:var(--gold);font-size:17px}
+  .step{width:44px;height:44px;padding:0;font-size:24px;line-height:1;border-radius:12px;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+  .step:active{background:var(--line)}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:44px;background:transparent;margin:0;touch-action:pan-y}
+  input[type=range]::-webkit-slider-runnable-track{height:10px;border-radius:99px;background:linear-gradient(90deg,var(--gold) var(--fill,50%),#ffffff22 var(--fill,50%))}
+  input[type=range]::-moz-range-track{height:10px;border-radius:99px;background:#ffffff22}
+  input[type=range]::-moz-range-progress{height:10px;border-radius:99px;background:var(--gold)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:30px;height:30px;margin-top:-10px;border-radius:50%;background:#FFF4D6;border:3px solid var(--gold);box-shadow:0 2px 8px #0008}
+  input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:#FFF4D6;border:3px solid var(--gold)}
+  input[type=range]:focus-visible{outline:3px solid var(--gold);outline-offset:2px;border-radius:8px}
+  button.go#fire{min-height:64px;min-width:120px;font-size:20px}
+  .aimtip{margin:0}
+  #play.fs-on .aimtip{display:none}
   .controls{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center}
-  @media (max-width:520px){.controls{grid-template-columns:1fr}}
+  @media (max-width:520px){.controls{grid-template-columns:1fr} button.go#fire{width:100%}}
   .status{font-weight:700}
   .stamp{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;pointer-events:none;padding:16px;text-align:center}
   .stamp span{font-family:var(--display);font-size:clamp(34px,10vw,76px);line-height:.95;color:#FFE08A;-webkit-text-stroke:3px #3A1D00;paint-order:stroke fill;text-shadow:0 6px 0 #3A1D00,0 0 40px #F2C230;animation:stampin 2.4s cubic-bezier(.2,1.6,.4,1) both}
@@ -72,7 +84,11 @@
   #play.fs-on .stage canvas{width:auto;height:auto;max-width:100%;max-height:100%}
   #play.fs-on #controls{padding:10px 12px;gap:6px}
   @media (orientation:landscape) and (max-height:520px){
-    #play.fs-on{display:grid;grid-template-columns:1fr minmax(220px,32%);grid-template-rows:1fr auto;align-items:stretch}
+    #play.fs-on{display:grid;grid-template-columns:1fr minmax(250px,34%);grid-template-rows:1fr auto;align-items:stretch}
+    #play.fs-on .slider{grid-template-columns:40px minmax(0,1fr) 40px 42px;gap:6px}
+    #play.fs-on .slider label{display:none}
+    #play.fs-on .step{width:40px;height:40px}
+    #play.fs-on button.go#fire{min-height:52px;width:100%}
     #play.fs-on .stage{grid-row:1 / span 2}
     #play.fs-on #controls .controls{grid-template-columns:1fr}
   }
@@ -96,10 +112,11 @@
     <span class="fsslot"><button type="button" class="fsbtn" data-fs="#play" aria-label="Full screen">⛶</button></span>
   </div>
   <section class="panel" id="controls" hidden>
+    <p class="small muted aimtip">Drag on the battlefield to aim: which way sets the angle, how far sets the power. Fine-tune below.</p>
     <div class="controls">
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <label class="slider" for="angle">Angle <input type="range" id="angle" min="5" max="85" value="45"><output id="angleOut">45°</output></label>
-        <label class="slider" for="power">Power <input type="range" id="power" min="20" max="100" value="62"><output id="powerOut">62</output></label>
+      <div class="sliders">
+        <div class="slider"><label for="angle">Angle</label><button type="button" class="step" data-step="angle" data-d="-1" aria-label="Lower the angle">−</button><input type="range" id="angle" min="5" max="85" value="45"><button type="button" class="step" data-step="angle" data-d="1" aria-label="Raise the angle">+</button><output id="angleOut">45°</output></div>
+        <div class="slider"><label for="power">Power</label><button type="button" class="step" data-step="power" data-d="-1" aria-label="Less power">−</button><input type="range" id="power" min="20" max="100" value="62"><button type="button" class="step" data-step="power" data-d="1" aria-label="More power">+</button><output id="powerOut">62</output></div>
       </div>
       <button class="go" id="fire">Fire!</button>
     </div>

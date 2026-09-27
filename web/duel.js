@@ -49,7 +49,15 @@ function draw(t) {
     ctx.restore();
     if (aiming) { ctx.fillStyle = col; const bob = Math.sin(t / 250) * 3; ctx.beginPath(); ctx.moveTo(x - 6, y - 44 + bob); ctx.lineTo(x + 6, y - 44 + bob); ctx.lineTo(x, y - 36 + bob); ctx.fill(); }
   });
-  if (!shot && !busy && g.status === 'playing' && g.turn === myIdx()) drawHint(t);
+  if (!shot && !busy && g.status === 'playing' && g.turn === myIdx()) {
+    if (drag) {
+      const tp = tankPos(myIdx(), top);
+      ctx.strokeStyle = '#FFF4D688'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
+      ctx.beginPath(); ctx.moveTo(tp.x, tp.y - 14); ctx.lineTo(drag.x, drag.y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = '#FFC85755'; ctx.beginPath(); ctx.arc(drag.x, drag.y, 16, 0, 7); ctx.fill();
+    }
+    drawHint(t);
+  }
   if (shot) {
     const n = shot.i, pts = shot.path;
     for (let j = Math.max(0, n - 40); j < n; j++) { ctx.globalAlpha = (j - (n - 40)) / 40; ctx.fillStyle = '#FFC857'; ctx.beginPath(); ctx.arc(pts[j].x, pts[j].y, 2, 0, 7); ctx.fill(); }
@@ -81,6 +89,7 @@ function drawHint(t) {
 function loop(t) { particles.forEach((q) => { q.x += q.vx; q.y += q.vy; q.vy += 0.12; q.life -= 0.018; }); particles = particles.filter((q) => q.life > 0); draw(t); requestAnimationFrame(loop); }
 function boom(x, y, big = 1) {
   sfx('boom', { size: big });
+  navigator.vibrate?.(Math.round(60 * big));
   const cols = ['#FFF4D6', '#FFC857', '#FF6B5A', '#B79CFF'];
   for (let i = 0; i < 70 * big; i++) { const a = Math.random() * 6.28, v = Math.random() * 5 * big + 1; particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2, life: 1, s: Math.random() * 3 + 1, c: cols[i % 4] }); }
 }
@@ -118,6 +127,8 @@ function render() {
   $('title').innerHTML = over ? (g.winner === me.id ? 'You win!' : `${nm(g.winner)} wins!`) : mine ? 'Your shot' : `${nm(turnId())}'s shot`;
   $('status').textContent = over ? '' : mine ? `Move ${g.move + 1}` : busy ? '' : 'Waiting…';
   $('controls').hidden = !mine || busy;
+  cv.style.touchAction = mine && !busy ? 'none' : 'manipulation';   // dragging aims on your turn instead of scrolling
+  cv.style.cursor = mine && !busy ? 'crosshair' : '';
   $('pack').innerHTML = over ? '' : backpackBarHTML(pack, 'duel', !busy);
   $('pack').querySelectorAll('[data-loot]').forEach((b) => {
     const item = b.dataset.item;
@@ -184,7 +195,8 @@ async function decide() {
 
 async function fire() {
   const g = G.game, p = myIdx(), angle = +$('angle').value, power = +$('power').value, move = g.move;
-  busy = true; render();
+  busy = true; drag = null; render();
+  navigator.vibrate?.(40);
   live?.send('shot', { move, angle, power });
   const big = g.bertha.includes(me.id);
   const sim = await flyShell(p, angle, power, g.craters, move, null, g.gust === move ? 3 : 1);
@@ -262,7 +274,46 @@ const sendAim = () => {
   if (now - aimT < 90) { if (!aimQueued) { aimQueued = true; setTimeout(() => { aimQueued = false; sendAim(); }, 90); } return; }
   aimT = now; live?.send('aim', { move: G.game.move, angle: +$('angle').value, power: +$('power').value });
 };
-['angle', 'power'].forEach((id) => $(id).addEventListener('input', () => { $('angleOut').textContent = $('angle').value + '°'; $('powerOut').textContent = $('power').value; sendAim(); }));
+// Sets the aim from anywhere (sliders, − / + buttons, dragging on the battlefield).
+function showAim() {
+  $('angleOut').textContent = $('angle').value + '°'; $('powerOut').textContent = $('power').value;
+  ['angle', 'power'].forEach((id) => { const el = $(id); el.style.setProperty('--fill', `${((el.value - el.min) / (el.max - el.min)) * 100}%`); });
+}
+const aimKey = () => `duel.aim.${G.game.id}`;
+function setAim(angle, power) {
+  $('angle').value = Math.max(5, Math.min(85, Math.round(angle)));
+  $('power').value = Math.max(20, Math.min(100, Math.round(power)));
+  showAim(); sendAim();
+  try { localStorage.setItem(aimKey(), JSON.stringify({ angle: +$('angle').value, power: +$('power').value })); } catch {}
+}
+['angle', 'power'].forEach((id) => $(id).addEventListener('input', () => setAim(+$('angle').value, +$('power').value)));
+
+// − / + buttons: one step per tap, and they keep going while held.
+document.querySelectorAll('[data-step]').forEach((b) => {
+  let hold = null, rep = null;
+  const bump = () => { const id = b.dataset.step, d = +b.dataset.d; setAim(id === 'angle' ? +$('angle').value + d : +$('angle').value, id === 'power' ? +$('power').value + d : +$('power').value); };
+  const stop = () => { clearTimeout(hold); clearInterval(rep); hold = rep = null; };
+  b.addEventListener('pointerdown', (e) => { e.preventDefault(); b.setPointerCapture?.(e.pointerId); bump(); stop(); hold = setTimeout(() => { rep = setInterval(bump, 70); }, 380); });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => b.addEventListener(ev, stop));
+  b.addEventListener('contextmenu', (e) => e.preventDefault());
+  b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); bump(); } });
+});
+
+// Drag on the battlefield to aim: the direction from your tank sets the angle and the
+// distance sets the power. The aim hint follows your finger.
+let drag = null;
+const canAim = () => G && !busy && !shot && G.game.status === 'playing' && turnId() === me.id;
+function aimFromPointer(e) {
+  const r = cv.getBoundingClientRect(), gx = ((e.clientX - r.left) / r.width) * W, gy = ((e.clientY - r.top) / r.height) * H;
+  const p = myIdx(), t = tankPos(p, top), dir = p === 0 ? 1 : -1;
+  const dx = (gx - t.x) * dir, dy = t.y - 14 - gy;
+  drag = { x: gx, y: gy };
+  const ang = dx <= 0 ? 85 : (Math.atan2(dy, dx) * 180) / Math.PI;
+  setAim(ang, Math.hypot(dx, dy) / 3.4);
+}
+cv.addEventListener('pointerdown', (e) => { if (!canAim()) return; e.preventDefault(); cv.setPointerCapture?.(e.pointerId); aimFromPointer(e); });
+cv.addEventListener('pointermove', (e) => { if (drag && canAim()) aimFromPointer(e); });
+['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => cv.addEventListener(ev, () => { drag = null; }));
 $('fire').onclick = () => { if (!busy) fire(); };
 $('del').onclick = async () => {
   const b = $('del');
@@ -276,6 +327,8 @@ $('del').onclick = async () => {
   if (!(await signedIn())) return;
   const id = (location.hash.match(/game=([0-9a-f-]{36})/) || [])[1];
   if (!id || !(await load(id))) { $('title').textContent = 'Duel not found'; return; }
+  try { const a = JSON.parse(localStorage.getItem(`duel.aim.${id}`) || 'null'); if (a) { $('angle').value = a.angle; $('power').value = a.power; } } catch {}
+  showAim();
   pack = await backpack();
   announceChaos({ gameId: id });
   requestAnimationFrame(loop);
