@@ -47,6 +47,7 @@ function draw(t) {
     ctx.restore();
     if (aiming) { ctx.fillStyle = col; const bob = Math.sin(t / 250) * 3; ctx.beginPath(); ctx.moveTo(x - 6, y - 44 + bob); ctx.lineTo(x + 6, y - 44 + bob); ctx.lineTo(x, y - 36 + bob); ctx.fill(); }
   });
+  if (!shot && !busy && g.status === 'playing' && g.turn === myIdx()) drawHint(t);
   if (shot) {
     const n = shot.i, pts = shot.path;
     for (let j = Math.max(0, n - 40); j < n; j++) { ctx.globalAlpha = (j - (n - 40)) / 40; ctx.fillStyle = '#FFC857'; ctx.beginPath(); ctx.arc(pts[j].x, pts[j].y, 2, 0, 7); ctx.fill(); }
@@ -55,6 +56,25 @@ function draw(t) {
   }
   particles.forEach((q) => { ctx.globalAlpha = Math.max(0, q.life); ctx.fillStyle = q.c; ctx.beginPath(); ctx.arc(q.x, q.y, q.s, 0, 7); ctx.fill(); });
   ctx.globalAlpha = 1;
+}
+// Aim hint: dots along the first stretch of the shell's real flight, wind included, fading out
+// before it gets near the other tank. Enough to feel the shot, not enough to skip the aiming.
+let hintKey = '', hintPts = [];
+function drawHint(t) {
+  const g = G.game, angle = +$('angle').value, power = +$('power').value, windX = g.gust === g.move ? 3 : 1;
+  const key = `${g.move}|${angle}|${power}|${windX}`;
+  if (key !== hintKey) {
+    hintKey = key;
+    const { path } = simulate(g.seed, g.move, top, myIdx(), angle, power, windX);
+    hintPts = path.slice(0, Math.ceil(path.length * 0.4));
+  }
+  const n = hintPts.length, drift = reduceMotion ? 0 : (t / 60) % 6;
+  for (let j = Math.floor(drift) % 6; j < n; j += 6) {
+    const q = hintPts[j], f = 1 - j / n;
+    ctx.globalAlpha = 0.25 + 0.75 * f; ctx.fillStyle = '#FFC857'; ctx.shadowColor = '#FFC857'; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(q.x, Math.max(4, q.y), 2.5 + 2 * f, 0, 7); ctx.fill();
+  }
+  ctx.globalAlpha = 1; ctx.shadowBlur = 0;
 }
 function loop(t) { particles.forEach((q) => { q.x += q.vx; q.y += q.vy; q.vy += 0.12; q.life -= 0.018; }); particles = particles.filter((q) => q.life > 0); draw(t); requestAnimationFrame(loop); }
 function boom(x, y, big = 1) {
