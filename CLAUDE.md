@@ -20,7 +20,8 @@ takes a bare username.
   and when one ends the next starts automatically (same players, same length). Lobby
   shows one card per rival with titles won. The starter can **Call off** (lobby card and
   the in-game Gauntlet bar, tap twice).
-- **Quick play** (a single game on its own) stays, capped at **one game of each kind per
+- **Quick play** (a single game on its own) is **one layer down**: the lobby shows a single
+  "Quick play ›" row that opens its own screen (`#quick`). It's capped at **one game of each kind per
   group of players** — starting another picks the running one back up (client-side check).
 - Goal behind both: nobody should have to keep track of a pile of games.
 - **Mobile first.** On phones the game area is the focus: lists fold (`details.mfold`),

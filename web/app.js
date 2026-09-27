@@ -333,12 +333,16 @@ const KIND_WHO = { battleship: '2–3 players', golf: 'Solo or up to 4', duel: '
 
 async function lobby() {
   G = null;
+  setChannel(null);   // close the old live channel first: lobby -> Quick play -> lobby reuses the same channel name
   if (document.querySelector('.fs-on')) fsExit();
   document.getElementById('nextUp')?.remove();   // the lobby has its own Your move strip
   document.body.classList.remove('has-firebar');
   const others = Object.entries(names).filter(([id]) => id !== me.id).sort((a, b) => a[1].localeCompare(b[1]));
+  // Quick play (a single game on its own) is one layer down, at #quick; the lobby leads with the Gauntlet.
+  const quick = location.hash === '#quick';
   view(`
-    <div class="lobby">
+    <div class="lobby${quick ? ' quickmode' : ''}">
+      <div class="quickhead"><a href="#">← Game Room</a><h1>Quick play</h1><p class="muted">One game on its own, outside the Gauntlet. One of each kind per group of players at a time.</p></div>
       <header class="row between">
         <div class="stack lobhead"><span class="eyebrow">Family Game Room</span><h1>Ahoy, ${esc(me.username)}</h1></div>
         <button class="link" id="signout">Sign out</button>
@@ -362,7 +366,7 @@ async function lobby() {
         <div class="upstrip" id="upStrip"></div>
       </section>
       <section class="stack" id="newSec">
-        <div class="row between"><h2>Quick play</h2><span class="muted small">One game on its own</span></div>
+        <h2 class="qpick">Pick a game</h2>
         <div class="ncards" role="radiogroup" aria-label="Pick a game">
           ${['battleship', 'golf', 'duel'].map((k) => `
           <button type="button" class="ncard k-${k}" data-kind="${k}" role="radio" aria-checked="false">
@@ -390,6 +394,7 @@ async function lobby() {
           <div><button class="primary" type="submit" id="start" disabled>Start game</button></div>
         </form>
       </section>
+      <a class="quickentry" href="#quick"><span class="qicons" aria-hidden="true">⚓⛳💥</span><span><strong>Quick play</strong><span class="muted small">Battleship, Putt Post or Hilltop Duel on its own</span></span><span class="qgo" aria-hidden="true">›</span></a>
       <section class="stack">
         <div class="row between"><h2>Your games</h2><span class="row" style="gap:14px"><button type="button" class="link" id="gamesMore" hidden></button><span class="live" id="live">Live</span></span></div>
         <div id="games"><p class="muted">Loading games…</p></div>

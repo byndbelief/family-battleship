@@ -371,3 +371,17 @@ body.has-firebar { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)
   background: #00000055; color: #F3D9A6; border: 1.5px solid #FFC85755; }
 .gtoff.armed { background: #C0392B; color: #fff; border-color: #C0392B; }
 .gtwrap .gtrival { padding-right: 96px; }
+
+/* ---------------------------------------------------------------- Quick play: one layer down (#quick) */
+.lobby:not(.quickmode) #newSec, .lobby:not(.quickmode) .quickhead { display: none; }
+.lobby.quickmode > :not(.quickhead):not(#newSec) { display: none !important; }
+.quickhead { display: flex; flex-direction: column; gap: 4px; }
+.quickhead a { font-weight: 700; align-self: flex-start; }
+.quickentry { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--paper); border: 1.5px solid var(--line); color: var(--ink); text-decoration: none; }
+.quickentry:hover { border-color: var(--accent); }
+.quickentry:focus-visible { outline: 3px solid var(--flag); outline-offset: 2px; }
+.quickentry > span:nth-child(2) { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.quickentry .qicons { font-size: 20px; letter-spacing: 2px; }
+.quickentry .qgo { font-size: 26px; color: var(--muted); }
+.lobby.quickmode .ncards { grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); }
+@media (max-width: 640px) { .lobby.quickmode .ncards { grid-template-columns: 1fr; } .lobby.quickmode .ncard { flex-direction: row; } .lobby.quickmode .ncard .preview { width: 42%; aspect-ratio: 16 / 10; flex: none; } .lobby.quickmode .ncard .nbody { text-align: left; padding: 10px 12px; } .lobby.quickmode .ncard .nbody .muted, .lobby.quickmode .ncard .nbody .eyebrow { display: block; } .lobby.quickmode .ncard .nfull { display: inline; } .lobby.quickmode .ncard .nshort { display: none; } .lobby.quickmode .ncard .nbody strong { font-size: 16px; } }

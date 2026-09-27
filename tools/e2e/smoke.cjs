@@ -1,4 +1,4 @@
-// Smoke test: the lobby loads for dad on a phone-sized screen, a duel starts from Quick play,
+// Smoke test: the lobby loads for dad on a phone-sized screen, a duel starts from Quick play (#quick),
 // and a Gauntlet starts from the rival panel. Run tools/e2e/setup.sh first.
 //   node tools/e2e/smoke.cjs
 const { chromium } = require(process.env.PLAYWRIGHT || 'playwright');
@@ -10,6 +10,8 @@ const q = (s) => execSync(`psql -h ${DIR} -p ${PORT} -U postgres -d game -At -c 
   const dad = q("select id from profiles where username='dad_commander'"), out = {};
   const p = await open(b, dad, 'dad_commander', '', { mobile: true });
   await p.waitForSelector('#gtStart', { timeout: 30000 });
+  await p.tap('.quickentry'); await p.waitForSelector('.lobby.quickmode .ncard[data-kind=duel]');
+  out.quickScreen = await p.$$eval('.ncard', (e) => e.filter((x) => x.checkVisibility()).length);
   await p.tap('.ncard[data-kind=duel]'); await p.tap('#newgame [data-opp="phoenix_lord"]'); await p.tap('#start');
   await p.waitForTimeout(2500); out.duel = p.url();
   await p.goto('http://app.test/'); await p.waitForSelector('#gtStart');
