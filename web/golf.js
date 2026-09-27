@@ -1,5 +1,5 @@
 // Putt Post, live: turns and scores are saved on the server; putts replay for everyone.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML } from './common.js';
 import {
   LW, LH, HOLES, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, drawHole,
   inPoly, inRect, segDist, reduceMotion,
@@ -15,11 +15,13 @@ let curAttack = 0, curAttacker = null;   // sneak attack in effect for the hole 
 let cheatsUsed = 0, lastStroke = null, drag = null;
 let flowing = false;       // a replay, judging, robot or turn flow is running
 let afterPanel = false;    // the "plant an attack" panel after my hole is open
+let pack = [], magnetOn = false;   // backpack items; Magnet Cup active this hole
 
 const n = () => G.game.players.length;
 const curPlayer = () => G.game.players[G.game.t % n()];
 const curHole = () => G.game.start + Math.floor(G.game.t / n());
-const H = () => holeWithAttack(G.game.seed, curHole(), curAttack);
+const magnetize = (h, on) => (on ? { ...h, cupR: 13, cupSpeed: 7.5 } : h);
+const H = () => magnetize(holeWithAttack(G.game.seed, curHole(), curAttack), magnetOn && mode !== 'bot');
 const isBot = (id) => bots.has(id);
 const who = (id) => (id === me.id ? 'You' : nm(id));
 const seenKey = () => `golf.seen.${G.game.id}`;
@@ -176,17 +178,17 @@ function waiting(cur) {
   scene = { hole: holeWithAttack(G.game.seed, curHole(), 0), fx: [], clock: 0 };
   setHud(curHole(), cur, 0, false);
   $('tip').textContent = `Waiting for ${who(cur).replace(/<[^>]+>/g, '')} to play hole ${curHole() + 1}. This page updates when they do.`;
-  $('cheats').hidden = true;
+  $('cheats').hidden = true; $('pack').innerHTML = '';
   renderCard();
 }
 
 // Plays back a saved turn.
 async function replayTurn(tu) {
   flowing = true;
-  const h = holeWithAttack(G.game.seed, tu.hole, tu.attack);
+  const h = magnetize(holeWithAttack(G.game.seed, tu.hole, tu.attack), tu.boost === 1);
   mode = 'replay'; skipReplay = false; scene = { hole: h, fx: [], clock: 0, ball: { x: h.tee[0], y: h.tee[1] } };
   setHud(tu.hole, tu.player, 0, true);
-  const atk = tu.attack ? `, while hit by ${ATTACKS[tu.attack].name}` : '';
+  const atk = (tu.attack ? `, while hit by ${ATTACKS[tu.attack].name}` : '') + (tu.boost ? ' (with a 🧲 Magnet Cup)' : '');
   $('tip').textContent = `Watching ${who(tu.player).replace(/<[^>]+>/g, '')} on hole ${tu.hole + 1}: ${tu.written} on the card${atk}.`;
   $('skip').hidden = false;
   let count = 0;
@@ -243,6 +245,7 @@ function judge(prev) {
   });
 }
 function startTurn() {
+  magnetOn = false;
   const h = H();
   cheatsUsed = 0; lastStroke = null; strokes = 0; current = [];
   mode = 'aim'; scene = { hole: h, fx: [], clock: 0, ball: { x: h.tee[0], y: h.tee[1] } };
@@ -254,7 +257,7 @@ function startTurn() {
     const a = ATTACKS[curAttack];
     mode = 'reveal';
     modal(`<div style="font-size:54px;line-height:1">${a.icon}</div><h2 style="color:#FF9A7A">Sneak attack!</h2>
-      <p><strong>${nm(curAttacker)}</strong> hit you with <strong>${a.name}</strong>.</p><p class="muted small">${a.desc}</p><button class="go" id="bring">Bring it on</button>`);
+      <p><strong>${curAttacker ? nm(curAttacker) : '🌀 Chaos'}</strong> hit you with <strong>${a.name}</strong>.</p><p class="muted small">${a.desc}</p><button class="go" id="bring">Bring it on</button>`);
     shake();
     $('bring').onclick = () => { closeModal(); mode = 'aim'; $('tip').textContent = `${a.icon} ${a.name} is on. Drag back and let go.`; renderCheats(); renderCard(); };
   }
@@ -298,7 +301,29 @@ function clearSpot(h, x, y) {
   return inPoly(x, y, h.outline) && !h.segs.some((sg) => segDist(x, y, sg) < R + 1) && !h.water.some((w) => inRect(x, y, w))
     && !h.bumpers.some(([cx, cy, cr]) => (x - cx) ** 2 + (y - cy) ** 2 < (cr + R + 1) ** 2);
 }
+function renderPack() {
+  const el = $('pack'), on = mode === 'aim';
+  el.innerHTML = G.game.status === 'playing' && curPlayer() === me.id ? backpackBarHTML(pack, 'golf', on) : '';
+  el.querySelectorAll('[data-loot]').forEach((b) => {
+    const item = b.dataset.item;
+    if ((item === 'magnet' && magnetOn) || (item === 'golden_tee' && !lastStroke)) b.disabled = true;
+    b.onclick = async () => {
+      b.disabled = true;
+      const { error } = await useLoot(+b.dataset.loot, G.game.id);
+      if (error) { $('tip').textContent = friendly(error); return; }
+      if (item === 'magnet') { magnetOn = true; scene.hole = H(); bigText('<span class="small-pop">🧲 Magnet Cup!</span>', 1500); $('tip').textContent = 'The cup just got huge and hungry.'; }
+      else {   // Golden Tee: an honest mulligan
+        const L = lastStroke;
+        current.pop(); strokes -= 1 + L.penalty; scene.clock = L.clockBefore; scene.flagOut = false;
+        scene.ball = { x: L.s.x, y: L.s.y }; lastStroke = null; $('strokes').textContent = strokes;
+        bigText('<span class="small-pop">🏌️ Golden Tee!</span>', 1500); $('tip').textContent = 'A free do-over. Totally legal.';
+      }
+      pack = await backpack(); renderCheats();
+    };
+  });
+}
 function renderCheats() {
+  renderPack();
   const el = $('cheats');
   if (n() === 1 || (mode !== 'aim' && mode !== 'wedge')) { el.hidden = true; return; }
   el.hidden = false;
@@ -325,7 +350,7 @@ function wedgeTo(pt) {
 
 // ---------------------------------------------------------------- finishing a hole
 async function finishTurn(holed) {
-  mode = 'done'; $('cheats').hidden = true;
+  mode = 'done'; $('cheats').hidden = true; $('pack').innerHTML = '';
   const par = HOLES[curHole()].par, t = G.game.t;
   if (holed) celebrate(strokes, par);
   const { data, error } = await sb.rpc('golf_submit_turn', { p_game: G.game.id, p_strokes: current.map(fromStroke), p_actual: strokes, p_cheats: cheatsUsed, p_holed: holed });
@@ -335,6 +360,7 @@ async function finishTurn(holed) {
     + (data.earned ? ` You earned ${data.earned} sneak attack${data.earned > 1 ? 's' : ''}!` : '')
     + (cheatsUsed & 4 ? ` You wrote down ${data.written}. 🤫` : '') + (data.penalty ? ` (+${data.penalty} for the false accusation.)` : '');
   notify('golf', G.game.id);
+  announceChaos({ gameId: G.game.id }); pack = await backpack();
   await sleep(holed && strokes === 1 && !reduceMotion ? 1800 : 300);
   await load(G.game.id);
   if (G.game.status === 'over' || n() === 1) { afterPanel = false; return decide(); }
@@ -400,7 +426,7 @@ async function robotTurn() {
   const { data: atk } = await sb.rpc('golf_bot_attack', { p_game: G.game.id });
   curAttack = atk?.type || 0; curAttacker = atk?.attacker || null;
   const h = H();
-  cheatsUsed = 0; strokes = 0; current = []; mode = 'bot';
+  cheatsUsed = 0; strokes = 0; current = []; mode = 'bot'; $('pack').innerHTML = '';
   scene = { hole: h, fx: [], clock: 0, ball: { x: h.tee[0], y: h.tee[1] } };
   setHud(curHole(), bot, 0, false); renderCard();
   if (curAttack) { bigText(`<span class="small-pop">${ATTACKS[curAttack].icon} ${ATTACKS[curAttack].name}!</span>`, 1700); $('tip').textContent = `${nm(bot).replace(/<[^>]+>/g, '')} got hit with ${ATTACKS[curAttack].name}. Heh.`; await sleep(1500); }
@@ -434,7 +460,7 @@ async function robotTurn() {
   const { error } = await sb.rpc('golf_submit_bot_turn', { p_game: G.game.id, p_strokes: current.map(fromStroke), p_actual: strokes, p_cheats: cheatsUsed, p_holed: holed });
   curAttack = 0;
   markSeen(t);
-  if (!error) notify('golf', G.game.id);
+  if (!error) { notify('golf', G.game.id); announceChaos({ gameId: G.game.id }); }
   $('tip').textContent = holed ? `${nm(bot).replace(/<[^>]+>/g, '')}: ${scoreWord(strokes, HOLES[curHole()].par)}.` : '';
   await sleep(1200);
   // Did it call cheater on the hole before?
@@ -502,9 +528,11 @@ $('del').onclick = async () => {
   const id = (location.hash.match(/game=([0-9a-f-]{36})/) || [])[1];
   if (!id || !(await load(id))) { $('holeName').textContent = 'Game not found'; $('holeNo').textContent = 'It may have been deleted.'; return; }
   sizeCanvas(); addEventListener('resize', sizeCanvas);
+  pack = await backpack();
+  announceChaos({ gameId: id });
   requestAnimationFrame(loop);
   let pending = false;
-  const refresh = () => { if (pending) return; pending = true; setTimeout(async () => { pending = false; await load(id); renderCard(); if (mode === 'idle' && !flowing) decide(); }, 200); };
+  const refresh = () => { if (pending) return; pending = true; setTimeout(async () => { pending = false; await load(id); renderCard(); announceChaos({ gameId: id }); if (mode === 'idle' && !flowing) decide(); }, 200); };
   sb.channel(`golf-${id}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'golf_games', filter: `id=eq.${id}` }, refresh)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'golf_turns', filter: `game_id=eq.${id}` }, refresh)

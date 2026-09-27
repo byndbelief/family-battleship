@@ -1,7 +1,7 @@
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
-import { SUPABASE_URL, SUPABASE_ANON_KEY, VAPID_PUBLIC_KEY, USERNAME_DOMAIN } from './config.js';
-
-const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+import { VAPID_PUBLIC_KEY, USERNAME_DOMAIN } from './config.js';
+import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML } from './common.js';
+import { HOLES, holeWithAttack, drawHole, LW, LH } from './golf-engine.js';
+import { W as DW, H as DH, TANK_X, buildTop } from './duel-engine.js';
 const app = document.getElementById('app');
 
 const MODES = [
@@ -19,6 +19,7 @@ let G = null;             // the open game: { game, shots, myFleet, fleets }
 let aims = { target: null, cells: new Set() };
 let busy = false;
 let peekMode = false;           // next tap on an opponent's board spends a peek cheat
+let sonarLoot = null;           // next tap on an opponent's board spends this Sonar Ping
 const seenShots = new Map();    // game id -> Set of shot ids already animated
 const seenAccusations = new Map();
 const pending = new Set();      // shot ids whose shell is still in the air
@@ -310,20 +311,26 @@ async function renderAlerts() {
 }
 
 // ---------------------------------------------------------------- lobby
+const KIND_ICON = { battleship: '⚓', golf: '⛳', duel: '💥', gauntlet: '🏆' };
+const KIND_NAME = { battleship: 'Battleship', golf: 'Putt Post', duel: 'Hilltop Duel', gauntlet: 'The Gauntlet' };
 
 async function lobby() {
   G = null;
   const others = Object.entries(names).filter(([id]) => id !== me.id).sort((a, b) => a[1].localeCompare(b[1]));
   view(`
-    <div class="narrow">
+    <div class="lobby">
       <header class="row between">
         <div class="stack"><span class="eyebrow">Family Game Room</span><h1>Ahoy, ${esc(me.username)}</h1></div>
         <button class="link" id="signout">Sign out</button>
       </header>
-      <section class="card">
+      <section class="stack">
         <div class="row between"><h2>Your games</h2><span class="live" id="live">Live</span></div>
-        <ul class="games" id="games"><li class="muted">Loading games…</li></ul>
+        <div class="cards" id="games"><p class="muted">Loading games…</p></div>
       </section>
+      <div class="lobby-cols">
+        <section class="card" id="packCard" hidden></section>
+        <section class="card" id="chaosCard" hidden></section>
+      </div>
       <section class="card">
         <h2>New game</h2>
         <form id="newgame" class="stack" style="gap:14px">
@@ -332,10 +339,10 @@ async function lobby() {
               <label><input type="radio" name="kind" value="battleship" checked>⚓ Battleship</label>
               <label><input type="radio" name="kind" value="golf">⛳ Putt Post</label>
               <label><input type="radio" name="kind" value="duel">💥 Hilltop Duel</label>
+              <label><input type="radio" name="kind" value="gauntlet">🏆 The Gauntlet</label>
             </div></div>
-          <div class="stack"><span class="eyebrow" id="oppHint">Opponents (pick one, or two for a 3-way battle)</span>
-            <div class="choice">${others.map(([id, u]) => `<button type="button" class="chip" data-opp="${esc(u)}" data-id="${id}" aria-pressed="false">${bots.has(id) ? '🤖 ' : ''}${esc(u)}${bots.has(id) ? ' (robot)' : ''}</button>`).join('')}</div>
-            ${bots.size ? '<p class="muted small">The robot plays its turn the instant yours ends. It hunts smart, cheats now and then, and will call you out.</p>' : ''}</div>
+          <div class="stack"><span class="eyebrow" id="oppHint">Opponents</span>
+            <div class="choice">${others.map(([id, u]) => `<button type="button" class="chip" data-opp="${esc(u)}" data-id="${id}" aria-pressed="false">${bots.has(id) ? '🤖 ' : ''}${esc(u)}${bots.has(id) ? ' (robot)' : ''}</button>`).join('')}</div></div>
           <div class="stack" data-for="battleship"><span class="eyebrow">Board</span>
             <div class="choice"><label><input type="radio" name="mode" value="0">Quick 8×8 · 4 ships</label><label><input type="radio" name="mode" value="1" checked>Classic 10×10 · 5 ships</label></div></div>
           <div class="stack" data-for="battleship"><span class="eyebrow">Shots per turn</span>
@@ -343,6 +350,9 @@ async function lobby() {
           <div class="stack" data-for="golf" hidden><span class="eyebrow">Course</span>
             <div class="choice"><label><input type="radio" name="course" value="0,18" checked>All 18</label><label><input type="radio" name="course" value="0,9">Front 9</label><label><input type="radio" name="course" value="9,9">Back 9</label></div>
             <div class="choice"><label><input type="checkbox" id="golfRandom" checked>Random obstacles</label></div></div>
+          <div class="stack" data-for="gauntlet" hidden><span class="eyebrow">Rounds</span>
+            <div class="choice"><label><input type="radio" name="rounds" value="3" checked>3</label><label><input type="radio" name="rounds" value="5">5</label><label><input type="radio" name="rounds" value="7">7</label></div>
+            <p class="muted small">Each round is a random game: a single golf hole, a duel, or a quick Battleship. Win a round, win a point.</p></div>
           <div class="stack" data-for="botlevel" hidden><span class="eyebrow">Robot skill</span>
             <div class="choice"><label><input type="radio" name="botlvl" value="0">🟢 Rookie</label><label><input type="radio" name="botlvl" value="1" checked>🟡 Pro</label><label><input type="radio" name="botlvl" value="2">🔴 Ace</label></div></div>
           <p class="error" id="newerr" hidden></p>
@@ -356,18 +366,20 @@ async function lobby() {
   const start = document.getElementById('start');
   const kind = () => app.querySelector('input[name=kind]:checked').value;
   const picked = () => chips.filter((x) => x.getAttribute('aria-pressed') === 'true');
-  // Each game allows a different number of opponents.
-  const LIMITS = { battleship: [1, 2, 'Opponents (pick one, or two for a 3-way battle)'], golf: [0, 3, 'Opponents (none for a solo round, up to three)'], duel: [1, 1, 'Opponent (pick one)'] };
+  const LIMITS = {
+    battleship: [1, 2, 'Opponents (pick one, or two for a 3-way battle)'], golf: [0, 3, 'Opponents (none for a solo round, up to three)'],
+    duel: [1, 1, 'Opponent (pick one)'], gauntlet: [1, 3, 'Opponents (one to three)'],
+  };
   const refreshForm = () => {
     const k = kind(), [lo, hi, hint] = LIMITS[k];
     let sel = picked();
     while (sel.length > hi) { sel[0].setAttribute('aria-pressed', 'false'); sel = picked(); }
     document.getElementById('oppHint').textContent = hint;
     app.querySelectorAll('[data-for]').forEach((el) => {
-      el.hidden = el.dataset.for === 'botlevel' ? !(k !== 'battleship' && sel.some((c) => bots.has(c.dataset.id))) : el.dataset.for !== k;
+      el.hidden = el.dataset.for === 'botlevel' ? !((k === 'golf' || k === 'duel') && sel.some((c) => bots.has(c.dataset.id))) : el.dataset.for !== k;
     });
     start.disabled = sel.length < lo || sel.length > hi;
-    start.textContent = k === 'golf' && sel.length === 0 ? 'Start a solo round' : 'Start game';
+    start.textContent = k === 'golf' && sel.length === 0 ? 'Start a solo round' : k === 'gauntlet' ? 'Start the Gauntlet' : 'Start game';
   };
   chips.forEach((c) => c.addEventListener('click', () => {
     c.setAttribute('aria-pressed', c.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
@@ -387,58 +399,168 @@ async function lobby() {
       res = await sb.rpc('golf_create', { opponents, p_start: st, p_count: ct, p_random: document.getElementById('golfRandom').checked, p_bot_level: botLevel });
     } else if (k === 'duel') {
       res = await sb.rpc('duel_create', { p_opponent: opponents[0], p_bot_level: botLevel });
+    } else if (k === 'gauntlet') {
+      res = await sb.rpc('gauntlet_create', { opponents, p_rounds: +app.querySelector('input[name=rounds]:checked').value });
     } else {
       res = await sb.rpc('create_game', { opponents, p_mode: +app.querySelector('input[name=mode]:checked').value, p_spt: +app.querySelector('input[name=spt]:checked').value });
     }
     const { data, error } = res;
     if (error) { const el = document.getElementById('newerr'); el.hidden = false; el.textContent = friendly(error); start.disabled = false; return; }
+    if (k === 'gauntlet') {
+      const { data: gt } = await sb.from('gauntlets').select('current_kind, current_game').eq('id', data).maybeSingle();
+      notify(gt.current_game, gt.current_kind);
+      location.href = gt.current_kind === 'battleship' ? `./#game=${gt.current_game}` : `${gt.current_kind}.html#game=${gt.current_game}`;
+      if (gt.current_kind === 'battleship') route();
+      return;
+    }
     notify(data, k);
     if (k === 'battleship') location.hash = `game=${data}`;
     else location.href = `${k}.html#game=${data}`;
   });
   renderAlerts();
-  setChannel(sb.channel('lobby')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, () => loadGames())
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'golf_games' }, () => loadGames())
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'duel_games' }, () => loadGames())
-    .subscribe((s) => { const l = document.getElementById('live'); if (l) l.classList.toggle('off', s !== 'SUBSCRIBED'); }));
-  loadGames();
+  const reload = () => { loadGames(); loadChaos(); };
+  setChannel(['games', 'golf_games', 'duel_games', 'gauntlets', 'chaos_events'].reduce(
+    (ch, table) => ch.on('postgres_changes', { event: '*', schema: 'public', table }, reload), sb.channel('lobby'))
+    .subscribe((st) => { const l = document.getElementById('live'); if (l) l.classList.toggle('off', st !== 'SUBSCRIBED'); }));
+  loadGames(); loadChaos();
 }
 
+// ---- game cards with previews
 async function loadGames() {
-  const [{ data: games, error }, { data: placed }, golfRes, duelRes] = await Promise.all([
-    sb.from('games').select('*').order('updated_at', { ascending: false }),
-    sb.from('fleets').select('game_id').eq('player_id', me.id),
-    sb.from('golf_games').select('*').order('updated_at', { ascending: false }),
-    sb.from('duel_games').select('*').order('updated_at', { ascending: false }),
+  const [bsRes, golfRes, duelRes, gtRes] = await Promise.all([
+    sb.from('games').select('*').order('updated_at', { ascending: false }).limit(40),
+    sb.from('golf_games').select('*').order('updated_at', { ascending: false }).limit(40),
+    sb.from('duel_games').select('*').order('updated_at', { ascending: false }).limit(40),
+    sb.from('gauntlets').select('*').order('updated_at', { ascending: false }).limit(20),
   ]);
   const list = document.getElementById('games');
   if (!list) return;
-  if (error) { list.innerHTML = `<li class="error">Couldn't load games: ${esc(friendly(error))}</li>`; return; }
-  const mine = new Set((placed ?? []).map((f) => f.game_id));
+  if (bsRes.error) { list.innerHTML = `<p class="error">Couldn't load games: ${esc(friendly(bsRes.error))}</p>`; return; }
+  const bs = bsRes.data ?? [], golf = golfRes.data ?? [], duel = duelRes.data ?? [], gts = gtRes.data ?? [];
+  const bsIds = bs.map((g) => g.id), golfIds = golf.map((g) => g.id);
+  const [{ data: myFleets }, { data: atMe }, { data: golfTurns }] = await Promise.all([
+    bsIds.length ? sb.from('fleets').select('game_id, ships').eq('player_id', me.id).in('game_id', bsIds) : { data: [] },
+    bsIds.length ? sb.from('shots').select('game_id, cell, hit, sunk_cells').eq('target', me.id).in('game_id', bsIds) : { data: [] },
+    golfIds.length ? sb.from('golf_turns').select('game_id, player, written, fine, skipped').in('game_id', golfIds) : { data: [] },
+  ]);
+  const gtName = Object.fromEntries(gts.map((g) => [g.id, g]));
   const turnPill = (id) => (id === me.id ? `<span class="pill turn">Your turn</span>` : `<span class="pill wait">${nm(id)}'s turn</span>`);
-  const vsOf = (players) => { const o = players.filter((p) => p !== me.id); return o.length ? `vs <strong>${o.map(nm).join(' & ')}</strong>` : '<strong>Solo round</strong>'; };
-  const rows = [];
-  (games ?? []).forEach((g) => {
+  const vsOf = (players) => { const o = players.filter((p) => p !== me.id); return o.length ? `vs ${o.map(nm).join(' & ')}` : 'Solo round'; };
+  const round = (g) => (g.gauntlet_id && gtName[g.gauntlet_id] ? `<span class="pill gt">🏆 Round ${gtName[g.gauntlet_id].round}</span>` : '');
+  const cards = [];
+  bs.forEach((g) => {
     let pill;
     if (g.status === 'over') pill = g.winner === me.id ? `<span class="pill done">You won</span>` : `<span class="pill done">${nm(g.winner)} won</span>`;
-    else if (g.status === 'setup') pill = mine.has(g.id) ? `<span class="pill wait">Waiting for ships</span>` : `<span class="pill turn">Place your ships</span>`;
+    else if (g.status === 'setup') pill = (myFleets ?? []).some((f) => f.game_id === g.id) ? `<span class="pill wait">Waiting for ships</span>` : `<span class="pill turn">Place your ships</span>`;
     else if (g.eliminated.includes(me.id)) pill = `<span class="pill out">You're out</span>`;
     else pill = turnPill(g.players[g.turn]);
-    rows.push({ at: g.updated_at, href: `#game=${g.id}`, html: `<span>⚓ ${vsOf(g.players)}<br><span class="muted small">Battleship · ${g.players.length}-player · ${MODES[g.mode].n}×${MODES[g.mode].n}${g.move ? ` · move ${g.move}` : ''}</span></span>${pill}` });
+    cards.push({ at: g.updated_at, kind: 'battleship', g, href: `#game=${g.id}`, mine: pill.includes('turn"'), pill, sub: `${MODES[g.mode].n}×${MODES[g.mode].n}${g.move ? ` · move ${g.move}` : ''}`, vs: vsOf(g.players), extra: round(g) });
   });
-  (golfRes.data ?? []).forEach((g) => {
-    const n = g.players.length, hole = g.start + Math.floor(g.t / n) + 1;
+  golf.forEach((g) => {
+    const n = g.players.length, hole = g.start + Math.floor(Math.min(g.t, g.count * n - 1) / n);
     const pill = g.status === 'over' ? `<span class="pill done">Finished</span>` : turnPill(g.players[g.t % n]);
-    rows.push({ at: g.updated_at, href: `golf.html#game=${g.id}`, html: `<span>⛳ ${vsOf(g.players)}<br><span class="muted small">Putt Post · ${g.status === 'over' ? `${g.count} holes` : `hole ${hole} of ${g.start + g.count}`}</span></span>${pill}` });
+    const mine = (golfTurns ?? []).filter((t) => t.game_id === g.id && t.player === me.id && !t.skipped).reduce((a, t) => a + t.written + t.fine, 0);
+    cards.push({ at: g.updated_at, kind: 'golf', g, hole, href: `golf.html#game=${g.id}`, mine: pill.includes('turn"'), pill, sub: `${g.status === 'over' ? 'Final' : `Hole ${hole + 1}`} · ${HOLES[hole].name}${mine ? ` · you: ${mine}` : ''}`, vs: vsOf(g.players), extra: round(g) });
   });
-  (duelRes.data ?? []).forEach((g) => {
+  duel.forEach((g) => {
     const pill = g.status === 'over' ? (g.winner === me.id ? `<span class="pill done">You won</span>` : `<span class="pill done">${nm(g.winner)} won</span>`) : turnPill(g.players[g.turn]);
-    rows.push({ at: g.updated_at, href: `duel.html#game=${g.id}`, html: `<span>💥 ${vsOf(g.players)}<br><span class="muted small">Hilltop Duel · ${g.hp[0]}–${g.hp[1]}${g.move ? ` · shot ${g.move}` : ''}</span></span>${pill}` });
+    cards.push({ at: g.updated_at, kind: 'duel', g, href: `duel.html#game=${g.id}`, mine: pill.includes('turn"'), pill, sub: `${g.hp[0]} – ${g.hp[1]} HP${g.move ? ` · shot ${g.move}` : ''}`, vs: vsOf(g.players), extra: round(g) });
   });
-  if (!rows.length) { list.innerHTML = `<li class="muted">No games yet. Start one below.</li>`; return; }
-  rows.sort((a, b) => (a.at < b.at ? 1 : -1));
-  list.innerHTML = rows.map((r) => `<li><a class="gamebtn" href="${r.href}">${r.html}</a></li>`).join('');
+  gts.forEach((g) => {
+    const lead = Math.max(...g.scores);
+    const table = g.players.map((p, i) => `${g.scores[i] === lead && lead > 0 ? '👑 ' : ''}${p === me.id ? 'You' : nm(p)} ${g.scores[i]}`).join(' · ');
+    const href = g.status === 'over' ? '#' : g.current_kind === 'battleship' ? `#game=${g.current_game}` : `${g.current_kind}.html#game=${g.current_game}`;
+    cards.push({ at: g.updated_at, kind: 'gauntlet', g, href, mine: false, pill: g.status === 'over' ? `<span class="pill done">Champion decided</span>` : `<span class="pill gt">Round ${g.round} of ${g.rounds}: ${KIND_ICON[g.current_kind]}</span>`, sub: table, vs: vsOf(g.players), extra: '' });
+  });
+  if (!cards.length) { list.innerHTML = `<p class="muted">No games yet. Start one below.</p>`; return; }
+  // Your turn first, then most recent.
+  cards.sort((a, b) => (a.mine !== b.mine ? (a.mine ? -1 : 1) : a.at < b.at ? 1 : -1));
+  list.innerHTML = cards.map((c, i) => `
+    <a class="gcard ${c.mine ? 'mine' : ''} k-${c.kind}" href="${c.href}">
+      <canvas class="preview" data-i="${i}" width="320" height="200" aria-hidden="true"></canvas>
+      <div class="gbody">
+        <div class="row between"><strong>${KIND_ICON[c.kind]} ${KIND_NAME[c.kind]}</strong>${c.extra}</div>
+        <span class="small">${c.vs}</span>
+        <span class="muted small">${c.sub}</span>
+        <div>${c.pill}</div>
+      </div>
+    </a>`).join('');
+  list.querySelectorAll('canvas.preview').forEach((cv) => drawPreview(cv, cards[+cv.dataset.i], myFleets ?? [], atMe ?? []));
+}
+
+// Little live pictures of each game.
+function drawPreview(cv, card, myFleets, atMe) {
+  const c = cv.getContext('2d'), w = cv.width, h = cv.height;
+  c.clearRect(0, 0, w, h);
+  if (card.kind === 'battleship') {
+    const g = card.g, n = MODES[g.mode].n, cell = Math.floor((h - 16) / n), ox = (w - cell * n) / 2, oy = 8;
+    c.fillStyle = '#0E2A44'; c.fillRect(0, 0, w, h);
+    const fleet = myFleets.find((f) => f.game_id === g.id);
+    const ships = new Set(fleet ? fleetCells(g.mode, fleet.ships).flat() : []);
+    const shots = new Map(atMe.filter((s) => s.game_id === g.id).map((s) => [s.cell, s]));
+    const sunk = new Set(atMe.filter((s) => s.game_id === g.id).flatMap((s) => s.sunk_cells || []));
+    for (let i = 0; i < n * n; i++) {
+      const x = ox + (i % n) * cell, y = oy + Math.floor(i / n) * cell, s = shots.get(i);
+      c.fillStyle = sunk.has(i) ? '#E0453A' : ships.has(i) ? '#7C8BA0' : '#1D4A70'; c.fillRect(x + 1, y + 1, cell - 2, cell - 2);
+      if (s && s.hit && !sunk.has(i)) { c.fillStyle = '#FF6B3D'; c.beginPath(); c.arc(x + cell / 2, y + cell / 2, cell * 0.3, 0, 7); c.fill(); }
+      else if (s && !s.hit) { c.fillStyle = '#DDEBF7'; c.beginPath(); c.arc(x + cell / 2, y + cell / 2, cell * 0.14, 0, 7); c.fill(); }
+    }
+  } else if (card.kind === 'golf') {
+    const hole = holeWithAttack(card.g.seed, card.hole, 0), k = Math.min(w / LH, h / LW) * 1.08;
+    c.save(); c.fillStyle = '#1F5B3A'; c.fillRect(0, 0, w, h);
+    // centre on the hole, rotated sideways so it fills a wide card
+    c.translate(w / 2, h / 2); c.rotate(-Math.PI / 2); c.scale(k, k); c.translate(-LW / 2, -LH / 2);
+    drawHole(c, hole, 0, { ball: { x: hole.tee[0], y: hole.tee[1] } });
+    c.restore();
+  } else if (card.kind === 'duel') {
+    const g = card.g, top = buildTop(g.seed, g.craters), sx = w / DW, sy = h / DH;
+    const sky = c.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, '#1B1646'); sky.addColorStop(1, '#7A3E72'); c.fillStyle = sky; c.fillRect(0, 0, w, h);
+    c.fillStyle = '#FFE3A3'; c.beginPath(); c.arc(w * 0.76, h * 0.2, 14, 0, 7); c.fill();
+    c.fillStyle = '#1F8C8A'; c.beginPath(); c.moveTo(0, h); for (let x = 0; x < DW; x += 4) c.lineTo(x * sx, top[x] * sy); c.lineTo(w, h); c.fill();
+    c.strokeStyle = '#9BF5EA'; c.lineWidth = 1.5; c.beginPath(); for (let x = 0; x < DW; x += 4) c[x ? 'lineTo' : 'moveTo'](x * sx, top[x] * sy); c.stroke();
+    [0, 1].forEach((p) => {
+      const tx = TANK_X[p] * sx, ty = top[TANK_X[p]] * sy;
+      c.fillStyle = p ? '#3DD6C6' : '#FF6B5A'; c.fillRect(tx - 8, ty - 7, 16, 7);
+      c.fillStyle = '#ffffff33'; c.fillRect(tx - 20, ty - 20, 40, 4); c.fillStyle = p ? '#3DD6C6' : '#FF6B5A'; c.fillRect(tx - 20, ty - 20, 40 * g.hp[p] / 100, 4);
+    });
+  } else {
+    const g = card.g;
+    const bg = c.createLinearGradient(0, 0, w, h); bg.addColorStop(0, '#3A1D00'); bg.addColorStop(1, '#8A4B00'); c.fillStyle = bg; c.fillRect(0, 0, w, h);
+    c.font = '64px system-ui'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('🏆', w / 2, h / 2 - 18);
+    const r = 9, gap = 26, x0 = w / 2 - ((g.rounds - 1) * gap) / 2;
+    for (let i = 0; i < g.rounds; i++) {
+      const done = i < (g.history || []).length, cur = i === g.round - 1 && g.status === 'playing';
+      c.fillStyle = done ? '#FFC857' : cur ? '#FF8A3D' : '#ffffff33'; c.beginPath(); c.arc(x0 + i * gap, h - 34, cur ? r + 2 : r, 0, 7); c.fill();
+      const k = done ? g.history[i].kind : cur ? g.current_kind : null;
+      if (k) { c.font = '11px system-ui'; c.fillText(KIND_ICON[k], x0 + i * gap, h - 34); }
+    }
+  }
+}
+
+// ---- backpack and chaos feed
+async function loadChaos() {
+  const packCard = document.getElementById('packCard'), feedCard = document.getElementById('chaosCard');
+  if (!packCard) return;
+  const [items, feedRes] = await Promise.all([backpack(), sb.from('chaos_events').select('*').order('id', { ascending: false }).limit(12)]);
+  if (feedRes.error) return;   // chaos isn't installed yet
+  const counts = {}; items.forEach((l) => { (counts[l.item] ||= []).push(l.id); });
+  packCard.hidden = false;
+  const others = Object.entries(names).filter(([id]) => id !== me.id && !bots.has(id));
+  packCard.innerHTML = `<h2>🎒 Backpack</h2>
+    ${items.length ? `<ul class="pack">${Object.entries(counts).map(([it, ids]) => `<li><span class="big">${ITEMS[it].icon}</span><span><strong>${ITEMS[it].name}${ids.length > 1 ? ` ×${ids.length}` : ''}</strong><br><span class="muted small">${ITEMS[it].desc} ${ITEMS[it].game === 'any' ? '' : `Use it in ${KIND_ICON[ITEMS[it].game]} ${KIND_NAME[ITEMS[it].game]}.`}</span></span></li>`).join('')}</ul>`
+      : '<p class="muted small">Empty. Good plays in any game can drop loot: hits, sinkings, birdies, holes in one, big shell hits.</p>'}
+    ${counts.scroll ? `<div class="row"><select id="curseWho">${others.map(([id, u]) => `<option value="${id}">${esc(u)}</option>`).join('')}</select><button id="curseGo">📜 Cast a curse</button></div><p class="small muted" id="curseMsg"></p>` : ''}`;
+  const go = document.getElementById('curseGo');
+  if (go) go.onclick = async () => {
+    go.disabled = true;
+    const { error } = await useLoot(counts.scroll[0], null, document.getElementById('curseWho').value);
+    if (error) { document.getElementById('curseMsg').textContent = friendly(error); go.disabled = false; return; }
+    announceChaos(); loadChaos();
+  };
+  const feed = feedRes.data ?? [];
+  feedCard.hidden = !feed.length;
+  feedCard.innerHTML = `<h2>🌀 Chaos feed</h2><ul class="chaosfeed">${feed.map((e) => `<li class="${e.seen_at ? '' : 'new'}"><span class="big">${e.icon}</span><span>${esc(e.message)}<br><span class="muted small">${new Date(e.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span></span></li>`).join('')}</ul>`;
+  announceChaos();
 }
 
 // ---------------------------------------------------------------- game
@@ -472,6 +594,7 @@ async function loadGame(id) {
     sb.from('player_mods').select('*').eq('game_id', id),
   ]);
   if (!game) return false;
+  const [{ data: sonars }, pack] = await Promise.all([sb.from('loot').select('*').eq('used_game', id).eq('item', 'sonar'), backpack()]);
   const same = G?.game.id === id;
   const prevMove = same ? G.game.move : null;
   const prevStatus = same ? G.game.status : null, prevTurnMine = same ? G.game.status === 'playing' && G.game.players[G.game.turn] === me.id : null;
@@ -484,7 +607,7 @@ async function loadGame(id) {
   else (accRes.data ?? []).forEach((a) => { if (!seenA.has(a.move)) { seenA.add(a.move); freshA.push(a); } });
   G = {
     game, shots: shots ?? [],
-    cheats: cheatsRes.data ?? [], accusations: accRes.data ?? [],
+    cheats: cheatsRes.data ?? [], accusations: accRes.data ?? [], sonars: sonars ?? [], pack,
     cheatsOn: !cheatsRes.error && !accRes.error,
     shotMod: (modRes.data ?? []).find((m) => m.player_id === me.id)?.shot_mod ?? 0,
     fresh, freshA, prevStatus, prevTurnMine, fxDue: true,
@@ -500,7 +623,8 @@ function boardHTML({ owner, ships, clickable, fresh }) {
   const { n } = MODES[game.mode];
   const at = shots.filter((s) => s.target === owner && !pending.has(s.id));
   const shotAt = new Map(at.map((s) => [s.cell, s]));
-  const peeks = (G.cheats || []).filter((c) => c.kind === 'peek' && c.player_id === me.id && c.detail?.target === owner);
+  const peeks = (G.cheats || []).filter((c) => c.kind === 'peek' && c.player_id === me.id && c.detail?.target === owner)
+    .concat((G.sonars || []).filter((l) => l.detail?.target === owner));
   const peekShip = new Set(peeks.flatMap((c) => c.detail.ships)), peekArea = new Set(peeks.flatMap((c) => c.detail.area));
   const sunk = new Set(at.flatMap((s) => s.sunk_cells ?? []));
   const shipAt = new Set(ships ? fleetCells(game.mode, ships).flat() : []);
@@ -600,7 +724,7 @@ function renderGame() {
         ${fleetListHTML(p)}
       </section>`;
     }).join('');
-    body = `${callOutHTML()}${myTurn ? cheatBarHTML() : ''}${over ? cheatLogHTML() : ''}${feedHTML()}
+    body = `${callOutHTML()}${myTurn ? cheatBarHTML() + backpackBarHTML(G.pack || [], 'battleship', !busy) + (sonarLoot ? '<p class="status">📡 Tap a square on an opponent\'s board to ping the 3×3 patch around it.</p>' : '') : ''}${over ? cheatLogHTML() : ''}${feedHTML()}
       <div class="boards">${targets}
         <section class="card"><div class="row between"><h2>Your fleet</h2>${imOut ? '<span class="pill out">Sunk</span>' : ''}</div>
           ${boardHTML({ owner: me.id, ships: G.fleets[me.id], fresh: true })}
@@ -649,6 +773,7 @@ function renderGame() {
   wireCheats();
   app.querySelectorAll('[data-cell]').forEach((b) => b.addEventListener('click', () => {
     const target = b.dataset.target, cell = +b.dataset.cell;
+    if (sonarLoot) { doSonar(target, cell); return; }
     if (peekMode) { doPeek(target, cell); return; }
     if (aims.target !== target) aims = { target, cells: new Set() };
     const max = Math.min(Math.max(1, game.spt + G.shotMod), MODES[game.mode].n ** 2 - G.shots.filter((s) => s.target === target).length);
@@ -724,7 +849,23 @@ async function doPeek(target, cell) {
   await afterCheat();
   stamp(data.ships.length ? `👀 ${data.ships.length} ship square${data.ships.length > 1 ? 's' : ''}!` : '👀 Nothing there', 'purple', 1800);
 }
+async function doSonar(target, cell) {
+  const id = sonarLoot; sonarLoot = null;
+  const { data, error } = await useLoot(id, G.game.id, target, cell);
+  if (error) { renderGame(); cheatError(error); return; }
+  await loadGame(G.game.id); renderGame();
+  stamp(data.ships.length ? `📡 ${data.ships.length} ship square${data.ships.length > 1 ? 's' : ''}!` : '📡 Just fish', 'blue', 1800);
+}
 function wireCheats() {
+  app.querySelectorAll('.backpack [data-loot]').forEach((b) => {
+    b.onclick = async () => {
+      if (b.dataset.item === 'sonar') { sonarLoot = sonarLoot ? null : +b.dataset.loot; renderGame(); return; }
+      b.disabled = true;
+      const { error } = await useLoot(+b.dataset.loot, G.game.id);
+      if (error) { cheatError(error); return; }
+      await loadGame(G.game.id); renderGame(); stamp('🎆 Double Salvo!', 'purple', 1600);
+    };
+  });
   const peek = document.getElementById('chPeek');
   if (peek) peek.onclick = () => { peekMode = !peekMode; renderGame(); };
   const extra = document.getElementById('chExtra');
@@ -768,6 +909,7 @@ function playEffects() {
     } else if (G.prevStatus === 'setup' && game.status === 'playing') {
       banner(nowMine ? 'Battle stations! You fire first' : 'Battle stations!');
     } else if (nowMine && (G.prevTurnMine === false || fresh.some((s) => s.shooter !== me.id))) banner('Your turn');
+    announceChaos({ gameId: game.id });
   }, wait);
 }
 

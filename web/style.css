@@ -173,3 +173,23 @@ body.quake { animation: quake .45s linear 1; }
 .games a.gamebtn { display: flex; justify-content: space-between; align-items: center; gap: 10px; text-decoration: none; color: var(--ink);
   border: 1.5px solid var(--line); border-radius: 10px; padding: 10px 16px; background: var(--paper); }
 .games a.gamebtn:focus-visible { outline: 3px solid var(--flag); outline-offset: 2px; }
+
+/* ---------------------------------------------------------------- lobby: game cards and chaos */
+.lobby { max-width: 980px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 158px), 1fr)); gap: 12px; }
+@media (max-width: 380px) { .cards { grid-template-columns: 1fr; } }
+.gcard { display: flex; flex-direction: column; border-radius: 16px; overflow: hidden; background: var(--paper); border: 1.5px solid var(--line);
+  color: var(--ink); text-decoration: none; transition: transform .15s, box-shadow .15s; }
+.gcard:hover { transform: translateY(-3px); box-shadow: 0 10px 24px #0003; }
+.gcard:focus-visible { outline: 3px solid var(--flag); outline-offset: 2px; }
+.gcard.mine { border-color: var(--flag); box-shadow: 0 0 0 2px var(--flag); }
+.gcard .preview { display: block; width: 100%; aspect-ratio: 16 / 10; height: auto; background: #0E2A44; }
+.gcard .gbody { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 4px; }
+.pill.gt { background: #FF8A3D; color: #2a1200; }
+.lobby-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; align-items: start; }
+.pack, .chaosfeed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.pack li, .chaosfeed li { display: flex; gap: 10px; align-items: flex-start; }
+.pack .big, .chaosfeed .big { font-size: 26px; line-height: 1; }
+.chaosfeed li.new { font-weight: 700; }
+.chaosfeed li.new .big { filter: drop-shadow(0 0 6px #F2C230); }
+.backpack button { font-size: 14px; padding: 6px 12px; }

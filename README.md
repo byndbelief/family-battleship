@@ -57,13 +57,28 @@ Putt Post: 18 holes, 1-4 players (solo rounds keep a personal best), random obst
 attacks, cheats you can be busted for, and the robot at Rookie / Pro / Ace. Hilltop Duel: two
 tanks, destructible hills, wind, and a robot gunner.
 
+## 🌀 Chaos
+
+`supabase/migrations/005_chaos.sql` lays chaos over all three games, run on the server:
+
+- **Loot**: good plays in any game can drop items into your secret backpack: 📡 Sonar Ping and
+  🎆 Double Salvo (Battleship), 🏌️ Golden Tee and 🧲 Magnet Cup (Putt Post), 🛡️ Shield and
+  💣 Big Bertha (Hilltop Duel), and 📜 Curse Scrolls (hex anyone, from the lobby).
+- **Curses**: big moments hex a random opponent in a random *other* game they're playing.
+- **Twists**: about 1 turn in 8 gets one (frenzy, jammed, scoreboard glitch, meteor shower,
+  hurricane, field repairs, chaos crates...).
+- **The Gauntlet**: a match that hops between random games, one round at a time.
+
+Every surprise lands in `chaos_events` and pops up in the app. The lobby shows every game as a
+card with a live preview, plus your backpack and the chaos feed.
+
 ## One-time setup
 
 ### 1. Supabase (free plan)
 
 1. Create a project at https://supabase.com.
 2. **SQL Editor** → paste all of `supabase/schema.sql` → **Run**.
-   Then do the same with each file in `supabase/migrations/`, in order (002, 003, 004).
+   Then do the same with each file in `supabase/migrations/`, in order (002 to 005).
 3. **Authentication → Sign In / Providers**: turn **off** "Allow new users to sign up"
    (only the three players below may play), and turn off "Confirm email".
 4. **Authentication → Users → Add user → Create new user**, three times, with

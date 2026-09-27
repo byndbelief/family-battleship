@@ -1,55 +1,15 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML } from './common.js';
+import { W, H, TANK_X, CRATER_R, BERTHA_R, rng, buildTop, windFor, tankPos, simulate, damage } from './duel-engine.js';
 
 const $ = (id) => document.getElementById(id);
-const W = 800, H = 440, TANK_X = [90, 710], GRAV = 0.12, CRATER_R = 28;
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// ---------------------------------------------------------------- the battlefield
-function rng(seed) { let x = seed >>> 0 || 1; return () => { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; }; }
-function baseTerrain(seed) {
-  const r = rng(seed * 2654435761), a = [], waves = [];
-  for (let i = 0; i < 4; i++) waves.push({ amp: 18 + r() * 42, f: (0.004 + r() * 0.012) * (i + 1) * 0.6, ph: r() * 6.28 });
-  for (let x = 0; x < W; x++) { let y = 300; waves.forEach((w) => { y += Math.sin(x * w.f + w.ph) * w.amp; }); a.push(Math.max(170, Math.min(400, y))); }
-  TANK_X.forEach((tx) => { const py = a[tx]; for (let x = tx - 22; x <= tx + 22; x++) a[x] = py; });
-  return a;
-}
-function applyCrater(top, [cx, cy, r]) {
-  for (let x = Math.max(0, cx - r); x <= Math.min(W - 1, cx + r); x++) {
-    const dy = Math.sqrt(r * r - (x - cx) ** 2);
-    if (cy - dy <= top[x]) top[x] = Math.min(H - 8, Math.max(top[x], cy + dy));
-  }
-}
-function buildTop(seed, craters) { const t = baseTerrain(seed); craters.forEach((c) => applyCrater(t, c)); return t; }
-const windFor = (seed, move) => { const r = rng(seed * 31 + move * 977 + 7); return Math.round((r() * 2 - 1) * 10); };
-const tankPos = (p, top) => ({ x: TANK_X[p], y: top[TANK_X[p]] });
-function simulate(seed, move, top, shooter, angle, power) {
-  const dir = shooter === 0 ? 1 : -1, t = tankPos(shooter, top), wind = windFor(seed, move) * 0.004;
-  let x = t.x + dir * 14, y = t.y - 18; const v = power * 0.12;
-  let vx = Math.cos((angle * Math.PI) / 180) * v * dir, vy = -Math.sin((angle * Math.PI) / 180) * v;
-  const path = [];
-  for (let i = 0; i < 3000; i++) {
-    vx += wind; vy += GRAV; x += vx; y += vy; path.push({ x, y });
-    if (x < 0 || x >= W) return { path, impact: null };
-    if (y >= top[Math.floor(x)]) return { path, impact: { x, y: top[Math.floor(x)] } };
-    const e = tankPos(1 - shooter, top); if (Math.hypot(x - e.x, y - (e.y - 8)) < 13) return { path, impact: { x, y } };
-    if (y > H + 50) return { path, impact: null };
-  }
-  return { path, impact: null };
-}
-// Damage to both tanks from a blast (you can hit yourself).
-function damage(top, impact, hp) {
-  const out = [...hp];
-  if (!impact) return out;
-  [0, 1].forEach((p) => { const t = tankPos(p, top), d = Math.hypot(impact.x - t.x, impact.y - (t.y - 8)); if (d < 40) out[p] = Math.max(0, out[p] - Math.round(46 - d * 1.1)); });
-  return out;
-}
-
 // ---------------------------------------------------------------- state and drawing
 let G = null;     // { game, shots }
-let top = null, shot = null, particles = [], busy = false;
+let top = null, shot = null, particles = [], busy = false, pack = [];
 const cv = $('cv'), ctx = cv.getContext('2d');
 const stars = Array.from({ length: 90 }, (_, i) => { const r = rng(i * 7919 + 3); return { x: r() * W, y: r() * 240, s: r() * 1.4 + 0.3, t: r() * 6 }; });
 const myIdx = () => G.game.players.indexOf(me.id);
@@ -104,10 +64,10 @@ function boom(x, y, big = 1) {
 function stamp(text, tone = '', ms = 2400) { const el = document.createElement('div'); el.className = `stamp ${tone}`; el.innerHTML = `<span>${text}</span>`; document.body.appendChild(el); setTimeout(() => el.remove(), ms); }
 
 // Flies a shell along its path, then blows up where the server says it landed.
-function flyShell(p, angle, power, beforeCraters, move, crater) {
+function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1) {
   return new Promise((done) => {
     top = buildTop(G.game.seed, beforeCraters);
-    const sim = simulate(G.game.seed, move, top, p, angle, power);
+    const sim = simulate(G.game.seed, move, top, p, angle, power, windX);
     shot = { p, angle, path: sim.path, i: reduceMotion ? sim.path.length : 0 };
     const step = () => {
       shot.i = Math.min(shot.path.length, shot.i + 3);
@@ -124,14 +84,28 @@ function flyShell(p, angle, power, beforeCraters, move, crater) {
 function render() {
   const g = G.game, mi = myIdx();
   top = top || buildTop(g.seed, g.craters);
-  $('n0').innerHTML = `<span style="color:var(--coral)">●</span> ${who(g.players[0])} · ${g.hp[0]}`;
-  $('n1').innerHTML = `${who(g.players[1])} · ${g.hp[1]} <span style="color:var(--teal)">●</span>`;
+  const tag = (p) => (g.shields.includes(p) ? ' 🛡️' : '') + (g.bertha.includes(p) ? ' 💣' : '');
+  $('n0').innerHTML = `<span style="color:var(--coral)">●</span> ${who(g.players[0])} · ${g.hp[0]}${tag(g.players[0])}`;
+  $('n1').innerHTML = `${who(g.players[1])} · ${g.hp[1]}${tag(g.players[1])} <span style="color:var(--teal)">●</span>`;
   $('hp0').style.width = g.hp[0] + '%'; $('hp1').style.width = g.hp[1] + '%';
-  const w = windFor(g.seed, g.move); $('wind').textContent = w === 0 ? 'No wind' : `Wind ${w < 0 ? '←' : '→'} ${Math.abs(w)}`;
+  const gusty = g.gust === g.move, w = windFor(g.seed, g.move, gusty ? 3 : 1);
+  $('wind').textContent = (gusty ? '🌪️ ' : '') + (w === 0 ? 'No wind' : `Wind ${w < 0 ? '←' : '→'} ${Math.abs(w)}${gusty ? ' (hurricane!)' : ''}`);
   const over = g.status === 'over', mine = !over && turnId() === me.id;
   $('title').innerHTML = over ? (g.winner === me.id ? 'You win!' : `${nm(g.winner)} wins!`) : mine ? 'Your shot' : `${nm(turnId())}'s shot`;
   $('status').textContent = over ? '' : mine ? `Move ${g.move + 1}` : busy ? '' : 'Waiting…';
   $('controls').hidden = !mine || busy;
+  $('pack').innerHTML = over ? '' : backpackBarHTML(pack, 'duel', !busy);
+  $('pack').querySelectorAll('[data-loot]').forEach((b) => {
+    const item = b.dataset.item;
+    if ((item === 'bertha' && (!mine || g.bertha.includes(me.id))) || (item === 'shield' && g.shields.includes(me.id))) b.disabled = true;
+    b.onclick = async () => {
+      b.disabled = true;
+      const { error } = await useLoot(+b.dataset.loot, g.id);
+      if (error) { $('err').textContent = friendly(error); return; }
+      stamp(`${ITEMS[item].icon} ${ITEMS[item].name}!`, '', 1500);
+      pack = await backpack(); await load(g.id); render();
+    };
+  });
   $('del').hidden = g.created_by !== me.id;
   $('feed').innerHTML = [...G.shots].reverse().slice(0, 6).map((s) => {
     const before = s.move > 1 ? G.shots.find((x) => x.move === s.move - 1)?.hp_after || [100, 100] : [100, 100];
@@ -169,7 +143,7 @@ async function decide() {
   if (last && last.shooter !== me.id && last.move > seenMove()) {
     busy = true; render();
     const before = g.craters.slice(0, g.craters.length - (last.crater ? 1 : 0));
-    await flyShell(g.players.indexOf(last.shooter), last.angle, last.power, before, last.move - 1, last.crater);
+    await flyShell(g.players.indexOf(last.shooter), last.angle, last.power, before, last.move - 1, last.crater, last.wind_x || 1);
     markSeen(last.move); top = buildTop(g.seed, g.craters); busy = false;
     const lost = (G.shots[G.shots.length - 2]?.hp_after || [100, 100])[myIdx()] - last.hp_after[myIdx()];
     if (lost > 0) stamp(`−${lost}`, 'red', 1400);
@@ -187,13 +161,15 @@ async function decide() {
 async function fire() {
   const g = G.game, p = myIdx(), angle = +$('angle').value, power = +$('power').value, move = g.move;
   busy = true; render();
-  const sim = await flyShell(p, angle, power, g.craters, move, null);
-  const crater = sim.impact ? [Math.round(sim.impact.x), Math.round(sim.impact.y), CRATER_R] : null;
-  if (crater) boom(crater[0], crater[1]);
-  const hp = damage(top, sim.impact, g.hp);
+  const big = g.bertha.includes(me.id);
+  const sim = await flyShell(p, angle, power, g.craters, move, null, g.gust === move ? 3 : 1);
+  const crater = sim.impact ? [Math.round(sim.impact.x), Math.round(sim.impact.y), big ? BERTHA_R : CRATER_R] : null;
+  if (crater) boom(crater[0], crater[1], big ? 2 : 1);
+  const hp = damage(top, sim.impact, g.hp, big, g.players.map((x) => g.shields.includes(x) && x !== me.id));
   const { error } = await sb.rpc('duel_fire', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_hp: hp });
   busy = false;
   if (error) { $('err').textContent = friendly(error); render(); return; }
+  announceChaos({ gameId: g.id }); pack = await backpack();
   if (hp[1 - p] < g.hp[1 - p]) stamp(`Hit! −${g.hp[1 - p] - hp[1 - p]}`, '', 1400);
   markSeen(move + 1);
   notify('duel', g.id);
@@ -207,7 +183,7 @@ async function robotShot() {
   const g = G.game, p = g.turn, target = tankPos(1 - p, top);
   let best = null;
   for (let a = 10; a <= 85; a++) for (let pw = 20; pw <= 100; pw += 2) {
-    const sim = simulate(g.seed, g.move, top, p, a, pw);
+    const sim = simulate(g.seed, g.move, top, p, a, pw, g.gust === g.move ? 3 : 1);
     const d = sim.impact ? Math.hypot(sim.impact.x - target.x, sim.impact.y - target.y) : 999;
     if (!best || d < best.d) best = { d, a, pw };
   }
@@ -217,10 +193,10 @@ async function robotShot() {
   const power = Math.max(20, Math.min(100, Math.round(best.pw + gauss() * skill.p)));
   $('status').textContent = `${nm(g.players[p]).replace(/<[^>]+>/g, '')} is aiming…`;
   await sleep(reduceMotion ? 0 : 900);
-  const sim = await flyShell(p, angle, power, g.craters, g.move, null);
+  const sim = await flyShell(p, angle, power, g.craters, g.move, null, g.gust === g.move ? 3 : 1);
   const crater = sim.impact ? [Math.round(sim.impact.x), Math.round(sim.impact.y), CRATER_R] : null;
   if (crater) boom(crater[0], crater[1]);
-  const hp = damage(top, sim.impact, g.hp);
+  const hp = damage(top, sim.impact, g.hp, false, g.players.map((x) => g.shields.includes(x) && x !== g.players[p]));
   const { error } = await sb.rpc('duel_fire_bot', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_hp: hp });
   markSeen(g.move + 1);
   busy = false;
@@ -246,9 +222,11 @@ $('del').onclick = async () => {
   if (!(await signedIn())) return;
   const id = (location.hash.match(/game=([0-9a-f-]{36})/) || [])[1];
   if (!id || !(await load(id))) { $('title').textContent = 'Duel not found'; return; }
+  pack = await backpack();
+  announceChaos({ gameId: id });
   requestAnimationFrame(loop);
   let pending = false;
-  const refresh = () => { if (pending) return; pending = true; setTimeout(async () => { pending = false; if (busy) return; await load(id); decide(); }, 200); };
+  const refresh = () => { if (pending) return; pending = true; setTimeout(async () => { pending = false; if (busy) return; await load(id); pack = await backpack(); announceChaos({ gameId: id }); decide(); }, 200); };
   sb.channel(`duel-${id}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'duel_games', filter: `id=eq.${id}` }, refresh)
     .subscribe((s) => { $('live').textContent = s === 'SUBSCRIBED' ? '● Live' : 'Offline'; });

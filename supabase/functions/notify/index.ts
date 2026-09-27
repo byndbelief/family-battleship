@@ -45,6 +45,7 @@ Deno.serve(async (req) => {
   if (kind === 'golf' || kind === 'duel') return otherGame(kind, gameId, user.id, caller);
   const { data: game } = await caller.from('games').select('*').eq('id', gameId).maybeSingle();
   if (!game) return json({ error: 'Game not found' }, 404);
+  if (game.status === 'over' && game.gauntlet_id) await gauntletNudge(game.gauntlet_id, user.id);
 
   const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
   const { data: profiles } = await admin.from('profiles').select('id, username').in('id', game.players);
@@ -80,6 +81,7 @@ Deno.serve(async (req) => {
 async function otherGame(kind: string, gameId: string, callerId: string, caller: ReturnType<typeof createClient>) {
   const { data: game } = await caller.from(kind === 'golf' ? 'golf_games' : 'duel_games').select('*').eq('id', gameId).maybeSingle();
   if (!game) return json({ error: 'Game not found' }, 404);
+  if (game.status === 'over' && game.gauntlet_id) await gauntletNudge(game.gauntlet_id, callerId);
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
   const { data: profiles } = await admin.from('profiles').select('id, username').in('id', game.players);
   const name = (id: string) => profiles?.find((p) => p.id === id)?.username ?? 'Someone';
@@ -116,4 +118,24 @@ async function send(recipients: string[], title: string, body: string, url: stri
     }
   }));
   return json({ sent });
+}
+
+// A Gauntlet round just ended: tell whoever opens the next round.
+async function gauntletNudge(gauntletId: string, callerId: string) {
+  const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  const { data: gt } = await admin.from('gauntlets').select('*').eq('id', gauntletId).maybeSingle();
+  if (!gt) return;
+  if (gt.status === 'over') {
+    await send((gt.players as string[]).filter((p) => p !== callerId), 'The Gauntlet is over', 'Tap to see who took the crown.', './', gauntletId);
+    return;
+  }
+  const kind = gt.current_kind as string;
+  const table = kind === 'battleship' ? 'games' : kind === 'golf' ? 'golf_games' : 'duel_games';
+  const { data: g } = await admin.from(table).select('*').eq('id', gt.current_game).maybeSingle();
+  if (!g) return;
+  // Battleship starts with everyone placing ships; the other games have a first player.
+  const recipients = kind === 'battleship' ? (g.players as string[]) : [kind === 'golf' ? g.players[g.t % g.players.length] : g.players[g.turn]];
+  const label = kind === 'battleship' ? 'Battleship' : kind === 'golf' ? 'Putt Post' : 'Hilltop Duel';
+  const url = kind === 'battleship' ? `./#game=${g.id}` : `./${kind}.html#game=${g.id}`;
+  await send(recipients.filter((p) => p !== callerId), `🏆 Gauntlet round ${gt.round} of ${gt.rounds}`, `${label} is up. Your move!`, url, g.id);
 }
