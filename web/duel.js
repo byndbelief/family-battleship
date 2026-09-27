@@ -1,6 +1,6 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names } from './common.js';
 import { W, H, TANK_X, CRATER_R, BERTHA_R, rng, buildTop, windFor, tankPos, simulate, damage } from './duel-engine.js';
 
 const $ = (id) => document.getElementById(id);
@@ -343,5 +343,8 @@ $('del').onclick = async () => {
     shot: (s) => watchLiveShot(s, refresh),
   });
   navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.url) location.href = e.data.url; });
+  const upNext = () => nextUpChip(me.id, id, (p) => (bots.has(p) ? '🤖 ' : '') + (names[p] ?? G?.names?.[p] ?? 'someone'));
+  upNext(); setInterval(() => { if (!document.hidden) upNext(); }, 20000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) upNext(); });
   decide();
 })();

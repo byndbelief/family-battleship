@@ -65,6 +65,14 @@ select{width:auto}
 .pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 12px;font-weight:800;font-size:14px;background:var(--bg-2);border:1px solid var(--line)}
 .pill b{color:var(--gold);font-variant-numeric:tabular-nums}
 .tip{font-size:14px;color:var(--muted);text-align:center;min-height:1.5em}
+/* Touch putting: a power meter the finger can't cover, and a bar to fine-tune and putt. */
+.pmeter{position:absolute;left:50%;top:10px;transform:translateX(-50%);width:min(70%,260px);height:26px;border-radius:99px;background:#0B211Acc;border:1.5px solid #ffffff44;overflow:hidden;z-index:2;pointer-events:none}
+.pmeter i{position:absolute;inset:0 auto 0 0;width:0;background:linear-gradient(90deg,#B6F09C,#F2C14E 60%,#E4572E)}
+.pmeter span{position:relative;display:block;text-align:center;font-weight:800;font-size:14px;line-height:23px;color:#fff;text-shadow:0 1px 2px #000}
+.putbar{display:grid;grid-template-columns:repeat(4,48px) 1fr 48px;gap:8px;align-items:center}
+.putbar .nudge{width:48px;height:48px;padding:0;font-size:22px;line-height:1;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.putbar .go{min-height:52px;font-size:18px}
+@media (max-width:380px){.putbar{grid-template-columns:repeat(4,42px) 1fr 42px;gap:6px}.putbar .nudge{width:42px;height:42px}}
 
 .send{border:1.5px dashed var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px;background:var(--bg-2)}
 .send code{font-size:12px;word-break:break-all;color:var(--gold);background:#0B211A;border-radius:8px;padding:8px 10px;display:block;max-height:5.5em;overflow:auto}
@@ -127,8 +135,17 @@ table.score{border-collapse:collapse;width:100%;font-variant-numeric:tabular-num
     <div class="course-wrap">
       <span class="fsslot"><button type="button" class="fsbtn" data-fs="#play" aria-label="Full screen">⛶</button></span>
       <canvas id="course" aria-label="Mini golf hole. Drag backward from anywhere on the course to aim, release to putt."></canvas>
+      <div class="pmeter" id="pmeter" hidden><i id="pfill"></i><span id="ptext"></span></div>
       <div class="hio" id="hio" hidden></div>
       <div class="overlay" id="gate" hidden><div class="card" id="gateCard"></div></div>
+    </div>
+    <div class="putbar" id="putbar" hidden>
+      <button type="button" class="nudge" data-turn="-1" aria-label="Aim left">↺</button>
+      <button type="button" class="nudge" data-turn="1" aria-label="Aim right">↻</button>
+      <button type="button" class="nudge" data-pow="-1" aria-label="Less power">−</button>
+      <button type="button" class="nudge" data-pow="1" aria-label="More power">+</button>
+      <button type="button" class="go" id="puttGo">Putt!</button>
+      <button type="button" class="nudge" id="puttX" aria-label="Cancel this putt">✕</button>
     </div>
     <p class="tip" id="tip"></p>
     <div id="pack"></div>

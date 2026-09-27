@@ -161,3 +161,54 @@ export function backpackBarHTML(items, gameKind, enabled) {
     ${Object.entries(counts).map(([item, ids]) => `<button type="button" data-loot="${ids[0]}" data-item="${item}" ${enabled ? '' : 'disabled'} title="${esc(ITEMS[item].desc)}">${ITEMS[item].icon} ${ITEMS[item].name}${ids.length > 1 ? ` ×${ids.length}` : ''}</button>`).join('')}
   </div>`;
 }
+
+// ---------------------------------------------------------------- "your move" queue
+const KIND_ICON = { battleship: '⚓', golf: '⛳', duel: '💥' };
+const hrefFor = (kind, id) => (kind === 'battleship' ? `./#game=${id}` : `${kind}.html#game=${id}`);
+// Every game where it's this player's move, newest first: { kind, id, href, at, players }.
+export async function myTurns(meId) {
+  const [bs, fl, golf, duel] = await Promise.all([
+    sb.from('games').select('id, players, turn, status, eliminated, updated_at').in('status', ['setup', 'playing']).limit(60),
+    sb.from('fleets').select('game_id').eq('player_id', meId),
+    sb.from('golf_games').select('id, players, t, status, updated_at').eq('status', 'playing').limit(60),
+    sb.from('duel_games').select('id, players, turn, status, updated_at').eq('status', 'playing').limit(60),
+  ]);
+  const placed = new Set((fl.data ?? []).map((f) => f.game_id)), out = [];
+  (bs.data ?? []).forEach((g) => {
+    if (!g.players.includes(meId)) return;
+    if (g.status === 'setup' ? !placed.has(g.id) : g.players[g.turn] === meId && !g.eliminated.includes(meId)) out.push({ kind: 'battleship', id: g.id, at: g.updated_at, players: g.players });
+  });
+  (golf.data ?? []).forEach((g) => { if (g.players[g.t % g.players.length] === meId) out.push({ kind: 'golf', id: g.id, at: g.updated_at, players: g.players }); });
+  (duel.data ?? []).forEach((g) => { if (g.players[g.turn] === meId) out.push({ kind: 'duel', id: g.id, at: g.updated_at, players: g.players }); });
+  out.forEach((x) => { x.href = hrefFor(x.kind, x.id); });
+  return out.sort((a, b) => (a.at < b.at ? 1 : -1));
+}
+// A chip in the bottom-left corner of a game page: "▶ Next: ⛳ vs Sam +2", linking to the
+// next game waiting on you. Call it again whenever things may have changed.
+let nextBusy = false;
+export async function nextUpChip(meId, currentId, nameOf) {
+  if (nextBusy || !meId) return; nextBusy = true;
+  try {
+    const list = (await myTurns(meId)).filter((x) => x.id !== currentId);
+    let chip = document.getElementById('nextUp');
+    if (!list.length) { chip?.remove(); return; }
+    if (!chip) {
+      chip = document.createElement('a'); chip.id = 'nextUp';
+      chip.style.cssText = 'position:fixed;left:calc(12px + env(safe-area-inset-left,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:70;max-width:calc(100vw - 88px);display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;background:#F2C230;color:#2A2100;font:800 15px/1.2 system-ui,sans-serif;text-decoration:none;box-shadow:0 8px 22px #0007;white-space:nowrap;overflow:hidden';
+      chip.addEventListener('click', (e) => {
+        const u = new URL(chip.getAttribute('href'), location.href);
+        if (u.pathname === location.pathname && !/\/(index\.html)?$/.test(u.pathname)) { e.preventDefault(); location.hash = u.hash; location.reload(); }
+      });
+      document.body.appendChild(chip);
+      if (!document.getElementById('nextUpCss')) {
+        const st = document.createElement('style'); st.id = 'nextUpCss';
+        st.textContent = 'body.fs-lock #nextUp{display:none!important} #nextUp:focus-visible{outline:3px solid #fff;outline-offset:2px} @keyframes nudgeIn{from{transform:translateY(20px);opacity:0}to{transform:none;opacity:1}} #nextUp{animation:nudgeIn .35s ease-out}';
+        document.head.appendChild(st);
+      }
+    }
+    const n = list[0], vs = n.players.filter((p) => p !== meId).map(nameOf).join(' & ') || 'solo';
+    chip.href = n.href;
+    chip.innerHTML = `<span>▶ Next:</span><span style="overflow:hidden;text-overflow:ellipsis">${KIND_ICON[n.kind]} vs ${esc(vs)}</span>${list.length > 1 ? `<span style="background:#2A2100;color:#F2C230;border-radius:99px;padding:1px 8px;font-size:13px">+${list.length - 1}</span>` : ''}`;
+    chip.setAttribute('aria-label', `Next game waiting on you: ${n.kind} versus ${vs}${list.length > 1 ? `, and ${list.length - 1} more` : ''}`);
+  } finally { nextBusy = false; }
+}

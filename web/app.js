@@ -1,5 +1,5 @@
 import { VAPID_PUBLIC_KEY, USERNAME_DOMAIN } from './config.js';
-import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit } from './common.js';
+import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip } from './common.js';
 import { HOLES, holeWithAttack, drawHole, LW, LH } from './golf-engine.js';
 import { W as DW, H as DH, TANK_X, buildTop } from './duel-engine.js';
 const app = document.getElementById('app');
@@ -74,7 +74,10 @@ function setChannel(ch) {
 // Ask the server to send "your turn" alerts. Never blocks the game.
 function notify(gameId, kind = 'battleship') {
   sb.functions.invoke('notify', { body: { game_id: gameId, kind } }).catch(() => {});
+  setTimeout(upNext, 800);
 }
+// The ▶ Next chip on a game: the next game waiting on you.
+const upNext = () => { if (G && me) nextUpChip(me.id, G.game.id, (p) => (bots.has(p) ? '🤖 ' : '') + (names[p] ?? 'someone')); };
 
 // ---------------------------------------------------------------- battle effects
 // One full-screen canvas for shells, explosions, splashes and fireworks.
@@ -320,11 +323,13 @@ const KIND_BLURB = {
   duel: 'Tanks on hills. Mind the wind.',
   gauntlet: 'A best-of series of random games. Winner takes the crown.',
 };
+const KIND_SHORT = { battleship: 'Battleship', golf: 'Putt Post', duel: 'Duel', gauntlet: 'Gauntlet' };
 const KIND_WHO = { battleship: '2–3 players', golf: 'Solo or up to 4', duel: '2 players', gauntlet: '2–4 players · 3, 5 or 7 rounds' };
 
 async function lobby() {
   G = null;
   if (document.querySelector('.fs-on')) fsExit();
+  document.getElementById('nextUp')?.remove();   // the lobby has its own Your move strip
   const others = Object.entries(names).filter(([id]) => id !== me.id).sort((a, b) => a[1].localeCompare(b[1]));
   view(`
     <div class="lobby">
@@ -332,13 +337,18 @@ async function lobby() {
         <div class="stack"><span class="eyebrow">Family Game Room</span><h1>Ahoy, ${esc(me.username)}</h1></div>
         <button class="link" id="signout">Sign out</button>
       </header>
+      <section class="stack upsec" id="upSec" hidden>
+        <div class="row between"><h2>Your move <span class="upcount" id="upCount"></span></h2>
+          <span class="row" style="gap:6px"><button type="button" class="upnav" id="upPrev" aria-label="Previous game">‹</button><button type="button" class="upnav" id="upNext" aria-label="Next game">›</button></span></div>
+        <div class="upstrip" id="upStrip"></div>
+      </section>
       <section class="stack" id="newSec">
         <h2>New game</h2>
         <div class="ncards" role="radiogroup" aria-label="Pick a game">
           ${Object.keys(KIND_NAME).map((k) => `
           <button type="button" class="ncard k-${k}" data-kind="${k}" role="radio" aria-checked="false">
             <canvas class="preview" data-kind="${k}" width="320" height="200" aria-hidden="true"></canvas>
-            <span class="nbody"><strong>${KIND_ICON[k]} ${KIND_NAME[k]}</strong><span class="muted small">${KIND_BLURB[k]}</span><span class="eyebrow">${KIND_WHO[k]}</span></span>
+            <span class="nbody"><strong><span class="nfull">${KIND_ICON[k]} ${KIND_NAME[k]}</span><span class="nshort">${KIND_ICON[k]} ${KIND_SHORT[k]}</span></strong><span class="muted small">${KIND_BLURB[k]}</span><span class="eyebrow">${KIND_WHO[k]}</span></span>
           </button>`).join('')}
         </div>
         <form id="newgame" class="card" style="gap:14px" hidden>
@@ -494,11 +504,12 @@ async function loadGames() {
     const href = g.status === 'over' ? '#' : g.current_kind === 'battleship' ? `#game=${g.current_game}` : `${g.current_kind}.html#game=${g.current_game}`;
     cards.push({ at: g.updated_at, kind: 'gauntlet', g, href, mine: false, over: g.status === 'over', prog: (g.history || []).length / g.rounds, pill: g.status === 'over' ? `<span class="pill done">Champion decided</span>` : `<span class="pill gt">Round ${g.round} of ${g.rounds}: ${KIND_ICON[g.current_kind]}</span>`, sub: table, vs: vsOf(g.players), extra: '' });
   });
-  if (!cards.length) { list.innerHTML = `<p class="muted">No games yet. Pick one above.</p>`; return; }
+  if (!cards.length) { renderUpStrip([], [], [], []); list.innerHTML = `<p class="muted">No games yet. Pick one above.</p>`; return; }
   // Your move first, then games waiting on someone else, then finished ones (folded away).
   cards.sort((a, b) => (a.at < b.at ? 1 : -1));
+  // Your move gets its own swipeable strip at the top; the list below holds the rest.
+  renderUpStrip(cards.filter((c) => c.mine), cards, myFleets ?? [], atMe ?? []);
   const groups = [
-    ['Your move', cards.filter((c) => c.mine)],
     ['Waiting on others', cards.filter((c) => !c.mine && !c.over)],
     ['Finished', cards.filter((c) => c.over)],
   ];
@@ -519,6 +530,34 @@ async function loadGames() {
   list.querySelectorAll('canvas.thumb').forEach((cv) => drawPreview(cv, cards[+cv.dataset.i], myFleets ?? [], atMe ?? []));
 }
 let finishedOpen = false;
+
+// The Your move strip: one big card per game waiting on you, swipe (or ‹ ›) through them.
+function renderUpStrip(mine, cards, myFleets, atMe) {
+  const sec = document.getElementById('upSec'), strip = document.getElementById('upStrip');
+  if (!sec) return;
+  document.title = (mine.length ? `(${mine.length}) ` : '') + 'Family Game Room';
+  sec.hidden = !mine.length;
+  if (!mine.length) { strip.innerHTML = ''; return; }
+  document.getElementById('upCount').textContent = mine.length;
+  const keep = strip.scrollLeft;
+  strip.innerHTML = mine.map((c) => `
+    <a class="upcard k-${c.kind}" href="${c.href}">
+      <canvas class="preview" data-i="${cards.indexOf(c)}" width="320" height="200" aria-hidden="true"></canvas>
+      <span class="upbody">
+        <span class="row between" style="gap:6px"><strong>${KIND_ICON[c.kind]} ${KIND_NAME[c.kind]}</strong>${c.extra}</span>
+        <span class="small">${c.vs}</span>
+        <span class="muted small">${c.sub}</span>
+        <span class="upgo">${c.pill.includes('Place') ? 'Place ships' : 'Play'} ›</span>
+      </span>
+    </a>`).join('');
+  strip.scrollLeft = keep;
+  strip.querySelectorAll('canvas.preview').forEach((cv) => drawPreview(cv, cards[+cv.dataset.i], myFleets, atMe));
+  const step = (d) => { const w = strip.querySelector('.upcard')?.getBoundingClientRect().width || 240; strip.scrollBy({ left: d * (w + 12), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); };
+  document.getElementById('upPrev').onclick = () => step(-1);
+  document.getElementById('upNext').onclick = () => step(1);
+  const navs = () => { const more = strip.scrollWidth > strip.clientWidth + 4; document.getElementById('upPrev').hidden = document.getElementById('upNext').hidden = !more; };
+  navs(); addEventListener('resize', navs, { once: true });
+}
 let gamesOpen = false;   // Your games shows its first 3 rows until expanded
 
 // Collapsed, Your games shows only its first 3 active rows (your move first) and hides Finished,
@@ -664,13 +703,14 @@ async function openGame(id) {
     return;
   }
   let pending = false;
-  const refresh = () => { if (pending) return; pending = true; setTimeout(async () => { pending = false; await loadGame(id); renderGame(); }, 150); };
+  const refresh = () => { if (pending) return; pending = true; setTimeout(async () => { pending = false; await loadGame(id); renderGame(); upNext(); }, 150); };
   setChannel(sb.channel(`game-${id}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: `id=eq.${id}` }, refresh)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shots', filter: `game_id=eq.${id}` }, refresh)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'accusations', filter: `game_id=eq.${id}` }, refresh)
     .subscribe((s) => { const l = document.getElementById('live'); if (l) l.classList.toggle('off', s !== 'SUBSCRIBED'); }));
   renderGame();
+  upNext();
 }
 
 async function loadGame(id) {

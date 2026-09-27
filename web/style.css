@@ -214,7 +214,6 @@ body.quake { animation: quake .45s linear 1; }
   .grow .gstate { grid-column: 2; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; }
 }
 .ncards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 12px; }
-@media (max-width: 440px) { .ncards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } }
 .ncard { display: flex; flex-direction: column; padding: 0; text-align: left; border-radius: 16px; overflow: hidden; background: var(--paper);
   border: 2px solid var(--line); color: var(--ink); font-weight: 400; transition: transform .15s, box-shadow .15s, border-color .15s; }
 .ncard:hover { transform: translateY(-3px); box-shadow: 0 10px 24px #0003; }
@@ -223,3 +222,27 @@ body.quake { animation: quake .45s linear 1; }
 .ncard .nbody { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 4px; }
 @media (max-width: 440px) { .ncard .nbody .muted { display: none; } }
 @media (prefers-reduced-motion: reduce) { .grow, .ncard { transition: none; } .grow:hover, .ncard:hover { transform: none; } }
+
+/* ---------------------------------------------------------------- lobby: Your move strip, compact New game on phones */
+.upcount { display: inline-grid; place-items: center; min-width: 1.6em; height: 1.6em; padding: 0 .4em; border-radius: 99px; background: var(--flag); color: var(--flag-ink); font: 700 .7em/1 var(--body); vertical-align: middle; }
+.upnav { width: 40px; height: 40px; padding: 0; border-radius: 50%; font-size: 24px; line-height: 1; }
+.upstrip { display: grid; grid-auto-flow: column; grid-auto-columns: min(78%, 280px); gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding: 0 2px;
+  padding: 4px 2px 10px; overscroll-behavior-x: contain; scrollbar-width: thin; }
+.upcard { scroll-snap-align: start; display: flex; flex-direction: column; border-radius: 16px; overflow: hidden; background: var(--paper);
+  border: 2px solid var(--flag); box-shadow: 0 0 0 2px var(--flag); color: var(--ink); text-decoration: none; }
+.upcard:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.upcard .preview { display: block; width: 100%; aspect-ratio: 16 / 10; height: auto; background: #0E2A44; }
+.upcard .upbody { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.upcard .upbody > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.upcard .upgo { margin-top: 6px; align-self: flex-start; background: var(--flag); color: var(--flag-ink); font-weight: 700; border-radius: 99px; padding: 4px 14px; }
+.nshort { display: none; }
+@media (max-width: 520px) {
+  .ncards { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .ncard { border-radius: 12px; }
+  .ncard .preview { aspect-ratio: 1 / 1; }
+  .ncard .nbody { padding: 6px 4px 8px; text-align: center; }
+  .ncard .nbody .muted, .ncard .nbody .eyebrow { display: none; }
+  .ncard .nbody strong { font-size: 12px; line-height: 1.2; }
+  .nfull { display: none; } .nshort { display: inline; }
+  #newgame.card { padding: 14px; }
+}

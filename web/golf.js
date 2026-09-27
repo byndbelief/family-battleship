@@ -1,5 +1,5 @@
 // Putt Post, live: turns and scores are saved on the server; putts replay for everyone.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names } from './common.js';
 import {
   LW, LH, HOLES, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, drawHole,
   inPoly, inRect, segDist, reduceMotion,
@@ -59,6 +59,7 @@ function sizeCanvas() {
   cv.width = Math.round(w * dpr); cv.height = Math.round(((w * LH) / LW) * dpr);
 }
 function loop(t) {
+  if (locked && mode !== 'aim') { setLocked(false); showAim(null); }
   scene.fx = (scene.fx || []).filter((f) => { f.x += f.vx; f.y += f.vy; f.vy += f.g || 0; f.life -= 0.02; return f.life > 0; });
   if (scene.hole) { const k = cv.width / LW; ctx.setTransform(k, 0, 0, k, 0, 0); drawHole(ctx, scene.hole, t, scene); }
   requestAnimationFrame(loop);
@@ -272,24 +273,56 @@ function startTurn() {
   }
   renderCheats();
 }
+// On touch screens letting go only sets up the putt: nudge it, then tap Putt! (or ✕).
+// With a mouse, letting go putts right away, as before.
+let locked = false;
+function showAim(a) {
+  const m = $('pmeter');
+  if (!a) { m.hidden = true; return; }
+  m.hidden = false; $('pfill').style.width = Math.round(a.p * 100) + '%'; $('ptext').textContent = `Power ${Math.round(a.p * 100)}%`;
+}
+function setLocked(on) { locked = on; $('putbar').hidden = !on; }
+function nudgeAim(turn, pow) {
+  const a = scene.aim; if (!a || mode !== 'aim') return;
+  if (turn) { const t = (turn * Math.PI) / 180, c = Math.cos(t), s = Math.sin(t); [a.dx, a.dy] = [a.dx * c - a.dy * s, a.dx * s + a.dy * c]; }
+  if (pow) a.p = Math.max(0.04, Math.min(1, Math.round((a.p + pow * 0.01) * 100) / 100));
+  showAim(a);
+}
+document.querySelectorAll('#putbar [data-turn], #putbar [data-pow]').forEach((b) => {
+  let hold = null, rep = null;
+  const step = () => nudgeAim(+(b.dataset.turn || 0), +(b.dataset.pow || 0));
+  const stop = () => { clearTimeout(hold); clearInterval(rep); };
+  b.addEventListener('pointerdown', (e) => { e.preventDefault(); b.setPointerCapture?.(e.pointerId); step(); stop(); hold = setTimeout(() => { rep = setInterval(step, 60); }, 350); });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => b.addEventListener(ev, stop));
+  b.addEventListener('contextmenu', (e) => e.preventDefault());
+  b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); step(); } });
+});
+$('puttX').onclick = () => { setLocked(false); scene.aim = null; showAim(null); $('tip').textContent = 'Putt cancelled. Drag back from anywhere to aim again.'; };
+$('puttGo').onclick = () => { const a = scene.aim; setLocked(false); scene.aim = null; showAim(null); if (a && mode === 'aim') putt(a); };
+
 function toLogical(e) { const r = cv.getBoundingClientRect(); return { x: ((e.clientX - r.left) / r.width) * LW, y: ((e.clientY - r.top) / r.height) * LH }; }
 cv.addEventListener('pointerdown', (e) => {
   if (mode === 'wedge') return wedgeTo(toLogical(e));
   if (mode !== 'aim') return;
-  drag = toLogical(e); cv.setPointerCapture(e.pointerId);
+  drag = toLogical(e); cv.setPointerCapture(e.pointerId); setLocked(false);
 });
 cv.addEventListener('pointermove', (e) => {
   if (!drag || mode !== 'aim') return;
   const p = toLogical(e), dx = drag.x - p.x, dy = drag.y - p.y, d = Math.sqrt(dx * dx + dy * dy);
-  if (d < 6) { scene.aim = null; return; }
+  if (d < 6) { scene.aim = null; showAim(null); return; }
   const pw = Math.min(1, d / 150); scene.aim = { bx: scene.ball.x, by: scene.ball.y, dx: dx / d, dy: dy / d, p: pw };
-  $('tip').textContent = `Power ${Math.round(pw * 100)}%`;
+  showAim(scene.aim); $('tip').textContent = 'Let go to set it up. Slide back to the ball to cancel.';
 });
-cv.addEventListener('pointercancel', () => { drag = null; scene.aim = null; });
-cv.addEventListener('pointerup', async () => {
+cv.addEventListener('pointercancel', () => { drag = null; scene.aim = null; showAim(null); });
+cv.addEventListener('pointerup', async (e) => {
   if (!drag) return; drag = null;
-  const a = scene.aim; scene.aim = null;
-  if (!a || a.p < 0.04 || mode !== 'aim') { if (mode === 'aim') $('tip').textContent = 'Drag back further to putt.'; return; }
+  const a = scene.aim;
+  if (!a || a.p < 0.04 || mode !== 'aim') { scene.aim = null; showAim(null); if (mode === 'aim') $('tip').textContent = 'Drag back further to putt.'; return; }
+  if (e.pointerType !== 'mouse') { setLocked(true); $('tip').textContent = 'Fine-tune with ↺ ↻ − +, then tap Putt!'; return; }
+  scene.aim = null; showAim(null);
+  putt(a);
+});
+async function putt(a) {
   const sp = (0.6 + a.p * 10.4) * (curAttack === 5 ? 0.67 : 1);
   const s = { x: q20(scene.ball.x), y: q20(scene.ball.y), vx: q100(a.dx * sp), vy: q100(a.dy * sp) };
   current.push(s); mode = 'rolling'; $('tip').textContent = ''; renderCheats(); renderCard();
@@ -303,7 +336,7 @@ cv.addEventListener('pointerup', async () => {
   mode = 'aim';
   $('tip').textContent = r.penalty ? 'Splash! One penalty stroke. Back to where you putted from.' : `Stroke ${strokes + 1}. Drag back and let go.`;
   renderCheats(); renderCard();
-});
+}
 
 // ---------------------------------------------------------------- cheating (if you dare)
 function clearSpot(h, x, y) {
@@ -552,5 +585,8 @@ $('del').onclick = async () => {
     if (data && data.updated_at !== G.game.updated_at) refresh();
   });
   navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.url) location.href = e.data.url; });
+  const upNext = () => nextUpChip(me.id, id, (p) => (bots.has(p) ? '🤖 ' : '') + (names[p] ?? G?.names?.[p] ?? 'someone'));
+  upNext(); setInterval(() => { if (!document.hidden) upNext(); }, 20000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) upNext(); });
   decide();
 })();
