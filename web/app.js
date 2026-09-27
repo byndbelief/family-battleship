@@ -1,5 +1,5 @@
 import { VAPID_PUBLIC_KEY, USERNAME_DOMAIN } from './config.js';
-import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note } from './common.js';
+import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar } from './common.js';
 import { HOLES, holeWithAttack, drawHole, LW, LH } from './golf-engine.js';
 import { W as DW, H as DH, TANK_X, buildTop } from './duel-engine.js';
 const app = document.getElementById('app');
@@ -343,15 +343,28 @@ async function lobby() {
         <div class="stack lobhead"><span class="eyebrow">Family Game Room</span><h1>Ahoy, ${esc(me.username)}</h1></div>
         <button class="link" id="signout">Sign out</button>
       </header>
+      <section class="gthero" id="gtSec">
+        <div class="gthead"><span class="gtcup" aria-hidden="true">🏆</span><div><h2>The Gauntlet</h2><p class="small">A best-of series of surprise rounds: putts, duels and sea battles. Most rounds wins the crown.</p></div></div>
+        <div class="gtlive" id="gtLive"></div>
+        <form class="gtstart" id="gtStart">
+          <span class="gtlabel">Start a Gauntlet</span>
+          <div class="choice">${others.map(([id, u]) => `<button type="button" class="chip" data-gopp="${esc(u)}" aria-pressed="false">${bots.has(id) ? '🤖 ' : ''}${esc(u)}</button>`).join('')}</div>
+          <div class="row gtrow">
+            <div class="seg" role="radiogroup" aria-label="Rounds">${[3, 5, 7].map((r) => `<label><input type="radio" name="gtRounds" value="${r}" ${r === 3 ? 'checked' : ''}>${r} rounds</label>`).join('')}</div>
+            <button class="gtbtn" type="submit" id="gtGo" disabled>Start 🏆</button>
+          </div>
+          <p class="error" id="gtErr" hidden></p>
+        </form>
+      </section>
       <section class="stack upsec" id="upSec" hidden>
         <div class="row between"><h2>Your move <span class="upcount" id="upCount"></span></h2>
           <span class="row" style="gap:6px"><button type="button" class="upnav" id="upPrev" aria-label="Previous game">‹</button><button type="button" class="upnav" id="upNext" aria-label="Next game">›</button></span></div>
         <div class="upstrip" id="upStrip"></div>
       </section>
       <section class="stack" id="newSec">
-        <h2>New game</h2>
+        <div class="row between"><h2>Quick play</h2><span class="muted small">One game on its own</span></div>
         <div class="ncards" role="radiogroup" aria-label="Pick a game">
-          ${Object.keys(KIND_NAME).map((k) => `
+          ${['battleship', 'golf', 'duel'].map((k) => `
           <button type="button" class="ncard k-${k}" data-kind="${k}" role="radio" aria-checked="false">
             <canvas class="preview" data-kind="${k}" width="320" height="200" aria-hidden="true"></canvas>
             <span class="nbody"><strong><span class="nfull">${KIND_ICON[k]} ${KIND_NAME[k]}</span><span class="nshort">${KIND_ICON[k]} ${KIND_SHORT[k]}</span></strong><span class="muted small">${KIND_BLURB[k]}</span><span class="eyebrow">${KIND_WHO[k]}</span></span>
@@ -393,6 +406,22 @@ async function lobby() {
       <section class="card" id="alerts"></section>
     </div>`);
   document.getElementById('signout').onclick = signOut;
+  // Start a Gauntlet: pick 1-3 opponents and a length, go.
+  const gchips = [...app.querySelectorAll('[data-gopp]')], gtGo = document.getElementById('gtGo');
+  const gPicked = () => gchips.filter((c) => c.getAttribute('aria-pressed') === 'true');
+  gchips.forEach((c) => c.addEventListener('click', () => {
+    const on = c.getAttribute('aria-pressed') !== 'true';
+    if (on && gPicked().length >= 3) return note('Up to three opponents.');
+    c.setAttribute('aria-pressed', String(on)); gtGo.disabled = !gPicked().length;
+  }));
+  document.getElementById('gtStart').addEventListener('submit', async (e) => {
+    e.preventDefault(); gtGo.disabled = true;
+    const { data, error } = await sb.rpc('gauntlet_create', { opponents: gPicked().map((c) => c.dataset.gopp), p_rounds: +app.querySelector('input[name=gtRounds]:checked').value });
+    if (error) { const el = document.getElementById('gtErr'); el.hidden = false; el.textContent = friendly(error); gtGo.disabled = false; return; }
+    const { data: gt } = await sb.from('gauntlets').select('current_kind, current_game').eq('id', data).maybeSingle();
+    notify(gt.current_game, gt.current_kind);
+    if (gt.current_kind === 'battleship') location.hash = `game=${gt.current_game}`; else location.href = `${gt.current_kind}.html#game=${gt.current_game}`;
+  });
   const chips = [...app.querySelectorAll('[data-opp]')];
   const start = document.getElementById('start');
   let chosen = null;
@@ -527,8 +556,10 @@ async function loadGames() {
     const lead = Math.max(...g.scores);
     const table = g.players.map((p, i) => `${g.scores[i] === lead && lead > 0 ? '👑 ' : ''}${p === me.id ? 'You' : nm(p)} ${g.scores[i]}`).join(' · ');
     const href = g.status === 'over' ? '#' : g.current_kind === 'battleship' ? `#game=${g.current_game}` : `${g.current_kind}.html#game=${g.current_game}`;
+    if (g.status !== 'over') return;   // live Gauntlets have their own cards at the top
     cards.push({ at: g.updated_at, kind: 'gauntlet', g, href, mine: false, over: g.status === 'over', prog: (g.history || []).length / g.rounds, pill: g.status === 'over' ? `<span class="pill done">Champion decided</span>` : `<span class="pill gt">Round ${g.round} of ${g.rounds}: ${KIND_ICON[g.current_kind]}</span>`, sub: table, vs: vsOf(g.players), extra: '' });
   });
+  renderGauntlets(gts.filter((g) => g.status !== 'over'), cards);
   if (!cards.length) { renderUpStrip([], [], [], []); list.innerHTML = `<p class="muted">No games yet. Pick one above.</p>`; return; }
   // Your move first, then games waiting on someone else, then finished ones (folded away).
   cards.sort((a, b) => (a.at < b.at ? 1 : -1));
@@ -555,6 +586,26 @@ async function loadGames() {
   list.querySelectorAll('canvas.thumb').forEach((cv) => drawPreview(cv, cards[+cv.dataset.i], myFleets ?? [], atMe ?? []));
 }
 let finishedOpen = false;
+
+// The Gauntlet's live series, one card each: scoreboard, round track, and the way into this round.
+function renderGauntlets(live, cards) {
+  const box = document.getElementById('gtLive');
+  if (!box) return;
+  box.innerHTML = live.map((g) => {
+    const lead = Math.max(...g.scores), done = g.history || [];
+    const round = cards.find((c) => c.g.id === g.current_game), myMove = !!round?.mine;
+    const href = g.current_kind === 'battleship' ? `#game=${g.current_game}` : `${g.current_kind}.html#game=${g.current_game}`;
+    const whoseMove = round ? (myMove ? 'Your move' : round.pill.replace(/<[^>]+>/g, '')) : '';
+    const dots = Array.from({ length: g.rounds }, (_, i) => { const h = done[i], cur = !h && i === g.round - 1;
+      return `<i class="${h ? 'done' : cur ? 'cur' : ''}">${h ? KIND_ICON[h.kind] : cur ? KIND_ICON[g.current_kind] : i + 1}</i>`; }).join('');
+    return `<a class="gtcard ${myMove ? 'mine' : ''}" href="${href}">
+      <span class="gtscore">${g.players.map((p, i) => `<span class="${g.scores[i] === lead && lead > 0 ? 'lead' : ''}">${g.scores[i] === lead && lead > 0 ? '👑 ' : ''}${p === me.id ? 'You' : nm(p)} <b>${g.scores[i]}</b></span>`).join('')}</span>
+      <span class="gttrack">${dots}</span>
+      <span class="gtnow">Round ${g.round} of ${g.rounds}: ${KIND_ICON[g.current_kind]} ${KIND_NAME[g.current_kind]}${whoseMove ? ` · <strong>${whoseMove}</strong>` : ''}</span>
+      <span class="gtplay">${myMove ? `Play round ${g.round} ›` : 'Watch ›'}</span>
+    </a>`;
+  }).join('');
+}
 
 // The Your move strip: one big card per game waiting on you, swipe (or ‹ ›) through them.
 function renderUpStrip(mine, cards, myFleets, atMe) {
@@ -772,6 +823,7 @@ async function loadGame(id) {
     fleets: Object.fromEntries((fleets ?? []).map((f) => [f.player_id, f.ships])),
   };
   if (prevMove != null && game.move !== prevMove) aims = { target: null, cells: new Set() };
+  G.gtHTML = G.game.gauntlet_id ? await gauntletBar(G.game.gauntlet_id, G.game.id, me.id, (p) => (bots.has(p) ? '🤖 ' : '') + (names[p] ?? 'someone')) : '';
   return true;
 }
 
@@ -914,6 +966,7 @@ function renderGame() {
   view(`
     <header class="stack">
       <div class="row between"><button class="link" id="back">← All games</button><span class="row" style="gap:10px"><span class="live" id="live">Live</span>${fsButton('#app')}</span></div>
+      <div id="gtbar">${G.gtHTML || ''}</div>
       <h1>${title}</h1>
       ${sub ? `<p class="muted gsub">${sub}</p>` : ''}
       ${playersStrip}

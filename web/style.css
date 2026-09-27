@@ -316,3 +316,48 @@ body.has-firebar { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)
   .grow { padding: 6px 10px 6px 6px; gap: 10px; }
   .glist { gap: 6px; }
 }
+
+/* ---------------------------------------------------------------- lobby: the Gauntlet up front */
+.gthero { border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 14px; color: #FFF3D6;
+  background: radial-gradient(600px 220px at 85% -20%, #FFB44A55, transparent 70%), linear-gradient(160deg, #3A1D00, #5C2E00 55%, #2A1400); border: 2px solid #FFC85788; }
+.gthead { display: flex; gap: 12px; align-items: center; }
+.gthead h2 { color: #FFD77A; font-size: 24px; }
+.gthead p { color: #F3D9A6; margin: 2px 0 0; }
+.gtcup { font-size: 44px; line-height: 1; filter: drop-shadow(0 4px 10px #FFB44A88); }
+.gtlive { display: flex; flex-direction: column; gap: 10px; }
+.gtlive:empty { display: none; }
+.gtcard { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 16px; background: #00000033; border: 1.5px solid #FFC85755; color: inherit; text-decoration: none; }
+.gtcard.mine { border-color: #FFC857; box-shadow: 0 0 0 2px #FFC857; background: #00000055; }
+.gtcard:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.gtscore { display: flex; flex-wrap: wrap; gap: 6px 14px; font-weight: 700; }
+.gtscore b { color: #FFC857; font-size: 1.15em; }
+.gtscore .lead { color: #fff; }
+.gttrack { display: flex; gap: 6px; }
+.gttrack i { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 13px; background: #ffffff1a; color: #F3D9A6; }
+.gttrack i.done { background: #FFC857; }
+.gttrack i.cur { background: #FF8A3D; box-shadow: 0 0 0 2px #FFE7B0; }
+.gtnow { font-size: 14px; color: #F3D9A6; }
+.gtnow strong { color: #fff; }
+.gtplay { align-self: flex-start; background: #FFC857; color: #2A1600; font-weight: 800; border-radius: 99px; padding: 6px 16px; }
+.gtcard:not(.mine) .gtplay { background: transparent; color: #FFD77A; border: 1.5px solid #FFC85799; }
+.gtstart { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 16px; background: #0000002e; }
+.gtlabel { font-weight: 800; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; color: #FFD77A; }
+.gtstart .chip { background: #ffffff14; color: #FFF3D6; border-color: #FFC85766; }
+.gtstart .chip[aria-pressed=true] { background: #FFC857; color: #2A1600; border-color: #FFC857; }
+.gtrow { gap: 10px; flex-wrap: wrap; }
+.seg { display: inline-flex; border-radius: 99px; overflow: hidden; border: 1.5px solid #FFC85766; }
+.seg label { padding: 8px 12px; cursor: pointer; font-weight: 700; font-size: 14px; color: #FFF3D6; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label:has(input:checked) { background: #FFC857; color: #2A1600; }
+.seg label:has(input:focus-visible) { outline: 3px solid #fff; outline-offset: -3px; }
+.gtbtn { margin-left: auto; min-height: 46px; padding: 0 22px; border-radius: 99px; border: 0; background: linear-gradient(180deg, #FFD77A, #FFB12E); color: #2A1600; font-family: var(--display); font-size: 16px; box-shadow: 0 6px 16px #0006; }
+.gtbtn:disabled { opacity: .5; }
+.gthero .error { color: #FFB3A8; }
+@media (max-width: 640px) {
+  .gthero { padding: 12px; gap: 10px; border-radius: 16px; }
+  .gthead h2 { font-size: 20px; }
+  .gtcup { font-size: 34px; }
+  .gthead p { font-size: 13px; }
+  .ncards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .gtbtn { flex: 1 1 100%; margin-left: 0; }
+}

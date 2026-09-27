@@ -256,3 +256,56 @@ foldCss.textContent = `
   @media (max-width:640px){.noteline{display:none!important}}
   .fs-on .noteline{display:none!important}`;
 document.head.appendChild(foldCss);
+
+// ---------------------------------------------------------------- the Gauntlet bar on a game page
+// Shows the series around this game: scores, the round track, and a button on to the next
+// round once this one is decided. Put <div id="gtbar"></div> where it should go.
+const GT_ICON = { battleship: '⚓', golf: '⛳', duel: '💥' };
+export async function gauntletBar(gauntletId, gameId, meId, nameOf) {
+  const el = document.getElementById('gtbar');
+  if (!gauntletId) { if (el) el.innerHTML = ''; return ''; }
+  const { data: gt } = await sb.from('gauntlets').select('*').eq('id', gauntletId).maybeSingle();
+  if (!gt) { if (el) el.innerHTML = ''; return ''; }
+  const lead = Math.max(...gt.scores), who = (p) => (p === meId ? 'You' : esc(nameOf(p)));
+  const table = gt.players.map((p, i) => `<span class="gtp${gt.scores[i] === lead && lead > 0 ? ' lead' : ''}">${gt.scores[i] === lead && lead > 0 ? '👑 ' : ''}${who(p)} <b>${gt.scores[i]}</b></span>`).join('');
+  const done = gt.history || [];
+  const dots = Array.from({ length: gt.rounds }, (_, i) => {
+    const h = done[i], cur = !h && i === gt.round - 1 && gt.status === 'playing';
+    const k = h ? h.kind : cur ? gt.current_kind : null;
+    return `<i class="${h ? 'done' : cur ? 'cur' : ''}" title="Round ${i + 1}">${k ? GT_ICON[k] : ''}</i>`;
+  }).join('');
+  let go = '';
+  if (gt.status === 'over') {
+    const champs = gt.players.filter((_, i) => gt.scores[i] === lead).map(who).join(' & ');
+    go = `<a class="gtgo" href="./">👑 ${champs} ${champs === 'You' ? 'win' : 'wins'} the Gauntlet! ›</a>`;
+  } else if (gt.current_game !== gameId) {
+    go = `<a class="gtgo" data-reload href="${gt.current_kind === 'battleship' ? `./#game=${gt.current_game}` : `${gt.current_kind}.html#game=${gt.current_game}`}">Round ${gt.round}: ${GT_ICON[gt.current_kind]} Play ›</a>`;
+  }
+  const thisRound = done.findIndex((h) => h.game === gameId);
+  const label = gt.status === 'over' ? 'Final' : `Round ${thisRound >= 0 ? thisRound + 1 : gt.round} of ${gt.rounds}`;
+  const html = `<div class="gtbar"><span class="gtt">🏆 Gauntlet · ${label}</span><span class="gtdots">${dots}</span><span class="gtscores">${table}</span>${go}</div>`;
+  const now = document.getElementById('gtbar'); if (now) now.innerHTML = html;
+  return html;
+}
+document.addEventListener('click', (e) => {
+  const a = e.target.closest?.('a[data-reload]');
+  if (!a) return;
+  const u = new URL(a.getAttribute('href'), location.href);
+  if (u.pathname === location.pathname && !/\/(index\.html)?$/.test(u.pathname)) { e.preventDefault(); location.hash = u.hash; location.reload(); }
+});
+const gtCss = document.createElement('style');
+gtCss.textContent = `
+  .gtbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:8px 12px;border-radius:14px;background:linear-gradient(90deg,#3A1D00,#6B3A00);color:#FFE7B0;font:600 14px/1.3 system-ui,sans-serif;border:1.5px solid #FFC85777}
+  .gtbar .gtt{font-weight:800;letter-spacing:.02em}
+  .gtbar .gtdots{display:flex;gap:4px}
+  .gtbar .gtdots i{width:20px;height:20px;border-radius:50%;background:#ffffff22;display:grid;place-items:center;font-size:11px;font-style:normal}
+  .gtbar .gtdots i.done{background:#FFC857}
+  .gtbar .gtdots i.cur{background:#FF8A3D;box-shadow:0 0 0 2px #FFE7B0}
+  .gtbar .gtscores{display:flex;flex-wrap:wrap;gap:8px}
+  .gtbar .gtp b{color:#FFC857}
+  .gtbar .gtp.lead{color:#fff}
+  .gtbar .gtgo{margin-left:auto;background:#FFC857;color:#2A1600;border-radius:99px;padding:6px 14px;font-weight:800;text-decoration:none;animation:gtPulse 1.4s ease-in-out infinite}
+  @keyframes gtPulse{50%{transform:scale(1.05)}}
+  @media (prefers-reduced-motion:reduce){.gtbar .gtgo{animation:none}}
+  .fs-on .gtbar{display:none}`;
+document.head.appendChild(gtCss);
