@@ -1,5 +1,5 @@
 // Putt Post, live: turns and scores are saved on the server; putts replay for everyone.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge } from './common.js';
 import {
   LW, LH, HOLES, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, drawHole,
   inPoly, inRect, segDist, reduceMotion,
@@ -239,6 +239,7 @@ function judge(prev) {
       $('accuse').disabled = true;
       const { data, error } = await sb.rpc('golf_call', { p_game: G.game.id });
       if (error) { closeModal(); resolve(); return; }
+      nudge();
       if (data.busted) {
         bigText('<span class="busted">BUSTED!</span>', 2600); shake(); sfx('buzz');
         modal(`<h2 style="color:#FF7A6E">🚨 Busted!</h2><p>${who(prev.player)} used ${[1, 2, 4].filter((k) => data.cheats & k).map((k) => CHEAT_NAMES[k]).join(', ')}.</p>
@@ -400,7 +401,7 @@ function renderAfter() {
     plant.disabled = true;
     const { error } = await sb.rpc('golf_plant', { p_game: G.game.id, p_target: pick.target, p_type: pick.type });
     if (error) { $('plantErr').textContent = friendly(error); return; }
-    sfx('sneaky'); planted = { ...pick }; pick = { target: null, type: 0 }; await load(G.game.id); renderAfter();
+    sfx('sneaky'); nudge(); planted = { ...pick }; pick = { target: null, type: 0 }; await load(G.game.id); renderAfter();
   };
   const close = () => { el.hidden = true; afterPanel = false; planted = null; pick = { target: null, type: 0 }; };
   const bg = $('botGo'); if (bg) bg.onclick = () => { close(); window.scrollTo(0, 0); decide(); };
@@ -540,11 +541,15 @@ $('del').onclick = async () => {
   requestAnimationFrame(loop);
   let pending = false;
   const refresh = () => { if (pending) return; pending = true; setTimeout(async () => { pending = false; await load(id); renderCard(); announceChaos({ gameId: id }); if (mode === 'idle' && !flowing) decide(); }, 200); };
-  sb.channel(`golf-${id}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'golf_games', filter: `id=eq.${id}` }, refresh)
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'golf_turns', filter: `game_id=eq.${id}` }, refresh)
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'golf_accusations', filter: `game_id=eq.${id}` }, refresh)
-    .subscribe((s) => { $('live').textContent = s === 'SUBSCRIBED' ? '● Live' : 'Offline'; });
+  liveGame(`golf-${id}`, [
+    { event: '*', table: 'golf_games', filter: `id=eq.${id}` },
+    { event: 'INSERT', table: 'golf_turns', filter: `game_id=eq.${id}` },
+    { event: 'INSERT', table: 'golf_accusations', filter: `game_id=eq.${id}` },
+  ], refresh, async () => {
+    if (!G) return;
+    const { data } = await sb.from('golf_games').select('updated_at').eq('id', id).maybeSingle();
+    if (data && data.updated_at !== G.game.updated_at) refresh();
+  });
   navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.url) location.href = e.data.url; });
   decide();
 })();

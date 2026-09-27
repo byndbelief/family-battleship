@@ -27,6 +27,8 @@ export async function signedIn() {
   (profiles ?? []).forEach((p) => { names[p.id] = p.username; });
   (botRows ?? []).forEach((b) => bots.add(b.profile_id));
   me.id = session.user.id; me.username = names[me.id];
+  // Join realtime as this player (not anonymously), or row-level security hides every change.
+  try { await sb.realtime.setAuth(session.access_token); } catch {}
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
   return true;
 }
@@ -34,6 +36,22 @@ export async function signedIn() {
 // Ask the server to send "your turn" alerts. Never blocks the game.
 export function notify(kind, gameId) {
   sb.functions.invoke('notify', { body: { game_id: gameId, kind } }).catch(() => {});
+  nudge();
+}
+
+// Keeps a game page live three ways, so a move shows up even if one path drops:
+// database changes over realtime, a direct "I moved" nudge from the other player's page,
+// and a light check every few seconds (and whenever the page comes back into view).
+let liveCh = null;
+export function nudge() { liveCh?.send({ type: 'broadcast', event: 'moved', payload: {} }).catch?.(() => {}); }
+export function liveGame(topic, changes, onChange, check) {
+  liveCh = sb.channel(topic, { config: { broadcast: { self: false } } });
+  changes.forEach((c) => liveCh.on('postgres_changes', { schema: 'public', ...c }, onChange));
+  liveCh.on('broadcast', { event: 'moved' }, onChange);
+  liveCh.subscribe((s) => { const el = document.getElementById('live'); if (el) el.textContent = s === 'SUBSCRIBED' ? '● Live' : 'Reconnecting…'; });
+  setInterval(() => { if (!document.hidden) check(); }, 5000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) onChange(); });
+  addEventListener('online', onChange);
 }
 
 // ---------------------------------------------------------------- chaos: loot, curses, twists

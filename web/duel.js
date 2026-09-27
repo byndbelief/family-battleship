@@ -1,6 +1,6 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge } from './common.js';
 import { W, H, TANK_X, CRATER_R, BERTHA_R, rng, buildTop, windFor, tankPos, simulate, damage } from './duel-engine.js';
 
 const $ = (id) => document.getElementById(id);
@@ -223,6 +223,7 @@ async function robotShot() {
   markSeen(g.move + 1);
   busy = false;
   if (error) { $('err').textContent = friendly(error); return render(); }
+  nudge();
   const lost = g.hp[myIdx()] - hp[myIdx()];
   if (lost > 0) stamp(`−${lost}`, 'red', 1400);
   await sleep(600);
@@ -248,10 +249,12 @@ $('del').onclick = async () => {
   announceChaos({ gameId: id });
   requestAnimationFrame(loop);
   let pending = false;
-  const refresh = () => { if (pending) return; pending = true; setTimeout(async () => { pending = false; if (busy) return; await load(id); pack = await backpack(); announceChaos({ gameId: id }); decide(); }, 200); };
-  sb.channel(`duel-${id}`)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'duel_games', filter: `id=eq.${id}` }, refresh)
-    .subscribe((s) => { $('live').textContent = s === 'SUBSCRIBED' ? '● Live' : 'Offline'; });
+  const refresh = () => { if (pending) return; pending = true; setTimeout(async () => { pending = false; if (busy) { setTimeout(refresh, 1000); return; } await load(id); pack = await backpack(); announceChaos({ gameId: id }); decide(); }, 200); };
+  liveGame(`duel-${id}`, [{ event: '*', table: 'duel_games', filter: `id=eq.${id}` }], refresh, async () => {
+    if (busy || !G) return;
+    const { data } = await sb.from('duel_games').select('updated_at').eq('id', id).maybeSingle();
+    if (data && data.updated_at !== G.game.updated_at) refresh();
+  });
   navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.url) location.href = e.data.url; });
   decide();
 })();
