@@ -64,6 +64,18 @@
   .feed{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:14px}
   .feed li{border-left:3px solid var(--line);padding-left:10px}
   @media (prefers-reduced-motion:reduce){.stamp span{animation:none}}
+  #play{display:flex;flex-direction:column;gap:16px}
+  .stage .fsslot{position:absolute;right:8px;bottom:8px}
+  /* Full screen: the battlefield takes all the room the controls leave. */
+  #play.fs-on{gap:8px}
+  #play.fs-on .stage{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;border:0;background:#0E0C22}
+  #play.fs-on .stage canvas{width:auto;height:auto;max-width:100%;max-height:100%}
+  #play.fs-on #controls{padding:10px 12px;gap:6px}
+  @media (orientation:landscape) and (max-height:520px){
+    #play.fs-on{display:grid;grid-template-columns:1fr minmax(220px,32%);grid-template-rows:1fr auto;align-items:stretch}
+    #play.fs-on .stage{grid-row:1 / span 2}
+    #play.fs-on #controls .controls{grid-template-columns:1fr}
+  }
   </style>
 </head>
 <body>
@@ -73,6 +85,7 @@
     <div><span class="small muted" style="letter-spacing:.14em;text-transform:uppercase;font-weight:700">Hilltop Duel</span><h1 id="title">Loading…</h1></div>
     <span class="status" id="status"></span>
   </header>
+  <div id="play">
   <div class="stage">
     <canvas id="cv" width="1600" height="880" aria-label="Artillery battlefield"></canvas>
     <div class="hud">
@@ -80,6 +93,7 @@
       <span class="wind" id="wind"></span>
       <div class="hp right"><span id="n1"></span><div class="bar"><i id="hp1" style="background:var(--teal);width:100%"></i></div></div>
     </div>
+    <span class="fsslot"><button type="button" class="fsbtn" data-fs="#play" aria-label="Full screen">⛶</button></span>
   </div>
   <section class="panel" id="controls" hidden>
     <div class="controls">
@@ -92,6 +106,7 @@
     <p class="small muted" id="err"></p>
   </section>
   <div id="pack"></div>
+  </div>
   <section class="panel" id="endPanel" hidden></section>
   <section class="panel"><h2>Shots</h2><ul class="feed" id="feed"></ul>
     <p><button class="link" id="del" hidden>Delete this duel</button></p></section>

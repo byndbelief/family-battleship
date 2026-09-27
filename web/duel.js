@@ -10,6 +10,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // ---------------------------------------------------------------- state and drawing
 let G = null;     // { game, shots }
 let top = null, shot = null, particles = [], busy = false, pack = [];
+let live = null;          // the live channel: send('aim' | 'shot', …) to the other player's page
+let oppAim = null;        // { move, angle, power } streamed from the other player while they aim
 const cv = $('cv'), ctx = cv.getContext('2d');
 const stars = Array.from({ length: 90 }, (_, i) => { const r = rng(i * 7919 + 3); return { x: r() * W, y: r() * 240, s: r() * 1.4 + 0.3, t: r() * 6 }; });
 const myIdx = () => G.game.players.indexOf(me.id);
@@ -37,7 +39,7 @@ function draw(t) {
   [0, 1].forEach((p) => {
     const { x, y } = tankPos(p, top), col = p ? '#3DD6C6' : '#FF6B5A', dir = p ? -1 : 1;
     const aiming = !shot && g.status === 'playing' && g.turn === p;
-    const ang = aiming && p === myIdx() ? +$('angle').value : (shot && shot.p === p ? shot.angle : 45);
+    const ang = aiming && p === myIdx() ? +$('angle').value : aiming && oppAim && oppAim.move === g.move ? oppAim.angle : (shot && shot.p === p ? shot.angle : 45);
     ctx.save(); ctx.translate(x, y); if (g.hp[p] <= 0) ctx.globalAlpha = 0.45;
     ctx.strokeStyle = col; ctx.lineWidth = 4; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(0, -14); ctx.lineTo(Math.cos((ang * Math.PI) / 180) * 20 * dir, -14 - Math.sin((ang * Math.PI) / 180) * 20); ctx.stroke();
@@ -183,6 +185,7 @@ async function decide() {
 async function fire() {
   const g = G.game, p = myIdx(), angle = +$('angle').value, power = +$('power').value, move = g.move;
   busy = true; render();
+  live?.send('shot', { move, angle, power });
   const big = g.bertha.includes(me.id);
   const sim = await flyShell(p, angle, power, g.craters, move, null, g.gust === move ? 3 : 1);
   const crater = sim.impact ? [Math.round(sim.impact.x), Math.round(sim.impact.y), big ? BERTHA_R : CRATER_R] : null;
@@ -197,6 +200,27 @@ async function fire() {
   notify('duel', g.id);
   await sleep(600);
   await load(g.id); decide();
+}
+
+// The other player just pulled the trigger: fly their shell here right away, the same way
+// their page does, instead of waiting for the database to catch up.
+async function watchLiveShot({ move, angle, power }, refresh) {
+  const g = G?.game;
+  if (!g || busy || g.status !== 'playing' || move !== g.move || turnId() === me.id) return;
+  const p = g.turn, shooter = g.players[p], big = g.bertha.includes(shooter), mi = myIdx(), hpBefore = g.hp[mi];
+  busy = true; oppAim = { move, angle, power }; render();
+  const sim = await flyShell(p, angle, power, g.craters, move, null, g.gust === move ? 3 : 1);
+  if (sim.impact) boom(Math.round(sim.impact.x), Math.round(sim.impact.y), big ? 2 : 1);
+  markSeen(move + 1); oppAim = null;
+  // Wait for their shot to land in the database, then show where things stand.
+  for (let i = 0; i < 8 && G.game.move === move; i++) { await sleep(500); await load(g.id); }
+  busy = false;
+  if (G.game.move === move) return refresh();   // still not saved; the regular checks will pick it up
+  top = buildTop(G.game.seed, G.game.craters);
+  const lost = hpBefore - G.game.hp[mi];
+  if (lost > 0) stamp(`−${lost}`, 'red', 1400);
+  pack = await backpack(); announceChaos({ gameId: g.id });
+  decide();
 }
 
 // The robot tries every angle and power, keeps the one that lands closest, then wobbles it by skill.
@@ -231,7 +255,14 @@ async function robotShot() {
 }
 
 // ---------------------------------------------------------------- controls
-['angle', 'power'].forEach((id) => $(id).addEventListener('input', () => { $('angleOut').textContent = $('angle').value + '°'; $('powerOut').textContent = $('power').value; }));
+let aimT = 0, aimQueued = false;
+const sendAim = () => {
+  if (!G || busy) return;
+  const now = Date.now();
+  if (now - aimT < 90) { if (!aimQueued) { aimQueued = true; setTimeout(() => { aimQueued = false; sendAim(); }, 90); } return; }
+  aimT = now; live?.send('aim', { move: G.game.move, angle: +$('angle').value, power: +$('power').value });
+};
+['angle', 'power'].forEach((id) => $(id).addEventListener('input', () => { $('angleOut').textContent = $('angle').value + '°'; $('powerOut').textContent = $('power').value; sendAim(); }));
 $('fire').onclick = () => { if (!busy) fire(); };
 $('del').onclick = async () => {
   const b = $('del');
@@ -250,10 +281,13 @@ $('del').onclick = async () => {
   requestAnimationFrame(loop);
   let pending = false;
   const refresh = () => { if (pending) return; pending = true; setTimeout(async () => { pending = false; if (busy) { setTimeout(refresh, 1000); return; } await load(id); pack = await backpack(); announceChaos({ gameId: id }); decide(); }, 200); };
-  liveGame(`duel-${id}`, [{ event: '*', table: 'duel_games', filter: `id=eq.${id}` }], refresh, async () => {
+  live = liveGame(`duel-${id}`, [{ event: '*', table: 'duel_games', filter: `id=eq.${id}` }], refresh, async () => {
     if (busy || !G) return;
     const { data } = await sb.from('duel_games').select('updated_at').eq('id', id).maybeSingle();
     if (data && data.updated_at !== G.game.updated_at) refresh();
+  }, {
+    aim: (a) => { if (G && a.move === G.game.move && turnId() !== me.id) { oppAim = a; $('status').textContent = 'Aiming…'; } },
+    shot: (s) => watchLiveShot(s, refresh),
   });
   navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.url) location.href = e.data.url; });
   decide();

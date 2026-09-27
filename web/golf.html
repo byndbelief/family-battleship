@@ -109,6 +109,9 @@ table.score{border-collapse:collapse;width:100%;font-variant-numeric:tabular-num
 .hio span.busted{color:#FF5A4E;-webkit-text-stroke:3px #3a0000;text-shadow:0 6px 0 #3a0000,0 0 40px #FF5A4E}
 .badge{font-size:12px}
 [hidden]{display:none!important}
+.course-wrap .fsslot{position:absolute;right:8px;bottom:8px;z-index:3}
+#play.fs-on{gap:8px!important}
+#play.fs-on > .panel{display:none}
   .topnav{display:flex;justify-content:space-between;align-items:center;gap:10px}
   .topnav a{color:var(--gold);font-weight:800}
   </style>
@@ -122,6 +125,7 @@ table.score{border-collapse:collapse;width:100%;font-variant-numeric:tabular-num
       <div class="row"><span class="pill" id="whoPill"></span><span class="pill">Strokes <b id="strokes">0</b></span></div>
     </div>
     <div class="course-wrap">
+      <span class="fsslot"><button type="button" class="fsbtn" data-fs="#play" aria-label="Full screen">⛶</button></span>
       <canvas id="course" aria-label="Mini golf hole. Drag backward from anywhere on the course to aim, release to putt."></canvas>
       <div class="hio" id="hio" hidden></div>
       <div class="overlay" id="gate" hidden><div class="card" id="gateCard"></div></div>

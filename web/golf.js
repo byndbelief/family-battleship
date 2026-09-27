@@ -52,7 +52,8 @@ const pl = (id) => G.players.find((x) => x.player === id) || { tokens: 0, away: 
 
 // ---------------------------------------------------------------- drawing loop
 function sizeCanvas() {
-  const maxW = Math.min(cv.parentElement.clientWidth, 520), maxH = Math.max(360, innerHeight - 230);
+  const fs = !!document.querySelector('#play.fs-on');   // full screen: the hole gets all the room it can
+  const maxW = fs ? cv.parentElement.clientWidth : Math.min(cv.parentElement.clientWidth, 520), maxH = fs ? Math.max(240, innerHeight - 150) : Math.max(360, innerHeight - 230);
   const w = Math.min(maxW, (maxH * LW) / LH), dpr = Math.min(2, devicePixelRatio || 1);
   cv.style.width = w + 'px'; cv.style.height = (w * LH) / LW + 'px';
   cv.width = Math.round(w * dpr); cv.height = Math.round(((w * LH) / LW) * dpr);

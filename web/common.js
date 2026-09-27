@@ -6,41 +6,48 @@ import { sfx, soundButton } from './sfx.js';
 export { sfx };
 
 soundButton();
-fullscreenButton();
 
-// ---------------------------------------------------------------- full screen on phones
-// Android: a ⛶ button hides the browser bars. It remembers the choice for this visit and
-// goes full screen again on the first tap of the next page (moving between pages drops it).
-// iPhone Safari can't do this, so the button explains the home-screen app instead,
-// which runs with no browser bars at all.
-function fullscreenButton() {
-  const standalone = matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches || navigator.standalone;
-  if (standalone || !matchMedia('(pointer: coarse)').matches) return;
-  const root = document.documentElement, req = root.requestFullscreen || root.webkitRequestFullscreen;
-  const isFull = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
-  const want = (v) => { try { if (v === undefined) return sessionStorage.getItem('fs.want') === '1'; sessionStorage.setItem('fs.want', v ? '1' : '0'); } catch {} return false; };
-  const enter = () => { try { const r = req.call(root, { navigationUI: 'hide' }); r?.catch?.(() => {}); } catch {} };
-  const exit = () => { (document.exitFullscreen || document.webkitExitFullscreen)?.call(document)?.catch?.(() => {}); };
-  const b = document.createElement('button');
-  b.id = 'fsToggle'; b.type = 'button';
-  b.style.cssText = 'position:fixed;right:calc(12px + env(safe-area-inset-right,0px));bottom:calc(64px + env(safe-area-inset-bottom,0px));z-index:70;width:44px;height:44px;border-radius:50%;border:1.5px solid #ffffff44;background:#141026cc;color:#fff;font-size:20px;line-height:1;padding:0;cursor:pointer;box-shadow:0 6px 16px #0006';
-  const show = () => { const on = isFull(); b.textContent = on ? '🗗' : '⛶'; b.setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen'); };
-  if (req) {
-    b.onclick = () => { if (isFull()) { want(false); exit(); } else { want(true); enter(); } };
-    document.addEventListener('fullscreenchange', show); document.addEventListener('webkitfullscreenchange', show);
-    if (want()) addEventListener('pointerup', function again() { removeEventListener('pointerup', again); if (want() && !isFull()) enter(); });
-  } else {
-    b.onclick = () => {
-      if (document.getElementById('fsTip')) return;
-      const t = document.createElement('div'); t.id = 'fsTip';
-      t.style.cssText = 'position:fixed;left:16px;right:16px;bottom:calc(120px + env(safe-area-inset-bottom,0px));z-index:75;max-width:420px;margin:0 auto;padding:14px 16px;border-radius:14px;background:#141026f2;color:#fff;font:500 15px/1.4 system-ui,sans-serif;box-shadow:0 12px 30px #0008;border:2px solid #F2C230';
-      t.innerHTML = '<strong>Full screen on iPhone</strong><br>Safari can\'t hide its bars, but the app can: tap <strong>Share</strong> → <strong>Add to Home Screen</strong>, then open Game Room from your home screen. <br><button type="button" style="margin-top:8px;font:inherit;font-weight:700;background:#F2C230;color:#2A2100;border:0;border-radius:10px;padding:6px 14px">Got it</button>';
-      t.querySelector('button').onclick = () => t.remove();
-      document.body.appendChild(t);
-    };
-  }
-  show(); document.body.appendChild(b);
+// ---------------------------------------------------------------- full screen for the game area
+// A page puts fsButton('#someId') inside the part of the page that is the game. On phones
+// the button makes just that part cover the screen (browser bars hidden where the browser
+// allows it; iPhone Safari keeps its bars but the game still fills the rest).
+export const fsButton = (target) => `<button type="button" class="fsbtn" data-fs="${target}" aria-label="Full screen">⛶</button>`;
+const fsStyle = document.createElement('style');
+fsStyle.textContent = `
+  .fsbtn{width:40px;height:40px;border-radius:12px;border:1.5px solid #ffffff55;background:#141026cc;color:#fff;font-size:20px;line-height:1;padding:0;cursor:pointer}
+  @media (pointer:fine){.fsbtn{display:none!important}}
+  .fs-on{position:fixed!important;inset:0;z-index:60;margin:0!important;max-width:none!important;width:auto!important;overflow:auto;overscroll-behavior:contain;
+    background:var(--bg,#101024);box-sizing:border-box;padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))}
+  body.fs-lock{overflow:hidden}
+  body.fs-lock #sfxToggle{bottom:auto;top:calc(8px + env(safe-area-inset-top,0px))}`;
+document.head.appendChild(fsStyle);
+const fsNative = () => document.fullscreenElement || document.webkitFullscreenElement;
+function fsLabels() {
+  const on = !!document.querySelector('.fs-on');
+  document.body.classList.toggle('fs-lock', on);
+  document.querySelectorAll('[data-fs]').forEach((b) => { b.textContent = on ? '✕' : '⛶'; b.setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen'); });
 }
+function fsSync() { fsLabels(); dispatchEvent(new Event('resize')); }
+export function fsExit() {
+  document.querySelectorAll('.fs-on').forEach((el) => el.classList.remove('fs-on'));
+  if (fsNative()) (document.exitFullscreen || document.webkitExitFullscreen)?.call(document)?.catch?.(() => {});
+  fsSync();
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest?.('[data-fs]');
+  if (!b) return;
+  if (document.querySelector('.fs-on')) return fsExit();
+  const el = document.querySelector(b.dataset.fs);
+  if (!el) return;
+  el.classList.add('fs-on');
+  const req = el.requestFullscreen || el.webkitRequestFullscreen;
+  try { req?.call(el, { navigationUI: 'hide' })?.catch?.(() => {}); } catch {}
+  fsSync();
+});
+const fsChanged = () => { if (!fsNative() && document.querySelector('.fs-on') && (document.fullscreenEnabled || document.webkitFullscreenEnabled)) fsExit(); else fsSync(); };
+document.addEventListener('fullscreenchange', fsChanged); document.addEventListener('webkitfullscreenchange', fsChanged);
+// The page redrew the game area: keep its button's label right.
+export const fsRefresh = () => fsLabels();
 
 export const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 export const me = { id: null, username: null };
@@ -79,14 +86,17 @@ export function notify(kind, gameId) {
 // and a light check every few seconds (and whenever the page comes back into view).
 let liveCh = null;
 export function nudge() { liveCh?.send({ type: 'broadcast', event: 'moved', payload: {} }).catch?.(() => {}); }
-export function liveGame(topic, changes, onChange, check) {
+// `extra` maps more broadcast events (like a duel's live aiming) to handlers; send(event, payload) sends one.
+export function liveGame(topic, changes, onChange, check, extra = {}) {
   liveCh = sb.channel(topic, { config: { broadcast: { self: false } } });
   changes.forEach((c) => liveCh.on('postgres_changes', { schema: 'public', ...c }, onChange));
   liveCh.on('broadcast', { event: 'moved' }, onChange);
+  Object.entries(extra).forEach(([event, fn]) => liveCh.on('broadcast', { event }, (m) => fn(m.payload || {})));
   liveCh.subscribe((s) => { const el = document.getElementById('live'); if (el) el.textContent = s === 'SUBSCRIBED' ? '● Live' : 'Reconnecting…'; });
   setInterval(() => { if (!document.hidden) check(); }, 5000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) onChange(); });
   addEventListener('online', onChange);
+  return { send: (event, payload) => { liveCh.send({ type: 'broadcast', event, payload }).catch?.(() => {}); } };
 }
 
 // ---------------------------------------------------------------- chaos: loot, curses, twists

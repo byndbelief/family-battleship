@@ -1,5 +1,5 @@
 import { VAPID_PUBLIC_KEY, USERNAME_DOMAIN } from './config.js';
-import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx } from './common.js';
+import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit } from './common.js';
 import { HOLES, holeWithAttack, drawHole, LW, LH } from './golf-engine.js';
 import { W as DW, H as DH, TANK_X, buildTop } from './duel-engine.js';
 const app = document.getElementById('app');
@@ -324,6 +324,7 @@ const KIND_WHO = { battleship: '2–3 players', golf: 'Solo or up to 4', duel: '
 
 async function lobby() {
   G = null;
+  if (document.querySelector('.fs-on')) fsExit();
   const others = Object.entries(names).filter(([id]) => id !== me.id).sort((a, b) => a[1].localeCompare(b[1]));
   view(`
     <div class="lobby">
@@ -825,7 +826,7 @@ function renderGame() {
   const canDelete = game.created_by === me.id;
   view(`
     <header class="stack">
-      <div class="row between"><button class="link" id="back">← All games</button><span class="live" id="live">Live</span></div>
+      <div class="row between"><button class="link" id="back">← All games</button><span class="row" style="gap:10px"><span class="live" id="live">Live</span>${fsButton('#app')}</span></div>
       <h1>${title}</h1>
       ${sub ? `<p class="muted">${sub}</p>` : ''}
       ${playersStrip}
@@ -835,6 +836,7 @@ function renderGame() {
     ${myTurn ? `<div class="firebar"><span id="aimtext">${aims.target ? `Aimed ${aims.cells.size} of ${need} at ${nm(aims.target)}` : 'Tap squares to aim'}</span><button class="fire" id="fire" ${aims.target && aims.cells.size === need && !busy ? '' : 'disabled'}>Fire!</button><span class="error" id="fireerr" hidden></span></div>` : ''}`);
 
   if (channel) { const l = document.getElementById('live'); l.classList.toggle('off', channel.state !== 'joined'); }
+  fsRefresh();
   document.getElementById('back').onclick = () => { location.hash = ''; };
 
   const del = document.getElementById('del');

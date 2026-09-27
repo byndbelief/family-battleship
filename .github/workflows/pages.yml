@@ -23,6 +23,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      # Phones cache scripts; a new version number on every script link each deploy means a
+      # page can never run a mix of old and new code.
+      - name: Version the scripts
+        run: |
+          v="${GITHUB_SHA::8}"
+          sed -i -E "s#(from '\./[a-z0-9-]+\.js)'#\1?v=$v'#g" web/*.js
+          sed -i -E "s#src=\"([a-z0-9-]+\.js)\"#src=\"\1?v=$v\"#g" web/*.html
+          grep -ho "[a-z-]*\.js?v=[0-9a-f]*" web/*.js web/*.html | sort | uniq -c
       - uses: actions/upload-pages-artifact@v3
         with:
           path: web
