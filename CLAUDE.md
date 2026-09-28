@@ -24,6 +24,14 @@ takes a bare username.
   "Quick play ›" row that opens its own screen (`#quick`). It's capped at **one game of each kind per
   group of players** — starting another picks the running one back up (client-side check).
 - Goal behind both: nobody should have to keep track of a pile of games.
+- **Desktop** (`min-width:1000px` and `min-height:560px`, not full screen): the game area as big as
+  the window allows with the controls beside it, everything on one screen. Duel: battlefield left,
+  a 360px column (controls, dodge, backpack, result, shots). Putt Post: the course sized to the
+  window height (`sizeCanvas`), hole info / putt bar / backpack / scorecard in a column beside it.
+  Both pages are CSS grids whose rows are content-sized with a last `1fr` row, so the game area can
+  span them all without spreading the side column. Battleship: boards sized to leave room for a
+  compact floating fire bar that also carries the backpack (`deskBar()`). The ▶ Next chip sits top
+  center on desktop.
 - **Mobile first.** On phones the game area is the focus: lists fold (`details.mfold`),
   tips/instructions/errors are quick popovers (`note()` / `noteMirror()` in `common.js`),
   cheats and backpack are one scrollable row each. **Full screen covers only the game

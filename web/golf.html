@@ -133,6 +133,22 @@ table.score{border-collapse:collapse;width:100%;font-variant-numeric:tabular-num
 }
 @media (max-width:640px){#pack .backpack{flex-wrap:nowrap!important;overflow-x:auto;padding:6px 8px!important}#pack .backpack>span:first-child{font-size:0!important}#pack .backpack>span:first-child::before{content:'🎒';font-size:18px}#pack .backpack button{flex:none;white-space:nowrap}}
 .fs-on .cheats{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start}
+/* Desktop: the course as tall as the window allows, with the hole, the putt controls, backpack
+   and scorecard in a column beside it. Rows are content-sized; the last takes up the slack so the
+   course spanning them all doesn't spread the side column apart. */
+@media (min-width:1000px) and (min-height:560px){
+  body{padding-block:14px 24px}
+  .wrap{max-width:1180px;gap:12px}
+  #play:not(.fs-on){display:grid!important;grid-template-columns:auto minmax(340px,420px);grid-template-rows:repeat(8,auto) 1fr;column-gap:28px;row-gap:12px!important;align-items:start;justify-content:center}
+  #play:not(.fs-on) > .course-wrap{grid-column:1;grid-row:1 / -1}
+  #play:not(.fs-on) > :not(.course-wrap){grid-column:2}
+  #play:not(.fs-on) .hudbar{flex-direction:column;align-items:flex-start;gap:10px}
+  #play:not(.fs-on) .hudbar h2{font-size:30px}
+  #play:not(.fs-on) .tip{text-align:left}
+  #play:not(.fs-on) .putbar{grid-template-columns:repeat(4,44px) 1fr 44px}
+  #play:not(.fs-on) .putbar .nudge{width:44px;height:44px}
+  #play:not(.fs-on) .card-scroll{max-height:40vh;overflow:auto}
+}
   .topnav{display:flex;justify-content:space-between;align-items:center;gap:10px}
   .topnav a{color:var(--gold);font-weight:800}
   </style>

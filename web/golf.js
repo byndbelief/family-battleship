@@ -61,7 +61,9 @@ const pl = (id) => G.players.find((x) => x.player === id) || { tokens: 0, away: 
 // ---------------------------------------------------------------- drawing loop
 function sizeCanvas() {
   const fs = !!document.querySelector('#play.fs-on');   // full screen: the hole gets all the room it can
-  const maxW = fs ? cv.parentElement.clientWidth : Math.min(cv.parentElement.clientWidth, 520), maxH = fs ? Math.max(240, innerHeight - 150) : Math.max(360, innerHeight - 230);
+  const desk = !fs && matchMedia('(min-width:1000px) and (min-height:560px)').matches;   // desktop: the course beside its controls
+  const maxW = fs ? cv.parentElement.clientWidth : desk ? Math.max(320, innerWidth - 540) : Math.min(cv.parentElement.clientWidth, 520);
+  const maxH = fs ? Math.max(240, innerHeight - 150) : desk ? Math.max(420, innerHeight - (document.getElementById('gtbar')?.offsetHeight || 0) - 90) : Math.max(360, innerHeight - 230);
   const w = Math.min(maxW, (maxH * LW) / LH), dpr = Math.min(2, devicePixelRatio || 1);
   cv.style.width = w + 'px'; cv.style.height = (w * LH) / LW + 'px';
   cv.width = Math.round(w * dpr); cv.height = Math.round(((w * LH) / LW) * dpr);

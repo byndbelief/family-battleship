@@ -279,6 +279,19 @@ body.quake { animation: quake .45s linear 1; }
 @media (prefers-reduced-motion: reduce) { .firebar .fire.ready { animation: none; } }
 body.has-firebar #nextUp, body.has-firebar #setBtn { bottom: calc(var(--fbh, 80px) + 10px) !important; }
 body.has-firebar { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
+/* Desktop: the fire bar is a compact panel centered under the boards, and the boards grow with
+   the window but always fit it top to bottom. */
+@media (min-width: 1000px) and (min-height: 560px) {
+  #app:not(.fs-on) .firebar { left: 50%; right: auto; transform: translateX(-50%); width: min(900px, calc(100vw - 48px)); bottom: 16px;
+    border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 14px 34px #0003; padding: 12px 18px; }
+  #app:not(.fs-on) .board { max-width: min(560px, max(320px, calc(100dvh - 480px))); }
+  .firebar .fbpack { flex: 1 1 auto; min-width: 0; display: flex; justify-content: center; }
+  .firebar .fbpack .backpack { border: 0 !important; padding: 0 !important; flex-wrap: nowrap !important; overflow-x: auto; }
+  .firebar .fbpack .backpack > span:first-child { font-size: 0 !important; }
+  .firebar .fbpack .backpack > span:first-child::before { content: '🎒'; font-size: 18px; }
+  .firebar .fbpack .backpack button { flex: none; white-space: nowrap; font-size: 14px; padding: 6px 10px; }
+  body.has-firebar { padding-bottom: 120px; }
+}
 
 /* ---------------------------------------------------------------- phones and full screen: the game first */
 @media (max-width: 640px) {

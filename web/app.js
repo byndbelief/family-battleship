@@ -1069,7 +1069,7 @@ function renderGame() {
           ${fleetListHTML(me.id)}
           <p class="muted small">Yellow outlines mark the latest shots.</p></section>
       </div>
-      ${myTurn || liveNow ? backpackBarHTML(G.pack || [], 'battleship', !busy) : ''}${over ? cheatLogHTML() : ''}${feedHTML()}
+      ${(myTurn || liveNow) && !deskBar() ? backpackBarHTML(G.pack || [], 'battleship', !busy) : ''}${over ? cheatLogHTML() : ''}${feedHTML()}
       ${legend}`;
   }
 
@@ -1084,11 +1084,12 @@ function renderGame() {
     </header>
     ${body}
     ${canDelete ? `<p><button class="link danger" id="del">Delete this game</button></p>` : ''}
-    ${liveNow ? `<div class="firebar livebar"><span class="aimwrap"><span id="aimtext">${Date.now() < bsReloadAt ? 'Reloading…' : '⚔️ Guns ready: tap a square'}</span></span></div>` : ''}
+    ${liveNow ? `<div class="firebar livebar"><span class="aimwrap"><span id="aimtext">${Date.now() < bsReloadAt ? 'Reloading…' : '⚔️ Guns ready: tap a square'}</span></span>${deskBar() ? `<span class="fbpack">${backpackBarHTML(G.pack || [], 'battleship', !busy)}</span>` : ''}</div>` : ''}
     ${myTurn && !liveNow ? `<div class="firebar">
       <span class="aimwrap"><span class="aimdots" aria-hidden="true">${Array.from({ length: need }, (_, i) => `<i class="${i < aims.cells.size ? 'on' : ''}"></i>`).join('')}</span>
       <span id="aimtext">${aims.target ? (aims.cells.size === need ? `Ready: ${need} at ${nm(aims.target)}` : `Aimed ${aims.cells.size} of ${need}`) : `Tap ${need === 1 ? 'a square' : `${need} squares`} to aim`}</span></span>
       ${aims.cells.size ? '<button class="link" id="clearAim">Clear</button>' : ''}
+      ${deskBar() ? `<span class="fbpack">${backpackBarHTML(G.pack || [], 'battleship', !busy)}</span>` : ''}
       <span data-clockslot></span>
       <button class="fire ${aims.target && aims.cells.size === need && !busy ? 'ready' : ''}" id="fire" ${aims.target && aims.cells.size === need && !busy ? '' : 'disabled'}>Fire!</button><span class="error" id="fireerr" hidden></span></div>` : ''}`);
   document.body.classList.toggle('has-firebar', myTurn || liveNow);
@@ -1168,6 +1169,8 @@ function renderGame() {
   };
 }
 
+// Desktop (not full screen): the backpack rides in the fire bar, so your turn is one panel.
+const deskBar = () => matchMedia('(min-width:1000px) and (min-height:560px)').matches && !app.classList.contains('fs-on');
 // A live shot: one square, straight away, then the guns reload.
 async function liveFire(target, cell, el) {
   const bar = document.getElementById('aimtext');

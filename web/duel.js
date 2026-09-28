@@ -280,7 +280,7 @@ function render() {
   $('del').hidden = g.created_by !== me.id;
   $('feed').innerHTML = [...G.shots].reverse().slice(0, 6).map((s) => {
     const before = s.move > 1 ? G.shots.find((x) => x.move === s.move - 1)?.hp_after || [100, 100] : [100, 100];
-    const hurt = [0, 1].map((p) => before[p] - s.hp_after[p]).map((d, p) => (d ? `${who(g.players[p])} −${d}` : '')).filter(Boolean).join(', ');
+    const hurt = [0, 1].map((p) => before[p] - s.hp_after[p]).map((d, p) => (d > 0 ? `${who(g.players[p])} −${d}` : '')).filter(Boolean).join(', ');
     const wl = s.weapon ? `${WEAPONS[s.weapon].icon} ${WEAPONS[s.weapon].name.toLowerCase()} ` : '';
     return `<li><strong>${who(s.shooter)}</strong> fired ${wl}at ${s.weapon === 'railgun' ? railAngle(s.angle) : s.angle}°${s.weapon === 'railgun' ? '' : `, power ${s.power}`}: ${s.weapon === 'dirt' && s.crater ? hurt || 'a brand-new hill' : s.crater ? hurt || 'a miss, but a nice crater' : s.weapon === 'railgun' ? 'the beam missed' : 'the shell flew off the map'}.</li>`;
   }).join('') || '<li class="muted">No shots yet.</li>';

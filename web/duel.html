@@ -93,6 +93,31 @@
   #play.fs-on .stage{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;border:0;background:#0E0C22}
   #play.fs-on .stage canvas{width:auto;height:auto;max-width:100%;max-height:100%}
   #play.fs-on #controls{padding:10px 12px;gap:6px}
+  #play.fs-on #shotsFold{display:none}
+  /* Desktop: the battlefield as big as the window allows, the controls in a column beside it,
+     everything on one screen. The rows are content-sized; the last one takes up the slack so the
+     battlefield spanning them all doesn't spread the side column apart. */
+  @media (min-width:1000px) and (min-height:560px){
+    body{padding-inline:24px;padding-block:14px 24px}
+    .wrap{max-width:1560px;gap:12px}
+    h1{font-size:30px}
+    #play:not(.fs-on){display:grid;grid-template-columns:minmax(0,1fr) 360px;grid-template-rows:repeat(5,auto) 1fr;column-gap:20px;row-gap:14px;align-items:start}
+    #play:not(.fs-on) .stage{grid-column:1;grid-row:1 / -1;width:100%;max-width:calc((100dvh - 170px) * 1.818);justify-self:center}
+    #play:not(.fs-on) > :not(.stage){grid-column:2}
+    #play .controls{grid-template-columns:1fr}
+    #play .controls > .row{flex-wrap:nowrap}
+    button.go#fire{flex:1;min-height:60px}
+    .slider{grid-template-columns:48px 40px minmax(0,1fr) 40px 50px;gap:6px}
+    .step{width:40px;height:40px;font-size:22px}
+    #shotsFold .feed{max-height:34vh;overflow:auto}
+    #play:not(.fs-on) #pack .backpack{gap:6px!important;padding:10px!important}
+    #play:not(.fs-on) #pack .backpack>span:first-child{width:100%}
+    #play:not(.fs-on) #pack .backpack button{font-size:14px;padding:6px 10px;border-radius:10px}
+    #play:not(.fs-on) .aimtip{font-size:12px}
+    #play.fs-on{display:grid;grid-template-columns:minmax(0,1fr) 360px;grid-template-rows:repeat(3,auto) 1fr;column-gap:16px;align-items:start}
+    #play.fs-on .stage{grid-row:1 / -1;height:100%}
+    #play.fs-on > :not(.stage){grid-column:2}
+  }
   @media (orientation:landscape) and (max-height:520px){
     #play.fs-on{display:grid;grid-template-columns:1fr minmax(250px,34%);grid-template-rows:1fr auto;align-items:stretch}
     #play.fs-on .slider{grid-template-columns:40px minmax(0,1fr) 40px 42px;gap:6px}
@@ -139,10 +164,10 @@
     <p class="small muted dodgetip">They're lining up a shot at you. Shift your tank before they fire.</p>
   </section>
   <div id="pack"></div>
-  </div>
   <section class="panel" id="endPanel" hidden></section>
   <details class="panel mfold" id="shotsFold"><summary><h2>Shots</h2></summary><ul class="feed" id="feed"></ul>
     <p><button class="link" id="del" hidden>Delete this duel</button></p></details>
+  </div>
 </div>
 <script type="module" src="duel.js"></script>
 </body>

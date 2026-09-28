@@ -253,7 +253,9 @@ export async function nextUpChip(meId, currentId, nameOf) {
       document.body.appendChild(chip);
       if (!document.getElementById('nextUpCss')) {
         const st = document.createElement('style'); st.id = 'nextUpCss';
-        st.textContent = 'body.fs-lock #nextUp{display:none!important} #nextUp:focus-visible{outline:3px solid #fff;outline-offset:2px} @keyframes nudgeIn{from{transform:translateY(20px);opacity:0}to{transform:none;opacity:1}} #nextUp{animation:nudgeIn .35s ease-out}';
+        // Desktop: top center, out of the way of the game (phones keep it bottom-left, by the thumb).
+        st.textContent = 'body.fs-lock #nextUp{display:none!important} #nextUp:focus-visible{outline:3px solid #fff;outline-offset:2px} @keyframes nudgeIn{from{transform:translateY(20px);opacity:0}to{transform:none;opacity:1}} #nextUp{animation:nudgeIn .35s ease-out}'
+          + ' @media (min-width:1000px) and (min-height:560px){html body #nextUp,html body.has-firebar #nextUp{top:calc(8px + env(safe-area-inset-top,0px))!important;bottom:auto!important;left:0!important;right:0!important;margin:0 auto;width:max-content;max-width:38vw!important;padding:7px 14px!important;font-size:14px!important}}';
         document.head.appendChild(st);
       }
     }
