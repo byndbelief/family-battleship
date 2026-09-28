@@ -483,17 +483,20 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && do
 // ---- your games, as a list of game states
 async function loadGames() {
   chaosClock().then((n) => { if (n) loadGames(); });   // overdue stalls land first (throttled to once a minute)
-  const [bsRes, golfRes, duelRes, gtRes, cardRes] = await Promise.all([
+  const [bsRes, golfRes, duelRes, gtRes, cardRes, hidRes] = await Promise.all([
     sb.from('games').select('*').order('updated_at', { ascending: false }).limit(40),
     sb.from('golf_games').select('*').order('updated_at', { ascending: false }).limit(40),
     sb.from('duel_games').select('*').order('updated_at', { ascending: false }).limit(40),
     sb.from('gauntlets').select('*').order('updated_at', { ascending: false }).limit(200),
     sb.from('card_games').select('*').order('updated_at', { ascending: false }).limit(40),
+    sb.from('hidden_games').select('game_id'),
   ]);
   const list = document.getElementById('games');
   if (!list) return;
   if (bsRes.error) { list.innerHTML = `<p class="error">Couldn't load games: ${esc(friendly(bsRes.error))}</p>`; return; }
-  const bs = bsRes.data ?? [], golf = golfRes.data ?? [], duel = duelRes.data ?? [], cardGames = cardRes.data ?? [];
+  // Finished games you deleted stay out of your list (they're only gone for you).
+  const hidden = new Set((hidRes.data ?? []).map((h) => h.game_id)), shown = (r) => (r.data ?? []).filter((g) => !hidden.has(g.id));
+  const bs = shown(bsRes), golf = shown(golfRes), duel = shown(duelRes), cardGames = shown(cardRes);
   // A Gauntlet still in progress whose current round is gone (deleted) is dead; don't list it.
   const alive = new Set([...bs, ...golf, ...duel, ...cardGames].map((g) => g.id));
   const gts = (gtRes.data ?? []).filter((g) => g.status === 'over' || alive.has(g.current_game));
@@ -552,8 +555,9 @@ async function loadGames() {
     ['Waiting on others', cards.filter((c) => !c.mine && !c.over)],
     ['Finished', cards.filter((c) => c.over)],
   ];
+  const del = (id, what) => `<button type="button" class="gdel" data-hide="${id}" aria-label="Delete ${what} from your list" title="Delete from your list">🗑</button>`;
   const row = (c) => `
-    <li><a class="grow ${c.mine ? 'mine' : ''} ${c.over ? 'over' : ''} k-${c.kind}" href="${c.href}">
+    <li class="${c.over ? 'fin' : ''}"><a class="grow ${c.mine ? 'mine' : ''} ${c.over ? 'over' : ''} k-${c.kind}" href="${c.href}">
       <canvas class="thumb" data-i="${cards.indexOf(c)}" width="160" height="100" aria-hidden="true"></canvas>
       <span class="gmain">
         <span class="gtitle"><strong>${KIND_ICON[c.kind]} ${KIND_NAME[c.kind]}</strong> <span class="small">${c.vs}</span></span>
@@ -561,7 +565,7 @@ async function loadGames() {
         ${c.prog != null ? `<span class="prog" aria-hidden="true"><i style="width:${Math.round(Math.max(0, Math.min(1, c.prog)) * 100)}%"></i></span>` : ''}
       </span>
       <span class="gstate">${c.extra}${c.pill}</span>
-    </a></li>`;
+    </a>${c.over ? del(c.g.id, 'this game') : ''}</li>`;
   // Finished Gauntlet rounds are bundled: one row per Gauntlet, its rounds folded inside.
   const finishedRows = (cs) => {
     const items = [], seen = new Map();
@@ -582,22 +586,56 @@ async function loadGames() {
       res = top > 0 ? `👑 ${champs.map((p) => (p === me.id ? 'You' : nm(p))).join(' & ')} won ${gt.scores.join('–')}` : 'Called off';
     } else if (gt) res = `Still going: round ${gt.round} of ${gt.rounds} · ${gt.scores.join('–')}`;
     const icons = rounds.slice().sort((a, b) => (a.at < b.at ? -1 : 1)).map((c) => KIND_ICON[c.kind]).join(' ');
-    return `<li class="gbundle"><details><summary class="grow over">
+    return `<li class="gbundle fin"><details data-gid="${gid}" ${openBundles.has(gid) ? 'open' : ''}><summary class="grow over">
       <span class="thumb gthumb" aria-hidden="true">🏆</span>
       <span class="gmain">
         <span class="gtitle"><strong>Gauntlet${nth ? ` #${nth}` : ''}</strong> <span class="small">${vsOf(players)}</span></span>
         <span class="muted small">${res}${res ? ' · ' : ''}${rounds.length} round${rounds.length === 1 ? '' : 's'}: ${icons}</span>
       </span>
       <span class="gstate"><span class="pill done">${rounds.length} ▾</span></span>
-    </summary><ul class="glist gbrounds">${rounds.map(row).join('')}</ul></details></li>`;
+    </summary><ul class="glist gbrounds">${rounds.map(row).join('')}</ul></details>${del(gid, 'this Gauntlet and its rounds')}</li>`;
   };
   list.innerHTML = groups.filter(([, cs]) => cs.length).map(([title, cs]) => title === 'Finished'
-    ? `<div class="stack glist-fold" style="gap:6px"><div class="row between"><span class="eyebrow">Finished (${cs.length})</span><button type="button" class="link small" id="finMore" hidden></button></div><ul class="glist">${finishedRows(cs)}</ul></div>`
+    ? `<div class="stack glist-fold" style="gap:6px"><div class="row between"><span class="eyebrow">Finished (${cs.length})</span><span class="row" style="gap:12px"><button type="button" class="link small" id="finMore" hidden></button><button type="button" class="link small gclear" id="finClear">🗑 Clear all</button></span></div><ul class="glist">${finishedRows(cs)}</ul></div>`
     : `<div class="stack" style="gap:6px"><span class="eyebrow">${title} (${cs.length})</span><ul class="glist">${cs.map(row).join('')}</ul></div>`).join('');
   foldGames();
+  wireDeletes(list);
+  list.querySelectorAll('details[data-gid]').forEach((d) => d.addEventListener('toggle', () => { openBundles[d.open ? 'add' : 'delete'](d.dataset.gid); }));
   list.querySelectorAll('canvas.thumb').forEach((cv) => drawPreview(cv, cards[+cv.dataset.i], myFleets ?? [], atMe ?? []));
 }
 let finishedOpen = false;
+
+// 🗑 on a finished game, a Gauntlet bundle or a round inside one, and Clear all: tap, then tap
+// again to confirm. It only leaves your list; scores, trophies and titles keep counting it.
+const openBundles = new Set();   // Gauntlet bundles you opened stay open when the list refreshes
+let armedDel = null;   // { key, until }: a 🗑 waiting for its second tap survives the list re-rendering
+function wireDeletes(list) {
+  const arm = (b, key, label, go) => {
+    const was = b.innerHTML;
+    const bubble = b.classList.contains('gdel');   // 🗑 keeps its icon and pops a "Delete?" bubble (CSS)
+    const set = (on) => { b.classList.toggle('armed', on); if (on) { b.dataset.armed = '1'; if (!bubble) b.textContent = label; b.setAttribute('aria-label', label); } else { delete b.dataset.armed; b.innerHTML = was; } };
+    if (armedDel?.key === key && armedDel.until > Date.now()) set(true);
+    b.onclick = async (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (!b.dataset.armed) {
+        list.querySelectorAll('[data-armed]').forEach((x) => x.dispatchEvent(new Event('disarm')));
+        armedDel = { key, until: Date.now() + 4000 }; set(true);
+        b.addEventListener('disarm', () => set(false), { once: true });
+        setTimeout(() => { if (b.isConnected && armedDel?.key === key && armedDel.until <= Date.now()) set(false); }, 4050);
+        return;
+      }
+      armedDel = null; b.disabled = true;
+      const { data, error } = await go();
+      if (error) { note(friendly(error), 'error'); b.disabled = false; set(false); return; }
+      const row = b.closest('li');
+      if (row && b.dataset.hide) { row.classList.add('gone'); setTimeout(loadGames, 260); } else loadGames();
+      if (!b.dataset.hide) note(data ? `Cleared ${data} finished game${data === 1 ? '' : 's'}.` : 'Nothing left to clear.');
+    };
+  };
+  list.querySelectorAll('[data-hide]').forEach((b) => arm(b, b.dataset.hide, 'Tap again to delete', () => sb.rpc('hide_finished', { p_game: b.dataset.hide })));
+  const clr = document.getElementById('finClear');
+  if (clr) arm(clr, 'clear-all', 'Tap again to clear all', () => sb.rpc('hide_all_finished'));
+}
 
 // One card per rival (a group of players): their running Gauntlet, which one it is, and
 // how many Gauntlets each of them has won.

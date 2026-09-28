@@ -98,6 +98,13 @@ takes a bare username.
   page calls `card_timeout` (slow player draws 1). The robot plays via `card_bot_play` from a
   watching page and counts as always present. Gauntlet deals it for any player count; the chaos
   clock makes a staller draw 2/4, and a 24 h Gauntlet forfeit goes to the fewest cards.
+- **Deleting finished games** (`020_hide_finished.sql`): 🗑 on each finished game, each Gauntlet
+  bundle and each round inside one, plus "Clear all" — two taps. It is **per player**: a row in
+  `hidden_games` (`hide_finished`, `hide_all_finished`) that `loadGames` filters out. Games are
+  shared, so never turn this into a real delete: the other players still have the game, and the
+  results log and the rival cards' Gauntlet titles keep counting it. Only finished games qualify.
+  A half-confirmed 🗑 (`armedDel`) and an opened bundle (`openBundles`) survive the list
+  re-rendering, which any realtime change in the family triggers.
 - **Duel weapons** (`016_duel_weapons.sql`; physics in `duel-engine.js`: `simulateWeapon`,
   `weaponCraters`, `weaponDamage`): loot shells beside 💣 Big Bertha, loaded from the backpack on
   your turn (or any time live), one special shell at a time (`duel_games.armed`, player → weapon).
@@ -179,7 +186,7 @@ takes a bare username.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.

@@ -403,6 +403,31 @@ body.has-firebar { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)
 .gtoff { position: absolute; top: 10px; right: 10px; min-height: 32px; padding: 4px 12px; border-radius: 99px; font-size: 13px; font-weight: 700;
   background: #00000055; color: #F3D9A6; border: 1.5px solid #FFC85755; }
 .gtoff.armed { background: #C0392B; color: #fff; border-color: #C0392B; }
+.fin { display: flex; align-items: center; gap: 6px; transition: opacity .25s, transform .25s; }
+.fin > a, .fin > details { flex: 1; min-width: 0; }
+.fin[hidden] { display: none; }
+.gbundle.fin { align-items: flex-start; }
+.gbundle.fin > .gdel { margin-top: 13px; }
+.gdel { position: relative; flex: none; width: 40px; height: 40px; padding: 0; border-radius: 12px; border: 1px solid var(--line); background: transparent;
+  color: inherit; font-size: 17px; line-height: 1; cursor: pointer; opacity: .55; transition: opacity .15s, background .15s; }
+.gdel:hover, .gdel:focus-visible { opacity: 1; }
+.gdel.armed { opacity: 1; background: #C0392B; border-color: #C0392B; }
+/* "Delete?" pops out beside the button, so nothing in the row moves */
+.gdel.armed::before { content: 'Delete?'; position: absolute; right: calc(100% + 6px); top: 50%; transform: translateY(-50%); z-index: 3;
+  padding: 7px 11px; border-radius: 10px; background: #C0392B; color: #fff; font-size: 13px; font-weight: 800; white-space: nowrap;
+  box-shadow: 0 4px 14px #0004; pointer-events: none; }
+/* With a mouse: a small corner badge that shows on hover, so rows keep their full width */
+@media (hover: hover) and (pointer: fine) {
+  .fin { position: relative; display: block; }
+  .fin > .gdel { position: absolute; top: 5px; right: 5px; width: 30px; height: 30px; margin: 0 !important; border-radius: 50%; font-size: 14px;
+    background: var(--paper); opacity: 0; z-index: 2; box-shadow: 0 2px 8px #0003; }
+  .fin:hover > .gdel, .fin > .gdel:focus-visible, .fin > .gdel.armed { opacity: 1; }
+  .fin > .gdel.armed { background: #C0392B; }
+  .gbundle.fin > .gdel { top: 5px; }
+}
+.gclear.armed { color: #FF6B5B; font-weight: 800; }
+.fin.gone { opacity: 0; transform: translateX(24px); }
+@media (prefers-reduced-motion: reduce) { .fin { transition: none; } }
 .gtwrap .gtwho { padding-right: 96px; }
 .gtwho { display: flex; align-items: center; gap: 10px; }
 .gtfaces { display: flex; flex: none; }
