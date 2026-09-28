@@ -418,7 +418,7 @@ function toLogical(e) { const r = cv.getBoundingClientRect(); return { x: ((e.cl
 cv.addEventListener('pointerdown', (e) => {
   if (mode === 'wedge') return wedgeTo(toLogical(e));
   if (mode !== 'aim') return;
-  drag = toLogical(e); cv.setPointerCapture(e.pointerId); setLocked(false);
+  drag = { ...toLogical(e), cx: e.clientX, cy: e.clientY, mouse: e.pointerType === 'mouse' }; cv.setPointerCapture(e.pointerId); setLocked(false);
   // Holding still on your own ball is the secret foot wedge.
   clearTimeout(wedgeHold);
   if (canCheat() && scene.ball && Math.hypot(drag.x - scene.ball.x, drag.y - scene.ball.y) < 26) wedgeHold = setTimeout(() => { if (drag && !scene.aim) cheatWedge(); }, 750);
@@ -430,7 +430,15 @@ cv.addEventListener('pointermove', (e) => {
   const p = toLogical(e), dx = drag.x - p.x, dy = drag.y - p.y, d = Math.sqrt(dx * dx + dy * dy);
   if (d >= 6) clearTimeout(wedgeHold);
   if (d < 6) { scene.aim = null; showAim(null); return; }
-  const pw = Math.min(1, d / 150); scene.aim = { bx: scene.ball.x, by: scene.ball.y, dx: dx / d, dy: dy / d, p: pw };
+  // Full power is 150 course units of drag. With a mouse the screen edge can get in the way (the tee
+  // sits near the bottom), so full power comes a little before whichever edge you're dragging toward.
+  let full = 150;
+  if (drag.mouse) {
+    const k = cv.getBoundingClientRect().width / LW, ux = -dx / d, uy = -dy / d;   // the way the pointer is moving, on screen
+    const room = Math.min(ux > 0 ? (innerWidth - drag.cx) / ux : ux < 0 ? drag.cx / -ux : Infinity, uy > 0 ? (innerHeight - drag.cy) / uy : uy < 0 ? drag.cy / -uy : Infinity);
+    full = Math.min(150, Math.max(50, (room - 8) / k));
+  }
+  const pw = Math.min(1, d / full); scene.aim = { bx: scene.ball.x, by: scene.ball.y, dx: dx / d, dy: dy / d, p: pw };
   showAim(scene.aim);
 });
 cv.addEventListener('pointercancel', () => { drag = null; scene.aim = null; showAim(null); });
