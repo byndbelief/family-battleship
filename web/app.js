@@ -14,6 +14,11 @@ const MODES = [
 const ROWS = 'ABCDEFGHIJKLMNOP';
 // The Shared Ocean board has one owner, the sea itself: aims, cells and tabs use this in mode 2.
 const OCEAN = 'ocean';
+// Each player's colour (by seat), on their ships, their hits and next to their name everywhere,
+// so fleets are told apart even when two share a theme.
+const PCOLS = ['#FF6B5A', '#3DD6C6', '#FFC857', '#B79CFF', '#7FE07A', '#FF8FD0'];
+const pcol = (p) => PCOLS[Math.max(0, G?.game.players.indexOf(p) ?? 0) % PCOLS.length];
+const pdot = (p) => `<i class="pdot" style="--pc:${pcol(p)}" aria-hidden="true"></i>`;
 const isShared = () => !!MODES[G?.game.mode]?.shared;
 
 // ---------------------------------------------------------------- state
@@ -31,8 +36,19 @@ let peekMode = false;           // next tap on an opponent's board spends a peek
 let sonarLoot = null;           // next tap on an opponent's board spends this Sonar Ping
 // Live battle: while everyone still afloat has the game open there are no turns. Tap any rival's
 // square to fire, one shot at a time, whenever your guns have reloaded (bsPresence checks in).
-let bsPresence = null, liveBS = false, bsReloadAt = 0;
-const BS_RELOAD = 1000;   // the server allows a live shot every 0.8 s (026)
+let bsPresence = null, liveBS = false, bsShots = [];
+// Live shots come in bursts (037): 3, then the guns reload. The server allows 3 in any 2.3 s; the
+// page counts to 2.4 s so it never fires one the server would turn down.
+const BS_BURST = 3, BS_WINDOW = 2400;
+const bsAmmo = () => { const now = Date.now(); bsShots = bsShots.filter((t) => now - t < BS_WINDOW); return BS_BURST - bsShots.length; };
+const bsReadyIn = () => (bsAmmo() > 0 ? 0 : BS_WINDOW - (Date.now() - bsShots[0]));
+function bsGunsText() {
+  const a = bsAmmo();
+  return a > 0 ? `⚔️ <span class="ammo" aria-label="${a} of ${BS_BURST} shots loaded">${'<i class="on"></i>'.repeat(a)}${'<i></i>'.repeat(BS_BURST - a)}</span> ${a === BS_BURST ? 'Fire at will: tap squares' : `${a} left`}`
+    : `Reloading… ${(bsReadyIn() / 1000).toFixed(1)}s`;
+}
+// Keep the gun readout ticking during a live battle.
+setInterval(() => { if (!liveBS) return; const t = document.getElementById('aimtext'); if (t && t.closest('.livebar')) t.innerHTML = bsGunsText(); }, 150);
 const seenShots = new Map();    // game id -> Set of shot ids already animated
 const seenAccusations = new Map();
 const pending = new Set();      // shot ids whose shell is still in the air
@@ -1051,7 +1067,7 @@ async function openGame(id) {
     liveBS = v; aims = { target: null, cells: new Set() }; peekMode = false; if (v) bsLiveSince = Date.now();
     if (G?.game.status !== 'playing') return renderGame();
     if (v) { stopShotClock(); splash(['⚔️ LIVE BATTLE', G.game.players.some((p) => bots.has(p)) ? 'You vs the robot' : "Everyone's here", 'No turns. Fire at will!'], { tone: 'red', ms: 2200 }); }
-    else { bsReloadAt = 0; note('Live battle over: back to taking turns.'); }
+    else { bsShots = []; note('Live battle over: back to taking turns.'); }
     renderGame();
   });
   renderGame();
@@ -1118,16 +1134,16 @@ function boardHTML({ owner, ships, clickable, fresh }) {
   const theme = themeOf(G.themes?.[ocean ? me.id : owner]), at2 = (r, c) => `grid-area:${r + 2}/${c + 2}`;
   let h = `<div class="board seaview t-${theme}" style="grid-template-columns:18px repeat(${n},1fr)"><span class="lbl egg" data-egg style="grid-area:1/1"></span>`
     + `<div class="sea sea-${theme}" style="grid-area:2/2/span ${n}/span ${n}"></div>`;
-  const vessel = (cells, L, wreck, th = theme) => {
+  const vessel = (cells, L, wreck, th = theme, who = owner) => {
     const r0 = Math.min(...cells.map((x) => Math.floor(x / n))), c0 = Math.min(...cells.map((x) => x % n));
     const horiz = new Set(cells.map((x) => Math.floor(x / n))).size === 1 && L > 1;
-    return `<span class="vessel ${wreck ? 'wreck' : ''}" style="grid-area:${r0 + 2}/${c0 + 2}/span ${horiz ? 1 : L}/span ${horiz ? L : 1}">${vesselSVG(th, L, horiz || L === 1)}</span>`;
+    return `<span class="vessel pc ${wreck ? 'wreck' : ''}" style="grid-area:${r0 + 2}/${c0 + 2}/span ${horiz ? 1 : L}/span ${horiz ? L : 1};--pc:${pcol(who)}">${vesselSVG(th, L, horiz || L === 1)}</span>`;
   };
   if (ocean) {
     // Each fleet in its owner's theme; a rival's ship shows once it's sunk (or when it's all over).
     const drawn = new Set(fleetsHere.map(([p]) => p));
-    fleetsHere.forEach(([p, f]) => fleetCells(game.mode, f).forEach((cells, k) => { h += vessel(cells, MODES[game.mode].ships[k], cells.every((x) => sunk.has(x)), themeOf(G.themes?.[p])); }));
-    at.filter((s) => s.sunk_cells?.length && !drawn.has(s.target)).forEach((s) => { h += vessel(s.sunk_cells, s.sunk_cells.length, true, themeOf(G.themes?.[s.target])); });
+    fleetsHere.forEach(([p, f]) => fleetCells(game.mode, f).forEach((cells, k) => { h += vessel(cells, MODES[game.mode].ships[k], cells.every((x) => sunk.has(x)), themeOf(G.themes?.[p]), p); }));
+    at.filter((s) => s.sunk_cells?.length && !drawn.has(s.target)).forEach((s) => { h += vessel(s.sunk_cells, s.sunk_cells.length, true, themeOf(G.themes?.[s.target]), s.target); });
   } else if (ships) fleetCells(game.mode, ships).forEach((cells, k) => { h += vessel(cells, MODES[game.mode].ships[k], cells.every((x) => sunk.has(x))); });
   else at.filter((s) => s.sunk_cells?.length).forEach((s) => { h += vessel(s.sunk_cells, s.sunk_cells.length, true); });   // their ships show once sunk
   for (let c = 0; c < n; c++) h += `<span class="lbl" style="${at2(-1, c)}">${c + 1}</span>`;
@@ -1141,10 +1157,11 @@ function boardHTML({ owner, ships, clickable, fresh }) {
       if (aiming?.has(i)) cls.push('aim');
       if (s && fresh && s.move === game.move) cls.push('new');
       if (!s && peekShip.has(i)) cls.push('peek-ship'); else if (!s && peekArea.has(i)) cls.push('peek-empty');
-      const label = cellName(game.mode, i);
+      const label = cellName(game.mode, i), pc = s?.hit && s.target ? `;--pc:${pcol(s.target)}` : '';
+      if (pc) cls.push('owned');
       h += clickable && !s && !mine.has(i)
         ? `<button class="${cls.join(' ')}" style="${at2(r, c)}" data-o="${owner}" data-i="${i}" data-target="${owner}" data-cell="${i}" aria-label="Aim at ${label}"></button>`
-        : `<span class="${cls.join(' ')}" style="${at2(r, c)}" data-o="${owner}" data-i="${i}" aria-label="${label}"></span>`;
+        : `<span class="${cls.join(' ')}" style="${at2(r, c)}${pc}" data-o="${owner}" data-i="${i}" aria-label="${label}"></span>`;
     }
   }
   return h + '</div>';
@@ -1205,7 +1222,7 @@ function renderGame() {
   if (game.status === 'setup') title = G.fleets[me.id] ? 'Waiting for ships' : 'Place your fleet';
   else if (game.status === 'over') title = game.winner === me.id ? 'You win!' : `${nm(game.winner)} wins!`;
   else if (imOut) { title = "You're out"; sub = 'Your fleet is sunk. You can keep watching the battle.'; }
-  else if (liveNow) { title = '⚔️ Live battle'; sub = shared ? 'No turns! Tap any square of the ocean to fire. Your guns reload in 1 second.' : "No turns! Tap any rival's square to fire. Your guns reload in 1 second."; }
+  else if (liveNow) { title = '⚔️ Live battle'; sub = shared ? 'No turns! Tap any square of the ocean to fire: 3 shots, then your guns reload.' : "No turns! Tap any rival's square to fire: 3 shots, then your guns reload."; }
   else if (myTurn) { title = 'Your turn'; sub = `Pick ${perTurn === 1 ? 'a square' : `${perTurn} squares`}${G.shotMod < 0 ? ' (one fewer for that false accusation)' : G.shotMod > 0 ? ' (one sneaky extra 🤫)' : ''} ${shared ? 'anywhere on the ocean (not on your own ships)' : `on ${opponents.length > 1 ? "one opponent's" : `${nm(opponents[0])}'s`} board`}, then fire.`; }
   else { title = `${nm(game.players[game.turn])}'s turn`; sub = 'This page updates as soon as they fire.'; }
 
@@ -1213,7 +1230,7 @@ function renderGame() {
     const cls = ['player'];
     if (game.status === 'playing' && (liveNow ? !game.eliminated.includes(p) : game.players[game.turn] === p)) cls.push('turn');
     if (game.eliminated.includes(p)) cls.push('out');
-    return `<span class="${cls.join(' ')}">${p === me.id ? 'You' : nm(p)}${game.winner === p ? ' 🏆' : ''}${(game.skip_next || []).includes(p) ? ' <span class="skipnote" title="Busted: loses their next turn">⏭</span>' : ''}</span>`;
+    return `<span class="${cls.join(' ')}">${pdot(p)}${p === me.id ? 'You' : nm(p)}${game.winner === p ? ' 🏆' : ''}${(game.skip_next || []).includes(p) ? ' <span class="skipnote" title="Busted: loses their next turn">⏭</span>' : ''}</span>`;
   }).join('')}</div>`;
 
   let body = '';
@@ -1245,7 +1262,7 @@ function renderGame() {
   } else if (shared) {
     const over = game.status === 'over';
     const left = (p) => MODES[game.mode].ships.length - new Set(G.shots.filter((s) => s.target === p && s.sunk_ship != null).map((s) => s.sunk_ship)).size;
-    const roll = game.players.map((p) => `<li class="${game.eliminated.includes(p) ? 'out' : ''}">${face(p, names[p], bots.has(p))}<strong>${p === me.id ? 'You' : nm(p)}</strong>
+    const roll = game.players.map((p) => `<li class="${game.eliminated.includes(p) ? 'out' : ''}">${face(p, names[p], bots.has(p))}${pdot(p)}<strong>${p === me.id ? 'You' : nm(p)}</strong>
       <span class="muted small">${game.eliminated.includes(p) ? 'Sunk' : `${left(p)} ship${left(p) === 1 ? '' : 's'} left`}</span>${fleetListHTML(p)}</li>`).join('');
     body = `<section class="card bsec tab-on ${aims.target ? 'target-active' : ''}" data-owner="${OCEAN}">
         <div class="row between"><h2>🌊 The ocean</h2>${imOut ? '<span class="pill out">Your fleet is sunk</span>' : ''}</div>
@@ -1264,7 +1281,7 @@ function renderGame() {
       boardTab = myTurn || liveNow ? (aims.target || opponents.find((p) => !game.eliminated.includes(p)) || opponents[0]) : me.id;
     }
     const left = (p) => MODES[game.mode].ships.length - new Set(G.shots.filter((s) => s.target === p && s.sunk_ship != null).map((s) => s.sunk_ship)).size;
-    const tabs = `<div class="boardtabs${opponents.length > 3 ? ' many' : ''}" role="tablist" aria-label="Boards">${opponents.map((p) => `<button type="button" role="tab" data-tab="${p}" aria-selected="${boardTab === p}">🎯 ${face(p, names[p], bots.has(p))}${nm(p)} <small>${left(p)} left</small></button>`).join('')}<button type="button" role="tab" data-tab="${me.id}" aria-selected="${boardTab === me.id}">🚢 Your fleet <small>${left(me.id)} left</small></button></div>`;
+    const tabs = `<div class="boardtabs${opponents.length > 3 ? ' many' : ''}" role="tablist" aria-label="Boards">${opponents.map((p) => `<button type="button" role="tab" data-tab="${p}" aria-selected="${boardTab === p}" style="--pc:${pcol(p)}">${pdot(p)}${face(p, names[p], bots.has(p))}${nm(p)} <small>${left(p)} left</small></button>`).join('')}<button type="button" role="tab" data-tab="${me.id}" aria-selected="${boardTab === me.id}" style="--pc:${pcol(me.id)}">${pdot(me.id)}🚢 Your fleet <small>${left(me.id)} left</small></button></div>`;
     const targets = opponents.map((p) => {
       const out = game.eliminated.includes(p);
       const cls = ['card', 'bsec'];
@@ -1272,7 +1289,7 @@ function renderGame() {
       if (aims.target === p) cls.push('target-active');
       if (out) cls.push('eliminated');
       return `<section class="${cls.join(' ')}" data-owner="${p}">
-        <div class="row between"><h2>${face(p, names[p], bots.has(p))}${nm(p)}'s waters</h2>${out ? '<span class="pill out">Sunk</span>' : ''}</div>
+        <div class="row between"><h2>${face(p, names[p], bots.has(p))}${pdot(p)}${nm(p)}'s waters</h2>${out ? '<span class="pill out">Sunk</span>' : ''}</div>
         ${boardHTML({ owner: p, ships: over ? G.fleets[p] : null, clickable: (myTurn || liveNow) && !out, fresh: true })}
         ${fleetListHTML(p)}
       </section>`;
@@ -1302,7 +1319,7 @@ function renderGame() {
       ${playersStrip}
     </header>
     ${body}
-    ${liveNow ? `<div class="firebar livebar ${packMini ? 'withmini' : ''}">${packMini ? fbPack : ''}<span class="aimwrap"><span id="aimtext">${Date.now() < bsReloadAt ? 'Reloading…' : '⚔️ Guns ready: tap a square'}</span></span>${deskBar() ? fbPack : ''}</div>` : ''}
+    ${liveNow ? `<div class="firebar livebar ${packMini ? 'withmini' : ''}">${packMini ? fbPack : ''}<span class="aimwrap"><span id="aimtext">${bsGunsText()}</span></span>${deskBar() ? fbPack : ''}</div>` : ''}
     ${myTurn && !liveNow ? `<div class="firebar ${packMini ? 'withmini' : ''}">${packMini ? fbPack : ''}
       <span class="aimwrap"><span class="aimdots" aria-hidden="true">${Array.from({ length: need }, (_, i) => `<i class="${i < aims.cells.size ? 'on' : ''}"></i>`).join('')}</span>
       <span id="aimtext">${aims.target ? (aims.cells.size === need ? `Ready: ${need} ${aims.target === OCEAN ? `shot${need === 1 ? '' : 's'}` : `at ${nm(aims.target)}`}` : `Aimed ${aims.cells.size} of ${need}`) : `Tap ${need === 1 ? 'a square' : `${need} squares`} to aim`}</span></span>
@@ -1446,18 +1463,17 @@ document.addEventListener('click', async (e) => {
   splash(['👽 ABDUCTED!', 'You found', 'THE UFO FLEET'], { tone: 'gold', ms: 2600 }); sfx('fanfare');
   if (G?.game) { await loadGame(G.game.id); renderGame(); }
 });
-// A live shot: one square, straight away, then the guns reload.
+// A live shot: one square, straight away. Three in a burst, then the guns reload.
 async function liveFire(target, cell, el) {
   const bar = document.getElementById('aimtext');
-  if (Date.now() < bsReloadAt) { if (bar) bar.textContent = 'Reloading…'; navigator.vibrate?.(15); return; }
-  bsReloadAt = Date.now() + BS_RELOAD;
+  if (bsAmmo() <= 0) { if (bar) bar.innerHTML = bsGunsText(); navigator.vibrate?.(15); return; }
+  bsShots.push(Date.now());
   el.classList.add('aim'); navigator.vibrate?.(30);
-  if (bar) bar.textContent = 'Reloading…';
-  setTimeout(() => { const t = document.getElementById('aimtext'); if (t && liveBS) t.textContent = '⚔️ Guns ready: tap a square'; }, BS_RELOAD);
+  if (bar) bar.innerHTML = bsGunsText();
   const { error } = await sb.rpc('fire_live', { p_game: G.game.id, p_target: target === OCEAN ? null : target, p_cell: cell });
   if (error) {
     note(/nobody has fired at yet/.test(error.message || '') ? 'Too slow! Someone just hit that square.' : friendly(error), 'error'); el.classList.remove('aim');
-    if (/Still reloading/.test(error.message || '')) bsReloadAt = Date.now() + 600;
+    if (/Still reloading/.test(error.message || '')) { bsShots.pop(); bsShots = [...bsShots, Date.now() - BS_WINDOW + 500]; }   // the server says not yet: wait a moment
     if (/live battle is over/i.test(error.message || '')) liveBS = false;
   }
   await loadGame(G.game.id); renderGame();

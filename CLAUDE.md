@@ -219,6 +219,12 @@ username. A new account only becomes a robot once it's in `public.bots`.
   the person moved it in the last 4 s (`camHeld`). Every screen→battlefield conversion must go
   through `toWorld()`. On phones with 4+ tanks the HP chips, wind and zoom buttons sit above the
   battlefield (`.stage.bighud`) instead of covering it; in full screen they overlay as before.
+- **Battleship player colours**: `PCOLS[seat]` (`pcol`, `pdot` in app.js) — a halo and corner dot
+  on each ship (`.vessel.pc`), a ring on each hit (`.cell.owned`, by the ship's owner), a dot by
+  every name (strip, tabs, board headers, Fleets list). Same palette as Hilltop's tanks.
+- **Live Battleship bursts** (`037_bs_burst.sql`): 3 shots, then reload. `fire_live` refuses a 4th
+  within 2.3 s; the page keeps its own shot times (`bsShots`, 2.4 s window) and shows ammo pips /
+  a countdown in the fire bar. No minimum gap between shots in a burst. Robots are unchanged.
 - **Putt Post course size** (`036_golf_course_size.sql`): `golf_games.course` (%) is set by a
   trigger from the players: 100 for 1–3, 120 for 4, 135 for 5, 150 for 6. The engine's `setCourse()`
   (golf.js on load, the lobby per preview) makes `LW`/`LH` live and `holeWithAttack()` return the
@@ -312,7 +318,7 @@ username. A new account only becomes a robot once it's in `public.bots`.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size, 037_bs_burst applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.
