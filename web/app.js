@@ -1,5 +1,5 @@
 import { VAPID_PUBLIC_KEY, USERNAME_DOMAIN } from './config.js';
-import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger } from './common.js';
+import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour } from './common.js';
 import { HOLES, holeWithAttack, drawHole, LW, LH } from './golf-engine.js';
 import { W as DW, H as DH, TANK_X, buildTop } from './duel-engine.js';
 const app = document.getElementById('app');
@@ -998,7 +998,7 @@ function renderGame() {
           ${fleetListHTML(me.id)}
           <p class="muted small">Yellow outlines mark the latest shots.</p></section>
       </div>
-      ${myTurn ? cheatBarHTML() + backpackBarHTML(G.pack || [], 'battleship', !busy) : ''}${over ? cheatLogHTML() : ''}${feedHTML()}
+      ${myTurn ? backpackBarHTML(G.pack || [], 'battleship', !busy) : ''}${over ? cheatLogHTML() : ''}${feedHTML()}
       ${legend}`;
   }
 
@@ -1019,6 +1019,7 @@ function renderGame() {
       ${aims.cells.size ? '<button class="link" id="clearAim">Clear</button>' : ''}
       <button class="fire ${aims.target && aims.cells.size === need && !busy ? 'ready' : ''}" id="fire" ${aims.target && aims.cells.size === need && !busy ? '' : 'disabled'}>Fire!</button><span class="error" id="fireerr" hidden></span></div>` : ''}`);
   document.body.classList.toggle('has-firebar', myTurn);
+  if (myTurn && G.cheatsOn) rumour(BS_RUMOURS);
   // Phones and full screen: instructions pop up once instead of taking up room on the page.
   const tipNow = sonarLoot && myTurn ? '📡 Tap a square on their board to ping the 3×3 around it.' : peekMode && myTurn ? '👀 Tap a square on their board to peek.' : myTurn || game.status === 'setup' ? sub.replace(/<[^>]+>/g, '') : '';
   const key = `${game.id}|${game.move}|${game.status}|${tipNow}`;
@@ -1127,7 +1128,24 @@ function cheatLogHTML() {
   const log = byPlayer.map((x) => `<li><strong>${x.p === me.id ? 'You' : nm(x.p)}</strong>: ${x.used.length ? x.used.map((c) => `${cheatLabel(c.kind)} on move ${c.move}`).join(', ') : 'played it straight 😇'}</li>`).join('');
   return `<section class="card"><h2>The truth comes out</h2>${awards ? `<ul class="feed">${awards}</ul>` : ''}<ul class="feed">${log}</ul></section>`;
 }
-function cheatError(e) { const el = document.getElementById('cheatErr'); if (el) { el.hidden = false; el.textContent = friendly(e); } }
+function cheatError(e) { note(friendly(e), 'error'); }
+// The cheats have no buttons (see CLAUDE.md for the gestures): hold a rival's square to peek,
+// hold one of your own ships to sneak it away, triple-tap "Your turn" for an extra shot.
+const canCheat = () => G && !busy && G.cheatsOn && G.game.status === 'playing' && G.game.players[G.game.turn] === me.id && !G.game.eliminated.includes(me.id);
+onHold(app, '.bsec button[data-cell]', (el) => { if (canCheat() && el.dataset.target !== me.id) doPeek(el.dataset.target, +el.dataset.cell); });
+onHold(app, '.bsec .cell.ship', async (el) => {
+  if (!canCheat() || el.closest('.bsec')?.dataset.owner !== me.id) return;
+  const { data, error } = await sb.rpc('cheat_move_ship', { p_game: G.game.id });
+  if (error) return cheatError(error);
+  await afterCheat(); stamp(`🚢 Your ${shipName(G.game.mode, data.ship)}<br>slipped away`, 'purple', 1900); sfx('sneaky');
+});
+onTaps(app, '#app > header h1', 3, async () => {
+  if (!canCheat()) return;
+  const { error } = await sb.rpc('cheat_extra_shot', { p_game: G.game.id });
+  if (error) return cheatError(error);
+  await afterCheat(); stamp('➕ Extra shot 🤫', 'purple', 1600); sfx('sneaky');
+});
+const BS_RUMOURS = ['Old sailors say a long, hard stare at enemy waters shows what hides beneath.', 'They say a captain who holds on to a ship long enough can make it vanish.', 'Rumour has it shouting "your turn" three times gets you a little extra.'];
 async function afterCheat() { await loadGame(G.game.id); renderGame(); }
 async function doPeek(target, cell) {
   peekMode = false;

@@ -385,3 +385,6 @@ body.has-firebar { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)
 .quickentry .qgo { font-size: 26px; color: var(--muted); }
 .lobby.quickmode .ncards { grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); }
 @media (max-width: 640px) { .lobby.quickmode .ncards { grid-template-columns: 1fr; } .lobby.quickmode .ncard { flex-direction: row; } .lobby.quickmode .ncard .preview { width: 42%; aspect-ratio: 16 / 10; flex: none; } .lobby.quickmode .ncard .nbody { text-align: left; padding: 10px 12px; } .lobby.quickmode .ncard .nbody .muted, .lobby.quickmode .ncard .nbody .eyebrow { display: block; } .lobby.quickmode .ncard .nfull { display: inline; } .lobby.quickmode .ncard .nshort { display: none; } .lobby.quickmode .ncard .nbody strong { font-size: 16px; } }
+
+/* Hidden cheats use press-and-hold: no callout menus or text selection on those spots */
+.cell, #app > header h1 { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }

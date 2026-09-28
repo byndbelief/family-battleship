@@ -28,6 +28,14 @@ takes a bare username.
   tips/instructions/errors are quick popovers (`note()` / `noteMirror()` in `common.js`),
   cheats and backpack are one scrollable row each. **Full screen covers only the game
   area** (`fsButton('#id')`), never the whole page.
+- **Cheats are hidden** — no buttons or labels; players have to find them. Only an occasional
+  cryptic 🤫 rumour hints they exist (`rumour()` in `common.js`). Don't add visible cheat UI
+  or explain the gestures in the site. The gestures (`onHold` / `onTaps` in `common.js`):
+  Battleship — hold a rival's square = 👀 peek, hold one of your own ships = 🚢 sneak it away,
+  triple-tap the "Your turn" title = ➕ extra shot (server allows 2 cheats per game).
+  Putt Post (multiplayer only) — hold your ball = 🦶 foot wedge then tap where to kick it,
+  triple-tap the Strokes pill = 🔄 mulligan, hold the hole's name = ✏️ pencil whip on/off.
+  Calling cheater stays visible: that's the counterplay.
 - Sound effects are synthesized (`web/sfx.js`, no audio files) with a remembered mute.
 
 ## Layout

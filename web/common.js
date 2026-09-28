@@ -394,3 +394,39 @@ dramaCss.textContent = `
   @keyframes dangerPulse{0%,100%{opacity:.35}15%{opacity:1}30%{opacity:.5}45%{opacity:.85}}
   @media (prefers-reduced-motion:reduce){.drama,.drama .dl{animation:none}#dangerV{animation:none;opacity:.6}}`;
 document.head.appendChild(dramaCss);
+
+// ---------------------------------------------------------------- hidden cheats: secret gestures
+// Cheats have no buttons. They hide behind a press-and-hold or a triple tap on ordinary-looking
+// parts of the page. Both helpers delegate from `root`, so they survive pages that redraw.
+// After a hold fires, the click that follows is swallowed so the tap underneath doesn't also act.
+export function onHold(root, selector, fn, ms = 700) {
+  let timer = null, start = null, swallow = false;
+  const cancel = () => { clearTimeout(timer); timer = null; };
+  root.addEventListener('pointerdown', (e) => {
+    const el = e.target.closest?.(selector); if (!el || !root.contains(el)) return;
+    start = { x: e.clientX, y: e.clientY }; cancel();
+    timer = setTimeout(() => { timer = null; swallow = true; navigator.vibrate?.(15); fn(el, e); setTimeout(() => { swallow = false; }, 600); }, ms);
+  });
+  root.addEventListener('pointermove', (e) => { if (timer && start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 10) cancel(); });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach((t) => root.addEventListener(t, cancel));
+  root.addEventListener('click', (e) => { if (swallow && e.target.closest?.(selector)) { e.stopPropagation(); e.preventDefault(); swallow = false; } }, true);
+  root.addEventListener('contextmenu', (e) => { if (e.target.closest?.(selector)) e.preventDefault(); });
+}
+export function onTaps(root, selector, n, fn) {
+  let count = 0, last = 0;
+  root.addEventListener('click', (e) => {
+    const el = e.target.closest?.(selector); if (!el || !root.contains(el)) return;
+    const now = Date.now(); count = now - last < 450 ? count + 1 : 1; last = now;
+    if (count >= n) { count = 0; fn(el, e); }
+  });
+}
+// Now and then, a rumour hints that the cheats exist. At most one per game page visit.
+let rumourShown = false;
+export function rumour(lines, chance = 0.25) {
+  if (rumourShown || Math.random() > chance) return;
+  rumourShown = true;
+  setTimeout(() => note(`🤫 ${lines[Math.floor(Math.random() * lines.length)]}`), 1800);
+}
+const holdCss = document.createElement('style');
+holdCss.textContent = '.nohold{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}';
+document.head.appendChild(holdCss);

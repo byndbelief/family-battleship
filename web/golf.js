@@ -1,5 +1,5 @@
 // Putt Post, live: turns and scores are saved on the server; putts replay for everyone.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour } from './common.js';
 import {
   LW, LH, HOLES, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, drawHole,
   inPoly, inRect, segDist, reduceMotion,
@@ -266,6 +266,7 @@ function startTurn() {
   const h = H();
   cheatsUsed = 0; lastStroke = null; strokes = 0; current = [];
   mode = 'aim'; scene = { hole: h, fx: [], clock: 0, ball: { x: h.tee[0], y: h.tee[1] } };
+  if (n() > 1) rumour(GOLF_RUMOURS);
   setHud(curHole(), me.id, 0, false);
   $('tip').textContent = 'Drag back from anywhere on the course, then let go to putt.' + (h.extra ? ' This hole has random obstacles.' : '');
   $('send').hidden = true;
@@ -312,10 +313,16 @@ cv.addEventListener('pointerdown', (e) => {
   if (mode === 'wedge') return wedgeTo(toLogical(e));
   if (mode !== 'aim') return;
   drag = toLogical(e); cv.setPointerCapture(e.pointerId); setLocked(false);
+  // Holding still on your own ball is the secret foot wedge.
+  clearTimeout(wedgeHold);
+  if (canCheat() && scene.ball && Math.hypot(drag.x - scene.ball.x, drag.y - scene.ball.y) < 26) wedgeHold = setTimeout(() => { if (drag && !scene.aim) cheatWedge(); }, 750);
 });
+let wedgeHold = null;
+cv.addEventListener('pointerup', () => clearTimeout(wedgeHold), true);
 cv.addEventListener('pointermove', (e) => {
   if (!drag || mode !== 'aim') return;
   const p = toLogical(e), dx = drag.x - p.x, dy = drag.y - p.y, d = Math.sqrt(dx * dx + dy * dy);
+  if (d >= 6) clearTimeout(wedgeHold);
   if (d < 6) { scene.aim = null; showAim(null); return; }
   const pw = Math.min(1, d / 150); scene.aim = { bx: scene.ball.x, by: scene.ball.y, dx: dx / d, dy: dy / d, p: pw };
   showAim(scene.aim);
@@ -373,28 +380,35 @@ function renderPack() {
 }
 function renderCheats() {
   renderPack();
-  const el = $('cheats');
-  if (n() === 1 || (mode !== 'aim' && mode !== 'wedge')) { el.hidden = true; return; }
-  el.hidden = false;
-  el.innerHTML = `<span class="lbl">Cheat (if you dare)</span>
-    <button id="chWedge" ${cheatsUsed & 1 ? 'disabled' : ''} aria-pressed="${mode === 'wedge'}">🦶 Foot wedge</button>
-    <button id="chMull" ${cheatsUsed & 2 || !lastStroke ? 'disabled' : ''}>🔄 Mulligan</button>
-    <button id="chPencil" ${cheatsUsed & 4 ? 'aria-pressed="true"' : ''}>✏️ Pencil whip${cheatsUsed & 4 ? ' (on)' : ''}</button>`;
-  $('chWedge').onclick = () => { mode = mode === 'wedge' ? 'aim' : 'wedge'; $('tip').textContent = mode === 'wedge' ? 'Tap a spot near your ball to kick it there. Nobody saw that.' : 'Foot wedge cancelled.'; renderCheats(); };
-  $('chMull').onclick = () => {
-    const L = lastStroke; if (!L) return;
-    current.pop(); strokes -= 1 + L.penalty; scene.clock = L.clockBefore; scene.flagOut = false;
-    scene.ball = { x: L.s.x, y: L.s.y }; lastStroke = null; cheatsUsed |= 2;
-    $('strokes').textContent = strokes; $('tip').textContent = 'Mulligan! That putt never happened.'; renderCheats();
-  };
-  $('chPencil').onclick = () => { cheatsUsed ^= 4; $('tip').textContent = cheatsUsed & 4 ? "Pencil whip on: you'll write down one stroke fewer." : 'Pencil whip off. Honest scoring.'; renderCheats(); };
+  $('cheats').hidden = true;   // the cheats have no buttons: they're secret gestures (below)
 }
+// Hidden cheats (see CLAUDE.md): hold your ball for a foot wedge, triple-tap the stroke counter
+// for a mulligan, hold the hole's name to toggle the pencil whip. Only with other players around.
+const canCheat = () => n() > 1 && (mode === 'aim' || mode === 'wedge');
+function cheatWedge() {
+  if (cheatsUsed & 1) return note('Your foot already did its work this hole.');
+  mode = 'wedge'; drag = null; scene.aim = null; showAim(null); setLocked(false); sfx('sneaky');
+  note('🦶 Nobody\'s looking… tap a spot near the ball to nudge it there.');
+}
+onTaps(document.body, '.hudbar .pill:last-child', 3, () => {
+  if (!canCheat()) return;
+  const L = lastStroke; if (!L || cheatsUsed & 2) return;
+  current.pop(); strokes -= 1 + L.penalty; scene.clock = L.clockBefore; scene.flagOut = false;
+  scene.ball = { x: L.s.x, y: L.s.y }; lastStroke = null; cheatsUsed |= 2; sfx('sneaky');
+  $('strokes').textContent = strokes; note('🔄 Mulligan! That putt never happened.'); renderCheats();
+});
+onHold(document.body, '#holeName', () => {
+  if (!canCheat()) return;
+  cheatsUsed ^= 4; sfx('sneaky');
+  note(cheatsUsed & 4 ? "✏️ Pencil whip on: you'll write down one stroke fewer." : '✏️ Pencil whip off. Honest scoring.');
+});
+const GOLF_RUMOURS = ['The groundskeeper swears someone keeps nudging balls when they hold still long enough.', 'Word is the stroke counter forgets things if you pester it.', 'A caddie whispered: the hole\'s name is written in pencil, and pencils can be pressed.'];
 function wedgeTo(pt) {
   const h = H(), b = scene.ball, dx = pt.x - b.x, dy = pt.y - b.y, d = Math.sqrt(dx * dx + dy * dy);
   const k = d > 45 ? 45 / d : 1, x = q20(b.x + dx * k), y = q20(b.y + dy * k);
   if (!clearSpot(h, x, y)) { $('tip').textContent = "Can't kick it there. Pick an open spot."; return; }
   scene.ball = { x, y }; cheatsUsed |= 1; mode = 'aim'; lastStroke = null;
-  $('tip').textContent = '*whistles innocently* Drag back and let go.'; renderCheats();
+  sfx('sneaky'); $('tip').textContent = '*whistles innocently* Drag back and let go.'; renderCheats();
 }
 
 // ---------------------------------------------------------------- finishing a hole
