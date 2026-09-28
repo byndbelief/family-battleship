@@ -67,22 +67,37 @@ function draw(t) {
   particles.forEach((q) => { ctx.globalAlpha = Math.max(0, q.life); ctx.fillStyle = q.c; ctx.beginPath(); ctx.arc(q.x, q.y, q.s, 0, 7); ctx.fill(); });
   ctx.globalAlpha = 1;
 }
-// Aim hint: dots along the first stretch of the shell's real flight, wind included, fading out
-// before it gets near the other tank. Enough to feel the shot, not enough to skip the aiming.
-let hintKey = '', hintPts = [];
-function drawHint(t) {
-  const g = G.game, angle = +$('angle').value, power = +$('power').value, windX = g.gust === g.move ? 3 : 1;
-  const key = `${g.move}|${angle}|${power}|${windX}`;
-  if (key !== hintKey) {
-    hintKey = key;
+// Aim hint: dots along most of the shell's real flight (85%). With no wind it holds still and
+// is exact. With wind it sways, as if the wind gusts a bit either side of its real strength, so
+// you still have to judge the gust; the real arc is the middle of the sway. Reduced motion
+// shows the two ends of the sway as a still band instead.
+const hintCache = new Map();
+function hintPath(angle, power, windX) {
+  const g = G.game, key = `${g.move}|${angle}|${power}|${windX.toFixed(2)}`;
+  if (!hintCache.has(key)) {
+    if (hintCache.size > 200) hintCache.clear();
     const { path } = simulate(g.seed, g.move, top, myIdx(), angle, power, windX);
-    hintPts = path.slice(0, Math.ceil(path.length * 0.4));
+    hintCache.set(key, path.slice(0, Math.ceil(path.length * 0.85)));
   }
-  const n = hintPts.length, drift = reduceMotion ? 0 : (t / 60) % 6;
+  return hintCache.get(key);
+}
+function drawDots(pts, alpha, t, still) {
+  const n = pts.length, drift = still ? 0 : (t / 60) % 6;
   for (let j = Math.floor(drift) % 6; j < n; j += 6) {
-    const q = hintPts[j], f = 1 - j / n;
-    ctx.globalAlpha = 0.25 + 0.75 * f; ctx.fillStyle = '#FFC857'; ctx.shadowColor = '#FFC857'; ctx.shadowBlur = 8;
-    ctx.beginPath(); ctx.arc(q.x, Math.max(4, q.y), 2.5 + 2 * f, 0, 7); ctx.fill();
+    const q = pts[j], f = 1 - j / n;
+    ctx.globalAlpha = alpha * (0.2 + 0.8 * f); ctx.fillStyle = '#FFC857'; ctx.shadowColor = '#FFC857'; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(q.x, Math.max(4, q.y), 2.2 + 2 * f, 0, 7); ctx.fill();
+  }
+}
+function drawHint(t) {
+  const g = G.game, angle = +$('angle').value, power = +$('power').value, base = g.gust === g.move ? 3 : 1;
+  const windy = windFor(g.seed, g.move, base) !== 0;
+  if (!windy) drawDots(hintPath(angle, power, base), 1, t, reduceMotion);
+  else if (reduceMotion) { drawDots(hintPath(angle, power, base * 0.6), 0.55, t, true); drawDots(hintPath(angle, power, base * 1.4), 0.55, t, true); }
+  else {
+    // Two slow waves make the gusts feel irregular; the sway spans about 0.55x to 1.45x the real wind.
+    const gust = 1 + 0.3 * Math.sin(t / 700) + 0.15 * Math.sin(t / 260 + 1.3);
+    drawDots(hintPath(angle, power, Math.round(base * gust * 50) / 50), 1, t, false);
   }
   ctx.globalAlpha = 1; ctx.shadowBlur = 0;
 }
