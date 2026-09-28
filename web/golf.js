@@ -1,7 +1,7 @@
 // Putt Post, live: turns and scores are saved on the server; putts replay for everyone.
 import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, compactPack, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, dramaOn, face, livePresence, avatarOf, splash, jumpToNext, setGameTools, condenseTop } from './common.js';
 import {
-  LW, LH, HOLES, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, drawHole,
+  LW, LH, COURSE, setCourse, HOLES, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, drawHole,
   inPoly, inRect, segDist, reduceMotion,
 } from './golf-engine.js';
 
@@ -26,7 +26,7 @@ const myHoleDone = () => G.turns.some((x) => x.player === me.id && Math.floor(x.
 const stillPlaying = () => G.game.players.filter((p) => !G.turns.some((x) => x.player === p && Math.floor(x.t / n()) === Math.floor(G.game.t / n())));
 const curPlayer = () => G.game.players[G.game.t % n()];
 const curHole = () => G.game.start + Math.floor(G.game.t / n());
-const magnetize = (h, on) => (on ? { ...h, cupR: 13, cupSpeed: 7.5 } : h);
+const magnetize = (h, on) => (on ? { ...h, cupR: 13, cupSpeed: 7.5 * COURSE } : h);
 const H = () => magnetize(holeWithAttack(G.game.seed, curHole(), curAttack), magnetOn && mode !== 'bot');
 const isBot = (id) => bots.has(id);
 const who = (id) => (id === me.id ? 'You' : nm(id));
@@ -52,6 +52,7 @@ async function load(id) {
     sb.from('golf_secrets').select('*').eq('game_id', id),
   ]);
   if (!g.data) return false;
+  setCourse((g.data.course || 100) / 100);   // 4+ players: a bigger course, zoomed out (036)
   G = { game: g.data, turns: t.data ?? [], players: p.data ?? [], acc: a.data ?? [], secrets: s.data ?? [], best: G?.best };
   if (G.game.gauntlet_id) gauntletBar(G.game.gauntlet_id, G.game.id, me.id, (p) => names[p] ?? 'someone');
   return true;
@@ -421,7 +422,7 @@ cv.addEventListener('pointerdown', (e) => {
   drag = { ...toLogical(e), cx: e.clientX, cy: e.clientY, mouse: e.pointerType === 'mouse' }; cv.setPointerCapture(e.pointerId); setLocked(false);
   // Holding still on your own ball is the secret foot wedge.
   clearTimeout(wedgeHold);
-  if (canCheat() && scene.ball && Math.hypot(drag.x - scene.ball.x, drag.y - scene.ball.y) < 26) wedgeHold = setTimeout(() => { if (drag && !scene.aim) cheatWedge(); }, 750);
+  if (canCheat() && scene.ball && Math.hypot(drag.x - scene.ball.x, drag.y - scene.ball.y) < 26 * COURSE) wedgeHold = setTimeout(() => { if (drag && !scene.aim) cheatWedge(); }, 750);
 });
 let wedgeHold = null;
 cv.addEventListener('pointerup', () => clearTimeout(wedgeHold), true);
@@ -432,11 +433,11 @@ cv.addEventListener('pointermove', (e) => {
   if (d < 6) { scene.aim = null; showAim(null); return; }
   // Full power is 150 course units of drag. With a mouse the screen edge can get in the way (the tee
   // sits near the bottom), so full power comes a little before whichever edge you're dragging toward.
-  let full = 150;
+  let full = 150 * COURSE;   // the same drag on screen whatever the course size
   if (drag.mouse) {
     const k = cv.getBoundingClientRect().width / LW, ux = -dx / d, uy = -dy / d;   // the way the pointer is moving, on screen
     const room = Math.min(ux > 0 ? (innerWidth - drag.cx) / ux : ux < 0 ? drag.cx / -ux : Infinity, uy > 0 ? (innerHeight - drag.cy) / uy : uy < 0 ? drag.cy / -uy : Infinity);
-    full = Math.min(150, Math.max(50, (room - 8) / k));
+    full = Math.min(150 * COURSE, Math.max(50 * COURSE, (room - 8) / k));
   }
   const pw = Math.min(1, d / full); scene.aim = { bx: scene.ball.x, by: scene.ball.y, dx: dx / d, dy: dy / d, p: pw };
   showAim(scene.aim);
@@ -451,7 +452,7 @@ cv.addEventListener('pointerup', async (e) => {
   putt(a);
 });
 async function putt(a) {
-  const sp = (0.6 + a.p * 10.4) * (curAttack === 5 ? 0.67 : 1);
+  const sp = (0.6 + a.p * 10.4) * COURSE * (curAttack === 5 ? 0.67 : 1);
   const s = { x: q20(scene.ball.x), y: q20(scene.ball.y), vx: q100(a.dx * sp), vy: q100(a.dy * sp) };
   current.push(s); mode = 'rolling'; $('tip').textContent = ''; renderCheats(); renderCard();
   const clockBefore = scene.clock || 0;
@@ -588,7 +589,7 @@ function botAim() {
   const weak = curAttack === 5 ? 0.67 : 1;
   let best = null;
   const trial = (ang, p) => {
-    const sp = (0.6 + p * 10.4) * weak, b = { x: bx, y: by, vx: q100(Math.cos(ang) * sp), vy: q100(Math.sin(ang) * sp), ticks: 0, clock };
+    const sp = (0.6 + p * 10.4) * COURSE * weak, b = { x: bx, y: by, vx: q100(Math.cos(ang) * sp), vy: q100(Math.sin(ang) * sp), ticks: 0, clock };
     let ev; do { ev = tick(b, h); } while (ev !== 'cup' && ev !== 'water' && ev !== 'stop');
     const sc = ev === 'cup' ? -1000 + p : ev === 'water' ? 1000 : Math.sqrt((b.x - cx) ** 2 + (b.y - cy) ** 2) + (h.sand.some((r) => inRect(b.x, b.y, r)) ? 20 : 0);
     if (!best || sc < best.sc) best = { sc, ang, p };
@@ -597,7 +598,7 @@ function botAim() {
   const a0 = best.ang, p0 = best.p;
   for (let da = -4; da <= 4; da++) for (let dp = -0.06; dp <= 0.0601; dp += 0.02) trial(a0 + (da * Math.PI) / 180, Math.min(1, Math.max(0.04, p0 + dp)));
   const sk = botSkill(), ang = best.ang + (gauss() * sk.aim * Math.PI) / 180, p = Math.min(1, Math.max(0.04, best.p * (1 + gauss() * sk.power)));
-  const sp = (0.6 + p * 10.4) * weak;
+  const sp = (0.6 + p * 10.4) * COURSE * weak;
   return { ang, p, vx: q100(Math.cos(ang) * sp), vy: q100(Math.sin(ang) * sp) };
 }
 async function robotTurn() {
@@ -667,7 +668,7 @@ const botAimFrom = (ball, clock, h, lvl) => {
   const bx = q20(ball.x), by = q20(ball.y), [cx, cy] = h.cup;
   let best = null;
   const trial = (ang, p) => {
-    const sp = 0.6 + p * 10.4, b = { x: bx, y: by, vx: q100(Math.cos(ang) * sp), vy: q100(Math.sin(ang) * sp), ticks: 0, clock };
+    const sp = (0.6 + p * 10.4) * COURSE, b = { x: bx, y: by, vx: q100(Math.cos(ang) * sp), vy: q100(Math.sin(ang) * sp), ticks: 0, clock };
     let ev; do { ev = tick(b, h); } while (ev !== 'cup' && ev !== 'water' && ev !== 'stop');
     const sc = ev === 'cup' ? -1000 + p : ev === 'water' ? 1000 : Math.sqrt((b.x - cx) ** 2 + (b.y - cy) ** 2) + (h.sand.some((r) => inRect(b.x, b.y, r)) ? 20 : 0);
     if (!best || sc < best.sc) best = { sc, ang, p };
@@ -675,7 +676,7 @@ const botAimFrom = (ball, clock, h, lvl) => {
   for (let a = 0; a < 360; a += 5) for (let p = 0.06; p <= 1.0001; p += 0.08) trial((a * Math.PI) / 180, p);
   const a0 = best.ang, p0 = best.p;
   for (let da = -4; da <= 4; da++) for (let dp = -0.06; dp <= 0.0601; dp += 0.02) trial(a0 + (da * Math.PI) / 180, Math.min(1, Math.max(0.04, p0 + dp)));
-  const sk = BOT_SKILL[lvl], ang = best.ang + (gauss() * sk.aim * Math.PI) / 180, p = Math.min(1, Math.max(0.04, best.p * (1 + gauss() * sk.power))), sp = 0.6 + p * 10.4;
+  const sk = BOT_SKILL[lvl], ang = best.ang + (gauss() * sk.aim * Math.PI) / 180, p = Math.min(1, Math.max(0.04, best.p * (1 + gauss() * sk.power))), sp = (0.6 + p * 10.4) * COURSE;
   return { vx: q100(Math.cos(ang) * sp), vy: q100(Math.sin(ang) * sp) };
 };
 const botLiveHoles = () => G?.game.players.filter(isBot).forEach((b) => botLiveHole(b));

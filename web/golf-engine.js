@@ -6,7 +6,13 @@ export const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').match
 // ================================================================= course
 // Logical course space is 360 x 560. Rects are [x, y, w, h].
 // Spinners are windmills: [cx, cy, blade length, blade count, turn per tick].
-const LW=360, LH=560;
+const BW=360, BH=560;   // the holes are drawn up in this space (and random obstacles placed in it)
+// The course size (036): 4+ players get a bigger course, every hole scaled up around the same
+// ball and cup, so the page shows more green, zoomed out (golf_games.course: 120 / 135 / 150 %).
+// Putts go that much faster, so the same drag reaches the same share of the hole. LW/LH are the
+// course as played and drawn; the page sets it with setCourse() for the game it shows.
+let LW=BW, LH=BH, COURSE=1;
+function setCourse(s){ COURSE=s||1; LW=BW*COURSE; LH=BH*COURSE; }
 const rect = (x,y,w,h) => [[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
 const BOX = rect(40,40,280,480);
 const HOLES = [
@@ -55,7 +61,7 @@ function buildHole(base, extra){
 }
 // Can a ball get from tee to cup? Flood fill on a 5px grid, ignoring windmills.
 function reachable(h){
-  const S=5, W=Math.ceil(LW/S), Hh=Math.ceil(LH/S), seen=new Uint8Array(W*Hh);
+  const S=5, W=Math.ceil(BW/S), Hh=Math.ceil(BH/S), seen=new Uint8Array(W*Hh);
   const ok=(gx,gy)=>{ const x=gx*S+S/2, y=gy*S+S/2;
     if(!inPoly(x,y,h.outline)) return false;
     for(const s of h.segs) if(segDist(x,y,s)<R+0.5) return false;
@@ -179,7 +185,22 @@ const ATTACKS=[null,
   {name:'Butterfingers',   icon:'🧈', desc:'The putter loses a third of its power.'},
 ];
 const attackCache=new Map();
+// Every part of a hole, scaled by s around the origin (the ball and cup keep their size).
+const scaledCache=new Map();
+function scaleHole(h, s){
+  const P=([x,y])=>[x*s,y*s], Rc=([x,y,w,hh])=>[x*s,y*s,w*s,hh*s];
+  return {...h, outline:h.outline.map(P), tee:P(h.tee), cup:P(h.cup), segs:h.segs.map(([a,b,c,d])=>[a*s,b*s,c*s,d*s]),
+    blocks:h.blocks.map(Rc), sand:h.sand.map(Rc), water:h.water.map(Rc), bumpers:h.bumpers.map(([x,y,r])=>[x*s,y*s,r*s]),
+    slopes:h.slopes.map(sl=>({...sl, r:Rc(sl.r), a:[sl.a[0]*s, sl.a[1]*s]})), spinners:h.spinners.map(([x,y,len,n,turn])=>[x*s,y*s,len*s,n,turn]),
+    wind:h.wind?[h.wind[0]*s,h.wind[1]*s]:h.wind, cupSpeed:(h.cupSpeed||5.5)*s, scale:s};
+}
 function holeWithAttack(seed, hi, type){
+  if(COURSE===1) return holeAt(seed, hi, type);
+  const key=seed+':'+hi+':'+type+':'+COURSE;
+  if(!scaledCache.has(key)) scaledCache.set(key, scaleHole(holeAt(seed, hi, type), COURSE));
+  return scaledCache.get(key);
+}
+function holeAt(seed, hi, type){
   const base=holeFor(seed, hi);
   if(!type) return base;
   const key=seed+':'+hi+':'+type;
@@ -303,4 +324,4 @@ function drawHole(c, h, t, scene={}){
 }
 
 
-export { LW, LH, HOLES, N_HOLES, rng, inPoly, inRect, segDist, buildHole, reachable, holeFor, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, drawHole, COS, SIN };
+export { LW, LH, COURSE, setCourse, HOLES, N_HOLES, rng, inPoly, inRect, segDist, buildHole, reachable, holeFor, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, drawHole, COS, SIN };

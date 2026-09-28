@@ -219,6 +219,14 @@ username. A new account only becomes a robot once it's in `public.bots`.
   the person moved it in the last 4 s (`camHeld`). Every screen→battlefield conversion must go
   through `toWorld()`. On phones with 4+ tanks the HP chips, wind and zoom buttons sit above the
   battlefield (`.stage.bighud`) instead of covering it; in full screen they overlay as before.
+- **Putt Post course size** (`036_golf_course_size.sql`): `golf_games.course` (%) is set by a
+  trigger from the players: 100 for 1–3, 120 for 4, 135 for 5, 150 for 6. The engine's `setCourse()`
+  (golf.js on load, the lobby per preview) makes `LW`/`LH` live and `holeWithAttack()` return the
+  hole scaled (`scaleHole`: every coordinate, bumper radius, slope and wind ×s, cup speed ×s; ball
+  and cup radius unchanged). Holes and random obstacles are still generated in the base 360×560
+  space (`BW`/`BH`), then scaled. Putt speed is `(0.6 + p·10.4) × COURSE` everywhere, and full-power
+  drag is `150 × COURSE` course units (the same on screen). Friction is proportional, so the same
+  power rolls the same share of the hole at any size. Games made before 036 stay 100.
 - **Battleship and the Gauntlet for 6** (`034_six_gauntlet_battleship.sql`): 1–5 opponents.
   Per-opponent boards need nothing new (phones get a scrolling tab row, `.boardtabs.many`). The
   shared ocean becomes **mode 3** (16×16, same ships) when 4+ play — `create_game` switches it, so
@@ -304,7 +312,7 @@ username. A new account only becomes a robot once it's in `public.bots`.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.

@@ -1,6 +1,6 @@
 import { USERNAME_DOMAIN } from './config.js';
 import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence, jumpToNext, startOnline, online, agoText, setGameTools, themeTiles, forgetThemes } from './common.js';
-import { HOLES, holeWithAttack, drawHole, LW, LH } from './golf-engine.js';
+import { HOLES, holeWithAttack, drawHole, LW, LH, setCourse } from './golf-engine.js';
 import { THEMES, themeOf, vesselSVG } from './bs-themes.js';
 import { W as DW, H as DH, startXs, buildTop, setWorld } from './duel-engine.js';
 const app = document.getElementById('app');
@@ -825,6 +825,7 @@ function drawPreview(cv, card, myFleets, atMe) {
       else if (s && !s.hit) { c.fillStyle = '#DDEBF7'; c.beginPath(); c.arc(x + cell / 2, y + cell / 2, cell * 0.14, 0, 7); c.fill(); }
     }
   } else if (card.kind === 'golf') {
+    setCourse((card.g.course || 100) / 100);   // 4+ players: the bigger course (036)
     const hole = holeWithAttack(card.g.seed, card.hole, 0), k = Math.min(w / LH, h / LW) * 1.08;
     c.save(); c.fillStyle = '#1F5B3A'; c.fillRect(0, 0, w, h);
     // centre on the hole, rotated sideways so it fills a wide card
