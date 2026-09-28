@@ -1,6 +1,6 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, shotClock, stopShotClock, chaosClock, dramaOn } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, shotClock, stopShotClock, chaosClock, dramaOn, face } from './common.js';
 import { W, H, TANK_X, CRATER_R, BERTHA_R, rng, buildTop, applyCrater, windFor, tankPos, simulate, damage } from './duel-engine.js';
 
 const $ = (id) => document.getElementById(id);
@@ -193,8 +193,10 @@ function render() {
   const g = G.game, mi = myIdx();
   top = top || buildTop(g.seed, g.craters);
   const tag = (p) => (g.shields.includes(p) ? ' 🛡️' : '') + (g.bertha.includes(p) ? ' 💣' : '');
-  $('n0').innerHTML = `<span style="color:var(--coral)">●</span> ${who(g.players[0])} · ${g.hp[0]}${tag(g.players[0])}`;
-  $('n1').innerHTML = `${who(g.players[1])} · ${g.hp[1]}${tag(g.players[1])} <span style="color:var(--teal)">●</span>`;
+  // Face, name (the part that gives way on a narrow screen, with …), then the HP, which always shows.
+  const label = (p) => `${face(g.players[p])}<span class="nm">${who(g.players[p])}</span><span>&nbsp;· ${g.hp[p]}${tag(g.players[p])}</span>`;
+  $('n0').innerHTML = `<span style="color:var(--coral)">●&nbsp;</span>${label(0)}`;
+  $('n1').innerHTML = `${label(1)}<span style="color:var(--teal)">&nbsp;●</span>`;
   $('hp0').style.width = g.hp[0] + '%'; $('hp1').style.width = g.hp[1] + '%';
   const gusty = g.gust === g.move, w = windFor(g.seed, g.move, gusty ? 3 : 1);
   $('wind').textContent = (gusty ? '🌪️ ' : '') + (w === 0 ? 'No wind' : `Wind ${w < 0 ? '←' : '→'} ${Math.abs(w)}${gusty ? ' (hurricane!)' : ''}`);

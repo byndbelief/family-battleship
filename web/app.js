@@ -1,5 +1,5 @@
 import { USERNAME_DOMAIN } from './config.js';
-import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar } from './common.js';
+import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face } from './common.js';
 import { HOLES, holeWithAttack, drawHole, LW, LH } from './golf-engine.js';
 import { W as DW, H as DH, TANK_X, buildTop } from './duel-engine.js';
 const app = document.getElementById('app');
@@ -1034,7 +1034,7 @@ function renderGame() {
       boardTab = myTurn ? (aims.target || opponents.find((p) => !game.eliminated.includes(p)) || opponents[0]) : me.id;
     }
     const left = (p) => MODES[game.mode].ships.length - new Set(G.shots.filter((s) => s.target === p && s.sunk_ship != null).map((s) => s.sunk_ship)).size;
-    const tabs = `<div class="boardtabs" role="tablist" aria-label="Boards">${opponents.map((p) => `<button type="button" role="tab" data-tab="${p}" aria-selected="${boardTab === p}">🎯 ${nm(p)} <small>${left(p)} left</small></button>`).join('')}<button type="button" role="tab" data-tab="${me.id}" aria-selected="${boardTab === me.id}">🚢 Your fleet <small>${left(me.id)} left</small></button></div>`;
+    const tabs = `<div class="boardtabs" role="tablist" aria-label="Boards">${opponents.map((p) => `<button type="button" role="tab" data-tab="${p}" aria-selected="${boardTab === p}">🎯 ${face(p, names[p], bots.has(p))}${nm(p)} <small>${left(p)} left</small></button>`).join('')}<button type="button" role="tab" data-tab="${me.id}" aria-selected="${boardTab === me.id}">🚢 Your fleet <small>${left(me.id)} left</small></button></div>`;
     const targets = opponents.map((p) => {
       const out = game.eliminated.includes(p);
       const cls = ['card', 'bsec'];
@@ -1042,7 +1042,7 @@ function renderGame() {
       if (aims.target === p) cls.push('target-active');
       if (out) cls.push('eliminated');
       return `<section class="${cls.join(' ')}" data-owner="${p}">
-        <div class="row between"><h2>${nm(p)}'s waters</h2>${out ? '<span class="pill out">Sunk</span>' : ''}</div>
+        <div class="row between"><h2>${face(p, names[p], bots.has(p))}${nm(p)}'s waters</h2>${out ? '<span class="pill out">Sunk</span>' : ''}</div>
         ${boardHTML({ owner: p, ships: over ? G.fleets[p] : null, clickable: myTurn && !out, fresh: true })}
         ${fleetListHTML(p)}
       </section>`;

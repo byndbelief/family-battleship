@@ -76,7 +76,9 @@ takes a bare username.
 - **Player pictures:** `AVATARS` in `common.js` maps a username to a file in `web/avatars/` or an emoji
   (256 px square JPEG); `avatar(p)` renders it, or the initial for anyone without one. Shown on the
   trophy-case header, the scoreboard cards, the lobby's Gauntlet rival cards and the Your move strip
-  (people only there; the robot's name already carries 🤖). phoenix_lord has the golden phoenix, dad_commander 😎, obanai_rocks 🐍.
+  (people only there; the robot's name already carries 🤖). In the games, `face(id)` puts a small
+  one beside each name (duel HP labels, Putt Post turn pill and scorecard, Battleship board tabs and
+  headers); it styles itself, so golf/duel pages need no CSS for it. phoenix_lord has the golden phoenix, dad_commander 😎, obanai_rocks 🐍.
 - Sound effects are synthesized (`web/sfx.js`, no audio files).
 - **Settings** (⚙️ in the corner of every page, `openSettings` in `common.js`): per-device
   switches for Sound, Vibration (every `navigator.vibrate` goes through it) and Big moments

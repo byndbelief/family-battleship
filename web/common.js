@@ -61,9 +61,22 @@ const AVATARS = { phoenix_lord: 'avatars/phoenix_lord.jpg', dad_commander: '😎
 export function avatar(p, cls = 'avatar') {
   if (p?.bot) return `<span class="${cls}" aria-hidden="true">🤖</span>`;
   const a = AVATARS[p?.username];
-  if (a && a.includes('/')) return `<img class="${cls} pic" src="${a}" alt="" loading="lazy">`;
+  if (a && a.includes('/')) return `<img class="${cls} pic" src="${a}" alt="">`;
   if (a) return `<span class="${cls} emo" aria-hidden="true">${a}</span>`;
   return `<span class="${cls}" aria-hidden="true">${esc(String(p?.username || '?')[0].toUpperCase())}</span>`;
+}
+// A small round face beside a player's name in the games (sized to the text around it). Nothing
+// for the robot, whose name already says 🤖. Styles itself, so every page gets it.
+export function face(id, uname = names[id], isBot = bots.has(id)) {
+  if (isBot || !uname) return '';
+  if (!document.getElementById('faceCss')) {
+    const st = document.createElement('style'); st.id = 'faceCss';
+    st.textContent = `.face{display:inline-grid;place-items:center;width:1.45em;height:1.45em;border-radius:50%;vertical-align:-.38em;margin-right:.3em;overflow:hidden;line-height:1;font-weight:700;font-style:normal;flex:none;background:linear-gradient(160deg,#F2C230,#E0892F);color:#2A2100;box-shadow:0 0 0 1.5px #ffffff55}
+.face.emo{font-size:.9em;width:1.6em;height:1.6em;background:#ffffff26}
+img.face{object-fit:cover;background:#000;box-shadow:0 0 0 1.5px #E8B84A}`;
+    document.head.appendChild(st);
+  }
+  return avatar({ username: uname }, 'face');
 }
 export const nm = (id) => (bots.has(id) ? '🤖 ' : '') + esc(names[id] ?? 'someone');
 export const friendly = (err) => (err?.message || String(err)).replace(/^.*?ERROR:\s*/, '');

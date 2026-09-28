@@ -1,5 +1,5 @@
 // Putt Post, live: turns and scores are saved on the server; putts replay for everyone.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, dramaOn } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, dramaOn, face } from './common.js';
 import {
   LW, LH, HOLES, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, drawHole,
   inPoly, inRect, segDist, reduceMotion,
@@ -140,7 +140,7 @@ const fromStroke = (s) => [s.x, s.y, s.vx, s.vy];
 function setHud(hole, player, s, replay) {
   $('holeNo').textContent = `Hole ${hole + 1} of ${G.game.start + G.game.count} · Par ${HOLES[hole].par}`;
   $('holeName').textContent = HOLES[hole].name;
-  $('whoPill').innerHTML = `${replay ? '▶' : '⛳'} ${who(player)}`;
+  $('whoPill').innerHTML = `${replay ? '▶' : '⛳'} ${face(player)}${who(player)}`;
   $('strokes').textContent = s;
 }
 function cellScore(p, hole) {
@@ -163,7 +163,7 @@ function renderCard() {
   h += `<tr class="par"><td>Par</td>${idx.map((i) => `<td>${HOLES[i].par}</td>`).join('')}<td>${idx.reduce((a, i) => a + HOLES[i].par, 0)}</td><td></td></tr>`;
   g.players.forEach((p, k) => {
     const sb2 = pl(p), badges = sb2.busted ? ` <span class="badge" title="Busted cheating">${'🚨'.repeat(Math.min(3, sb2.busted))}</span>` : '';
-    h += `<tr class="${st[k].played && st[k].toPar === lead ? 'lead' : ''}"><td>${who(p)}${badges}</td>`;
+    h += `<tr class="${st[k].played && st[k].toPar === lead ? 'lead' : ''}"><td>${face(p)}${who(p)}${badges}</td>`;
     idx.forEach((i) => {
       const v = cellScore(p, i), cls = [];
       if (cur && cur.p === p && cur.h === i) cls.push('now');
