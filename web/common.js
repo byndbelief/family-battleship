@@ -56,13 +56,14 @@ export const bots = new Set();    // profile ids of robot players
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-// Player pictures, by username (files in web/avatars/). Anyone without one gets their initial.
-const AVATARS = { phoenix_lord: 'avatars/phoenix_lord.jpg' };
+// Player pictures, by username: a file in web/avatars/, or an emoji. Anyone without one gets their initial.
+const AVATARS = { phoenix_lord: 'avatars/phoenix_lord.jpg', dad_commander: '😎' };
 export function avatar(p, cls = 'avatar') {
   if (p?.bot) return `<span class="${cls}" aria-hidden="true">🤖</span>`;
-  const src = AVATARS[p?.username];
-  return src ? `<img class="${cls} pic" src="${src}" alt="" loading="lazy">`
-    : `<span class="${cls}" aria-hidden="true">${esc(String(p?.username || '?')[0].toUpperCase())}</span>`;
+  const a = AVATARS[p?.username];
+  if (a && a.includes('/')) return `<img class="${cls} pic" src="${a}" alt="" loading="lazy">`;
+  if (a) return `<span class="${cls} emo" aria-hidden="true">${a}</span>`;
+  return `<span class="${cls}" aria-hidden="true">${esc(String(p?.username || '?')[0].toUpperCase())}</span>`;
 }
 export const nm = (id) => (bots.has(id) ? '🤖 ' : '') + esc(names[id] ?? 'someone');
 export const friendly = (err) => (err?.message || String(err)).replace(/^.*?ERROR:\s*/, '');

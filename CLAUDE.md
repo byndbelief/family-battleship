@@ -73,9 +73,9 @@ takes a bare username.
   `family_stats()`, which returns totals, streaks and head-to-head only.
   Each player has a **trophy case** (`#player=<id>`, `010_trophies.sql` → `player_trophies()`):
   a shelf with a cup per Gauntlet title, and badges (`BADGES` in `app.js`) earned from the same log.
-- **Player pictures:** `AVATARS` in `common.js` maps a username to a file in `web/avatars/`
+- **Player pictures:** `AVATARS` in `common.js` maps a username to a file in `web/avatars/` or an emoji
   (256 px square JPEG); `avatar(p)` renders it, or the initial for anyone without one. Shown on the
-  trophy-case header and the scoreboard cards. phoenix_lord has the golden phoenix.
+  trophy-case header and the scoreboard cards. phoenix_lord has the golden phoenix, dad_commander 😎.
 - Sound effects are synthesized (`web/sfx.js`, no audio files).
 - **Settings** (⚙️ in the corner of every page, `openSettings` in `common.js`): per-device
   switches for Sound, Vibration (every `navigator.vibrate` goes through it) and Big moments

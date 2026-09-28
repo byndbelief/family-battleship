@@ -427,6 +427,8 @@ body.has-firebar { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)
 .avatar { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; font-family: var(--display); font-size: 30px; flex: none;
   background: linear-gradient(160deg, var(--flag), #E0892F); color: var(--flag-ink); box-shadow: 0 6px 16px #0003; }
 .avatar.pic, .mini.pic { object-fit: cover; background: #000; padding: 0; }
+.avatar.emo { font-family: inherit; font-size: 40px; }
+.mini.emo { font-size: 16px; }
 .avatar.pic { box-shadow: 0 0 0 2px #E8B84A, 0 6px 16px #0003; }
 .mini { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; vertical-align: -6px; font-size: 13px;
   background: linear-gradient(160deg, var(--flag), #E0892F); color: var(--flag-ink); }
