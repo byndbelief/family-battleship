@@ -1,6 +1,6 @@
 // Sound effects, synthesized on the fly with Web Audio (no files to download).
 // Browsers only allow sound after the player taps something, so effects before the
-// first tap are silently skipped. A 🔊 button on every page mutes them; the choice is
+// first tap are silently skipped. Settings (⚙️, in common.js) mutes them; the choice is
 // remembered on this device.
 
 let ac = null, master = null, noiseBuf = null;
@@ -82,14 +82,3 @@ export function sfx(name, opts) {
 }
 export const isMuted = () => muted;
 export function setMuted(m) { muted = m; try { localStorage.setItem(KEY, m ? '1' : '0'); } catch {} }
-
-// A small fixed mute button, bottom right.
-export function soundButton() {
-  if (document.getElementById('sfxToggle')) return;
-  const b = document.createElement('button');
-  b.id = 'sfxToggle'; b.type = 'button';
-  b.style.cssText = 'position:fixed;right:calc(12px + env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:70;width:44px;height:44px;border-radius:50%;border:1.5px solid #ffffff44;background:#141026cc;color:#fff;font-size:20px;line-height:1;padding:0;cursor:pointer;box-shadow:0 6px 16px #0006';
-  const show = () => { b.textContent = muted ? '🔇' : '🔊'; b.setAttribute('aria-label', muted ? 'Turn sound on' : 'Turn sound off'); b.setAttribute('aria-pressed', String(!muted)); };
-  b.onclick = () => { setMuted(!muted); show(); if (!muted) { unlock(); setTimeout(() => sfx('click'), 30); } };
-  show(); document.body.appendChild(b);
-}

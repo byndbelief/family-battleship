@@ -48,7 +48,12 @@ takes a bare username.
   `family_stats()`, which returns totals, streaks and head-to-head only.
   Each player has a **trophy case** (`#player=<id>`, `010_trophies.sql` → `player_trophies()`):
   a shelf with a cup per Gauntlet title, and badges (`BADGES` in `app.js`) earned from the same log.
-- Sound effects are synthesized (`web/sfx.js`, no audio files) with a remembered mute.
+- Sound effects are synthesized (`web/sfx.js`, no audio files).
+- **Settings** (⚙️ in the corner of every page, `openSettings` in `common.js`): per-device
+  switches for Sound, Vibration (every `navigator.vibrate` goes through it) and Big moments
+  (`dramaOn()`: off turns splashes into quick notes and drops the danger pulse and slow motion),
+  a default Gauntlet length, links to turn alerts (`#alerts`) and My trophies, change password
+  (`auth.updateUser`) and sign out. Game rules (shot clock, aim hints) are deliberately not settings.
 
 ## Layout
 

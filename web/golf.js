@@ -1,5 +1,5 @@
 // Putt Post, live: turns and scores are saved on the server; putts replay for everyone.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, dramaOn } from './common.js';
 import {
   LW, LH, HOLES, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, drawHole,
   inPoly, inRect, segDist, reduceMotion,
@@ -108,7 +108,7 @@ function roll(stroke, h, speed = 2) {
     let lastClack = 0;
     const step = () => {
       // Will it drop? Half speed while the ball creeps up on the cup.
-      const nearCup = !quiet && !reduceMotion && Math.hypot(b.x - h.cup[0], b.y - h.cup[1]) < 50 && Math.hypot(b.vx, b.vy) < 3;
+      const nearCup = !quiet && !reduceMotion && dramaOn() && Math.hypot(b.x - h.cup[0], b.y - h.cup[1]) < 50 && Math.hypot(b.vx, b.vy) < 3;
       const per = skipReplay && mode === 'replay' ? 400 : nearCup ? 1 : speed;
       for (let i = 0; i < per; i++) {
         const ev = tick(b, h);

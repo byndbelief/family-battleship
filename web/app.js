@@ -1,5 +1,5 @@
 import { VAPID_PUBLIC_KEY, USERNAME_DOMAIN } from './config.js';
-import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn } from './common.js';
+import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds } from './common.js';
 import { HOLES, holeWithAttack, drawHole, LW, LH } from './golf-engine.js';
 import { W as DW, H as DH, TANK_X, buildTop } from './duel-engine.js';
 const app = document.getElementById('app');
@@ -358,7 +358,7 @@ async function lobby() {
           <span class="gtlabel" id="gtLabel">New rival</span>
           <div class="choice">${others.map(([id, u]) => `<button type="button" class="chip" data-gopp="${esc(u)}" data-gid="${id}" aria-pressed="false">${bots.has(id) ? '🤖 ' : ''}${esc(u)}</button>`).join('')}</div>
           <div class="row gtrow">
-            <div class="seg" role="radiogroup" aria-label="Rounds">${[3, 5, 7].map((r) => `<label><input type="radio" name="gtRounds" value="${r}" ${r === 3 ? 'checked' : ''}>${r} rounds</label>`).join('')}</div>
+            <div class="seg" role="radiogroup" aria-label="Rounds">${[3, 5, 7].map((r) => `<label><input type="radio" name="gtRounds" value="${r}" ${r === gauntletRounds() ? 'checked' : ''}>${r} rounds</label>`).join('')}</div>
             <button class="gtbtn" type="submit" id="gtGo" disabled>Start 🏆</button>
           </div>
           <p class="error" id="gtErr" hidden></p>
@@ -514,6 +514,8 @@ async function lobby() {
     else location.href = `${k}.html#game=${data}`;
   });
   renderAlerts();
+  // From Settings › Turn alerts (#alerts): open the alerts card and bring it into view.
+  if (location.hash === '#alerts') setTimeout(() => { const a = document.getElementById('alerts'); a?.classList.add('show'); a?.scrollIntoView({ block: 'center' }); document.getElementById('alertsT')?.setAttribute('aria-expanded', 'true'); }, 300);
   // Phones: Backpack, Chaos feed and Turn alerts sit behind one row of small buttons.
   app.querySelectorAll('[data-show]').forEach((b) => { b.onclick = () => {
     const el = document.getElementById(b.dataset.show), on = !el.classList.contains('show');

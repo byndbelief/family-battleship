@@ -1,6 +1,6 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, shotClock, stopShotClock, chaosClock } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, shotClock, stopShotClock, chaosClock, dramaOn } from './common.js';
 import { W, H, TANK_X, CRATER_R, BERTHA_R, rng, buildTop, windFor, tankPos, simulate, damage } from './duel-engine.js';
 
 const $ = (id) => document.getElementById(id);
@@ -141,7 +141,7 @@ function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1) {
     sfx('cannon'); if (!reduceMotion) sfx('whistle', { delay: 0.15, dur: Math.max(0.3, sim.path.length / 3 / 60 - 0.15) });
     const step = () => {
       // Slow motion as the shell closes in on a tank.
-      const q = shot.path[Math.min(shot.i, shot.path.length - 1)], near = !reduceMotion && [0, 1].some((t) => { const k = tankPos(t, top); return Math.hypot(q.x - k.x, q.y - (k.y - 8)) < 90; });
+      const q = shot.path[Math.min(shot.i, shot.path.length - 1)], near = !reduceMotion && dramaOn() && [0, 1].some((t) => { const k = tankPos(t, top); return Math.hypot(q.x - k.x, q.y - (k.y - 8)) < 90; });
       shot.i = Math.min(shot.path.length, shot.i + (near ? 1 : 3));
       if (shot.i < shot.path.length) return requestAnimationFrame(step);
       shot = null;

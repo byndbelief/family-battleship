@@ -2,10 +2,10 @@
 // player names, which players are robots, and turn alerts.
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
-import { sfx, soundButton } from './sfx.js';
+import { sfx, isMuted, setMuted } from './sfx.js';
 export { sfx };
 
-soundButton();
+settingsButton();
 
 // ---------------------------------------------------------------- full screen for the game area
 // A page puts fsButton('#someId') inside the part of the page that is the game. On phones
@@ -19,7 +19,7 @@ fsStyle.textContent = `
   .fs-on{position:fixed!important;inset:0;z-index:60;margin:0!important;max-width:none!important;width:auto!important;overflow:auto;overscroll-behavior:contain;
     background:var(--bg,#101024);box-sizing:border-box;padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))}
   body.fs-lock{overflow:hidden}
-  body.fs-lock #sfxToggle{bottom:auto!important;top:calc(8px + env(safe-area-inset-top,0px))}`;
+  body.fs-lock #setBtn{bottom:auto!important;top:calc(8px + env(safe-area-inset-top,0px))}`;
 document.head.appendChild(fsStyle);
 const fsNative = () => document.fullscreenElement || document.webkitFullscreenElement;
 function fsLabels() {
@@ -345,6 +345,7 @@ document.head.appendChild(gtCss);
 // A full-screen moment: big lines slam in over a dark flash ("ROUND 3", "K.O.!"), then clear.
 // Tap to skip. Reduced motion keeps the words and drops the slam.
 export function splash(lines, { tone = 'gold', ms = 2200, sound = 'stinger' } = {}) {
+  if (!dramaOn()) { note(lines.map((l) => String(l).replace(/<[^>]+>/g, '')).join(' · '), tone === 'red' ? 'error' : ''); return; }   // Big moments off: a quick note instead
   document.getElementById('dramaSplash')?.remove();
   const el = document.createElement('div'); el.id = 'dramaSplash'; el.className = `drama drama-${tone}`;
   el.setAttribute('role', 'status');
@@ -358,6 +359,7 @@ export function splash(lines, { tone = 'gold', ms = 2200, sound = 'stinger' } = 
 let dangerTimer = null;
 export function danger(on) {
   let v = document.getElementById('dangerV');
+  if (on && !dramaOn()) on = false;
   if (!on) { v?.remove(); clearInterval(dangerTimer); dangerTimer = null; return; }
   if (v) return;
   v = document.createElement('div'); v.id = 'dangerV'; v.setAttribute('aria-hidden', 'true');
@@ -498,3 +500,137 @@ clockCss.textContent = `
   #shotClock.inline.hurry{animation-name:clockPulseIn}
   @keyframes clockPulseIn{50%{transform:scale(1.12)}}`;
 document.head.appendChild(clockCss);
+
+// ---------------------------------------------------------------- settings (⚙️, every page)
+// Per-device preferences, remembered in localStorage. The ⚙️ button in the corner opens a sheet.
+const pref = (k, d) => { try { const v = localStorage.getItem(`set.${k}`); return v == null ? d : JSON.parse(v); } catch { return d; } };
+const setPref = (k, v) => { try { localStorage.setItem(`set.${k}`, JSON.stringify(v)); } catch {} };
+export const dramaOn = () => pref('drama', true) && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+export const hapticsOn = () => pref('haptics', true);
+export const gauntletRounds = () => pref('gtRounds', 3);
+// Vibration everywhere goes through here, so the switch covers every buzz in every game.
+try {
+  const vib = navigator.vibrate?.bind(navigator);
+  if (vib) Object.defineProperty(navigator, 'vibrate', { configurable: true, value: (p) => (hapticsOn() ? vib(p) : false) });
+} catch {}
+export async function signOutHere() {
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    const sub = await reg?.pushManager.getSubscription();
+    if (sub) { await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); }
+  } catch {}
+  await sb.auth.signOut();
+  location.href = './';
+}
+function settingsButton() {
+  if (document.getElementById('setBtn')) return;
+  const b = document.createElement('button');
+  b.id = 'setBtn'; b.type = 'button'; b.textContent = '⚙️'; b.setAttribute('aria-label', 'Settings');
+  b.style.cssText = 'position:fixed;right:calc(12px + env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:70;width:44px;height:44px;border-radius:50%;border:1.5px solid #ffffff44;background:#141026cc;color:#fff;font-size:21px;line-height:1;padding:0;cursor:pointer;box-shadow:0 6px 16px #0006';
+  b.onclick = openSettings;
+  document.body.appendChild(b);
+}
+function sw(key, on, label, hint) {
+  return `<div class="setrow"><div><strong>${label}</strong><span>${hint}</span></div>
+    <button type="button" class="switch" role="switch" aria-checked="${on}" data-sw="${key}" aria-label="${label}"><i></i></button></div>`;
+}
+export async function openSettings() {
+  if (document.getElementById('setSheet')) return;
+  const { data: { session } } = await sb.auth.getSession();
+  const uid = session?.user?.id;
+  const uname = uid ? (names[uid] || (await sb.from('profiles').select('username').eq('id', uid).maybeSingle()).data?.username) : null;
+  const wrap = document.createElement('div'); wrap.id = 'setSheet';
+  wrap.innerHTML = `<div class="setback"></div>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="setTitle">
+      <div class="row between"><h2 id="setTitle">⚙️ Settings</h2><button type="button" class="setx" aria-label="Close settings">✕</button></div>
+      ${uname ? `<p class="setwho">Signed in as <strong>${esc(uname)}</strong></p>` : ''}
+      <div class="setgroup">
+        ${sw('sound', !isMuted(), '🔊 Sound', 'Game sounds and music stings')}
+        ${navigator.vibrate ? sw('haptics', hapticsOn(), '📳 Vibration', 'A buzz on hits, taps and secrets') : ''}
+        ${sw('drama', pref('drama', true), '🎬 Big moments', 'Splash screens, slow motion and the danger pulse. Off: quick notes instead')}
+      </div>
+      ${uid ? `<div class="setgroup">
+        <div class="setrow"><div><strong>🏆 Gauntlet length</strong><span>Picked for you when you start one</span></div>
+          <div class="setseg" role="radiogroup" aria-label="Gauntlet length">${[3, 5, 7].map((r) => `<button type="button" role="radio" aria-checked="${gauntletRounds() === r}" data-rounds="${r}">${r}</button>`).join('')}</div></div>
+        <a class="setrow link" href="./#alerts"><div><strong>🔔 Turn alerts</strong><span>Get a buzz when it's your turn</span></div><span class="setgo">›</span></a>
+        <a class="setrow link" href="./#player=${uid}"><div><strong>🏅 My trophies</strong><span>Your trophy case and badges</span></div><span class="setgo">›</span></a>
+      </div>
+      <div class="setgroup">
+        <button type="button" class="setrow link" id="pwOpen"><div><strong>🔑 Change password</strong><span>Pick a new one for this account</span></div><span class="setgo">›</span></button>
+        <form id="pwForm" class="pwform" hidden>
+          <label>New password<input type="password" id="pw1" autocomplete="new-password" minlength="6" required></label>
+          <label>Type it again<input type="password" id="pw2" autocomplete="new-password" minlength="6" required></label>
+          <div class="row"><button type="submit" class="setbtn">Save password</button><span class="small" id="pwMsg"></span></div>
+        </form>
+        <button type="button" class="setrow link danger" id="setOut"><div><strong>🚪 Sign out</strong><span>On this device</span></div></button>
+      </div>` : ''}
+    </div>`;
+  document.body.appendChild(wrap);
+  const close = () => { wrap.remove(); document.removeEventListener('keydown', onKey); document.getElementById('setBtn')?.focus(); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  wrap.querySelector('.setback').onclick = close; wrap.querySelector('.setx').onclick = close;
+  wrap.querySelector('.setx').focus();
+  wrap.querySelectorAll('[data-sw]').forEach((b) => { b.onclick = () => {
+    const on = b.getAttribute('aria-checked') !== 'true'; b.setAttribute('aria-checked', String(on));
+    const k = b.dataset.sw;
+    if (k === 'sound') { setMuted(!on); if (on) setTimeout(() => sfx('click'), 30); }
+    else { setPref(k, on); if (k === 'haptics' && on) navigator.vibrate?.(20); if (k === 'drama' && !on) danger(false); }
+  }; });
+  wrap.querySelectorAll('[data-rounds]').forEach((b) => { b.onclick = () => {
+    setPref('gtRounds', +b.dataset.rounds);
+    wrap.querySelectorAll('[data-rounds]').forEach((o) => o.setAttribute('aria-checked', String(o === b)));
+  }; });
+  wrap.querySelectorAll('a.setrow').forEach((a) => a.addEventListener('click', () => setTimeout(close, 0)));
+  const pwOpen = wrap.querySelector('#pwOpen');
+  if (pwOpen) pwOpen.onclick = () => { const f = wrap.querySelector('#pwForm'); f.hidden = !f.hidden; if (!f.hidden) wrap.querySelector('#pw1').focus(); };
+  const pwForm = wrap.querySelector('#pwForm');
+  if (pwForm) pwForm.onsubmit = async (e) => {
+    e.preventDefault();
+    const a = wrap.querySelector('#pw1').value, b = wrap.querySelector('#pw2').value, msg = wrap.querySelector('#pwMsg');
+    if (a.length < 6) { msg.textContent = 'At least 6 characters.'; return; }
+    if (a !== b) { msg.textContent = "Those don't match."; return; }
+    const { error } = await sb.auth.updateUser({ password: a });
+    msg.textContent = error ? friendly(error) : '✅ Saved. Use it next time you sign in.';
+    if (!error) { pwForm.reset(); }
+  };
+  const out = wrap.querySelector('#setOut');
+  if (out) out.onclick = () => { out.disabled = true; signOutHere(); };
+}
+const setCss = document.createElement('style');
+setCss.textContent = `
+  #setSheet{position:fixed;inset:0;z-index:95;display:flex;align-items:flex-end;justify-content:center}
+  #setSheet .setback{position:absolute;inset:0;background:#0009;animation:setFade .2s ease-out}
+  #setSheet .sheet{position:relative;width:min(480px,100%);max-height:88vh;overflow:auto;background:#fff;color:#13233A;border-radius:20px 20px 0 0;
+    padding:16px 16px calc(20px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px;font:16px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;
+    box-shadow:0 -12px 40px #0006;animation:setUp .25s ease-out}
+  @media (min-width:640px){#setSheet{align-items:center}#setSheet .sheet{border-radius:20px}}
+  #setSheet h2{margin:0;font:800 20px/1.2 system-ui,sans-serif}
+  #setSheet .row{display:flex;gap:10px;align-items:center}#setSheet .between{justify-content:space-between}
+  #setSheet .setx{width:40px;height:40px;border-radius:50%;border:0;background:#EEF2F6;font-size:18px;cursor:pointer;color:inherit}
+  #setSheet .setwho{margin:0;color:#566A80;font-size:14px}
+  #setSheet .setgroup{display:flex;flex-direction:column;border:1px solid #D7E0EA;border-radius:14px;overflow:hidden}
+  #setSheet .setrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:0;border-top:1px solid #E6ECF2;background:none;color:inherit;font:inherit;text-align:left;text-decoration:none;width:100%}
+  #setSheet .setgroup > .setrow:first-child{border-top:0}
+  #setSheet .setrow > div{display:flex;flex-direction:column;min-width:0}
+  #setSheet .setrow span{font-size:13px;color:#566A80}
+  #setSheet .setrow.link{cursor:pointer}#setSheet .setrow.link:hover{background:#F4F7FA}
+  #setSheet .setrow.danger strong{color:#C0392B}
+  #setSheet .setgo{font-size:24px;color:#8FA2B6}
+  #setSheet .switch{flex:none;width:52px;height:30px;border-radius:99px;border:0;background:#C9D3DE;position:relative;cursor:pointer;transition:background .2s}
+  #setSheet .switch i{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0005;transition:left .2s}
+  #setSheet .switch[aria-checked=true]{background:#2FA36B}#setSheet .switch[aria-checked=true] i{left:25px}
+  #setSheet .setrow > .setseg{display:flex;flex-direction:row;border:1.5px solid #C9D3DE;border-radius:99px;overflow:hidden;flex:none}
+  #setSheet .setseg button{border:0;background:none;padding:6px 14px;font:700 15px/1 system-ui,sans-serif;cursor:pointer;color:inherit}
+  #setSheet .setseg button[aria-checked=true]{background:#1E5A96;color:#fff}
+  #setSheet .pwform{display:flex;flex-direction:column;gap:10px;padding:4px 14px 14px}
+  #setSheet .pwform label{display:flex;flex-direction:column;gap:4px;font-size:14px;font-weight:600}
+  #setSheet .pwform input{font:inherit;padding:10px 12px;border-radius:10px;border:1.5px solid #C9D3DE}
+  #setSheet .setbtn{border:0;border-radius:10px;padding:10px 16px;background:#1E5A96;color:#fff;font:700 15px/1 system-ui,sans-serif;cursor:pointer}
+  #setSheet :focus-visible{outline:3px solid #F2C230;outline-offset:2px}
+  @keyframes setUp{from{transform:translateY(30px);opacity:0}} @keyframes setFade{from{opacity:0}}
+  @media (prefers-color-scheme:dark){#setSheet .sheet{background:#142238;color:#E6EEF6}#setSheet .setgroup,#setSheet .setrow{border-color:#2A4262}
+    #setSheet .setx{background:#1A3453}#setSheet .setrow span,#setSheet .setwho{color:#9BACC2}#setSheet .setrow.link:hover{background:#1A3453}
+    #setSheet .pwform input{background:#0C1624;color:inherit;border-color:#2A4262}}
+  @media (prefers-reduced-motion:reduce){#setSheet .sheet,#setSheet .setback{animation:none}}`;
+document.head.appendChild(setCss);
