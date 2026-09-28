@@ -1,7 +1,7 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
 import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, shotClock, stopShotClock, chaosClock, dramaOn, face, jumpToNext, setGameTools, condenseTop, compactPack } from './common.js';
-import { W, H, CRATER_R, BERTHA_R, rng, buildTop as buildTopN, applyCrater, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, startXs, zones, aimDir, digCut, coveredAt, TUN } from './duel-engine.js';
+import { W, H, CRATER_R, BERTHA_R, rng, buildTop as buildTopN, applyCrater, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, startXs, zones, aimDir, digCut, coveredAt, TUN, setWorld } from './duel-engine.js';
 
 const $ = (id) => document.getElementById(id);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -63,7 +63,7 @@ const standing = (X, hp, shooter) => X.map((x, i) => (i === shooter || (hp?.[i] 
 // The default barrel for a tank nobody is aiming: toward the middle.
 const restAngle = (p, X) => (multi() ? (X[p] < W / 2 ? 45 : 135) : 45);
 const cv = $('cv'), ctx = cv.getContext('2d');
-const stars = Array.from({ length: 90 }, (_, i) => { const r = rng(i * 7919 + 3); return { x: r() * W, y: r() * 240, s: r() * 1.4 + 0.3, t: r() * 6 }; });
+const stars = Array.from({ length: 90 }, (_, i) => { const r = rng(i * 7919 + 3); return { x: r(), y: r() * 240, s: r() * 1.4 + 0.3, t: r() * 6 }; });
 const myIdx = () => G.game.players.indexOf(me.id);
 const turnId = () => G.game.players[G.game.turn];
 // The special shell a player has loaded (🎆 cluster, 🚀 homing, ⚡ railgun, 🪨 dirt), or null.
@@ -104,16 +104,17 @@ const markSeen = (m) => { try { if (m > seenMove()) localStorage.setItem(seenKey
 
 function draw(t) {
   if (!G || !top) return;
-  const g = G.game, k = cv.width / W; ctx.setTransform(k, 0, 0, k, 0, 0);
+  const g = G.game, k = cv.width / W, dy = H - 440; ctx.setTransform(k, 0, 0, k, 0, 0);   // dy: the extra sky a bigger battlefield has
   const sky = ctx.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#1B1646'); sky.addColorStop(0.6, '#3B2A6E'); sky.addColorStop(1, '#7A3E72');
   ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
-  stars.forEach((s) => { ctx.globalAlpha = 0.5 + 0.5 * Math.sin(t / 900 + s.t); ctx.fillStyle = '#fff'; ctx.fillRect(s.x, s.y, s.s, s.s); }); ctx.globalAlpha = 1;
-  const mg = ctx.createRadialGradient(610, 90, 10, 610, 90, 120); mg.addColorStop(0, '#FFF4D6'); mg.addColorStop(0.28, '#FFE3A3'); mg.addColorStop(0.3, '#FFC85733'); mg.addColorStop(1, '#FFC85700');
-  ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(610, 90, 120, 0, 7); ctx.fill();
+  stars.forEach((s) => { ctx.globalAlpha = 0.5 + 0.5 * Math.sin(t / 900 + s.t); ctx.fillStyle = '#fff'; ctx.fillRect(s.x * W, s.y * (H / 440), s.s, s.s); }); ctx.globalAlpha = 1;
+  const mx = W * 0.7625, my = 90 + dy * 0.5;
+  const mg = ctx.createRadialGradient(mx, my, 10, mx, my, 120); mg.addColorStop(0, '#FFF4D6'); mg.addColorStop(0.28, '#FFE3A3'); mg.addColorStop(0.3, '#FFC85733'); mg.addColorStop(1, '#FFC85700');
+  ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(mx, my, 120, 0, 7); ctx.fill();
   ctx.fillStyle = '#2A2158'; ctx.beginPath(); ctx.moveTo(0, H);
-  for (let x = 0; x <= W; x += 10) ctx.lineTo(x, 250 + Math.sin(x * 0.011 + g.seed) * 30 + Math.sin(x * 0.027) * 14);
+  for (let x = 0; x <= W; x += 10) ctx.lineTo(x, 250 + dy + Math.sin(x * 0.011 + g.seed) * 30 + Math.sin(x * 0.027) * 14);
   ctx.lineTo(W, H); ctx.fill();
-  const tg = ctx.createLinearGradient(0, 170, 0, H); tg.addColorStop(0, '#3DD6C6'); tg.addColorStop(0.08, '#1F8C8A'); tg.addColorStop(1, '#0F2E3F');
+  const tg = ctx.createLinearGradient(0, 170 + dy, 0, H); tg.addColorStop(0, '#3DD6C6'); tg.addColorStop(0.08, '#1F8C8A'); tg.addColorStop(1, '#0F2E3F');
   ctx.fillStyle = tg; ctx.beginPath(); ctx.moveTo(0, H); for (let x = 0; x < W; x++) ctx.lineTo(x, top[x]); ctx.lineTo(W, H); ctx.fill();
   ctx.strokeStyle = '#9BF5EA'; ctx.lineWidth = 2; ctx.beginPath(); for (let x = 0; x < W; x++) ctx[x ? 'lineTo' : 'moveTo'](x, top[x]); ctx.stroke();
   // Tunnels (⛏️ Dig): the hollow inside the hill, dark, with the tank sitting in it under its roof.
@@ -416,6 +417,7 @@ async function load(id) {
   ]);
   if (!g.data) return false;
   const { data: prof } = await sb.from('profiles').select('id, username').in('id', g.data.players);
+  setWorld(g.data.world);   // 3-4 tanks: a wider battlefield, drawn zoomed out (031)
   G = { game: g.data, shots: s.data ?? [], names: Object.fromEntries((prof ?? []).map((p) => [p.id, p.username])) };
   if (G.game.gauntlet_id) gauntletBar(G.game.gauntlet_id, G.game.id, me.id, (p) => G.names[p] ?? names[p] ?? 'someone');
   return true;

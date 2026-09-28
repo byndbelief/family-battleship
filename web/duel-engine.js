@@ -1,22 +1,28 @@
 // Hilltop Duel engine: the hills, wind, shell flight and damage. Shared by the duel page and the lobby previews.
-export const W = 800, H = 440, TANK_X = [90, 710], GRAV = 0.12, CRATER_R = 28, BERTHA_R = 44;
+export const TANK_X = [90, 710], GRAV = 0.12, CRATER_R = 28, BERTHA_R = 44;
+// The battlefield (031): 800 × 440 for two tanks, wider (and taller, same shape) for more, so the
+// page zooms out: 1000 for three, 1200 for four (duel_games.world). The page sets it for the duel
+// it shows; the numbers everywhere else follow (these are live bindings for importers too).
+export let W = 800, H = 440;
+export function setWorld(w = 800) { W = w || 800; H = Math.round((440 * W) / 800); }
 function rng(seed) { let x = seed >>> 0 || 1; return () => { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; }; }
 // 3-4 player duels (023): tanks start spread along the ridge and each drives within its own
 // stretch. Two players keep the old spots and halves (and aim facing each other, 5-85°); with more,
 // the angle is absolute, 5-175°, and past 90° fires to the left.
-const START = { 2: [90, 710], 3: [90, 400, 710], 4: [90, 300, 500, 710] };
-const startXs = (n) => START[n] || START[2];
+// Spread across the battlefield's width (the same spots as _duel_start_x / _duel_zone, 031).
+const startXs = (n) => (n === 3 ? [90, Math.floor(W / 2), W - 90] : n === 4 ? [90, Math.round(W * 0.375), Math.round(W * 0.625), W - 90] : [90, W - 90]);
 function zones(n) {
-  if (n <= 2) return [[30, 330], [470, 770]];
+  if (n <= 2) return [[30, Math.floor(W / 2) - 70], [Math.floor(W / 2) + 70, W - 30]];
   const s = startXs(n);
-  return s.map((x, i) => [i === 0 ? 30 : Math.floor((s[i - 1] + x) / 2) + 50, i === n - 1 ? 770 : Math.floor((x + s[i + 1]) / 2) - 50]);
+  return s.map((x, i) => [i === 0 ? 30 : Math.floor((s[i - 1] + x) / 2) + 50, i === n - 1 ? W - 30 : Math.floor((x + s[i + 1]) / 2) - 50]);
 }
 // Which way a shot goes and how steep: { dir: 1 (right) or -1 (left), a: 5-85 }.
 const aimDir = (shooter, angle, xs = TANK_X) => (xs.length <= 2 ? { dir: shooter === 0 ? 1 : -1, a: angle } : angle <= 90 ? { dir: 1, a: angle } : { dir: -1, a: 180 - angle });
 function baseTerrain(seed, n = 2) {
   const r = rng(seed * 2654435761), a = [], waves = [];
   for (let i = 0; i < 4; i++) waves.push({ amp: 18 + r() * 42, f: (0.004 + r() * 0.012) * (i + 1) * 0.6, ph: r() * 6.28 });
-  for (let x = 0; x < W; x++) { let y = 300; waves.forEach((w) => { y += Math.sin(x * w.f + w.ph) * w.amp; }); a.push(Math.max(170, Math.min(400, y))); }
+  // The hills sit the same way on any width: the ground 140 up from the bottom, hills up to 270.
+  for (let x = 0; x < W; x++) { let y = H - 140; waves.forEach((w) => { y += Math.sin(x * w.f + w.ph) * w.amp; }); a.push(Math.max(H - 270, Math.min(H - 40, y))); }
   startXs(n).forEach((tx) => { const py = a[tx]; for (let x = tx - 22; x <= tx + 22; x++) a[x] = py; });
   return a;
 }
