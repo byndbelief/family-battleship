@@ -259,10 +259,28 @@ function toast(icon, message, kind) {
 }
 
 // A backpack bar for a game page: the items usable in this game (plus scrolls), as buttons.
-export function backpackBarHTML(items, gameKind, enabled) {
+export function backpackBarHTML(items, gameKind, enabled, { compact = false } = {}) {
   const usable = items.filter((l) => ITEMS[l.item].game === gameKind);
   if (!usable.length) return '';
   const counts = {}; usable.forEach((l) => { counts[l.item] = (counts[l.item] || []).concat(l.id); });
+  // Compact (phones, above the Fire! button): one row of icon buttons with a count badge; the name
+  // is still there for screen readers and as a long-press tooltip.
+  if (compact) {
+    if (!document.getElementById('packMiniCss')) {
+      const st = document.createElement('style'); st.id = 'packMiniCss';
+      st.textContent = `.packmini{display:flex;align-items:center;gap:8px;overflow-x:auto;scrollbar-width:none;padding:8px 6px 4px 0}
+.packmini::-webkit-scrollbar{display:none}
+.packmini .pmlabel{flex:none;font-size:18px;opacity:.8}
+.packmini button{position:relative;flex:none;width:42px;height:42px;min-height:0;padding:0;border-radius:12px;display:grid;place-items:center;font-size:21px;line-height:1;border:1.5px dashed #F2C23099;background:#F2C23012}
+.packmini button[disabled]{opacity:.35}
+.packmini button.on{opacity:1;border-style:solid;border-color:#F2C230;background:#F2C23033;box-shadow:0 0 10px #F2C23066}
+.packmini button b{position:absolute;right:-5px;top:-6px;min-width:17px;height:17px;padding:0 4px;border-radius:99px;background:#F2C230;color:#2A2100;font-size:10.5px;font-weight:800;display:grid;place-items:center}`;
+      document.head.appendChild(st);
+    }
+    return `<div class="packmini" role="group" aria-label="Backpack"><span class="pmlabel" aria-hidden="true">🎒</span>
+      ${Object.entries(counts).map(([item, ids]) => `<button type="button" data-loot="${ids[0]}" data-item="${item}" ${enabled ? '' : 'disabled'} title="${esc(ITEMS[item].name)}: ${esc(ITEMS[item].desc)}" aria-label="${esc(ITEMS[item].name)}${ids.length > 1 ? `, ${ids.length} left` : ''}"><span aria-hidden="true">${ITEMS[item].icon}</span>${ids.length > 1 ? `<b aria-hidden="true">${ids.length}</b>` : ''}</button>`).join('')}
+    </div>`;
+  }
   return `<div class="backpack" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;border:1.5px dashed #F2C23099;border-radius:14px;padding:10px 12px">
     <span style="font-weight:800;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#F2C230">🎒 Backpack</span>
     ${Object.entries(counts).map(([item, ids]) => `<button type="button" data-loot="${ids[0]}" data-item="${item}" ${enabled ? '' : 'disabled'} title="${esc(ITEMS[item].desc)}">${ITEMS[item].icon} ${ITEMS[item].name}${ids.length > 1 ? ` ×${ids.length}` : ''}</button>`).join('')}

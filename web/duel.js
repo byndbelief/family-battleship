@@ -305,9 +305,13 @@ function render() {
   if (mine && !busy && isPhone()) { try { if (!sessionStorage.getItem('duel.tip')) { sessionStorage.setItem('duel.tip', '1'); note('Drag on the battlefield to aim: direction sets the angle, distance the power.'); } } catch {} }
   cv.style.touchAction = canAim() ? 'none' : 'manipulation';   // dragging aims on your turn instead of scrolling
   cv.style.cursor = canAim() ? 'crosshair' : '';
-  $('pack').innerHTML = over || out ? '' : backpackBarHTML(pack, 'duel', !busy);
-  $('pack').querySelectorAll('[data-loot]').forEach((b) => {
+  // Phones, on your shot: the backpack as a row of icons right above Fire!; otherwise its own panel below.
+  const mini = isPhone() && mine && !$('controls').hidden;
+  $('packMini').innerHTML = mini ? backpackBarHTML(pack, 'duel', !busy, { compact: true }) : '';
+  $('pack').innerHTML = over || out || mini ? '' : backpackBarHTML(pack, 'duel', !busy);
+  document.querySelectorAll('#pack [data-loot], #packMini [data-loot]').forEach((b) => {
     const item = b.dataset.item;
+    b.classList.toggle('on', armedOf(me.id) === item || (item === 'bertha' && g.bertha.includes(me.id)) || (item === 'shield' && g.shields.includes(me.id)));
     const shell = item === 'bertha' || WEAPONS[item];
     if ((shell && (!mine || g.bertha.includes(me.id) || armedOf(me.id))) || (item === 'shield' && g.shields.includes(me.id))) b.disabled = true;
     b.onclick = async () => {
