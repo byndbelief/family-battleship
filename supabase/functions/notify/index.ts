@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
   });
   const { data: { user } } = await caller.auth.getUser();
   if (!user) return json({ error: 'Sign in first' }, 401);
-  if (kind === 'golf' || kind === 'duel') return otherGame(kind, gameId, user.id, caller);
+  if (kind === 'golf' || kind === 'duel' || kind === 'cards') return otherGame(kind, gameId, user.id, caller);
   const { data: game } = await caller.from('games').select('*').eq('id', gameId).maybeSingle();
   if (!game) return json({ error: 'Game not found' }, 404);
   if (game.status === 'over' && game.gauntlet_id) await gauntletNudge(game.gauntlet_id, user.id);
@@ -77,26 +77,29 @@ Deno.serve(async (req) => {
   return send(recipients, title, body, `./#game=${gameId}`, gameId);
 });
 
-// Putt Post and Hilltop Duel: tell whoever is up next.
+// Putt Post, Hilltop Duel and Chaos Cards: tell whoever is up next.
+const TABLE: Record<string, string> = { golf: 'golf_games', duel: 'duel_games', cards: 'card_games', battleship: 'games' };
+const LABEL: Record<string, string> = { golf: 'Putt Post', duel: 'Hilltop Duel', cards: 'Chaos Cards', battleship: 'Battleship' };
 async function otherGame(kind: string, gameId: string, callerId: string, caller: ReturnType<typeof createClient>) {
-  const { data: game } = await caller.from(kind === 'golf' ? 'golf_games' : 'duel_games').select('*').eq('id', gameId).maybeSingle();
+  const { data: game } = await caller.from(TABLE[kind]).select('*').eq('id', gameId).maybeSingle();
   if (!game) return json({ error: 'Game not found' }, 404);
   if (game.status === 'over' && game.gauntlet_id) await gauntletNudge(game.gauntlet_id, callerId);
   const admin = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
   const { data: profiles } = await admin.from('profiles').select('id, username').in('id', game.players);
   const name = (id: string) => profiles?.find((p) => p.id === id)?.username ?? 'Someone';
   const others = (game.players as string[]).filter((id) => id !== callerId);
-  const label = kind === 'golf' ? 'Putt Post' : 'Hilltop Duel';
+  const label = LABEL[kind];
   let recipients: string[] = [], title = label, body = '';
   if (game.status === 'over') {
     recipients = others;
     title = `${label}: game over`;
-    body = kind === 'duel' ? `${name(game.winner)} took the hill. Tap to see.` : 'The round is over. Tap for the final scores.';
+    body = kind === 'duel' ? `${name(game.winner)} took the hill. Tap to see.` : kind === 'cards' ? `${name(game.winner)} emptied their hand. Tap to see.` : 'The round is over. Tap for the final scores.';
   } else {
     const next = kind === 'golf' ? game.players[game.t % game.players.length] : game.players[game.turn];
     if (next !== callerId) recipients = [next];
     title = `Your turn: ${label}`;
-    body = kind === 'golf' ? `Hole ${game.start + Math.floor(game.t / game.players.length) + 1} is waiting. ${name(callerId)} just played.` : `${name(callerId)} just fired. Your shot.`;
+    body = kind === 'golf' ? `Hole ${game.start + Math.floor(game.t / game.players.length) + 1} is waiting. ${name(callerId)} just played.`
+      : kind === 'cards' ? `${name(callerId)} just played. Your cards.` : `${name(callerId)} just fired. Your shot.`;
   }
   return send(recipients, title, body, `./${kind}.html#game=${gameId}`, gameId);
 }
@@ -130,12 +133,12 @@ async function gauntletNudge(gauntletId: string, callerId: string) {
     return;
   }
   const kind = gt.current_kind as string;
-  const table = kind === 'battleship' ? 'games' : kind === 'golf' ? 'golf_games' : 'duel_games';
+  const table = TABLE[kind];
   const { data: g } = await admin.from(table).select('*').eq('id', gt.current_game).maybeSingle();
   if (!g) return;
   // Battleship starts with everyone placing ships; the other games have a first player.
   const recipients = kind === 'battleship' ? (g.players as string[]) : [kind === 'golf' ? g.players[g.t % g.players.length] : g.players[g.turn]];
-  const label = kind === 'battleship' ? 'Battleship' : kind === 'golf' ? 'Putt Post' : 'Hilltop Duel';
+  const label = LABEL[kind];
   const url = kind === 'battleship' ? `./#game=${g.id}` : `./${kind}.html#game=${g.id}`;
   await send(recipients.filter((p) => p !== callerId), `🏆 Gauntlet round ${gt.round} of ${gt.rounds}`, `${label} is up. Your move!`, url, g.id);
 }

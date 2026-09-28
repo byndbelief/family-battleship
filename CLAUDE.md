@@ -9,8 +9,9 @@ takes a bare username.
 - **Backend:** Supabase project **theGAME** (`okywhdfmdpdvrfhbkyeo`, us-west-2): Postgres with
   row-level security, `security definer` RPCs for every move, Realtime, and the `notify`
   Edge Function (Web Push, VAPID).
-- **Games:** ⚓ Battleship, ⛳ Putt Post (mini golf), 💥 Hilltop Duel (artillery), and
-  🏆 **the Gauntlet**, a best-of series of random rounds of those three. Chaos layer on top:
+- **Games:** ⚓ Battleship, ⛳ Putt Post (mini golf), 💥 Hilltop Duel (artillery), 🃏 Chaos
+  Cards (an Uno-style shedding game), and 🏆 **the Gauntlet**, a best-of series of random
+  rounds of those four. Chaos layer on top:
   loot, curses, twists (`005_chaos.sql`). Cheating is a deliberate game mechanic.
 
 ## Product direction (decided — apply, don't re-ask)
@@ -86,6 +87,17 @@ takes a bare username.
   Battleship game `fire` no longer also runs `_bot_maybe_play`. The aim
   hint is deliberately a rough guide — a hidden per-turn error, a wobble, 65% of the flight —
   because the family found an accurate one made every shot a hit. Don't make it exact again.
+- **Chaos Cards** (`018_chaos_cards.sql`, `web/cards.html` + `cards.js`): 2–4 players, 7 cards,
+  match colour or number/symbol, first to empty their hand wins. Cards are text codes (`R5`, `GS`,
+  `B+2`, `YR`, `W`, `W4`) plus four chaos wilds: `CS` swap hands, `CT` target draws 3, `CP` everyone
+  passes their hand along, `CB` bomb (everyone else draws 2). Every 4–6 moves a random event hits
+  the table (colour storm, card rain, reverse). One card left without calling "Last card!" leaves
+  you `exposed`; anyone can catch you (+2) until you call it late or the next move is made. Hands
+  are secret (`card_hands` RLS: own row only); `card_piles` has no policy at all, so the deck never
+  leaves the server — keep it that way. Live (`live_here` kind `'cards'`): 10 s turns, any player's
+  page calls `card_timeout` (slow player draws 1). The robot plays via `card_bot_play` from a
+  watching page and counts as always present. Gauntlet deals it for any player count; the chaos
+  clock makes a staller draw 2/4, and a 24 h Gauntlet forfeit goes to the fewest cards.
 - **Duel weapons** (`016_duel_weapons.sql`; physics in `duel-engine.js`: `simulateWeapon`,
   `weaponCraters`, `weaponDamage`): loot shells beside 💣 Big Bertha, loaded from the backpack on
   your turn (or any time live), one special shell at a time (`duel_games.armed`, player → weapon).
@@ -143,7 +155,8 @@ takes a bare username.
 
 - `web/index.html` + `app.js` — sign-in, lobby, and Battleship (the lobby and Battleship
   share one page, routed by `#game=<id>`). `style.css` is theirs.
-- `web/golf.html` + `golf.js` + `golf-engine.js`; `web/duel.html` + `duel.js` + `duel-engine.js`.
+- `web/golf.html` + `golf.js` + `golf-engine.js`; `web/duel.html` + `duel.js` + `duel-engine.js`;
+  `web/cards.html` + `cards.js` (all rules server-side, no engine).
   The engines are deterministic (seeded), so every device replays a shot identically;
   the lobby imports them for previews.
 - `web/common.js` — shared by all pages: Supabase client, sign-in state, `notify`, loot,
@@ -166,7 +179,7 @@ takes a bare username.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.

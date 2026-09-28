@@ -266,16 +266,17 @@ function loginView(msg) {
 
 
 // ---------------------------------------------------------------- lobby
-const KIND_ICON = { battleship: '⚓', golf: '⛳', duel: '💥', gauntlet: '🏆' };
-const KIND_NAME = { battleship: 'Battleship', golf: 'Putt Post', duel: 'Hilltop Duel', gauntlet: 'The Gauntlet' };
+const KIND_ICON = { battleship: '⚓', golf: '⛳', duel: '💥', cards: '🃏', gauntlet: '🏆' };
+const KIND_NAME = { battleship: 'Battleship', golf: 'Putt Post', duel: 'Hilltop Duel', cards: 'Chaos Cards', gauntlet: 'The Gauntlet' };
 const KIND_BLURB = {
   battleship: 'Hide your fleet, hunt theirs. Peeking is allowed.',
   golf: '18 wild holes, sneak attacks and mulligans.',
   duel: 'Tanks on hills. Mind the wind.',
+  cards: 'Match colours, dump your hand. Chaos cards and card storms.',
   gauntlet: 'A best-of series of random games. Winner takes the crown.',
 };
-const KIND_SHORT = { battleship: 'Battleship', golf: 'Putt Post', duel: 'Duel', gauntlet: 'Gauntlet' };
-const KIND_WHO = { battleship: '2–3 players', golf: 'Solo or up to 4', duel: '2 players', gauntlet: '2–4 players · 3, 5 or 7 rounds' };
+const KIND_SHORT = { battleship: 'Battleship', golf: 'Putt Post', duel: 'Duel', cards: 'Cards', gauntlet: 'Gauntlet' };
+const KIND_WHO = { battleship: '2–3 players', golf: 'Solo or up to 4', duel: '2 players', cards: '2–4 players', gauntlet: '2–4 players · 3, 5 or 7 rounds' };
 
 async function lobby() {
   G = null;
@@ -316,7 +317,7 @@ async function lobby() {
       <section class="stack" id="newSec">
         <h2 class="qpick">Pick a game</h2>
         <div class="ncards" role="radiogroup" aria-label="Pick a game">
-          ${['battleship', 'golf', 'duel'].map((k) => `
+          ${['battleship', 'golf', 'duel', 'cards'].map((k) => `
           <button type="button" class="ncard k-${k}" data-kind="${k}" role="radio" aria-checked="false">
             <canvas class="preview" data-kind="${k}" width="320" height="200" aria-hidden="true"></canvas>
             <span class="nbody"><strong><span class="nfull">${KIND_ICON[k]} ${KIND_NAME[k]}</span><span class="nshort">${KIND_ICON[k]} ${KIND_SHORT[k]}</span></strong><span class="muted small">${KIND_BLURB[k]}</span><span class="eyebrow">${KIND_WHO[k]}</span></span>
@@ -387,7 +388,7 @@ async function lobby() {
   const picked = () => chips.filter((x) => x.getAttribute('aria-pressed') === 'true');
   const LIMITS = {
     battleship: [1, 2, 'Opponents (pick one, or two for a 3-way battle)'], golf: [0, 3, 'Opponents (none for a solo round, up to three)'],
-    duel: [1, 1, 'Opponent (pick one)'], gauntlet: [1, 3, 'Opponents (one to three)'],
+    duel: [1, 1, 'Opponent (pick one)'], cards: [1, 3, 'Opponents (one to three)'], gauntlet: [1, 3, 'Opponents (one to three)'],
   };
   const refreshForm = () => {
     if (!chosen) return;
@@ -396,7 +397,7 @@ async function lobby() {
     while (sel.length > hi) { sel[0].setAttribute('aria-pressed', 'false'); sel = picked(); }
     document.getElementById('oppHint').textContent = hint;
     app.querySelectorAll('[data-for]').forEach((el) => {
-      el.hidden = el.dataset.for === 'botlevel' ? !((k === 'golf' || k === 'duel') && sel.some((c) => bots.has(c.dataset.id))) : el.dataset.for !== k;
+      el.hidden = el.dataset.for === 'botlevel' ? !((k === 'golf' || k === 'duel' || k === 'cards') && sel.some((c) => bots.has(c.dataset.id))) : el.dataset.for !== k;
     });
     start.disabled = sel.length < lo || sel.length > hi;
     start.textContent = k === 'golf' && sel.length === 0 ? 'Start a solo round' : k === 'gauntlet' ? 'Start the Gauntlet' : 'Start game';
@@ -425,7 +426,7 @@ async function lobby() {
     start.disabled = true;
     // One game of each kind per group of players: if it's already going, pick it back up.
     const ids = picked().map((x) => x.dataset.id), group = [me.id, ...ids].sort().join(',');
-    const table = { battleship: 'games', golf: 'golf_games', duel: 'duel_games' }[k];
+    const table = { battleship: 'games', golf: 'golf_games', duel: 'duel_games', cards: 'card_games' }[k];
     const { data: running } = await sb.from(table).select('id, players, gauntlet_id').neq('status', 'over').is('gauntlet_id', null).limit(100);
     const same = (running ?? []).find((g) => [...g.players].sort().join(',') === group);
     if (same) {
@@ -439,6 +440,8 @@ async function lobby() {
       res = await sb.rpc('golf_create', { opponents, p_start: st, p_count: ct, p_random: document.getElementById('golfRandom').checked, p_bot_level: botLevel });
     } else if (k === 'duel') {
       res = await sb.rpc('duel_create', { p_opponent: opponents[0], p_bot_level: botLevel });
+    } else if (k === 'cards') {
+      res = await sb.rpc('card_create', { opponents, p_bot_level: botLevel });
     } else if (k === 'gauntlet') {
       res = await sb.rpc('gauntlet_create', { opponents, p_rounds: +app.querySelector('input[name=rounds]:checked').value });
     } else {
@@ -466,7 +469,7 @@ async function lobby() {
     if (on) { el.classList.add('show'); b.setAttribute('aria-expanded', 'true'); }
   }; });
   const reload = () => { loadGames(); loadChaos(); };
-  setChannel(['games', 'golf_games', 'duel_games', 'gauntlets', 'chaos_events'].reduce(
+  setChannel(['games', 'golf_games', 'duel_games', 'card_games', 'gauntlets', 'chaos_events'].reduce(
     (ch, table) => ch.on('postgres_changes', { event: '*', schema: 'public', table }, reload), sb.channel('lobby'))
     .subscribe((st) => { const l = document.getElementById('live'); if (l) l.classList.toggle('off', st !== 'SUBSCRIBED'); }));
   loadGames(); loadChaos();
@@ -480,18 +483,19 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && do
 // ---- your games, as a list of game states
 async function loadGames() {
   chaosClock().then((n) => { if (n) loadGames(); });   // overdue stalls land first (throttled to once a minute)
-  const [bsRes, golfRes, duelRes, gtRes] = await Promise.all([
+  const [bsRes, golfRes, duelRes, gtRes, cardRes] = await Promise.all([
     sb.from('games').select('*').order('updated_at', { ascending: false }).limit(40),
     sb.from('golf_games').select('*').order('updated_at', { ascending: false }).limit(40),
     sb.from('duel_games').select('*').order('updated_at', { ascending: false }).limit(40),
     sb.from('gauntlets').select('*').order('updated_at', { ascending: false }).limit(200),
+    sb.from('card_games').select('*').order('updated_at', { ascending: false }).limit(40),
   ]);
   const list = document.getElementById('games');
   if (!list) return;
   if (bsRes.error) { list.innerHTML = `<p class="error">Couldn't load games: ${esc(friendly(bsRes.error))}</p>`; return; }
-  const bs = bsRes.data ?? [], golf = golfRes.data ?? [], duel = duelRes.data ?? [];
+  const bs = bsRes.data ?? [], golf = golfRes.data ?? [], duel = duelRes.data ?? [], cardGames = cardRes.data ?? [];
   // A Gauntlet still in progress whose current round is gone (deleted) is dead; don't list it.
-  const alive = new Set([...bs, ...golf, ...duel].map((g) => g.id));
+  const alive = new Set([...bs, ...golf, ...duel, ...cardGames].map((g) => g.id));
   const gts = (gtRes.data ?? []).filter((g) => g.status === 'over' || alive.has(g.current_game));
   const bsIds = bs.map((g) => g.id), golfIds = golf.map((g) => g.id);
   const [{ data: myFleets }, { data: atMe }, { data: golfTurns }] = await Promise.all([
@@ -523,6 +527,13 @@ async function loadGames() {
   duel.forEach((g) => {
     const pill = g.status === 'over' ? (g.winner === me.id ? `<span class="pill done">You won</span>` : `<span class="pill done">${nm(g.winner)} won</span>`) : turnPill(g.players[g.turn]);
     cards.push({ at: g.updated_at, kind: 'duel', g, href: `duel.html#game=${g.id}`, mine: pill.includes('turn"'), over: g.status === 'over', prog: null, pill, sub: `${g.hp[0]} – ${g.hp[1]} HP${g.move ? ` · shot ${g.move}` : ''}`, vs: vsOf(g.players), extra: round(g) });
+  });
+  cardGames.forEach((g) => {
+    const pill = g.status === 'over' ? (g.winner === me.id ? `<span class="pill done">You won</span>` : `<span class="pill done">${nm(g.winner)} won</span>`) : turnPill(g.players[g.turn]);
+    const mine = g.counts[g.players.indexOf(me.id)];
+    cards.push({ at: g.updated_at, kind: 'cards', g, href: `cards.html#game=${g.id}`, mine: pill.includes('turn"'), over: g.status === 'over', prog: null, pill,
+      sub: g.status === 'over' ? `You ended with ${mine} card${mine === 1 ? '' : 's'}` : `You hold ${mine} · ${g.players.filter((p) => p !== me.id).map((p) => `${g.counts[g.players.indexOf(p)]}`).join(' / ')} for them`,
+      vs: vsOf(g.players), extra: round(g) });
   });
   gts.forEach((g) => {
     const lead = Math.max(...g.scores);
@@ -692,13 +703,33 @@ function drawSample(cv, kind) {
     drawPreview(cv, { kind, g: { id: 'sample', mode: 1 } }, [{ game_id: 'sample', ships: sampleFleet }], shots);
   } else if (kind === 'golf') drawPreview(cv, { kind, g: { seed: 20260927 }, hole: 6 });
   else if (kind === 'duel') drawPreview(cv, { kind, g: { seed: 4242, craters: [], hp: [80, 45] } });
+  else if (kind === 'cards') drawPreview(cv, { kind, g: { top: 'CB', color: 'B' } });
   else drawPreview(cv, { kind, g: { rounds: 5, round: 3, status: 'playing', current_kind: 'battleship', history: [{ kind: 'golf' }, { kind: 'duel' }] } });
 }
 
 // Little live pictures of each game.
+// A Chaos Cards table in miniature: felt, a fan of card backs, the face-up card in its colour.
+function drawCardsPreview(c, w, h, g) {
+  const col = { R: '#E5484D', G: '#2FB36C', B: '#3B82F6', Y: '#F5B81F' };
+  const felt = c.createRadialGradient(w / 2, h * 0.45, 10, w / 2, h / 2, w * 0.7); felt.addColorStop(0, '#1C7355'); felt.addColorStop(1, '#0B3A2C');
+  c.fillStyle = felt; c.fillRect(0, 0, w, h);
+  const cw = h * 0.36, ch = h * 0.52, rr = (x, y, ww, hh, r) => { c.beginPath(); c.roundRect(x, y, ww, hh, r); };
+  for (let i = 0; i < 5; i++) {   // a fan of backs
+    c.save(); c.translate(w * 0.3, h * 0.72); c.rotate(-0.5 + i * 0.25); rr(-cw / 2, -ch, cw, ch, 6);
+    c.fillStyle = '#23233d'; c.fill(); c.lineWidth = 3; c.strokeStyle = '#fff'; c.stroke(); c.restore();
+  }
+  const top = g.top || 'R7', wild = ['W', 'W4', 'CS', 'CT', 'CP', 'CB'].includes(top);
+  c.save(); c.translate(w * 0.68, h * 0.5); c.rotate(0.12); rr(-cw / 2, -ch / 2, cw, ch, 6);
+  c.fillStyle = wild ? '#1a1024' : col[top[0]] || '#333'; c.fill(); c.lineWidth = 3; c.strokeStyle = '#fff'; c.stroke();
+  c.shadowColor = col[g.color] || '#fff'; c.shadowBlur = 16; c.strokeStyle = col[g.color] || '#fff'; c.lineWidth = 4; c.stroke(); c.shadowBlur = 0;
+  c.fillStyle = '#fff'; c.font = `bold ${Math.round(ch * 0.4)}px system-ui, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText({ W: 'W', W4: '+4', CS: '🌀', CT: '🎯', CP: '🔀', CB: '💣' }[top] ?? ({ S: '⊘', R: '⇄' }[top.slice(1)] ?? top.slice(1)), 0, 2);
+  c.restore();
+}
 function drawPreview(cv, card, myFleets, atMe) {
   const c = cv.getContext('2d'), w = cv.width, h = cv.height;
   c.clearRect(0, 0, w, h);
+  if (card.kind === 'cards') return drawCardsPreview(c, w, h, card.g);
   if (card.kind === 'battleship') {
     const g = card.g, n = MODES[g.mode].n, cell = Math.floor((h - 16) / n), ox = (w - cell * n) / 2, oy = 8;
     c.fillStyle = '#0E2A44'; c.fillRect(0, 0, w, h);
@@ -814,7 +845,7 @@ async function statsView() {
     <a class="scard ${p.id === me.id ? 'me' : ''}" href="#player=${p.id}">
       <div class="row between"><strong class="sname">${medal[i] || ''} ${p.bot ? '' : avatar(p, 'mini')} ${who(p)}</strong>${p.streak >= 2 ? `<span class="streak">🔥 ${p.streak} in a row</span>` : ''}</div>
       <div class="sbig"><span><b>${p.titles}</b> 👑 Gauntlet${p.titles === 1 ? '' : 's'}</span><span><b>${p.won}</b>–${p.played - p.won} <small>${pct(p.won, p.played)}</small></span></div>
-      <div class="skinds">${['battleship', 'golf', 'duel'].map((k) => `<span>${KIND_ICON[k]} ${p.by_kind[k].won}/${p.by_kind[k].played}</span>`).join('')}<span>🏁 ${p.rounds_won} round${p.rounds_won === 1 ? '' : 's'}</span><span class="sgo">🏆 Trophies ›</span></div>
+      <div class="skinds">${['battleship', 'golf', 'duel', 'cards'].map((k) => `<span>${KIND_ICON[k]} ${p.by_kind[k]?.won ?? 0}/${p.by_kind[k]?.played ?? 0}</span>`).join('')}<span>🏁 ${p.rounds_won} round${p.rounds_won === 1 ? '' : 's'}</span><span class="sgo">🏆 Trophies ›</span></div>
     </a>`).join('');
   const award = (icon, label, key, fmt = (v) => v) => {
     const top = Math.max(0, ...ps.map((p) => p[key] || 0));

@@ -214,15 +214,16 @@ export function backpackBarHTML(items, gameKind, enabled) {
 }
 
 // ---------------------------------------------------------------- "your move" queue
-const KIND_ICON = { battleship: '⚓', golf: '⛳', duel: '💥' };
+const KIND_ICON = { battleship: '⚓', golf: '⛳', duel: '💥', cards: '🃏' };
 const hrefFor = (kind, id) => (kind === 'battleship' ? `./#game=${id}` : `${kind}.html#game=${id}`);
 // Every game where it's this player's move, newest first: { kind, id, href, at, players }.
 export async function myTurns(meId) {
-  const [bs, fl, golf, duel] = await Promise.all([
+  const [bs, fl, golf, duel, cardG] = await Promise.all([
     sb.from('games').select('id, players, turn, status, eliminated, updated_at').in('status', ['setup', 'playing']).limit(60),
     sb.from('fleets').select('game_id').eq('player_id', meId),
     sb.from('golf_games').select('id, players, t, status, updated_at').eq('status', 'playing').limit(60),
     sb.from('duel_games').select('id, players, turn, status, updated_at').eq('status', 'playing').limit(60),
+    sb.from('card_games').select('id, players, turn, status, updated_at').eq('status', 'playing').limit(60),
   ]);
   const placed = new Set((fl.data ?? []).map((f) => f.game_id)), out = [];
   (bs.data ?? []).forEach((g) => {
@@ -231,6 +232,7 @@ export async function myTurns(meId) {
   });
   (golf.data ?? []).forEach((g) => { if (g.players[g.t % g.players.length] === meId) out.push({ kind: 'golf', id: g.id, at: g.updated_at, players: g.players }); });
   (duel.data ?? []).forEach((g) => { if (g.players[g.turn] === meId) out.push({ kind: 'duel', id: g.id, at: g.updated_at, players: g.players }); });
+  (cardG.data ?? []).forEach((g) => { if (g.players[g.turn] === meId) out.push({ kind: 'cards', id: g.id, at: g.updated_at, players: g.players }); });
   out.forEach((x) => { x.href = hrefFor(x.kind, x.id); });
   return out.sort((a, b) => (a.at < b.at ? 1 : -1));
 }
@@ -313,7 +315,7 @@ document.head.appendChild(foldCss);
 // ---------------------------------------------------------------- the Gauntlet bar on a game page
 // Shows the series around this game: scores, the round track, and a button on to the next
 // round once this one is decided. Put <div id="gtbar"></div> where it should go.
-const GT_ICON = { battleship: '⚓', golf: '⛳', duel: '💥' };
+const GT_ICON = { battleship: '⚓', golf: '⛳', duel: '💥', cards: '🃏' };
 export async function gauntletBar(gauntletId, gameId, meId, nameOf) {
   const el = document.getElementById('gtbar');
   if (!gauntletId) { if (el) el.innerHTML = ''; return ''; }
@@ -421,7 +423,7 @@ export async function jumpToNext(kind, game, meId, nameOf, wait = 3000, mount = 
 // When the countdown (not a tap) starts it, every page counts down together, so one player's page
 // makes the game and the others wait a few seconds to join it.
 async function rematch(kind, game, meId, auto = false) {
-  const table = { duel: 'duel_games', golf: 'golf_games', battleship: 'games' }[kind];
+  const table = { duel: 'duel_games', golf: 'golf_games', battleship: 'games', cards: 'card_games' }[kind];
   const key = [...game.players].sort().join(',');
   const find = async () => {
     const { data: running } = await sb.from(table).select('id, players').neq('id', game.id).in('status', kind === 'battleship' ? ['setup', 'playing'] : ['playing']).is('gauntlet_id', null).order('created_at', { ascending: false }).limit(30);
@@ -442,6 +444,7 @@ async function createRematch(kind, game, meId) {
   const un = others.map((id) => (prof ?? []).find((p) => p.id === id)?.username).filter(Boolean);
   if (kind === 'duel') return sb.rpc('duel_create', { p_opponent: un[0] ?? '', p_bot_level: game.bot_level });
   if (kind === 'golf') return sb.rpc('golf_create', { opponents: un, p_start: game.start, p_count: game.count, p_random: !!game.seed, p_bot_level: game.bot_level });
+  if (kind === 'cards') return sb.rpc('card_create', { opponents: un, p_bot_level: game.bot_level });
   return sb.rpc('create_game', { opponents: un, p_mode: game.mode, p_spt: game.spt });
 }
 document.addEventListener('click', (e) => {
