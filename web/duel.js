@@ -26,7 +26,7 @@ const DODGE = 20;
 // few seconds), there are no turns. Fire whenever the cannon has reloaded, drive anywhere on your
 // side. Shells can be in the air at the same time (shells); `shot` is only a turn-based shell.
 let liveOn = false, reloadAt = 0, liveMyX = null, liveX = {}, liveSave = null, seenHp = null, shells = [];
-const RELOAD = 3000;
+const RELOAD = 1500;   // live battle: the server allows a shot every 1.2 s (025)
 const FUEL = 40;
 // 2 players face each other on two halves; 3-4 (023) spread along the ridge, each on its own stretch.
 const N = () => G.game.players.length, multi = () => N() > 2;
@@ -508,11 +508,11 @@ function setLive(v) {
 }
 
 // ---------------------------------------------------------------- the robot, live
-// With "Live vs robot" on, the robot fires on its own reload (Rookie 4.5 s, Pro 3.2 s, Ace 2.6 s;
-// yours is 3 s): it rolls a little, aims at where your tank is right now, and wobbles by skill.
+// With "Live vs robot" on, the robot fires on its own reload (Rookie 2.3 s, Pro 1.6 s, Ace 1.3 s;
+// yours is 1.5 s): it rolls a little, aims at where your tank is right now, and wobbles by skill.
 // It gives you 4 s to get going, and wobbles more than in turns (see botLiveShot).
 let botReloadAt = 0, botBusy = false;
-const BOT_RELOAD = [4500, 3200, 2600];
+const BOT_RELOAD = [2300, 1600, 1300];
 // Who the robot shoots at: with two players the other tank; with more, the weakest one still
 // standing (the nearest on a tie). It only searches angles that way.
 function botTarget(bi, X) {
