@@ -197,7 +197,8 @@ username. A new account only becomes a robot once it's in `public.bots`.
   `auth.users` to have 6 players.
 - **Several robots in one game** (`033_more_bots.sql`): turns always worked for whichever robot's
   turn it is; after a robot, the first person still at the table drives the next one (duel.js
-  `decide`, golf.js `decide`). Live modes act per robot: Battleship's `fire_live_bot` fires for
+  `decide`, golf.js `decide`). In Hilltop, once every person is knocked out the first person in
+  the duel keeps driving the robots (`botHost`), so a robots-only ending plays out. Live modes act per robot: Battleship's `fire_live_bot` fires for
   every robot whose guns have reloaded (each shot in its own sub-transaction), and Hilltop /
   Putt Post pass `p_bot` to `duel_fire_live_bot` / `golf_submit_live_bot` (per-seat reload timers
   in duel.js, per-robot hole rows in golf.js). Local e2e only has `admiral_bot`: add `bot1@x.com`

@@ -135,7 +135,8 @@ function draw(t) {
   }
   const X = shot?.xs || xs();
   g.players.forEach((_, p) => {
-    const { x, y } = tankPos(p, top, X), col = COLS[p];
+    const tp = tankPos(p, top, X) || tankPos(p, top, xs()); if (!tp) return;   // a replay leaves out tanks already out: draw the wreck where it stands
+    const { x, y } = tp, col = COLS[p];
     const aiming = g.status === 'playing' && g.hp[p] > 0 && (liveOn || (!shot && g.turn === p));
     const a = aims[p];
     let ang = aiming && p === myIdx() ? +$('angle').value : aiming && a && (liveOn || a.move === g.move) ? a.angle : (shot && shot.p === p ? shot.angle : restAngle(p, X));
@@ -450,7 +451,7 @@ async function decide() {
   if (isBot(cur) && !liveOn) {
     const stale = Date.now() - new Date(g.updated_at).getTime() > 15000;
     // Whoever fired last plays the robot's turn; after another robot, the first person still standing does.
-    const host = g.players.find((q, k) => !isBot(q) && g.hp[k] > 0) === me.id;
+    const host = botHost(g);
     if ((last && (last.shooter === me.id || (isBot(last.shooter) && host))) || stale) return robotShot();
   }
 }
@@ -582,8 +583,10 @@ function botTarget(bi, X) {
 const botAngles = (bi, ti, X, step) => { const right = !multi() || X[ti] > X[bi], out = []; for (let a = 10; a <= 85; a += step) out.push(right ? a : 180 - a); return out; };
 // Keep a wobbled angle on the side it was aimed at.
 const botClamp = (a, aimed) => (!multi() || aimed <= 90 ? Math.max(5, Math.min(85, a)) : Math.max(95, Math.min(175, a)));
-// Only one page drives the robot live: the first person at the table still standing.
-const botDriver = () => { const g = G.game; return g.players.find((p, k) => !isBot(p) && g.hp[k] > 0) === me.id; };
+// Only one page drives the robots: the first person at the table still standing, or once every
+// person is out (only robots left), the first person in the duel, watching it play out.
+const botHost = (g) => (g.players.find((p, k) => !isBot(p) && g.hp[k] > 0) ?? g.players.find((p) => !isBot(p))) === me.id;
+const botDriver = () => botHost(G.game);
 setInterval(() => {
   if (!liveOn || G?.game.status !== 'playing' || !botDriver()) return;
   G.game.players.forEach((p, bi) => { if (isBot(p) && G.game.hp[bi] > 0 && !botBusy.has(bi) && Date.now() >= (botReloadAt[bi] || 0)) botLiveShot(bi); });
