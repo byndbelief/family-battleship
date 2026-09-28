@@ -131,7 +131,7 @@ takes a bare username.
   everyone). 🌊 sea free, 🏴‍☠️ pirate at 3 Battleship wins, ⚔️ viking at 10 (counted from `results`;
   a crossing win posts a chaos note), 👽 ufo is an easter egg: five quick taps on a board's empty
   top-left corner → `unlock_bs_theme('take me to your leader')`. Don't advertise it in the UI.
-  Picked on the **ship placement screen** (`themeTiles()` in common.js, cached per page; `set_bs_theme`), not in ⚙️ Settings (moved there in 030, which also rewords the unlock notes). Opponents' ships show only once sunk, as wrecks.
+  Picked on the **ship placement screen** (`themeTiles()` in common.js, cached per page; `set_bs_theme`), no longer in ⚙️ Settings; 030 rewords the unlock notes to match. Opponents' ships show only once sunk, as wrecks.
 - **Shared Ocean** (Battleship mode 2, `028_bs_shared.sql`): every fleet (4,3,3,2 each) hides on one
   12×12 grid and you fire at the ocean, not a player. The page's board owner is the sentinel
   `'ocean'` (`OCEAN`, `isShared()` in `app.js`); `fire`/`fire_live` get `p_target: null` and the
