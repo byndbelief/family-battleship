@@ -202,6 +202,11 @@ username. A new account only becomes a robot once it's in `public.bots`.
   Putt Post pass `p_bot` to `duel_fire_live_bot` / `golf_submit_live_bot` (per-seat reload timers
   in duel.js, per-robot hole rows in golf.js). Local e2e only has `admiral_bot`: add `bot1@x.com`
   and `bot2@x.com` to `auth.users` and re-run 033 to get more.
+- **Fresh code after a push** (`web/sw.js`): GitHub Pages sends `max-age=600`, so for 10 minutes
+  after a push a browser could run the old scripts (a 6-robot duel where only admiral_bot fired
+  was just that). The service worker re-fetches the site's own pages/JS/CSS with `cache:
+  'no-cache'` (a cheap 304 when unchanged). The e2e harness blocks service workers
+  (`serviceWorkers: 'block'`) because Playwright's `page.route` can't see a worker's requests.
 - **`live` settings default to false** (033): `fire` and `_golf_submit` read `bs.live` / `golf.live`
   with `coalesce(..., false)`. Without it, a connection that never ran a live shot read NULL and
   `if not live` skipped the robot's Battleship turn. Use the same `coalesce` for any new

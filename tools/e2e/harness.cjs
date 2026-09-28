@@ -30,7 +30,7 @@ function fakeRealtime(ws){
   me.out=out; ws.onClose(()=>hub.delete(me));
 }
 module.exports=async function open(browser, userId, username, url, opts={}){
-  const ctx=await browser.newContext({viewport:{width:400,height:900}, ignoreHTTPSErrors:true, reducedMotion: opts.fast?'reduce':'no-preference', ...(opts.mobile?{isMobile:true,hasTouch:true}:{})});
+  const ctx=await browser.newContext({viewport:{width:400,height:900}, ignoreHTTPSErrors:true, serviceWorkers:'block', reducedMotion: opts.fast?'reduce':'no-preference', ...(opts.mobile?{isMobile:true,hasTouch:true}:{})});
   const p=await ctx.newPage(); p.errs=[];
   p.on('pageerror',e=>p.errs.push(e.message)); p.on('console',m=>{ if(m.type()==='error'&&!/fonts|ERR_|Failed to load|realtime|WebSocket/i.test(m.text())) p.errs.push(m.text()); });
   const token=jwt(userId);
