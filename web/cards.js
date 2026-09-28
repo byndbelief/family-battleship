@@ -105,11 +105,16 @@ function render() {
   $('hand').innerHTML = hand.map((c) => cardHTML(c, mine && playable(c, g) ? 'can' : '', `data-card="${c}"`)).join('');
   const db = $('drawBtn'); db.disabled = !mine || g.drew || busy; db.classList.toggle('go', mine && !g.drew && !canAny);
   db.textContent = g.drew && mine ? 'DREW' : 'DRAW';
+  // The action bar stays up all game; what you can't do right now is greyed out.
+  $('cardbar').hidden = over || !g.players.includes(me.id);
+  const da = $('drawAct'), canDraw = mine && !g.drew && !busy;
+  da.disabled = !canDraw; da.classList.toggle('go', canDraw && !canAny); da.classList.toggle('wait', !mine); da.title = mine ? '' : `${plain(nm(g.players[g.turn]))}'s turn`;
+  da.textContent = !mine ? '⏳ Their turn' : g.drew ? '🂠 Drew' : canAny ? '🂠 Draw' : '🂠 Draw a card';
   const lb = $('lastBtn'), exposedMe = g.exposed === me.id && !over;
-  lb.hidden = !(exposedMe || (mine && hand.length === 2));
+  lb.disabled = !(exposedMe || (mine && hand.length === 2));
   lb.setAttribute('aria-pressed', String(exposedMe ? false : callLast));
-  lb.textContent = exposedMe ? '☝️ Last card! (say it before they catch you)' : callLast ? '☝️ Last card: on' : '☝️ Last card!';
-  $('passBtn').hidden = !(mine && g.drew);
+  lb.textContent = exposedMe ? '☝️ Say it now!' : callLast ? '☝️ Last card: on' : '☝️ Last card!';
+  $('passBtn').disabled = !(mine && g.drew && !busy);
   $('botLiveRow').hidden = !(!over && g.players.some(isBot));
   $('del').hidden = g.created_by !== me.id;
   $('feed').innerHTML = log.map((l) => `<li>${isBot(l.p) ? '' : face(l.p)}${esc(l.line)}</li>`).join('') || '<li class="muted">Moves show up here.</li>';
@@ -181,6 +186,7 @@ $('drawBtn').onclick = async () => {
   if (data && G.game.drew && G.game.players[G.game.turn] === me.id) note(`You drew ${label(data)}. Play it, or pass.`);
   else if (data) { note(`You drew ${label(data)}: no match, turn over.`); notify('cards', g.id); }
 };
+$('drawAct').onclick = () => $('drawBtn').click();
 $('passBtn').onclick = async () => {
   const { error } = await sb.rpc('card_pass', { p_game: G.game.id });
   if (error) note(friendly(error), 'error'); else notify('cards', G.game.id);
