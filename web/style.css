@@ -304,7 +304,7 @@ body.has-firebar { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)
   .lobtoggles button b { background: var(--flag); color: var(--flag-ink); border-radius: 99px; padding: 0 7px; font-size: 12px; }
   .lobtoggles button b:empty { display: none; }
   .lobtoggles button[aria-expanded=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-  #packCard:not(.show), #chaosCard:not(.show), #alerts:not(.show) { display: none !important; }
+  #packCard:not(.show), #chaosCard:not(.show) { display: none !important; }
   /* Your move: slim horizontal cards, picture on the left */
   .upstrip { grid-auto-columns: 86%; gap: 10px; padding-bottom: 6px; }
   .upcard { flex-direction: row; align-items: stretch; }

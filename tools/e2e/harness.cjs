@@ -41,7 +41,7 @@ module.exports=async function open(browser, userId, username, url, opts={}){
     if(u.startsWith('http://sb.test/auth/v1/user')) return route.fulfill({status:200,contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify({id:userId,aud:'authenticated'})});
     if(u.startsWith('http://sb.test')) return route.abort();
     if(u.startsWith('http://app.test/')){ const rel=new URL(u).pathname.slice(1)||'index.html';
-      if(rel==='config.js') return route.fulfill({contentType:'text/javascript',body:"export const SUPABASE_URL='http://sb.test'; export const SUPABASE_ANON_KEY='anon'; export const VAPID_PUBLIC_KEY='x'; export const USERNAME_DOMAIN='x.com';"});
+      if(rel==='config.js') return route.fulfill({contentType:'text/javascript',body:"export const SUPABASE_URL='http://sb.test'; export const SUPABASE_ANON_KEY='anon'; export const VAPID_PUBLIC_KEY='BAAAAAAA'; export const USERNAME_DOMAIN='x.com';"});
       const f=path.join(WEB,rel); if(!fs.existsSync(f)) return route.fulfill({status:404,body:''});
       return route.fulfill({contentType:types[path.extname(f)]||'application/octet-stream',body:fs.readFileSync(f)}); }
     if(u.includes('supabase-js')) return route.fulfill({contentType:'text/javascript',body:fs.readFileSync(path.join(DIR,'supabase.esm.js'))});

@@ -1,7 +1,7 @@
 // Shared by the game pages (golf.html, duel.html): the Supabase client, who's signed in,
 // player names, which players are robots, and turn alerts.
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, VAPID_PUBLIC_KEY } from './config.js';
 import { sfx, isMuted, setMuted } from './sfx.js';
 export { sfx };
 
@@ -552,7 +552,7 @@ export async function openSettings() {
       ${uid ? `<div class="setgroup">
         <div class="setrow"><div><strong>🏆 Gauntlet length</strong><span>Picked for you when you start one</span></div>
           <div class="setseg" role="radiogroup" aria-label="Gauntlet length">${[3, 5, 7].map((r) => `<button type="button" role="radio" aria-checked="${gauntletRounds() === r}" data-rounds="${r}">${r}</button>`).join('')}</div></div>
-        <a class="setrow link" href="./#alerts"><div><strong>🔔 Turn alerts</strong><span>Get a buzz when it's your turn</span></div><span class="setgo">›</span></a>
+        <div class="setrow" id="alertRow"><div><strong>🔔 Turn alerts</strong><span id="alertHint">Checking…</span></div><span id="alertCtl"></span></div>
         <a class="setrow link" href="./#player=${uid}"><div><strong>🏅 My trophies</strong><span>Your trophy case and badges</span></div><span class="setgo">›</span></a>
       </div>
       <div class="setgroup">
@@ -582,6 +582,7 @@ export async function openSettings() {
     wrap.querySelectorAll('[data-rounds]').forEach((o) => o.setAttribute('aria-checked', String(o === b)));
   }; });
   wrap.querySelectorAll('a.setrow').forEach((a) => a.addEventListener('click', () => setTimeout(close, 0)));
+  if (wrap.querySelector('#alertRow')) paintAlerts(wrap);
   const pwOpen = wrap.querySelector('#pwOpen');
   if (pwOpen) pwOpen.onclick = () => { const f = wrap.querySelector('#pwForm'); f.hidden = !f.hidden; if (!f.hidden) wrap.querySelector('#pw1').focus(); };
   const pwForm = wrap.querySelector('#pwForm');
@@ -634,3 +635,60 @@ setCss.textContent = `
     #setSheet .pwform input{background:#0C1624;color:inherit;border-color:#2A4262}}
   @media (prefers-reduced-motion:reduce){#setSheet .sheet,#setSheet .setback{animation:none}}`;
 document.head.appendChild(setCss);
+
+// ---------------------------------------------------------------- turn alerts (push), in Settings
+function b64ToBytes(b64) {
+  const pad = '='.repeat((4 - (b64.length % 4)) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
+}
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const homeScreen = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+// 'on' | 'off' | 'blocked' | 'ios-install' | 'unsupported'
+export async function alertsState() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    return isIOS && !homeScreen ? 'ios-install' : 'unsupported';
+  }
+  if (Notification.permission === 'denied') return 'blocked';
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = await reg?.pushManager.getSubscription();
+  return sub && Notification.permission === 'granted' ? 'on' : 'off';
+}
+export async function enableAlerts() {
+  const perm = await Notification.requestPermission();
+  if (perm !== 'granted') return 'blocked';
+  if (!(await navigator.serviceWorker.getRegistration())) await navigator.serviceWorker.register('./sw.js');
+  const reg = await navigator.serviceWorker.ready;
+  const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(VAPID_PUBLIC_KEY) });
+  const j = sub.toJSON();
+  const { error } = await sb.from('push_subscriptions').upsert({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth });
+  if (error) throw error;
+  return 'on';
+}
+export async function disableAlerts() {
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = await reg?.pushManager.getSubscription();
+  if (sub) { await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); }
+  return 'off';
+}
+const ALERT_HINT = {
+  on: "You'll get a notification when it's your turn, even with the game closed.",
+  off: 'Get a notification when it\'s your turn, even with the game closed.',
+  blocked: "Notifications are blocked for this site. Allow them in your browser's site settings, then come back.",
+  'ios-install': 'On iPhone or iPad: tap Share → Add to Home Screen, open the Game Room from there, then turn alerts on here.',
+  unsupported: "This browser can't show alerts. Games still update live while they're open.",
+};
+async function paintAlerts(wrap) {
+  const hint = wrap.querySelector('#alertHint'), ctl = wrap.querySelector('#alertCtl');
+  if (!hint) return;
+  const st = await alertsState();
+  hint.textContent = ALERT_HINT[st];
+  ctl.innerHTML = st === 'on' || st === 'off' ? `<button type="button" class="switch" role="switch" aria-checked="${st === 'on'}" aria-label="Turn alerts"><i></i></button>` : '';
+  const b = ctl.querySelector('.switch');
+  if (b) b.onclick = async () => {
+    b.disabled = true;
+    try { const now = b.getAttribute('aria-checked') === 'true' ? await disableAlerts() : await enableAlerts(); if (now === 'on') sfx('chime'); }
+    catch (e) { hint.textContent = `Couldn't change alerts: ${friendly(e)}`; b.disabled = false; return; }
+    paintAlerts(wrap);
+  };
+}

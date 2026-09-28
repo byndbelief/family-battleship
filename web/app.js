@@ -1,5 +1,5 @@
-import { VAPID_PUBLIC_KEY, USERNAME_DOMAIN } from './config.js';
-import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds } from './common.js';
+import { USERNAME_DOMAIN } from './config.js';
+import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings } from './common.js';
 import { HOLES, holeWithAttack, drawHole, LW, LH } from './golf-engine.js';
 import { W as DW, H as DH, TANK_X, buildTop } from './duel-engine.js';
 const app = document.getElementById('app');
@@ -259,55 +259,6 @@ function loginView(msg) {
   });
 }
 
-// ---------------------------------------------------------------- alerts
-
-function b64ToBytes(b64) {
-  const pad = '='.repeat((4 - (b64.length % 4)) % 4);
-  const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
-  return Uint8Array.from(raw, (c) => c.charCodeAt(0));
-}
-const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
-
-async function alertsState() {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
-    return isIOS && !standalone ? 'ios-install' : 'unsupported';
-  }
-  if (Notification.permission === 'denied') return 'blocked';
-  const reg = await navigator.serviceWorker.getRegistration();
-  const sub = await reg?.pushManager.getSubscription();
-  return sub && Notification.permission === 'granted' ? 'on' : 'off';
-}
-async function enableAlerts() {
-  const perm = await Notification.requestPermission();
-  if (perm !== 'granted') return 'blocked';
-  const reg = await navigator.serviceWorker.ready;
-  const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(VAPID_PUBLIC_KEY) });
-  const j = sub.toJSON();
-  const { error } = await sb.from('push_subscriptions').upsert({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth });
-  if (error) throw error;
-  return 'on';
-}
-async function renderAlerts() {
-  const box = document.getElementById('alerts');
-  if (!box) return;
-  const st = await alertsState();
-  const text = {
-    on: `<p>Turn alerts are on for this device.</p>`,
-    off: `<p>Get a notification when it's your turn, even with this page closed.</p><div><button class="primary" id="alertsOn">Turn on turn alerts</button></div>`,
-    blocked: `<p class="muted">Notifications are blocked for this site. Allow them in your browser's site settings, then reload.</p>`,
-    'ios-install': `<p>On iPhone or iPad, alerts work once the game is on your home screen: tap <strong>Share</strong>, then <strong>Add to Home Screen</strong>, and open the Game Room from there.</p>`,
-    unsupported: `<p class="muted">This browser can't show turn alerts. The game still updates live while it's open.</p>`,
-  }[st];
-  box.innerHTML = `<h2>Turn alerts</h2>${text}`;
-  const t = document.getElementById('alertsT'); if (t) t.textContent = st === 'on' ? '🔔 On' : st === 'off' ? '🔔 Turn on alerts' : '🔔 Alerts';
-  const btn = document.getElementById('alertsOn');
-  if (btn) btn.onclick = async () => {
-    btn.disabled = true;
-    try { await enableAlerts(); } catch (e) { box.insertAdjacentHTML('beforeend', `<p class="error">Couldn't turn on alerts: ${esc(friendly(e))}</p>`); return; }
-    renderAlerts();
-  };
-}
 
 // ---------------------------------------------------------------- lobby
 const KIND_ICON = { battleship: '⚓', golf: '⛳', duel: '💥', gauntlet: '🏆' };
@@ -394,12 +345,10 @@ async function lobby() {
         <div class="lobtoggles" role="group" aria-label="More">
           <button type="button" data-show="packCard" aria-expanded="false">🎒 Backpack <b id="packN"></b></button>
           <button type="button" data-show="chaosCard" aria-expanded="false">🌀 Chaos <b id="chaosN"></b></button>
-          <button type="button" data-show="alerts" aria-expanded="false" id="alertsT">🔔 Alerts</button>
         </div>
         <section class="card" id="packCard" hidden></section>
         <section class="card" id="chaosCard" hidden></section>
       </div>
-      <section class="card" id="alerts"></section>
     </div>`);
   // Start a Gauntlet: pick 1-3 opponents and a length, go.
   const gchips = [...app.querySelectorAll('[data-gopp]')], gtGo = document.getElementById('gtGo');
@@ -498,9 +447,8 @@ async function lobby() {
     if (k === 'battleship') location.hash = `game=${data}`;
     else location.href = `${k}.html#game=${data}`;
   });
-  renderAlerts();
-  // From Settings › Turn alerts (#alerts): open the alerts card and bring it into view.
-  if (location.hash === '#alerts') setTimeout(() => { const a = document.getElementById('alerts'); a?.classList.add('show'); a?.scrollIntoView({ block: 'center' }); document.getElementById('alertsT')?.setAttribute('aria-expanded', 'true'); }, 300);
+  // Old links to the alerts card (#alerts) open Settings, where turn alerts live now.
+  if (location.hash === '#alerts') { history.replaceState(null, '', './'); openSettings(); }
   // Phones: Backpack, Chaos feed and Turn alerts sit behind one row of small buttons.
   app.querySelectorAll('[data-show]').forEach((b) => { b.onclick = () => {
     const el = document.getElementById(b.dataset.show), on = !el.classList.contains('show');

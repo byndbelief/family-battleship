@@ -52,8 +52,9 @@ takes a bare username.
 - **Settings** (⚙️ in the corner of every page, `openSettings` in `common.js`): per-device
   switches for Sound, Vibration (every `navigator.vibrate` goes through it) and Big moments
   (`dramaOn()`: off turns splashes into quick notes and drops the danger pulse and slow motion),
-  a default Gauntlet length, links to turn alerts (`#alerts`) and My trophies, change password
-  (`auth.updateUser`) and sign out. Game rules (shot clock, aim hints) are deliberately not settings.
+  a default Gauntlet length, **turn alerts** (the only place they live: an on/off switch that
+  subscribes or unsubscribes this device's push; old `#alerts` links open Settings), My trophies,
+  change password (`auth.updateUser`) and sign out. The lobby header is just the greeting. Game rules (shot clock, aim hints) are deliberately not settings.
 
 ## Layout
 
