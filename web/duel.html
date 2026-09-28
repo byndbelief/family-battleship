@@ -92,6 +92,13 @@
   .fuel{display:block;height:12px;border-radius:99px;background:#ffffff1f;overflow:hidden;align-self:center}
   .fuel i{display:block;height:100%;width:100%;border-radius:99px;background:linear-gradient(90deg,#FF6B5A,#FFC857);transition:width .1s}
   .moverow output::before{content:'⛽ ';font-size:12px}
+  /* Move / Dodge: the handle is your tank's spot; the track spans as far as your fuel reaches */
+  input.mover::-webkit-slider-runnable-track{background:linear-gradient(90deg,#FF6B5A55,#FFC85755)}
+  input.mover::-moz-range-track{background:linear-gradient(90deg,#FF6B5A55,#FFC85755)}
+  input.mover::-moz-range-progress{background:transparent}
+  input.mover::-webkit-slider-thumb{background:#FFC857;border-color:#FF6B5A}
+  input.mover::-moz-range-thumb{background:#FFC857;border-color:#FF6B5A}
+  input.mover:disabled{opacity:.45}
   #play.fs-on .aimtip{display:none}
   @media (max-width:640px){h1{font-size:22px} .wrap{gap:12px} #play{gap:10px} #controls{padding:12px}}
   .controls{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center}
@@ -176,7 +183,7 @@
       <div class="sliders">
         <div class="slider"><label for="angle">Angle</label><button type="button" class="step" data-step="angle" data-d="-1" aria-label="Lower the angle">−</button><input type="range" id="angle" min="5" max="85" value="45"><button type="button" class="step" data-step="angle" data-d="1" aria-label="Raise the angle">+</button><output id="angleOut">45°</output></div>
         <div class="slider"><label for="power">Power</label><button type="button" class="step" data-step="power" data-d="-1" aria-label="Less power">−</button><input type="range" id="power" min="20" max="100" value="62"><button type="button" class="step" data-step="power" data-d="1" aria-label="More power">+</button><output id="powerOut">62</output></div>
-        <div class="slider moverow"><label>Move</label><button type="button" class="step" data-mv="-1" aria-label="Drive left">◀</button><span class="fuel" title="Fuel left this turn"><i id="fuelBar"></i></span><button type="button" class="step" data-mv="1" aria-label="Drive right">▶</button><output id="fuelOut" aria-label="Fuel left">40</output></div>
+        <div class="slider moverow"><label>Move</label><button type="button" class="step" data-mv="-1" aria-label="Drive left">◀</button><input type="range" id="moveRange" class="mover" min="0" max="800" step="1" value="90" aria-label="Where your tank is: drag to drive"><button type="button" class="step" data-mv="1" aria-label="Drive right">▶</button><output id="fuelOut" aria-label="Fuel left">40</output></div>
       </div>
       <div id="packMini"></div>
       <div class="row" style="gap:10px;justify-content:center"><span data-clockslot></span><button class="go" id="fire">Fire!</button></div>
@@ -184,7 +191,7 @@
     <p class="small muted" id="err"></p>
   </section>
   <section class="panel" id="dodge" hidden>
-    <div class="slider moverow"><label>Dodge</label><button type="button" class="step" data-dv="-1" aria-label="Dodge left">◀</button><span class="fuel" title="Dodge fuel left"><i id="dodgeBar"></i></span><button type="button" class="step" data-dv="1" aria-label="Dodge right">▶</button><output id="dodgeOut" aria-label="Dodge fuel left">20</output></div>
+    <div class="slider moverow"><label>Dodge</label><button type="button" class="step" data-dv="-1" aria-label="Dodge left">◀</button><input type="range" id="dodgeRange" class="mover" min="0" max="800" step="1" value="90" aria-label="Where your tank is: drag to dodge"><button type="button" class="step" data-dv="1" aria-label="Dodge right">▶</button><output id="dodgeOut" aria-label="Dodge fuel left">20</output></div>
     <p class="small muted dodgetip">They're lining up a shot at you. Shift your tank before they fire.</p>
   </section>
   <div id="pack"></div>

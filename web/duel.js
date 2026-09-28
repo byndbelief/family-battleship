@@ -650,22 +650,30 @@ function setAim(angle, power) {
 
 // Driving: ◀ ▶ move the tank 2 px a step (hold to keep going), up to 40 px of fuel a turn,
 // never past your side of the hill. The other player sees it live; the move goes with the shot.
-function driveBy(d) {
+// ◀ ▶ step 2 px; the Move slider jumps straight to a spot. Either way: within your stretch of the
+// ridge, and on your turn within 40 px of where the turn began.
+const driveBy = (d) => driveTo(curDriveX() + d * 2);
+const curDriveX = () => (liveOn ? liveMyX ?? baseXs()[myIdx()] : myXMove === G.game.move && myX != null ? myX : baseXs()[myIdx()]);
+function driveRange() {
+  const p = myIdx(), [lo, hi] = SIDE(p);
+  if (liveOn) return [lo, hi];
+  const start = baseXs()[p]; return [Math.max(lo, start - FUEL), Math.min(hi, start + FUEL)];
+}
+function driveTo(x) {
   if (liveOn && G && myIdx() >= 0 && G.game.status === 'playing') {
-    const p = myIdx(), [lo, hi] = SIDE(p), cur = liveMyX ?? baseXs()[p], nx = Math.max(lo, Math.min(hi, cur + d * 2));
+    const [lo, hi] = driveRange(), cur = curDriveX(), nx = Math.max(lo, Math.min(hi, Math.round(x)));
     if (nx === cur) return;
-    liveMyX = nx; sendAim();
-    if (nx % 8 === 0) sfx('tick');
+    liveMyX = nx; sendAim(); showFuel();
+    if (Math.floor(nx / 8) !== Math.floor(cur / 8)) sfx('tick');
     clearTimeout(liveSave); liveSave = setTimeout(saveLiveX, 400);
     return;
   }
   const g = G?.game; if (!g || busy || shot || g.status !== 'playing' || turnId() !== me.id) return;
-  const p = myIdx(), start = baseXs()[p], [lo, hi] = SIDE(p);
-  if (myXMove !== g.move || myX == null) { myXMove = g.move; myX = start; }
-  const nx = Math.max(lo, Math.min(hi, Math.max(start - FUEL, Math.min(start + FUEL, myX + d * 2))));
-  if (nx === myX) return;
+  if (myXMove !== g.move || myX == null) { myXMove = g.move; myX = baseXs()[myIdx()]; }
+  const [lo, hi] = driveRange(), cur = myX, nx = Math.max(lo, Math.min(hi, Math.round(x)));
+  if (nx === cur) return;
   myX = nx; showFuel(); sendAim();
-  if (Math.abs(myX - start) % 8 === 0) sfx('tick');
+  if (Math.floor(nx / 8) !== Math.floor(cur / 8)) sfx('tick');
 }
 async function saveLiveX() {
   const g = G?.game; if (!g || !liveOn || liveMyX == null) return;
@@ -674,18 +682,26 @@ async function saveLiveX() {
 }
 function showFuel() {
   const g = G?.game; if (!g || !$('fuelOut')) return;
-  if (liveOn) { $('fuelOut').textContent = '∞'; $('fuelBar').style.width = '100%'; return; }
+  const mr = $('moveRange');
+  if (myIdx() >= 0) { const [lo, hi] = driveRange(); mr.min = lo; mr.max = hi; mr.value = curDriveX(); }
+  mr.disabled = !(g.status === 'playing' && myIdx() >= 0 && (liveOn || (turnId() === me.id && !busy)));
+  if (liveOn) { $('fuelOut').textContent = '∞'; return; }
   const used = myXMove === g.move && myX != null ? Math.abs(myX - baseXs()[myIdx()]) : 0;
-  $('fuelOut').textContent = FUEL - used; $('fuelBar').style.width = `${((FUEL - used) / FUEL) * 100}%`;
+  $('fuelOut').textContent = FUEL - used;
 }
-function dodgeBy(d) {
+const dodgeBy = (d) => { const g = G?.game; if (g) dodgeTo((dodgeMove === g.move && dodgeX != null ? dodgeX : baseXs()[myIdx()]) + d * 2); };
+function dodgeRange() {
+  const g = G.game, i = myIdx(), start = (g.turn_x || baseXs())[i], [lo, hi] = SIDE(i);
+  return [Math.max(lo, start - DODGE), Math.min(hi, start + DODGE)];
+}
+function dodgeTo(x) {
   const g = G?.game; if (!g || busy || shot || g.status !== 'playing' || turnId() === me.id || isBot(turnId()) || g.hp[myIdx()] <= 0) return;
-  const i = myIdx(), start = (g.turn_x || baseXs())[i], [lo, hi] = SIDE(i);
+  const i = myIdx();
   if (dodgeMove !== g.move || dodgeX == null) { dodgeMove = g.move; dodgeX = baseXs()[i]; }
-  const nx = Math.max(Math.max(lo, start - DODGE), Math.min(Math.min(hi, start + DODGE), dodgeX + d * 2));
-  if (nx === dodgeX) return;
+  const [lo, hi] = dodgeRange(), cur = dodgeX, nx = Math.max(lo, Math.min(hi, Math.round(x)));
+  if (nx === cur) return;
   dodgeX = nx; showDodge();
-  if (Math.abs(nx - start) % 8 === 0) sfx('tick');
+  if (Math.floor(nx / 8) !== Math.floor(cur / 8)) sfx('tick');
   live?.send('dodge', { from: i, move: g.move, x: nx });
   clearTimeout(dodgeSave); dodgeSave = setTimeout(saveDodge, 350);
 }
@@ -700,9 +716,12 @@ async function saveDodge() {
 function showDodge() {
   const g = G?.game; if (!g || !$('dodgeOut')) return;
   const i = myIdx(), start = (g.turn_x || baseXs())[i], cur = dodgeMove === g.move && dodgeX != null ? dodgeX : baseXs()[i];
-  const left = DODGE - Math.abs(cur - start);
-  $('dodgeOut').textContent = left; $('dodgeBar').style.width = `${(left / DODGE) * 100}%`;
+  const left = DODGE - Math.abs(cur - start), dr = $('dodgeRange'), [lo, hi] = dodgeRange();
+  dr.min = lo; dr.max = hi; dr.value = cur;
+  $('dodgeOut').textContent = left;
 }
+$('moveRange').addEventListener('input', (e) => driveTo(+e.target.value));
+$('dodgeRange').addEventListener('input', (e) => dodgeTo(+e.target.value));
 document.querySelectorAll('[data-dv]').forEach((b) => {
   let hold = null, rep = null;
   const stop = () => { clearTimeout(hold); clearInterval(rep); };
