@@ -9,12 +9,13 @@ const q = (s) => execSync(`psql -h ${DIR} -p ${PORT} -U postgres -d game -At -c 
   const b = await chromium.launch({ proxy: process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY } : undefined });
   const dad = q("select id from profiles where username='dad_commander'"), out = {};
   const p = await open(b, dad, 'dad_commander', '', { mobile: true });
-  await p.waitForSelector('#gtStart', { timeout: 30000 });
+  await p.waitForSelector('#gtStart', { state: 'attached', timeout: 30000 });
   await p.tap('a.quickentry[href="#quick"]'); await p.waitForSelector('.lobby.quickmode .ncard[data-kind=duel]');
   out.quickScreen = await p.$$eval('.ncard', (e) => e.filter((x) => x.checkVisibility()).length);
   await p.tap('.ncard[data-kind=duel]'); await p.tap('#newgame [data-opp="phoenix_lord"]'); await p.tap('#start');
   await p.waitForTimeout(2500); out.duel = p.url();
-  await p.goto('http://app.test/'); await p.waitForSelector('#gtStart');
+  await p.goto('http://app.test/'); await p.waitForSelector('#gtFold > summary');
+  if (!(await p.$eval('#gtFold', (d) => d.open))) await p.tap('#gtFold > summary');   // the start form is folded while a Gauntlet runs
   await p.tap('[data-gopp="obanai_rocks"]'); await p.tap('#gtGo'); await p.waitForTimeout(3000); out.gauntlet = p.url();
   out.ok = /duel\.html#game=/.test(out.duel) && /game=/.test(out.gauntlet) && !p.errs.length;
   console.log(JSON.stringify(out, null, 1), 'errors', p.errs);

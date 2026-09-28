@@ -297,8 +297,8 @@ async function lobby() {
       <section class="gthero" id="gtSec">
         <div class="gthead"><span class="gtcup" aria-hidden="true">🏆</span><div><h2>The Gauntlet</h2><p class="small">One running Gauntlet per rival: surprise rounds of putts, duels and sea battles. Win the most rounds for the crown, and the next Gauntlet starts on its own.</p></div></div>
         <div class="gtlive" id="gtLive"></div>
+        <details class="gtfold" id="gtFold"><summary class="gtlabel" id="gtLabel">➕ New rival</summary>
         <form class="gtstart" id="gtStart">
-          <span class="gtlabel" id="gtLabel">New rival</span>
           <div class="choice">${others.map(([id, u]) => `<button type="button" class="chip" data-gopp="${esc(u)}" data-gid="${id}" aria-pressed="false">${bots.has(id) ? '🤖 ' : ''}${esc(u)}</button>`).join('')}</div>
           <div class="row gtrow">
             <div class="seg" role="radiogroup" aria-label="Rounds">${[3, 5, 7].map((r) => `<label><input type="radio" name="gtRounds" value="${r}" ${r === gauntletRounds() ? 'checked' : ''}>${r} rounds</label>`).join('')}</div>
@@ -306,6 +306,7 @@ async function lobby() {
           </div>
           <p class="error" id="gtErr" hidden></p>
         </form>
+        </details>
       </section>
       <section class="stack upsec" id="upSec" hidden>
         <div class="row between"><h2>Your move <span class="upcount" id="upCount"></span></h2>
@@ -571,7 +572,6 @@ function renderGauntlets(all, cards) {
     const lead = Math.max(...g.scores), done = g.history || [];
     const round = cards.find((c) => c.g.id === g.current_game), myMove = !!round?.mine;
     const href = g.current_kind === 'battleship' ? `#game=${g.current_game}` : `${g.current_kind}.html#game=${g.current_game}`;
-    const whoseMove = round ? (myMove ? 'Your move' : round.pill.replace(/<[^>]+>/g, '')) : '';
     const dots = Array.from({ length: g.rounds }, (_, i) => { const h = done[i], cur = !h && i === g.round - 1;
       return `<i class="${h ? 'done' : cur ? 'cur' : ''}">${h ? KIND_ICON[h.kind] : cur ? KIND_ICON[g.current_kind] : i + 1}</i>`; }).join('');
     const rivals = g.players.filter((p) => p !== me.id), others = rivals.map((p) => esc(names[p] ?? 'someone')).join(' & ');
@@ -580,8 +580,6 @@ function renderGauntlets(all, cards) {
       <span class="gtwho"><span class="gtfaces">${faces}</span><span class="gtrival"><strong>vs ${others}</strong><span>Gauntlet #${past.length + 1}${past.length ? ` · 🏆 ${g.players.map((p, i) => `${p === me.id ? 'You' : nm(p)} ${titles[i]}`).join(' · ')}` : ''}</span></span></span>
       <span class="gtscore">${g.players.map((p, i) => `<span class="${g.scores[i] === lead && lead > 0 ? 'lead' : ''}">${g.scores[i] === lead && lead > 0 ? '👑 ' : ''}${p === me.id ? 'You' : nm(p)} <b>${g.scores[i]}</b></span>`).join('')}</span>
       <span class="gttrack">${dots}</span>
-      <span class="gtnow">Round ${g.round} of ${g.rounds}: ${KIND_ICON[g.current_kind]} ${KIND_NAME[g.current_kind]}${whoseMove ? ` · <strong>${whoseMove}</strong>` : ''}${round && chaosIn(round.g.turn_at, g.id) ? ` · <span class="gtclk">${chaosIn(round.g.turn_at, g.id)}</span>` : ''}</span>
-      <span class="gtplay">${myMove ? `Play round ${g.round} ›` : 'Watch ›'}</span>
     </a>${g.created_by === me.id ? `<button type="button" class="gtoff" data-off="${g.id}">Call off</button>` : ''}</div>`;
   }).join('');
   // Calling a Gauntlet off ends it for everyone: its round in progress goes, finished rounds and past titles stay.
@@ -592,7 +590,9 @@ function renderGauntlets(all, cards) {
     if (error) { note(friendly(error), 'error'); b.disabled = false; return; }
     note('Gauntlet called off.'); loadGames(); loadChaos();
   }; });
-  document.getElementById('gtLabel').textContent = live.length ? 'New rival' : 'Start a rivalry';
+  // The start form stays folded to one row; with no Gauntlet running it opens by itself.
+  document.getElementById('gtLabel').textContent = live.length ? '➕ New rival' : '➕ Start a rivalry';
+  if (!live.length) document.getElementById('gtFold').open = true;
 }
 
 // The Your move strip: one big card per game waiting on you, swipe (or ‹ ›) through them.
