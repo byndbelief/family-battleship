@@ -303,7 +303,6 @@ function render() {
   if (!$('dodge').hidden) showDodge();
   // 3-4 players: the shooter might not be aiming at you.
   document.querySelector('.dodgetip').textContent = multi() ? `${nm(turnId()).replace(/<[^>]+>/g, '')} is lining up a shot. Shift your tank before they fire.` : "They're lining up a shot at you. Shift your tank before they fire.";
-  $('botLiveTip').textContent = multi() ? "No turns: everyone fires whenever they've reloaded." : "No turns: you both fire whenever you've reloaded.";
   // Shot clock: 30 seconds to fire (not against the robot, where nobody is waiting on you).
   if (mine && !liveNow && !busy && !g.players.some(isBot)) shotClock(`duel.${g.id}.${g.move}`, 30, async () => {
     const { data } = await sb.rpc('shot_clock', { p_kind: 'duel', p_game: g.id });
@@ -333,10 +332,9 @@ function render() {
       pack = await backpack(); await load(g.id); render(); showAim();
     };
   });
-  setGameTools({ fs: '#play', canDelete: g.created_by === me.id, onDelete: deleteGame });
+  setGameTools({ fs: '#play', canDelete: g.created_by === me.id, onDelete: deleteGame,
+    bot: g.status === 'playing' && mi >= 0 && g.players.some(isBot) ? { on: !!g.live_bot, label: 'Live battle vs robot', onToggle: toggleBotLive } : null });
   // Live vs robot: a switch whenever the robot is in the duel.
-  const bl = $('botLive'); bl.hidden = !(g.status === 'playing' && mi >= 0 && g.players.some(isBot));
-  if (!bl.hidden) { const b = $('botLiveBtn'); b.setAttribute('aria-pressed', String(!!g.live_bot)); b.querySelector('b').textContent = g.live_bot ? 'On' : 'Off'; }
   $('feed').innerHTML = [...G.shots].reverse().slice(0, 6).map((s) => {
     const full = g.players.map(() => 100), before = s.move > 1 ? G.shots.find((x) => x.move === s.move - 1)?.hp_after || full : full;
     const hurt = s.hp_after.map((h, p) => before[p] - h).map((d, p) => (d > 0 ? `${who(g.players[p])} −${d}${s.hp_after[p] <= 0 ? ' 💀' : ''}` : '')).filter(Boolean).join(', ');
@@ -750,14 +748,13 @@ cv.addEventListener('pointerdown', (e) => { if (!canAim()) return; e.preventDefa
 cv.addEventListener('pointermove', (e) => { if (drag && canAim()) aimFromPointer(e); });
 ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => cv.addEventListener(ev, () => { drag = null; }));
 $('fire').onclick = () => { if (liveOn) fireLive(); else if (!busy && G && turnId() === me.id) fire(); };
-$('botLiveBtn').onclick = async () => {
+// The toolbar's 🤖 switch.
+async function toggleBotLive() {
   const g = G?.game; if (!g) return;
-  const b = $('botLiveBtn'); b.disabled = true;
   const { error } = await sb.rpc('set_live_bot', { p_kind: 'duel', p_game: g.id, p_on: !g.live_bot });
-  b.disabled = false;
-  if (error) { note(friendly(error), 'error'); return; }
+  if (error) return friendly(error);
   await load(g.id); render(); here();
-};
+}
 async function deleteGame() {
   const { error } = await sb.rpc('duel_delete', { p_game: G.game.id });
   if (error) return friendly(error);

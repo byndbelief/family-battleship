@@ -291,7 +291,7 @@ body.quake { animation: quake .45s linear 1; }
 .firebar .fire.ready { animation: readyPulse 1.2s ease-in-out infinite; }
 @keyframes readyPulse { 50% { transform: scale(1.06); box-shadow: 0 0 0 6px #D8403A33; } }
 @media (prefers-reduced-motion: reduce) { .firebar .fire.ready { animation: none; } }
-body.has-firebar #nextUp, body.has-firebar #setBtn { bottom: calc(var(--fbh, 80px) + 10px) !important; }
+body.has-firebar #nextUp { bottom: calc(var(--fbh, 80px) + 10px) !important; }
 body.has-firebar { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
 /* Phones and tablets: the backpack as a row of icons along the top of the fire bar */
 .firebar.withmini { flex-wrap: wrap; row-gap: 4px; padding-top: 4px; }

@@ -5,8 +5,6 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY, VAPID_PUBLIC_KEY } from './config.js';
 import { sfx, isMuted, setMuted } from './sfx.js';
 export { sfx };
 
-settingsButton();
-
 // ---------------------------------------------------------------- full screen for the game area
 // A page puts fsButton('#someId') inside the part of the page that is the game. On phones
 // the button makes just that part cover the screen (browser bars hidden where the browser
@@ -19,7 +17,7 @@ fsStyle.textContent = `
   .fs-on{position:fixed!important;inset:0;z-index:60;margin:0!important;max-width:none!important;width:auto!important;overflow:auto;overscroll-behavior:contain;
     background:var(--bg,#101024);box-sizing:border-box;padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))}
   body.fs-lock{overflow:hidden}
-  body.fs-lock #setBtn{bottom:auto!important;top:calc(8px + env(safe-area-inset-top,0px))}`;
+`;
 document.head.appendChild(fsStyle);
 const fsNative = () => document.fullscreenElement || document.webkitFullscreenElement;
 function fsLabels() {
@@ -31,7 +29,7 @@ function fsLabels() {
 // page whatever its z-index, so the toolbar and Settings ride inside it while it's on.
 function fsHost() {
   const host = document.querySelector('.fs-on') || document.body;
-  ['gameTools', 'setBtn'].forEach((id) => { const el = document.getElementById(id); if (el && el.parentElement !== host) host.appendChild(el); });
+  ['gameTools'].forEach((id) => { const el = document.getElementById(id); if (el && el.parentElement !== host) host.appendChild(el); });
 }
 function fsSync() { fsHost(); fsLabels(); dispatchEvent(new Event('resize')); }
 export function fsExit() {
@@ -55,53 +53,76 @@ document.addEventListener('fullscreenchange', fsChanged); document.addEventListe
 // The page redrew the game area: keep its button's label right.
 export const fsRefresh = () => fsLabels();
 
-// ---------------------------------------------------------------- the game toolbar
-// One place on every game page for ⛶ full screen and 🗑 delete: pinned to the top-right corner,
-// above the game even in full screen. The page's top row (class gtop) leaves room for it, and in
-// full screen the game area keeps a strip clear at the top (Settings moves to the top-left).
-// setGameTools({ fs: '#play', canDelete, onDelete }) shows or updates it; setGameTools(null) hides it.
-// onDelete() returns an error message, or nothing when the game is gone.
+// ---------------------------------------------------------------- the toolbar
+// One cluster pinned to the top-right corner of every page: ⚙️ Settings always, and in a game
+// 🤖 live-vs-robot (when the robot plays), ⛶ full screen (touch screens) and 🗑 delete (the
+// game's creator). It stays on top in full screen by riding inside the full-screen element
+// (fsHost). The page's top row (class gtop) leaves room for it (--gtw).
+// setGameTools({ fs, canDelete, onDelete, bot }) shows the game buttons; setGameTools(null) hides
+// them. onDelete() returns an error message, or nothing when the game is gone.
+// bot: { on, label, onToggle } — onToggle() flips it and returns an error message or nothing.
 let tools = null, toolsOpts = null;
 const toolsCss = document.createElement('style');
 toolsCss.textContent = `
   #gameTools{position:fixed;top:calc(10px + env(safe-area-inset-top,0px));right:calc(10px + env(safe-area-inset-right,0px));z-index:71;display:flex;gap:8px;align-items:center}
-  #gameTools[hidden]{display:none}
-  #gameTools .gtb{width:40px;height:40px;border-radius:12px;border:1.5px solid #ffffff55;background:#141026cc;color:#fff;font-size:19px;line-height:1;padding:0;cursor:pointer;display:grid;place-items:center;box-shadow:0 4px 12px #0004}
+  #gameTools .gtb{position:relative;width:40px;height:40px;border-radius:12px;border:1.5px solid #ffffff55;background:#141026cc;color:#fff;font-size:19px;line-height:1;padding:0;cursor:pointer;display:grid;place-items:center;box-shadow:0 4px 12px #0004}
+  #gameTools .gtb[hidden]{display:none}
   #gameTools .gtb.del.armed{width:auto;padding:0 14px;font-size:14px;font-weight:800;background:#C0392B;border-color:#C0392B;white-space:nowrap}
+  #gameTools .gtb.bot[aria-pressed=true]{background:#C0392B;border-color:#FF8A7A;box-shadow:0 0 12px #FF5A4A99}
+  #gameTools .gtb.bot b{position:absolute;right:-6px;bottom:-7px;padding:1px 4px;border-radius:6px;font-size:9px;font-weight:900;letter-spacing:.04em;background:#141026;color:#fff;border:1px solid #ffffff55}
+  #gameTools .gtb.bot[aria-pressed=true] b{background:#FFC857;color:#2A2100;border-color:#FFC857}
   #gameTools .gtb:disabled{opacity:.6}
-  body.has-tools .gtop{padding-right:var(--gtw,56px)}
-  body.has-tools.fs-lock .fs-on{padding-top:calc(58px + env(safe-area-inset-top,0px))}
-  body.fs-lock #setBtn{right:auto!important;left:calc(10px + env(safe-area-inset-left,0px))}
+  .gtop{padding-right:var(--gtw,56px)}
+  body.fs-lock .fs-on{padding-top:calc(58px + env(safe-area-inset-top,0px))}
   @media (pointer:fine){#gameTools .fsbtn{display:none!important}}`;
 document.head.appendChild(toolsCss);
+function settingsButton() {
+  if (tools) return;
+  tools = document.createElement('div'); tools.id = 'gameTools'; tools.setAttribute('role', 'toolbar'); tools.setAttribute('aria-label', 'Tools');
+  tools.innerHTML = `<button type="button" class="gtb bot" hidden aria-pressed="false">🤖<b>OFF</b></button>`
+    + `<button type="button" class="gtb fsbtn" data-fs="" hidden aria-label="Full screen">⛶</button>`
+    + `<button type="button" class="gtb del" hidden aria-label="Delete this game" title="Delete this game">🗑</button>`
+    + `<button type="button" class="gtb" id="setBtn" aria-label="Settings" title="Settings">⚙️</button>`;
+  (document.body || document.documentElement).appendChild(tools);
+  tools.querySelector('#setBtn').onclick = openSettings;
+  const del = tools.querySelector('.del');
+  let t = null;
+  const disarm = () => { clearTimeout(t); delete del.dataset.armed; del.classList.remove('armed'); del.textContent = '🗑'; del.setAttribute('aria-label', 'Delete this game'); fit(); };
+  del.onclick = async () => {
+    if (!del.dataset.armed) {
+      del.dataset.armed = '1'; del.classList.add('armed'); del.textContent = '🗑 Delete for everyone?'; del.setAttribute('aria-label', 'Tap again to delete the game for everyone');
+      fit(); t = setTimeout(disarm, 4000); return;
+    }
+    clearTimeout(t); del.disabled = true;
+    const err = await toolsOpts?.onDelete?.();
+    del.disabled = false;
+    if (err) { disarm(); note(err, 'error'); }
+  };
+  const bot = tools.querySelector('.bot');
+  bot.onclick = async () => {
+    const b = toolsOpts?.bot; if (!b) return;
+    bot.disabled = true;
+    const err = await b.onToggle();
+    bot.disabled = false;
+    if (err) note(err, 'error');
+    else note(!b.on ? `⚔️ ${b.label}: on. No turns, fire at will!` : `${b.label}: off. Back to taking turns.`);
+  };
+  fit();
+}
 export function setGameTools(opts) {
+  settingsButton();
   toolsOpts = opts;
-  if (!opts) { if (tools) tools.hidden = true; document.body.classList.remove('has-tools'); return; }
-  if (!tools) {
-    tools = document.createElement('div'); tools.id = 'gameTools'; tools.setAttribute('role', 'toolbar'); tools.setAttribute('aria-label', 'Game');
-    tools.innerHTML = `<button type="button" class="gtb fsbtn" data-fs="" aria-label="Full screen">⛶</button><button type="button" class="gtb del" aria-label="Delete this game" title="Delete this game">🗑</button>`;
-    document.body.appendChild(tools);
-    const del = tools.querySelector('.del');
-    let t = null;
-    const disarm = () => { clearTimeout(t); delete del.dataset.armed; del.classList.remove('armed'); del.textContent = '🗑'; del.setAttribute('aria-label', 'Delete this game'); fit(); };
-    del.onclick = async () => {
-      if (!del.dataset.armed) {
-        del.dataset.armed = '1'; del.classList.add('armed'); del.textContent = '🗑 Delete for everyone?'; del.setAttribute('aria-label', 'Tap again to delete the game for everyone');
-        fit(); t = setTimeout(disarm, 4000); return;
-      }
-      clearTimeout(t); del.disabled = true;
-      const err = await toolsOpts?.onDelete?.();
-      del.disabled = false;
-      if (err) { disarm(); note(err, 'error'); }
-    };
-  }
-  tools.hidden = false;
   const host = document.querySelector('.fs-on') || document.body;
   if (tools.parentElement !== host) host.appendChild(tools);   // re-attach after a page redraw
-  const fsb = tools.querySelector('[data-fs]');
-  fsb.dataset.fs = opts.fs || ''; fsb.hidden = !opts.fs;
-  tools.querySelector('.del').hidden = !opts.canDelete;
-  document.body.classList.add('has-tools');
+  const fsb = tools.querySelector('[data-fs]'), del = tools.querySelector('.del'), bot = tools.querySelector('.bot');
+  fsb.dataset.fs = opts?.fs || ''; fsb.hidden = !opts?.fs;
+  del.hidden = !opts?.canDelete;
+  bot.hidden = !opts?.bot;
+  if (opts?.bot) {
+    bot.setAttribute('aria-pressed', String(!!opts.bot.on));
+    bot.querySelector('b').textContent = opts.bot.on ? 'LIVE' : 'OFF';
+    bot.setAttribute('aria-label', `${opts.bot.label}: ${opts.bot.on ? 'on' : 'off'}`); bot.title = `${opts.bot.label}: ${opts.bot.on ? 'on' : 'off'}`;
+  }
   fsLabels(); fit();
 }
 function fit() { if (tools) requestAnimationFrame(() => document.documentElement.style.setProperty('--gtw', `${Math.ceil(tools.getBoundingClientRect().width) + 16}px`)); }
@@ -416,7 +437,7 @@ export function note(text, tone = '') {
   let box = document.getElementById('notes');
   if (!box) {
     box = document.createElement('div'); box.id = 'notes'; box.setAttribute('role', 'status'); box.setAttribute('aria-live', 'polite');
-    box.style.cssText = 'position:fixed;left:50%;top:calc(10px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:85;display:flex;flex-direction:column;gap:6px;align-items:center;width:min(420px,calc(100vw - 24px));pointer-events:none';
+    box.style.cssText = 'position:fixed;left:50%;top:calc(58px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:85;display:flex;flex-direction:column;gap:6px;align-items:center;width:min(420px,calc(100vw - 24px));pointer-events:none';
     document.body.appendChild(box);
   }
   while (box.children.length >= 2) box.firstChild.remove();
@@ -810,14 +831,6 @@ export async function signOutHere() {
   await sb.auth.signOut();
   location.href = './';
 }
-function settingsButton() {
-  if (document.getElementById('setBtn')) return;
-  const b = document.createElement('button');
-  b.id = 'setBtn'; b.type = 'button'; b.textContent = '⚙️'; b.setAttribute('aria-label', 'Settings');
-  b.style.cssText = 'position:fixed;right:calc(12px + env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));z-index:70;width:44px;height:44px;border-radius:50%;border:1.5px solid #ffffff44;background:#141026cc;color:#fff;font-size:21px;line-height:1;padding:0;cursor:pointer;box-shadow:0 6px 16px #0006';
-  b.onclick = openSettings;
-  document.body.appendChild(b);
-}
 function sw(key, on, label, hint) {
   return `<div class="setrow"><div><strong>${label}</strong><span>${hint}</span></div>
     <button type="button" class="switch" role="switch" aria-checked="${on}" data-sw="${key}" aria-label="${label}"><i></i></button></div>`;
@@ -980,3 +993,6 @@ async function paintAlerts(wrap) {
     paintAlerts(wrap);
   };
 }
+
+// Every page gets the toolbar (with ⚙️ Settings) as soon as it loads.
+settingsButton();

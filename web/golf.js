@@ -204,10 +204,9 @@ function renderCard() {
     h += `<td class="tot">${st[k].strokes || ''}</td><td>${st[k].played ? (st[k].toPar > 0 ? '+' : '') + st[k].toPar : ''}</td></tr>`;
   });
   $('scorecard').innerHTML = h + '</tbody></table>';
-  setGameTools({ fs: '#play', canDelete: g.created_by === me.id, onDelete: deleteGame });
+  setGameTools({ fs: '#play', canDelete: g.created_by === me.id, onDelete: deleteGame,
+    bot: g.status === 'playing' && n() > 1 && g.players.some(isBot) ? { on: !!g.live_bot, label: 'Live race vs robot', onToggle: toggleBotLive } : null });
   // Live race vs robot: a switch whenever the robot is playing.
-  const bl = $('botLive'); bl.hidden = !(g.status === 'playing' && n() > 1 && g.players.some(isBot));
-  if (!bl.hidden) { const b = $('botLiveBtn'); b.setAttribute('aria-pressed', String(!!g.live_bot)); b.querySelector('b').textContent = g.live_bot ? 'On' : 'Off'; }
   // Skip ahead, only while it's your turn and nothing is rolling.
   const canJump = !over && !liveOn && curPlayer() === me.id && mode === 'aim' && curHole() < g.start + g.count - 1;
   $('jumpRow').hidden = !canJump;
@@ -746,6 +745,12 @@ $('jumpGo').onclick = async () => {
   if (error) { $('jumpNote').textContent = friendly(error); return; }
   mode = 'idle'; await load(G.game.id); notify('golf', G.game.id); decide();
 };
+// The toolbar's 🤖 switch.
+async function toggleBotLive() {
+  const { error } = await sb.rpc('set_live_bot', { p_kind: 'golf', p_game: G.game.id, p_on: !G.game.live_bot });
+  if (error) return friendly(error);
+  await load(G.game.id); renderCard();
+}
 async function deleteGame() {
   const { error } = await sb.rpc('golf_delete', { p_game: G.game.id });
   if (error) return friendly(error);
@@ -780,13 +785,6 @@ async function deleteGame() {
     ball: (m) => { if (liveOn && m.p && m.p !== me.id) ghosts[m.p] = { hole: m.hole, x: m.x, y: m.y, holed: !!m.holed, at: Date.now() }; },
   });
   if (n() > 1) livePresence('golf', id, setLive);   // with the robot in, the server only counts it live when live_bot is on
-  $('botLiveBtn').onclick = async () => {
-    const b = $('botLiveBtn'); b.disabled = true;
-    const { error } = await sb.rpc('set_live_bot', { p_kind: 'golf', p_game: G.game.id, p_on: !G.game.live_bot });
-    b.disabled = false;
-    if (error) { note(friendly(error), 'error'); return; }
-    await load(G.game.id); renderCard();
-  };
   setInterval(() => { if (liveOn) botLiveHole(); }, 1500);
   navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.url) location.href = e.data.url; });
   const upNext = () => nextUpChip(me.id, id, (p) => (bots.has(p) ? '🤖 ' : '') + (names[p] ?? G?.names?.[p] ?? 'someone'));

@@ -98,8 +98,9 @@ takes a bare username.
   page calls `card_timeout` (slow player draws 1). The robot plays via `card_bot_play` from a
   watching page and counts as always present. Gauntlet deals it for any player count; the chaos
   clock makes a staller draw 2/4, and a 24 h Gauntlet forfeit goes to the fewest cards.
-- **Game toolbar** (`setGameTools` in common.js): ⛶ full screen and 🗑 delete live in one fixed
-  cluster at the top-right of every game page; don't put per-page full-screen or delete buttons
+- **Toolbar** (`setGameTools` in common.js): one fixed cluster at the top-right of *every* page —
+  ⚙️ Settings always, and in games 🤖 live-vs-robot (`bot: { on, label, onToggle }`), ⛶ full screen
+  and 🗑 delete. Notes (toasts) start below it; don't put per-page full-screen or delete buttons
   back. Pages call `setGameTools({ fs, canDelete, onDelete })` on render (onDelete returns an error
   message or navigates away); app.js's `view()` hides it so only the Battleship game view shows it.
   The page's top row carries class `gtop` to leave room. While full screen is on, the toolbar and

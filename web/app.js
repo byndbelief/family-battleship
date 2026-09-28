@@ -293,7 +293,7 @@ async function lobby() {
   view(`
     <div class="lobby${quick ? ' quickmode' : ' lobhome'}">
       <div class="quickhead"><a href="#">← Game Room</a><h1>Quick play</h1><p class="muted">One game on its own, outside the Gauntlet. One of each kind per group of players at a time.</p></div>
-      <header class="row between">
+      <header class="row between gtop">
         <div class="stack lobhead"><span class="eyebrow">Family Game Room</span><h1>Ahoy, ${esc(me.username)}</h1></div>
         <div class="herenow" id="hereNow" aria-label="Who's here"></div>
       </header>
@@ -1242,7 +1242,6 @@ function renderGame() {
       <h1>${title}</h1>
       ${sub ? `<p class="muted gsub">${sub}</p>` : ''}
       ${playersStrip}
-      ${game.status === 'playing' && !imOut && game.players.some((p) => bots.has(p)) ? `<div class="botlive"><button type="button" class="chip" id="botLiveBtn" aria-pressed="${!!game.live_bot}">⚔️ Live battle vs robot: <b>${game.live_bot ? 'On' : 'Off'}</b></button></div>` : ''}
     </header>
     ${body}
     ${liveNow ? `<div class="firebar livebar ${packMini ? 'withmini' : ''}">${packMini ? fbPack : ''}<span class="aimwrap"><span id="aimtext">${Date.now() < bsReloadAt ? 'Reloading…' : '⚔️ Guns ready: tap a square'}</span></span>${deskBar() ? fbPack : ''}</div>` : ''}
@@ -1273,13 +1272,6 @@ function renderGame() {
   const fb = app.querySelector('.firebar');   // keep the ▶ Next chip and 🔊 above it, whatever its height
   if (fb) document.documentElement.style.setProperty('--fbh', `${Math.ceil(fb.getBoundingClientRect().height)}px`);
   app.querySelectorAll('[data-tab]').forEach((b) => { b.onclick = () => showBoard(b.dataset.tab); });
-  const blb = document.getElementById('botLiveBtn');
-  if (blb) blb.onclick = async () => {
-    blb.disabled = true;
-    const { error } = await sb.rpc('set_live_bot', { p_kind: 'battleship', p_game: game.id, p_on: !game.live_bot });
-    if (error) { note(friendly(error), 'error'); blb.disabled = false; return; }
-    await loadGame(game.id); renderGame();
-  };
   const clr = document.getElementById('clearAim');
   if (clr) clr.onclick = () => { aims = { target: null, cells: new Set() }; renderGame(); };
 
@@ -1287,7 +1279,13 @@ function renderGame() {
   fsRefresh();
   document.getElementById('back').onclick = () => { location.hash = ''; };
 
-  setGameTools({ fs: '#app', canDelete, onDelete: async () => {
+  setGameTools({ fs: '#app', canDelete,
+    bot: game.status === 'playing' && !imOut && game.players.some((p) => bots.has(p)) ? { on: !!game.live_bot, label: 'Live battle vs robot', onToggle: async () => {
+      const { error } = await sb.rpc('set_live_bot', { p_kind: 'battleship', p_game: game.id, p_on: !game.live_bot });
+      if (error) return friendly(error);
+      await loadGame(game.id); renderGame();
+    } } : null,
+    onDelete: async () => {
     const { error } = await sb.rpc('delete_game', { p_game: game.id });
     if (error) return friendly(error);
     location.hash = '';
