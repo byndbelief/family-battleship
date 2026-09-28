@@ -353,7 +353,8 @@ export async function gauntletBar(gauntletId, gameId, meId, nameOf) {
 // waiting, the banner counts down to a new game instead (a rematch that starts by itself). Only the first time this device sees
 // the game end, and only if it ended in the last 10 minutes, so an old result never bounces you
 // away. `wait` lets the win/lose screen play first.
-export async function jumpToNext(kind, game, meId, nameOf, wait = 3000) {
+// `mount`: an element on the result screen to show it in ("Coming next"), instead of a floating banner.
+export async function jumpToNext(kind, game, meId, nameOf, wait = 3000, mount = null) {
   const key = `next.jumped.${game.id}`;
   try { if (localStorage.getItem(key)) return; localStorage.setItem(key, '1'); } catch { return; }
   if (Date.now() - new Date(game.updated_at).getTime() > 600000) return;
@@ -380,15 +381,21 @@ export async function jumpToNext(kind, game, meId, nameOf, wait = 3000) {
   const btn = 'border:0;border-radius:99px;padding:6px 12px;font:inherit;cursor:pointer;flex:none;white-space:nowrap';
   document.getElementById('nextJump')?.remove();
   const el = document.createElement('div'); el.id = 'nextJump';
-  el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:95;display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 14px;border-radius:16px;background:#1B1646;color:#fff;font:700 15px/1.3 system-ui,sans-serif;box-shadow:0 10px 30px #000a;width:max-content;max-width:calc(100vw - 24px);box-sizing:border-box';
+  // Shown in its spot on the result screen when that's on screen, otherwise as a floating banner.
+  const inSpot = !!mount && mount.isConnected && (mount.checkVisibility ? mount.checkVisibility() : true);
+  el.style.cssText = inSpot
+    ? 'display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;background:#00000040;color:#fff;font:700 15px/1.3 system-ui,sans-serif;border:1.5px solid #F2C23099;box-sizing:border-box;text-align:left'
+    : 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:95;display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 14px;border-radius:16px;background:#1B1646;color:#fff;font:700 15px/1.3 system-ui,sans-serif;box-shadow:0 10px 30px #000a;width:max-content;max-width:calc(100vw - 24px);box-sizing:border-box';
   const them = game.players.filter((p) => p !== meId).map(nameOf).join(' & ') || 'solo';
   const vs = target ? target.players.filter((p) => p !== meId).map(nameOf).join(' & ') || 'solo' : them;
   const secs = target ? 3 : 5;   // nothing waiting: a little longer before a brand-new game starts
-  const label = target ? `${esc(target.label)}: ${KIND_ICON[target.kind]} vs ${esc(vs)}` : `New game: ${KIND_ICON[kind]} vs ${esc(them)}`;
+  const label = `<span style="display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#F2C230">Coming next</span>`
+    + (target ? `${esc(target.label)}: ${KIND_ICON[target.kind]} vs ${esc(vs)}` : `A new game: ${KIND_ICON[kind]} vs ${esc(them)}`);
   el.innerHTML = `<b id="nextJumpN" style="flex:none;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#F2C230;color:#2A2100">${secs}</b><span style="flex:1 1 170px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${label}</span>`
     + '<span style="display:flex;gap:8px;margin-left:auto">' + (canRematch && target ? `<button type="button" data-nj="rematch" style="${btn};background:#F2C230;color:#2A2100">🔁 Rematch</button>` : '')
     + `<button type="button" data-nj="stay" style="${btn};background:#ffffff22;color:#fff">Stay here</button></span>`;
-  document.body.appendChild(el);
+  if (inSpot) { const t = el.querySelector('span'); t.style.whiteSpace = 'normal'; t.style.overflow = 'visible'; }   // room to wrap on the result screen
+  (inSpot ? mount : document.body).appendChild(el);
   let n = secs, iv = null;
   const stop = () => { clearInterval(iv); el.remove(); };
   const startRematch = async (btnEl) => {

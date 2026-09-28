@@ -97,6 +97,7 @@
   #play.fs-on .stage canvas{width:auto;height:auto;max-width:100%;max-height:100%}
   #play.fs-on #controls{padding:10px 12px;gap:6px}
   #play.fs-on #shotsFold{display:none}
+
   /* Desktop: the battlefield as big as the window allows, the controls in a column beside it,
      everything on one screen. The rows are content-sized; the last one takes up the slack so the
      battlefield spanning them all doesn't spread the side column apart. */
@@ -104,7 +105,7 @@
     body{padding-inline:24px;padding-block:14px 24px}
     .wrap{max-width:1560px;gap:12px}
     h1{font-size:30px}
-    #play:not(.fs-on){display:grid;grid-template-columns:minmax(0,1fr) 360px;grid-template-rows:repeat(7,auto) 1fr;column-gap:20px;row-gap:14px;align-items:start}
+    #play:not(.fs-on){display:grid;grid-template-columns:minmax(0,1fr) 360px;grid-template-rows:repeat(8,auto) 1fr;column-gap:20px;row-gap:14px;align-items:start}
     #play:not(.fs-on) .stage{grid-column:1;grid-row:1 / -1;width:100%;max-width:calc((100dvh - 170px) * 1.818);justify-self:center}
     #play:not(.fs-on) > :not(.stage){grid-column:2}
     #play .controls{grid-template-columns:1fr}
@@ -169,6 +170,7 @@
   </section>
   <div id="pack"></div>
   <section class="panel" id="endPanel" hidden></section>
+  <div id="nextSlot"></div>
   <details class="panel mfold" id="shotsFold"><summary><h2>Shots</h2></summary><ul class="feed" id="feed"></ul>
     <p><button class="link" id="del" hidden>Delete this duel</button></p></details>
   </div>

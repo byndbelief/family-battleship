@@ -197,7 +197,7 @@ function endDrama(g) {
   const won = g.winner === me.id;
   splash(['K.O.!', won ? 'VICTORY' : 'DEFEATED', won ? 'You hold the hill' : `${nm(g.winner).replace(/<[^>]+>/g, '')} takes the hill`], { tone: won ? 'gold' : 'red', ms: 2800 });
   sfx(won ? 'fanfare' : 'lose', { delay: 0.9 });
-  jumpToNext('duel', g, me.id, (p) => (bots.has(p) ? '🤖 ' : '') + (names[p] ?? G?.names?.[p] ?? 'someone'), 3200);
+  jumpToNext('duel', g, me.id, (p) => (bots.has(p) ? '🤖 ' : '') + (names[p] ?? G?.names?.[p] ?? 'someone'), 2600, $('nextSlot'));
 }
 function stamp(text, tone = '', ms = 2400) { const el = document.createElement('div'); el.className = `stamp ${tone}`; el.innerHTML = `<span>${text}</span>`; document.body.appendChild(el); setTimeout(() => el.remove(), ms); }
 
@@ -289,14 +289,8 @@ function render() {
   }).join('') || '<li class="muted">No shots yet.</li>';
   if (over) {
     $('endPanel').hidden = false;
-    const opp = g.players[1 - mi];
-    $('endPanel').innerHTML = `<h2>${g.winner === me.id ? '🏆 Victory!' : `${nm(g.winner)} took the hill`}</h2><p class="muted">${g.move} shots fired.</p>
-      <div class="row"><button class="go" id="rematch">Rematch</button><a href="./">Back to all games</a></div><p class="small" id="rmErr"></p>`;
-    $('rematch').onclick = async () => {
-      const { data, error } = await sb.rpc('duel_create', { p_opponent: G.names[opp] ?? '', p_bot_level: g.bot_level });
-      if (error) { $('rmErr').textContent = friendly(error); return; }
-      notify('duel', data); location.hash = `game=${data}`; location.reload();
-    };
+    // What's next (the countdown, with Rematch and Stay here) shows in #nextSlot, just below.
+    $('endPanel').innerHTML = `<h2>${g.winner === me.id ? '🏆 Victory!' : `${nm(g.winner)} took the hill`}</h2><p class="muted">${g.move} shots fired.</p>`;
   }
 }
 
