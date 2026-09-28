@@ -326,6 +326,7 @@ export const ITEMS = {
   homing: { icon: '🚀', name: 'Homing Missile', game: 'duel', desc: 'Curves toward their tank on the way down. Smaller blast.' },
   railgun: { icon: '⚡', name: 'Railgun', game: 'duel', desc: 'A straight beam through hills: aim only, no power. 45 on a direct hit.' },
   dirt: { icon: '🪨', name: 'Dirt Bomb', game: 'duel', desc: 'Piles up a hill where it lands: build a wall, or block their shot.' },
+  foxhole: { icon: '🕳️', name: 'Foxhole', game: 'duel', desc: 'Dig in where you stand: blasts do 40% less to you until you drive out.' },
   xray: { icon: '👀', name: 'X-Ray Specs', game: 'cards', desc: "Peek at one opponent's hand." },
   paint: { icon: '🎨', name: 'Paint Bomb', game: 'cards', desc: 'Set the colour in play to any colour you like.' },
   trash: { icon: '🗑️', name: 'Trash Chute', game: 'cards', desc: 'Throw away one card from your hand (3 or more in hand).' },
@@ -386,7 +387,7 @@ export function backpackBarHTML(items, gameKind, enabled, { compact = false } = 
       const st = document.createElement('style'); st.id = 'packMiniCss';
       st.textContent = `.packmini{display:flex;align-items:center;gap:8px;overflow-x:auto;scrollbar-width:none;padding:8px 6px 4px 0}
 .packmini::-webkit-scrollbar{display:none}
-.packmini .pmlabel{flex:none;font-size:18px;opacity:.8}
+.packmini .pmlabel{flex:none;font-size:12px;line-height:1;opacity:.45;filter:grayscale(1);padding:4px 7px 4px 0;border-right:1px solid #ffffff26}
 .packmini button{position:relative;flex:none;width:42px;height:42px;min-height:0;padding:0;border-radius:12px;display:grid;place-items:center;font-size:21px;line-height:1;border:1.5px dashed #F2C23099;background:#F2C23012}
 .packmini button[disabled]{opacity:.35}
 .packmini button.on{opacity:1;border-style:solid;border-color:#F2C230;background:#F2C23033;box-shadow:0 0 10px #F2C23066}
@@ -460,6 +461,10 @@ export async function nextUpChip(meId, currentId, nameOf) {
 
 // ---------------------------------------------------------------- phones: game first
 export const isPhone = () => matchMedia('(max-width: 640px)').matches;
+// The backpack as a row of icons (not the full panel): phones, and any touch screen whichever way
+// it's held. By width alone a redraw while a phone was sideways (or in full screen) swapped in the
+// full backpack mid-game.
+export const compactPack = () => isPhone() || matchMedia('(pointer: coarse)').matches;
 // A section that is open on big screens and folded to a one-line header on phones.
 export const foldOpen = () => (isPhone() ? '' : 'open');
 // A quick message that pops in at the top and fades, instead of a line of text on the page.

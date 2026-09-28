@@ -1,7 +1,7 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, shotClock, stopShotClock, chaosClock, dramaOn, face, jumpToNext, setGameTools, condenseTop } from './common.js';
-import { W, H, CRATER_R, BERTHA_R, rng, buildTop as buildTopN, applyCrater, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, startXs, zones, aimDir } from './duel-engine.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, shotClock, stopShotClock, chaosClock, dramaOn, face, jumpToNext, setGameTools, condenseTop, compactPack } from './common.js';
+import { W, H, CRATER_R, BERTHA_R, rng, buildTop as buildTopN, applyCrater, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, startXs, zones, aimDir, digCut } from './duel-engine.js';
 
 const $ = (id) => document.getElementById(id);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -28,6 +28,10 @@ const DODGE = 20;
 let liveOn = false, reloadAt = 0, liveMyX = null, liveX = {}, liveSave = null, seenHp = null, shells = [];
 const RELOAD = 1500;   // live battle: the server allows a shot every 1.2 s (025)
 const FUEL = 40;
+// ⛏️ Dig mode (029): the Move bar digs instead of drives: the tank keeps its level and cuts
+// straight through hills (same fuel). The cut is saved with the move; until then every page
+// draws it from the driver's spot (pendingCuts). Your pick sticks until you switch back.
+let digOn = false;
 // 2 players face each other on two halves; 3-4 (023) spread along the ridge, each on its own stretch.
 const N = () => G.game.players.length, multi = () => N() > 2;
 const SIDE = (p) => zones(N())[p];
@@ -66,6 +70,32 @@ const turnId = () => G.game.players[G.game.turn];
 const armedOf = (id) => G?.game.armed?.[id] || null;
 // A saved shot's crater(s) as a list (a cluster bomb saves several).
 const craterList = (c) => (!c ? [] : Array.isArray(c[0]) ? c : [c]);
+// The ground before a saved shot: every edit but that shot's own craters (found from the end, as
+// a Foxhole or a live dig may have been saved after it).
+function cratersBefore(all, shotCrater) {
+  const out = [...all], key = (c) => JSON.stringify(c);
+  craterList(shotCrater).slice().reverse().forEach((c) => { const j = out.map(key).lastIndexOf(key(c)); if (j >= 0) out.splice(j, 1); });
+  return out;
+}
+// Digs in progress, not saved yet: mine, and anyone else's the live channel told us about.
+function pendingCuts() {
+  const g = G.game, mi = myIdx(), out = [];
+  if (g.status !== 'playing') return out;
+  const add = (p, x) => { const c = digCut(baseXs()[p], x); if (c) out.push(c); };
+  if (mi >= 0 && digOn) {
+    if (liveOn && liveMyX != null) add(mi, liveMyX);
+    else if (!liveOn && turnId() === me.id && myXMove === g.move && myX != null) add(mi, myX);
+  }
+  Object.entries(aims).forEach(([p, a]) => { if (+p !== mi && a?.dig && a.x != null && (liveOn || (a.move === g.move && +p === g.turn))) add(+p, a.x); });
+  return out;
+}
+const groundCraters = () => [...G.game.craters, ...pendingCuts()];
+const ground = () => buildTop(G.game.seed, groundCraters());
+// Redraw the ground for a dig in progress (not while a shell is in the air: it's digging too).
+const refreshTop = () => { if (G && !shot && !shells.length && !(busy && !liveOn)) top = ground(); };
+// 🕳️ Foxhole (029): dug in while your tank is still where you dug. Blasts do 40% less (× a Shield's half).
+const dugIn = (g, id, x) => x != null && g.foxholes?.[id] != null && +g.foxholes[id] === x;
+const guards = (g, X, shooterId) => g.players.map((id, k) => (g.shields.includes(id) && id !== shooterId ? 0.5 : 1) * (dugIn(g, id, X[k]) ? 0.6 : 1));
 const isBot = (id) => bots.has(id);
 const who = (id) => (id === me.id ? 'You' : nm(id));
 const seenKey = () => `duel.seen.${G.game.id}`;
@@ -270,8 +300,8 @@ function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1, X = x
 // ---------------------------------------------------------------- screen
 function render() {
   const g = G.game, mi = myIdx();
-  top = top || buildTop(g.seed, g.craters);
-  const tag = (p) => (g.shields.includes(p) ? ' 🛡️' : '') + (g.bertha.includes(p) ? ' 💣' : '') + (armedOf(p) ? ` ${WEAPONS[armedOf(p)].icon}` : '');
+  top = top || ground();
+  const X0 = xs(), tag = (p) => (dugIn(g, p, X0[g.players.indexOf(p)]) ? ' 🕳️' : '') + (g.shields.includes(p) ? ' 🛡️' : '') + (g.bertha.includes(p) ? ' 💣' : '') + (armedOf(p) ? ` ${WEAPONS[armedOf(p)].icon}` : '');
   // Face, name (the part that gives way on a narrow screen, with …), then the HP, which always shows.
   const label = (p) => `${face(g.players[p])}<span class="nm">${who(g.players[p])}</span><span>&nbsp;· ${g.hp[p]}${tag(g.players[p])}</span>`;
   const many = multi();
@@ -323,7 +353,7 @@ function render() {
   cv.style.touchAction = canAim() ? 'none' : 'manipulation';   // dragging aims on your turn instead of scrolling
   cv.style.cursor = canAim() ? 'crosshair' : '';
   // Phones, on your shot: the backpack as a row of icons right above Fire!; otherwise its own panel below.
-  const mini = isPhone() && !$('controls').hidden;
+  const mini = compactPack() && !$('controls').hidden;
   $('packMini').innerHTML = mini ? backpackBarHTML(pack, 'duel', !busy, { compact: true }) : '';
   $('pack').innerHTML = over || out || mini ? '' : backpackBarHTML(pack, 'duel', !busy);
   document.querySelectorAll('#pack [data-loot], #packMini [data-loot]').forEach((b) => {
@@ -331,13 +361,19 @@ function render() {
     b.classList.toggle('on', armedOf(me.id) === item || (item === 'bertha' && g.bertha.includes(me.id)) || (item === 'shield' && g.shields.includes(me.id)));
     const shell = item === 'bertha' || WEAPONS[item];
     if ((shell && (!mine || g.bertha.includes(me.id) || armedOf(me.id))) || (item === 'shield' && g.shields.includes(me.id))) b.disabled = true;
+    // A Foxhole digs in where your tank is saved: not while a turn's drive is still unsaved.
+    const drove = !liveOn && myXMove === g.move && myX != null && myX !== baseXs()[mi];
+    if (item === 'foxhole') { b.classList.toggle('on', mi >= 0 && dugIn(g, me.id, xs()[mi])); if (mi < 0 || dugIn(g, me.id, xs()[mi]) || drove) b.disabled = true; }
     b.onclick = async () => {
       b.disabled = true;
+      if (item === 'foxhole' && liveOn && liveMyX != null && liveMyX !== baseXs()[mi]) { clearTimeout(liveSave); await saveLiveX(); }
       const { error } = await useLoot(+b.dataset.loot, g.id);
       if (error) { $('err').textContent = friendly(error); return; }
       stamp(`${ITEMS[item].icon} ${ITEMS[item].name}${WEAPONS[item] ? '<br><small style="font-size:.45em">loaded</small>' : '!'}`, '', 1500); sfx('pop');
       if (WEAPONS[item]) { note(`${ITEMS[item].icon} ${ITEMS[item].desc}`); hintCache.clear(); }
-      pack = await backpack(); await load(g.id); render(); showAim();
+      pack = await backpack(); await load(g.id);
+      if (item === 'foxhole') { top = ground(); sfx('boom', { size: 0.5 }); note('🕳️ Dug in! Blasts do 40% less to you while you stay put. Drive out and it\'s just a hole.'); }
+      render(); showAim();
     };
   });
   setGameTools({ fs: '#play', canDelete: g.created_by === me.id, onDelete: deleteGame,
@@ -381,15 +417,15 @@ async function decide() {
   // Watch the last shot if it's new to you.
   if (last && last.shooter !== me.id && last.move > seenMove()) {
     busy = true; render();
-    const before = g.craters.slice(0, g.craters.length - craterCount(last.crater));
+    const before = cratersBefore(g.craters, last.crater);
     const lp = g.players.indexOf(last.shooter), full = g.players.map(() => 100), prevHp = G.shots[G.shots.length - 2]?.hp_after || full;
     // Where everyone stood when it was fired (xs, 023), or the older two-tank record.
     const LX = last.xs ? [...last.xs] : [...baseXs()]; if (!last.xs) { if (last.from_x != null) LX[lp] = last.from_x; if (last.target_x != null) LX[1 - lp] = last.target_x; }
     await flyShell(lp, last.angle, last.power, before, last.wind_move ?? last.move - 1, last.crater, last.wind_x || 1, LX, last.weapon, prevHp);
-    markSeen(last.move); top = buildTop(g.seed, g.craters); busy = false;
+    markSeen(last.move); top = ground(); busy = false;
     hitDrama(prevHp, last.hp_after);
   }
-  top = buildTop(g.seed, g.craters);
+  top = ground();
   render();
   if (g.status === 'over') { if (liveOn) setLive(false); endDrama(g); return; }
   const cur = turnId();
@@ -401,19 +437,19 @@ async function decide() {
 
 async function fire() {
   const g = G.game, p = myIdx(), angle = +$('angle').value, power = +$('power').value, move = g.move, X = xs();
-  const moved = X[p] !== baseXs()[p] ? X[p] : null;
+  const moved = X[p] !== baseXs()[p] ? X[p] : null, cut = digOn && moved != null ? digCut(baseXs()[p], moved) : null;
   busy = true; drag = null; render();
   navigator.vibrate?.(40);
   const wpn = armedOf(me.id), big = !wpn && g.bertha.includes(me.id);
-  live?.send('shot', { from: p, move, angle, power, x: X[p], tx: multi() ? null : X[1 - p], X, w: wpn });
-  const sim = await flyShell(p, angle, power, g.craters, move, null, g.gust === move ? 3 : 1, X, wpn);
+  live?.send('shot', { from: p, move, angle, power, x: X[p], tx: multi() ? null : X[1 - p], X, w: wpn, dig: !!cut });
+  const sim = await flyShell(p, angle, power, cut ? [...g.craters, cut] : g.craters, move, null, g.gust === move ? 3 : 1, X, wpn);
   const cr = weaponCraters(sim.impacts, wpn, big), crater = wpn === 'cluster' ? (cr.length ? cr : null) : cr[0] || null;
-  const hp = weaponDamage(top, sim.impacts, g.hp, wpn, big, g.players.map((x) => g.shields.includes(x) && x !== me.id), standing(X, g.hp, p));
+  const hp = weaponDamage(top, sim.impacts, g.hp, wpn, big, guards(g, X, me.id), standing(X, g.hp, p));
   impactNow(cr, g.hp, hp);
   const { error } = await sb.rpc('duel_fire', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_hp: hp, p_xs: X,
-    ...(multi() ? {} : { p_target_x: X[1 - p] }), ...(moved != null ? { p_x: moved } : {}) });
+    ...(multi() ? {} : { p_target_x: X[1 - p] }), ...(moved != null ? { p_x: moved } : {}), ...(cut ? { p_dig: true } : {}) });
   busy = false; myX = null;
-  if (error) { $('err').textContent = friendly(error); await load(g.id); top = buildTop(G.game.seed, G.game.craters); render(); return; }   // not saved: put things back
+  if (error) { $('err').textContent = friendly(error); await load(g.id); top = ground(); render(); return; }   // not saved: put things back
   markSeen(move + 1);
   notify('duel', g.id);
   announceChaos({ gameId: g.id }); pack = await backpack();
@@ -423,7 +459,7 @@ async function fire() {
 // The other player just pulled the trigger: fly their shell here right away, the same way
 // their page does, instead of waiting for the database to catch up.
 async function watchLiveShot(msg, refresh) {
-  const { move, angle, power, x, tx, live: isLive, wx, w, X: sentX } = msg;
+  const { move, angle, power, x, tx, live: isLive, wx, w, X: sentX, dig } = msg;
   if (isLive) return watchShellLive(msg);
   const g = G?.game;
   if (!g || busy || g.status !== 'playing' || move !== g.move || turnId() === me.id) return;
@@ -431,16 +467,17 @@ async function watchLiveShot(msg, refresh) {
   busy = true; aims[p] = { move, angle, power, x }; render();
   const WX = sentX ? [...sentX] : [...baseXs()]; if (!sentX) { if (x != null) WX[p] = x; if (tx != null) WX[1 - p] = tx; }
   dodgeX = null;   // their shell is already in the air
-  const sim = await flyShell(p, angle, power, g.craters, move, null, g.gust === move ? 3 : 1, WX, w || null);
+  const cut = dig ? digCut(baseXs()[p], WX[p]) : null;
+  const sim = await flyShell(p, angle, power, cut ? [...g.craters, cut] : g.craters, move, null, g.gust === move ? 3 : 1, WX, w || null);
   // Same flight, same numbers as their page: show the hit now; their saved shot confirms it.
-  const hpNow = weaponDamage(top, sim.impacts, g.hp, w || null, big && !w, g.players.map((q) => g.shields.includes(q) && q !== shooter), standing(WX, g.hp, p));
+  const hpNow = weaponDamage(top, sim.impacts, g.hp, w || null, big && !w, guards(g, WX, shooter), standing(WX, g.hp, p));
   impactNow(weaponCraters(sim.impacts, w || null, big && !w), g.hp, hpNow);
   markSeen(move + 1); delete aims[p];
   // Wait for their shot to land in the database, then show where things stand.
   for (let i = 0; i < 8 && G.game.move === move; i++) { await sleep(500); await load(g.id); }
   busy = false;
   if (G.game.move === move) return refresh();   // still not saved; the regular checks will pick it up
-  top = buildTop(G.game.seed, G.game.craters);
+  top = ground();
   if (G.game.hp.join() !== hpNow.join()) hitDrama(hpNow, G.game.hp);   // only if the saved shot says otherwise
   pack = await backpack(); announceChaos({ gameId: g.id });
   decide();
@@ -451,6 +488,7 @@ async function fireLive() {
   const g = G?.game, p = G ? myIdx() : -1;
   if (!g || p < 0 || !liveOn || g.status !== 'playing' || Date.now() < reloadAt) return;
   reloadAt = Date.now() + RELOAD; showReload();
+  if (digOn && liveMyX != null && liveMyX !== baseXs()[p]) { clearTimeout(liveSave); await saveLiveX(); }   // the dig is saved before the shot
   const angle = +$('angle').value, power = +$('power').value, move = g.move, windX = g.gust === move ? 3 : 1, X = xs();
   navigator.vibrate?.(40); drag = null;
   const wpn = armedOf(me.id), big = !wpn && g.bertha.includes(me.id);
@@ -458,7 +496,7 @@ async function fireLive() {
   const sim = await flyShell(p, angle, power, g.craters, move, null, windX, X, wpn);
   // Damage is worked out where the tanks stand when it lands (they may have driven meanwhile).
   const now = G.game, Xi = xs(), cr = weaponCraters(sim.impacts, wpn, big), crater = wpn === 'cluster' ? (cr.length ? cr : null) : cr[0] || null;
-  const hp = weaponDamage(top, sim.impacts, now.hp, wpn, big, now.players.map((x) => now.shields.includes(x) && x !== me.id), standing(Xi, now.hp, p));
+  const hp = weaponDamage(top, sim.impacts, now.hp, wpn, big, guards(now, Xi, me.id), standing(Xi, now.hp, p));
   cr.forEach((c) => { blast(c); applyCrater(top, c); });
   const { error } = await sb.rpc('duel_fire_live', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater,
     p_dmg: now.hp.map((h, k) => h - hp[k]), p_x: X[p] !== baseXs()[p] ? X[p] : null, p_target_x: multi() ? null : Xi[1 - p], p_xs: Xi, p_wind_move: move, p_wind_x: windX });
@@ -504,7 +542,7 @@ function setLive(v) {
     reloadAt = 0; showReload();
     if (G?.game.status === 'playing') note('Live battle over: back to taking turns.');
   }
-  if (G) { top = buildTop(G.game.seed, G.game.craters); render(); }
+  if (G) { top = ground(); render(); }
 }
 
 // ---------------------------------------------------------------- the robot, live
@@ -555,7 +593,7 @@ async function botLiveShot() {
     if (!liveOn) return;
     const sim = await flyShell(bi, angle, power, g.craters, move, null, windX, X);
     const now = G.game, Xi = xs(), crater = sim.impact ? [Math.round(sim.impact.x), Math.round(sim.impact.y), CRATER_R] : null;
-    const hp = damage(top, sim.impact, now.hp, false, now.players.map((x) => now.shields.includes(x) && x !== now.players[bi]), standing(Xi, now.hp, bi));
+    const hp = damage(top, sim.impact, now.hp, false, guards(now, Xi, now.players[bi]), standing(Xi, now.hp, bi));
     if (crater) { blast(crater); applyCrater(top, crater); }
     const { error } = await sb.rpc('duel_fire_live_bot', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_dmg: now.hp.map((h, k) => h - hp[k]),
       p_x: to !== baseXs()[bi] ? to : null, p_target_x: multi() ? null : Xi[mi], p_xs: Xi, p_wind_move: move, p_wind_x: windX });
@@ -612,13 +650,13 @@ async function robotShot() {
   await sleep(reduceMotion ? 0 : 900);
   const sim = await flyShell(p, angle, power, g.craters, g.move, null, g.gust === g.move ? 3 : 1, X);
   const crater = sim.impact ? [Math.round(sim.impact.x), Math.round(sim.impact.y), CRATER_R] : null;
-  const hp = damage(top, sim.impact, g.hp, false, g.players.map((x) => g.shields.includes(x) && x !== g.players[p]), SX);
+  const hp = damage(top, sim.impact, g.hp, false, guards(g, SX, g.players[p]), SX);
   impactNow(crater ? [crater] : [], g.hp, hp);
   const { error } = await sb.rpc('duel_fire_bot', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_hp: hp, p_xs: X, ...(goal !== start ? { p_x: goal } : {}) });
   botDrive = null;
   markSeen(g.move + 1);
   busy = false;
-  if (error) { $('err').textContent = friendly(error); await load(g.id); top = buildTop(G.game.seed, G.game.craters); return render(); }
+  if (error) { $('err').textContent = friendly(error); await load(g.id); top = ground(); return render(); }
   nudge();
   await load(g.id); decide();
 }
@@ -629,7 +667,7 @@ const sendAim = () => {
   if (!G || (busy && !liveOn)) return;
   const now = Date.now();
   if (now - aimT < 90) { if (!aimQueued) { aimQueued = true; setTimeout(() => { aimQueued = false; sendAim(); }, 90); } return; }
-  aimT = now; live?.send('aim', { from: myIdx(), move: G.game.move, angle: +$('angle').value, power: +$('power').value, x: xs()[myIdx()] });
+  aimT = now; live?.send('aim', { from: myIdx(), move: G.game.move, angle: +$('angle').value, power: +$('power').value, x: xs()[myIdx()], dig: digOn });
 };
 // Sets the aim from anywhere (sliders, − / + buttons, dragging on the battlefield).
 function showAim() {
@@ -663,7 +701,7 @@ function driveTo(x) {
   if (liveOn && G && myIdx() >= 0 && G.game.status === 'playing') {
     const [lo, hi] = driveRange(), cur = curDriveX(), nx = Math.max(lo, Math.min(hi, Math.round(x)));
     if (nx === cur) return;
-    liveMyX = nx; sendAim(); showFuel();
+    liveMyX = nx; sendAim(); showFuel(); if (digOn) refreshTop();
     if (Math.floor(nx / 8) !== Math.floor(cur / 8)) sfx('tick');
     clearTimeout(liveSave); liveSave = setTimeout(saveLiveX, 400);
     return;
@@ -672,19 +710,24 @@ function driveTo(x) {
   if (myXMove !== g.move || myX == null) { myXMove = g.move; myX = baseXs()[myIdx()]; }
   const [lo, hi] = driveRange(), cur = myX, nx = Math.max(lo, Math.min(hi, Math.round(x)));
   if (nx === cur) return;
-  myX = nx; showFuel(); sendAim();
+  myX = nx; showFuel(); sendAim(); if (digOn) refreshTop();
   if (Math.floor(nx / 8) !== Math.floor(cur / 8)) sfx('tick');
 }
 async function saveLiveX() {
   const g = G?.game; if (!g || !liveOn || liveMyX == null) return;
-  const { error } = await sb.rpc('duel_dodge', { p_game: g.id, p_move: g.move, p_x: liveMyX });
+  const dig = digOn && liveMyX !== baseXs()[myIdx()];
+  const { error } = await sb.rpc('duel_dodge', { p_game: g.id, p_move: g.move, p_x: liveMyX, ...(dig ? { p_dig: true } : {}) });
   if (error) note(friendly(error), 'error');
+  else if (dig) { await load(g.id); refreshTop(); }   // the tunnel is saved: build on it
 }
 function showFuel() {
   const g = G?.game; if (!g || !$('fuelOut')) return;
   const mr = $('moveRange');
   if (myIdx() >= 0) { const [lo, hi] = driveRange(); mr.min = lo; mr.max = hi; mr.value = curDriveX(); }
   mr.disabled = !(g.status === 'playing' && myIdx() >= 0 && (liveOn || (turnId() === me.id && !busy)));
+  // The Foxhole digs in where your tank was saved: not after a drive this turn that isn't yet.
+  const drove = !liveOn && myXMove === g.move && myX != null && myIdx() >= 0 && myX !== baseXs()[myIdx()];
+  document.querySelectorAll('#pack [data-item="foxhole"], #packMini [data-item="foxhole"]').forEach((b) => { if (drove) b.disabled = true; });
   if (liveOn) { $('fuelOut').textContent = '∞'; return; }
   const used = myXMove === g.move && myX != null ? Math.abs(myX - baseXs()[myIdx()]) : 0;
   $('fuelOut').textContent = FUEL - used;
@@ -730,6 +773,20 @@ document.querySelectorAll('[data-dv]').forEach((b) => {
   b.addEventListener('contextmenu', (e) => e.preventDefault());
   b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); dodgeBy(+b.dataset.dv); } });
 });
+// Move ⇄ ⛏️ Dig. Switching mid-drive redraws the ground: the drive so far becomes a dig, or not.
+function showDig() {
+  const b = $('digBtn'); b.setAttribute('aria-pressed', String(digOn));
+  b.querySelector('.mi').textContent = digOn ? '⛏️' : '🚜'; b.querySelector('.ml').textContent = digOn ? 'Dig' : 'Move';
+  $('moveRange').setAttribute('aria-label', digOn ? 'Where your tank is: drag to dig through the hill' : 'Where your tank is: drag to drive');
+}
+$('digBtn').addEventListener('click', () => {
+  digOn = !digOn; showDig(); sfx('tick'); navigator.vibrate?.(15);
+  try { localStorage.setItem('duel.dig', digOn ? '1' : ''); } catch {}
+  if (G) { sendAim(); refreshTop(); }
+  if (digOn) note('⛏️ Dig mode: your tank keeps its level and ploughs straight through hills. Same fuel.');
+});
+try { digOn = !!localStorage.getItem('duel.dig'); } catch {}
+showDig();
 document.querySelectorAll('[data-mv]').forEach((b) => {
   let hold = null, rep = null;
   const stop = () => { clearTimeout(hold); clearInterval(rep); };
@@ -811,8 +868,8 @@ async function deleteGame() {
     here: () => here(),
     aim: (a) => {
       const p = fromOf(a); if (!G || p < 0 || p === myIdx()) return;
-      if (liveOn) { aims[p] = a; if (a.x != null) liveX[p] = a.x; return; }
-      if (a.move === G.game.move && p === G.game.turn && turnId() !== me.id) { aims[p] = a; $('status').textContent = 'Aiming…'; }
+      if (liveOn) { aims[p] = a; if (a.x != null) liveX[p] = a.x; if (a.dig) refreshTop(); return; }
+      if (a.move === G.game.move && p === G.game.turn && turnId() !== me.id) { aims[p] = a; $('status').textContent = 'Aiming…'; if (a.dig) refreshTop(); }
     },
     shot: (s) => watchLiveShot(s, refresh),
   });

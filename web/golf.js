@@ -1,5 +1,5 @@
 // Putt Post, live: turns and scores are saved on the server; putts replay for everyone.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, dramaOn, face, livePresence, avatarOf, splash, jumpToNext, setGameTools, condenseTop } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, compactPack, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, dramaOn, face, livePresence, avatarOf, splash, jumpToNext, setGameTools, condenseTop } from './common.js';
 import {
   LW, LH, HOLES, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, drawHole,
   inPoly, inRect, segDist, reduceMotion,
@@ -472,7 +472,7 @@ function clearSpot(h, x, y) {
     && !h.bumpers.some(([cx, cy, cr]) => (x - cx) ** 2 + (y - cy) ** 2 < (cr + R + 1) ** 2);
 }
 function renderPack() {
-  const on = mode === 'aim', mini = isPhone();
+  const on = mode === 'aim', mini = compactPack();
   const html = G.game.status === 'playing' && (liveOn ? !myHoleDone() : curPlayer() === me.id) ? backpackBarHTML(pack, 'golf', on, { compact: mini }) : '';
   // Phones: a row of icons right above the Putt! bar; otherwise the full backpack below the tip.
   $('packMini').innerHTML = mini ? html : ''; $('pack').innerHTML = mini ? '' : html;

@@ -1411,7 +1411,7 @@ async function oceanShuffle() {
   G.draft = data; renderGame();
 }
 // Desktop (not full screen): the backpack rides in the fire bar, so your turn is one panel.
-const deskBar = () => matchMedia('(min-width:1000px) and (min-height:560px)').matches && !app.classList.contains('fs-on');
+const deskBar = () => matchMedia('(min-width:1000px) and (min-height:560px)').matches && !app.classList.contains('fs-on') && !matchMedia('(pointer: coarse)').matches;
 // The robot in a live battle: ask the server to fire for it (it keeps the robot to one shot every
 // 1.2 s however many pages ask, and picks the target and square itself).
 let botAsk = false, bsLiveSince = 0;

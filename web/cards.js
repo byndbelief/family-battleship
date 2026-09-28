@@ -1,7 +1,7 @@
 // Chaos Cards: a shedding card game (plays like Uno) with chaos cards and chaos events.
 // Everything is decided on the server (card_play, card_draw…); this page shows the table, your
 // own hand (the only one you can read) and what just happened, and asks the robot to play.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, sfx, liveGame, nextUpChip, names, gauntletBar, note, splash, chaosClock, face, avatar, livePresence, jumpToNext, announceChaos, isPhone, ITEMS, backpack, backpackBarHTML, setGameTools, condenseTop } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, sfx, compactPack, liveGame, nextUpChip, names, gauntletBar, note, splash, chaosClock, face, avatar, livePresence, jumpToNext, announceChaos, isPhone, ITEMS, backpack, backpackBarHTML, setGameTools, condenseTop } from './common.js';
 
 const $ = (id) => document.getElementById(id);
 let G = null;                 // { game, hand }
@@ -192,7 +192,7 @@ $('hand').addEventListener('click', (e) => { const b = e.target.closest('[data-c
 // ---------------------------------------------------------------- backpack (024)
 function renderPack(g, can, over) {
   const el = $('packMini');
-  el.innerHTML = over || !g.players.includes(me.id) ? '' : backpackBarHTML(pack, 'cards', can, { compact: isPhone() });
+  el.innerHTML = over || !g.players.includes(me.id) ? '' : backpackBarHTML(pack, 'cards', can, { compact: compactPack() });
   el.querySelectorAll('[data-loot]').forEach((b) => {
     const item = b.dataset.item;
     if ((item === 'trash' || item === 'gift') && G.hand.length < 3) b.disabled = true;

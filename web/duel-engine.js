@@ -21,7 +21,13 @@ function baseTerrain(seed, n = 2) {
   return a;
 }
 // A crater [x, y, r] digs a round hole; a mound [x, y, r, 1] (the Dirt Bomb) piles a round hill.
+// Digging (029) is relative to the ground as it stands, so every page gets the same result:
+//   a cut [a, b, from, 2]  (⛏️ Dig mode) brings a..b down to the ground's height at x=from;
+//   a pit [x, depth, r, 3] (🕳️ Foxhole) brings x±r down to depth below the ground at x.
+const lowerTo = (top, a, b, y) => { for (let x = Math.max(0, Math.round(a)); x <= Math.min(W - 1, Math.round(b)); x++) top[x] = Math.max(top[x], y); };
 function applyCrater(top, [cx, cy, r, mound]) {
+  if (mound === 2) return lowerTo(top, cx, cy, top[Math.max(0, Math.min(W - 1, r))]);
+  if (mound === 3) { const x = Math.max(0, Math.min(W - 1, cx)); return lowerTo(top, cx - r, cx + r, Math.min(H - 8, top[x] + cy)); }
   for (let x = Math.max(0, cx - r); x <= Math.min(W - 1, cx + r); x++) {
     const dy = Math.sqrt(r * r - (x - cx) ** 2);
     if (mound) top[x] = Math.max(24, Math.min(top[x], cy - dy));
@@ -130,8 +136,7 @@ function weaponDamage(top, impacts, hp, weapon, big = false, shielded = [], xs =
       else if (weapon === 'homing') dmg += d < 32 ? Math.round(38 - d * 1.1) : 0;
       else if (weapon === 'railgun') dmg += d < 16 ? 45 : 0;
     });
-    dmg = Math.min(60, dmg);
-    if (shielded[p]) dmg = Math.round(dmg / 2);
+    dmg = Math.round(Math.min(60, dmg) * guardOf(shielded[p]));
     out[p] = Math.max(0, out[p] - dmg);
   });
   return out;
@@ -147,10 +152,15 @@ function damage(top, impact, hp, big = false, shielded = [], xs = TANK_X) {
     if (!t) return;
     const d = Math.hypot(impact.x - t.x, impact.y - (t.y - 8));
     let dmg = big ? (d < 62 ? Math.round(60 - d * 0.9) : 0) : (d < 40 ? Math.round(46 - d * 1.1) : 0);
-    if (shielded[p]) dmg = Math.round(dmg / 2);
+    dmg = Math.round(dmg * guardOf(shielded[p]));
     out[p] = Math.max(0, out[p] - dmg);
   });
   return out;
 }
+// shielded[p]: true (a Shield: half) or a number (what's left after Shield and Foxhole: 0.5 × 0.6).
+const guardOf = (v) => (v === true ? 0.5 : typeof v === 'number' ? v : 1);
+// Where a dig from x0 to x1 cuts (the same cut the server saves, _duel_cut in 029): 12 px past the
+// tank's stop so the whole tank fits.
+const digCut = (x0, x1) => (x0 == null || x1 == null || x1 === x0 ? null : x1 > x0 ? [x0, x1 + 12, x0, 2] : [x1 - 12, x0, x0, 2]);
 
-export { startXs, zones, aimDir, hitTank, rng, baseTerrain, applyCrater, buildTop, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle };
+export { startXs, zones, aimDir, hitTank, rng, baseTerrain, applyCrater, buildTop, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, digCut };

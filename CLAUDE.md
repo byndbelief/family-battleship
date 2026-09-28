@@ -169,6 +169,17 @@ takes a bare username.
   🪨 Dirt Bomb piles a hill (a mound crater `[x, y, r, 1]`). The server checks craters fit the
   weapon and records it on the shot (`duel_shots.weapon`) so replays match. Everyone got a
   starter crate of all four; about a third of loot drops are weapons now. Robots don't use them.
+- **Digging** (`029_duel_dig.sql`): two new terrain edits in `duel_games.craters`, both
+  **relative** to the ground at that point in the list (so the server never needs hill heights):
+  a cut `[a, b, from, 2]` (⛏️ Dig mode on the Move bar: the tank keeps its level and ploughs through
+  hills; `digCut()` in the engine and `_duel_cut()` on the server must stay identical) and a pit
+  `[x, depth, r, 3]` (🕳️ Foxhole loot). `duel_games.foxholes` is player → x; you're dug in while
+  your tank stands at that x: blasts × 0.6 (× 0.5 more with a Shield) — the `shielded` damage arg
+  now takes multipliers (`guards()` in duel.js). Digs save with the shot (`duel_fire p_dig`) or,
+  live, with the drive (`duel_dodge p_dig`); until then `pendingCuts()` draws them. Since edits can
+  land after a shot, replays find the ground before a shot with `cratersBefore()`, not by count.
+- **Compact backpack**: `compactPack()` in common.js (phone width *or* a touch screen) picks the
+  icon row; by width alone a redraw while a phone was sideways swapped in the full panel mid-game.
 - **The robot is meant to be hard at Pro and Ace, easy at Rookie.** Battleship (`012`): hunts by
   probability (every way each unsunk ship could still fit) — ~45 shots to clear a 10×10 fleet vs
   ~52 before. Duel: tight aim that steadies with every shot it takes (Pro hits ~52% → ~75% by its
@@ -241,7 +252,7 @@ takes a bare username.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.
