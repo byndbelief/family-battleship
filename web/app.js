@@ -226,7 +226,8 @@ async function loadMe(uid) {
 function route() {
   if (!me) return loginView();
   const m = location.hash.match(/game=([0-9a-f-]{36})/);
-  if (m) openGame(m[1]); else if (location.hash === '#stats') statsView(); else lobby();
+  const pm = location.hash.match(/player=([0-9a-f-]{36})/);
+  if (m) openGame(m[1]); else if (pm) profileView(pm[1]); else if (location.hash === '#stats') statsView(); else lobby();
 }
 window.addEventListener('hashchange', route);
 
@@ -347,7 +348,7 @@ async function lobby() {
     <div class="lobby${quick ? ' quickmode' : ''}">
       <div class="quickhead"><a href="#">← Game Room</a><h1>Quick play</h1><p class="muted">One game on its own, outside the Gauntlet. One of each kind per group of players at a time.</p></div>
       <header class="row between">
-        <div class="stack lobhead"><span class="eyebrow">Family Game Room</span><h1>Ahoy, ${esc(me.username)}</h1></div>
+        <div class="stack lobhead"><span class="eyebrow">Family Game Room</span><h1>Ahoy, ${esc(me.username)}</h1><a class="mytrophies" href="#player=${me.id}">🏆 My trophies</a></div>
         <button class="link" id="signout">Sign out</button>
       </header>
       <section class="gthero" id="gtSec">
@@ -834,11 +835,11 @@ async function statsView() {
   const medal = ['🥇', '🥈', '🥉'];
   const ranked = ps.filter((p) => p.played || p.gauntlets);
   const cards = ranked.map((p, i) => `
-    <div class="scard ${p.id === me.id ? 'me' : ''}">
+    <a class="scard ${p.id === me.id ? 'me' : ''}" href="#player=${p.id}">
       <div class="row between"><strong class="sname">${medal[i] || ''} ${who(p)}</strong>${p.streak >= 2 ? `<span class="streak">🔥 ${p.streak} in a row</span>` : ''}</div>
       <div class="sbig"><span><b>${p.titles}</b> 👑 Gauntlet${p.titles === 1 ? '' : 's'}</span><span><b>${p.won}</b>–${p.played - p.won} <small>${pct(p.won, p.played)}</small></span></div>
-      <div class="skinds">${['battleship', 'golf', 'duel'].map((k) => `<span>${KIND_ICON[k]} ${p.by_kind[k].won}/${p.by_kind[k].played}</span>`).join('')}<span>🏁 ${p.rounds_won} round${p.rounds_won === 1 ? '' : 's'}</span></div>
-    </div>`).join('');
+      <div class="skinds">${['battleship', 'golf', 'duel'].map((k) => `<span>${KIND_ICON[k]} ${p.by_kind[k].won}/${p.by_kind[k].played}</span>`).join('')}<span>🏁 ${p.rounds_won} round${p.rounds_won === 1 ? '' : 's'}</span><span class="sgo">🏆 Trophies ›</span></div>
+    </a>`).join('');
   const award = (icon, label, key, fmt = (v) => v) => {
     const top = Math.max(0, ...ps.map((p) => p[key] || 0));
     if (!top) return '';
@@ -875,6 +876,59 @@ async function statsView() {
     ${awards ? `<section class="card"><h2>🏛️ Hall of fame</h2><ul class="pack">${awards}</ul></section>` : ''}
     ${h2h ? `<section class="card"><h2>⚔️ Head to head</h2><ul class="h2h">${h2h}</ul><p class="muted small">One-on-one games, Gauntlet rounds included.</p></section>` : ''}
     <section class="card"><h2>📊 Every stat</h2>${table}</section>`;
+}
+
+// ---------------------------------------------------------------- a player's trophy case (#player=<id>)
+// The shelf holds a cup for every Gauntlet title; badges light up as the numbers are reached
+// (all from player_trophies, over the results log that outlives deleted games).
+const BADGES = [
+  ['🩸', 'First blood', 'Win your first game', (c) => c.won, 1],
+  ['🎩', 'Hat trick', 'Win 3 games in a row', (c) => c.best_streak, 3],
+  ['🔥', 'On fire', 'Win 5 games in a row', (c) => c.best_streak, 5],
+  ['👑', 'Champion', 'Win a Gauntlet', (c) => c.titles, 1],
+  ['💎', 'Flawless', 'Win a Gauntlet without dropping a round', (c, t) => t.filter((x) => x.perfect).length, 1],
+  ['🏰', 'Dynasty', 'Win 5 Gauntlets', (c) => c.titles, 5],
+  ['🏃', 'Grinder', 'Play 10 Gauntlets', (c) => c.gauntlets, 10],
+  ['🎲', 'Triple threat', 'Win a game of each kind', (c) => [c.battleship_won, c.golf_won, c.duel_won].filter((x) => x > 0).length, 3],
+  ['⚓', 'Admiral', 'Win 10 Battleship games', (c) => c.battleship_won, 10],
+  ['🎯', 'Sharpshooter', 'Sink 10 ships', (c) => c.sunk, 10],
+  ['⛳', 'Ace', 'Sink a hole in one', (c) => c.hio, 1],
+  ['🐦', 'Birdie machine', 'Finish 10 holes under par', (c) => c.under, 10],
+  ['🥊', 'Knockout artist', 'Win 5 duels by K.O.', (c) => c.kos, 5],
+  ['💥', 'Heavy hitter', 'Land 10 direct hits', (c) => c.direct, 10],
+  ['🤖', 'Robot slayer', 'Beat the robot 5 times', (c) => c.bot_wins, 5],
+  ['🧹', 'Clean sweep', 'Beat every member of the family', (c) => c.beaten, (c) => c.family],
+  ['🦊', 'Sneaky fox', 'Get away with 5 cheats', (c) => c.away, 5],
+  ['🔍', 'Eagle eye', 'Catch 3 cheaters', (c) => c.catches, 3],
+  ['🚨', 'Caught red-handed', 'Get busted cheating', (c) => c.busted, 1],
+];
+async function profileView(id) {
+  G = null; setChannel(null); stopShotClock(); danger(false);
+  document.getElementById('nextUp')?.remove(); document.body.classList.remove('has-firebar');
+  view(`<div class="lobby profileview"><div class="statshead"><a href="#stats">← Scoreboard</a></div><div id="profBody"><p class="muted">Opening the trophy case…</p></div></div>`);
+  const { data: d, error } = await sb.rpc('player_trophies', { p_player: id });
+  const body = document.getElementById('profBody');
+  if (!body) return;
+  if (error || !d) { body.innerHTML = `<p class="error">${error ? esc(friendly(error)) : 'No such player.'}</p>`; return; }
+  const c = d.counts || {}, titles = d.titles || [], mine = d.id === me.id;
+  const name = `${d.bot ? '🤖 ' : ''}${esc(d.username)}`;
+  const shelf = titles.length
+    ? titles.map((t) => `<button type="button" class="trophy ${t.perfect ? 'perfect' : ''}" data-t="${esc(t.table.map((x) => `${x.name} ${x.score}`).join(' · '))}">
+        <span class="cup" aria-hidden="true">🏆</span><span class="tvs">vs ${esc(t.table.filter((x) => x.id !== d.id).map((x) => x.name).join(' & '))}</span>
+        <span class="tscore">${t.table.map((x) => x.score).join('–')}${t.perfect ? ' 💎' : ''}</span><span class="tdate">${new Date(t.at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span></button>`).join('')
+    : `<div class="trophy empty"><span class="cup" aria-hidden="true">🏆</span><span class="tvs">${mine ? 'Win a Gauntlet to put a trophy here' : 'No Gauntlet titles yet'}</span></div>`;
+  const badges = BADGES.map(([icon, title, how, get, goal]) => {
+    const need = typeof goal === 'function' ? goal(c) : goal, have = Math.min(need, get(c, titles) || 0), got = need > 0 && have >= need;
+    return { got, html: `<div class="badge ${got ? 'got' : ''}" title="${esc(how)}"><span class="bicon" aria-hidden="true">${icon}</span><strong>${title}</strong><span class="bhow">${how}</span>${got ? '' : `<span class="bprog" aria-label="${have} of ${need}"><i style="width:${need ? Math.round((have / need) * 100) : 0}%"></i></span><span class="bnum">${have}/${need}</span>`}</div>` };
+  });
+  const earned = badges.filter((b) => b.got).length;
+  body.innerHTML = `
+    <header class="phead"><span class="avatar" aria-hidden="true">${d.bot ? '🤖' : esc(d.username[0].toUpperCase())}</span>
+      <div><h1>${name}</h1><p class="muted">👑 ${c.titles} title${c.titles === 1 ? '' : 's'} · ${c.won}–${c.played - c.won} in games · best streak ${c.best_streak}${c.streak >= 2 ? ` · 🔥 ${c.streak} now` : ''}</p></div></header>
+    <section class="stack" style="gap:8px"><h2>🏆 Trophy case</h2><div class="shelf">${shelf}</div></section>
+    <section class="stack" style="gap:8px"><div class="row between"><h2>🎖️ Badges</h2><span class="muted small">${earned} of ${badges.length}</span></div>
+      <div class="badges">${badges.filter((b) => b.got).map((b) => b.html).join('')}${badges.filter((b) => !b.got).map((b) => b.html).join('')}</div></section>`;
+  body.querySelectorAll('.trophy[data-t]').forEach((t) => { t.onclick = () => { note(`🏆 ${t.dataset.t}`); sfx('chime'); }; });
 }
 
 // ---------------------------------------------------------------- game
