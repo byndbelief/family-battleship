@@ -56,8 +56,32 @@ export const bots = new Set();    // profile ids of robot players
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+// Live chaos battles (Battleship, Putt Post): check in with the server every 3 s while the page
+// is showing, leave when it's hidden or closed. onChange(true) when everyone is here (turns stop),
+// onChange(false) when someone leaves. The duel has its own (duel_here).
+export function livePresence(kind, gameId, onChange) {
+  let on = false, stopped = false;
+  const set = (v) => { if (v !== on) { on = v; onChange(v); } };
+  const tick = async (here = true) => {
+    if (stopped && here) return;
+    const { data, error } = await sb.rpc('live_here', { p_kind: kind, p_game: gameId, p_on: here });
+    if (here && !error && !stopped) set(!!data);
+  };
+  const vis = () => { if (document.hidden) { set(false); tick(false); } else tick(); };
+  const bye = () => tick(false);
+  const iv = setInterval(() => { if (!document.hidden) tick(); }, 3000);
+  document.addEventListener('visibilitychange', vis);
+  addEventListener('pagehide', bye);
+  tick();
+  return {
+    get on() { return on; },
+    stop() { if (stopped) return; stopped = true; clearInterval(iv); document.removeEventListener('visibilitychange', vis); removeEventListener('pagehide', bye); tick(false); },
+  };
+}
+
 // Player pictures, by username: a file in web/avatars/, or an emoji. Anyone without one gets their initial.
 const AVATARS = { phoenix_lord: 'avatars/phoenix_lord.jpg', dad_commander: '😎', obanai_rocks: '🐍' };
+export const avatarOf = (username) => AVATARS[username] || null;   // a picture path, an emoji, or null
 export function avatar(p, cls = 'avatar') {
   if (p?.bot) return `<span class="${cls}" aria-hidden="true">🤖</span>`;
   const a = AVATARS[p?.username];

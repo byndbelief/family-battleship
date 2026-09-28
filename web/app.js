@@ -1,5 +1,5 @@
 import { USERNAME_DOMAIN } from './config.js';
-import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face } from './common.js';
+import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence } from './common.js';
 import { HOLES, holeWithAttack, drawHole, LW, LH } from './golf-engine.js';
 import { W as DW, H as DH, TANK_X, buildTop } from './duel-engine.js';
 const app = document.getElementById('app');
@@ -23,6 +23,10 @@ let boardTab = null, boardTabFor = null;
 let shotsOpen = null, lastNoteKey = '';   // Latest shots folded or open; the last message popped up on a phone
 let peekMode = false;           // next tap on an opponent's board spends a peek cheat
 let sonarLoot = null;           // next tap on an opponent's board spends this Sonar Ping
+// Live battle: while everyone still afloat has the game open there are no turns. Tap any rival's
+// square to fire, one shot at a time, whenever your guns have reloaded (bsPresence checks in).
+let bsPresence = null, liveBS = false, bsReloadAt = 0;
+const BS_RELOAD = 2000;
 const seenShots = new Map();    // game id -> Set of shot ids already animated
 const seenAccusations = new Map();
 const pending = new Set();      // shot ids whose shell is still in the air
@@ -71,6 +75,7 @@ function friendly(err) {
 }
 function view(html) { app.innerHTML = html; }
 function setChannel(ch) {
+  if (bsPresence) { bsPresence.stop(); bsPresence = null; liveBS = false; }
   if (channel) sb.removeChannel(channel);
   channel = ch;
 }
@@ -172,11 +177,11 @@ function animateShots(newShots) {
   const first = cellEl(newShots[0].target, newShots[0].cell);
   if (first) { const r = first.getBoundingClientRect(); if (r.top < 60 || r.bottom > innerHeight - 90) { first.scrollIntoView({ block: 'center', behavior: 'smooth' }); delay = 450; } }
   // Incoming! A drumroll before their shells land on you.
-  if (newShots.some((s) => s.target === me.id)) { showBoard(me.id); sfx('drumroll', { dur: 0.9 }); delay += 950; }
+  if (newShots.some((s) => s.target === me.id)) { if (liveBS) sfx('whistle', { dur: 0.5 }); else { showBoard(me.id); sfx('drumroll', { dur: 0.9 }); delay += 950; } }
   Object.values(byMove).forEach((batch) => {
     batch.forEach((s, k) => {
       setTimeout(() => {
-        showBoard(s.target);
+        if (!liveBS) showBoard(s.target);   // live: stay on the board you're aiming at
         const el = cellEl(s.target, s.cell);
         if (!el) { pending.delete(s.id); renderGame(); return; }
         const [x, y] = centerOf(el);
@@ -885,6 +890,13 @@ async function openGame(id) {
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shots', filter: `game_id=eq.${id}` }, refresh)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'accusations', filter: `game_id=eq.${id}` }, refresh)
     .subscribe((s) => { const l = document.getElementById('live'); if (l) l.classList.toggle('off', s !== 'SUBSCRIBED'); }));
+  if (!G.game.players.some((p) => bots.has(p))) bsPresence = livePresence('battleship', id, (v) => {
+    liveBS = v; aims = { target: null, cells: new Set() }; peekMode = false;
+    if (G?.game.status !== 'playing') return renderGame();
+    if (v) { stopShotClock(); splash(['⚔️ LIVE BATTLE', "Everyone's here", 'No turns. Fire at will!'], { tone: 'red', ms: 2200 }); }
+    else { bsReloadAt = 0; note('Live battle over: back to taking turns.'); }
+    renderGame();
+  });
   renderGame();
   upNext();
 }
@@ -994,6 +1006,7 @@ function renderGame() {
   const opponents = game.players.filter((p) => p !== me.id);
   const myTurn = game.status === 'playing' && game.players[game.turn] === me.id;
   const imOut = game.eliminated.includes(me.id);
+  const liveNow = liveBS && game.status === 'playing' && !imOut;
   const perTurn = Math.max(1, game.spt + (myTurn ? G.shotMod : 0));
   const need = aims.target ? Math.min(perTurn, MODES[game.mode].n ** 2 - G.shots.filter((s) => s.target === aims.target).length) : perTurn;
 
@@ -1001,12 +1014,13 @@ function renderGame() {
   if (game.status === 'setup') title = G.fleets[me.id] ? 'Waiting for ships' : 'Place your fleet';
   else if (game.status === 'over') title = game.winner === me.id ? 'You win!' : `${nm(game.winner)} wins!`;
   else if (imOut) { title = "You're out"; sub = 'Your fleet is sunk. You can keep watching the battle.'; }
+  else if (liveNow) { title = '⚔️ Live battle'; sub = "No turns! Tap any rival's square to fire. Your guns reload in 2 seconds."; }
   else if (myTurn) { title = 'Your turn'; sub = `Pick ${perTurn === 1 ? 'a square' : `${perTurn} squares`}${G.shotMod < 0 ? ' (one fewer for that false accusation)' : G.shotMod > 0 ? ' (one sneaky extra 🤫)' : ''} on ${opponents.length > 1 ? "one opponent's" : `${nm(opponents[0])}'s`} board, then fire.`; }
   else { title = `${nm(game.players[game.turn])}'s turn`; sub = 'This page updates as soon as they fire.'; }
 
   const playersStrip = `<div class="players">${game.players.map((p) => {
     const cls = ['player'];
-    if (game.status === 'playing' && game.players[game.turn] === p) cls.push('turn');
+    if (game.status === 'playing' && (liveNow ? !game.eliminated.includes(p) : game.players[game.turn] === p)) cls.push('turn');
     if (game.eliminated.includes(p)) cls.push('out');
     return `<span class="${cls.join(' ')}">${p === me.id ? 'You' : nm(p)}${game.winner === p ? ' 🏆' : ''}${(game.skip_next || []).includes(p) ? ' <span class="skipnote" title="Busted: loses their next turn">⏭</span>' : ''}</span>`;
   }).join('')}</div>`;
@@ -1028,10 +1042,10 @@ function renderGame() {
   } else {
     const over = game.status === 'over';
     // Which board a phone shows: your target on your turn, your fleet otherwise, until you pick one.
-    const tabState = `${game.move}|${myTurn}`;
-    if (boardTabFor !== tabState || ![...opponents, me.id].includes(boardTab)) {
+    const tabState = liveNow ? 'live' : `${game.move}|${myTurn}`;
+    if (boardTabFor !== tabState || ![...opponents, me.id].includes(boardTab) || (liveNow && game.eliminated.includes(boardTab))) {
       boardTabFor = tabState;
-      boardTab = myTurn ? (aims.target || opponents.find((p) => !game.eliminated.includes(p)) || opponents[0]) : me.id;
+      boardTab = myTurn || liveNow ? (aims.target || opponents.find((p) => !game.eliminated.includes(p)) || opponents[0]) : me.id;
     }
     const left = (p) => MODES[game.mode].ships.length - new Set(G.shots.filter((s) => s.target === p && s.sunk_ship != null).map((s) => s.sunk_ship)).size;
     const tabs = `<div class="boardtabs" role="tablist" aria-label="Boards">${opponents.map((p) => `<button type="button" role="tab" data-tab="${p}" aria-selected="${boardTab === p}">🎯 ${face(p, names[p], bots.has(p))}${nm(p)} <small>${left(p)} left</small></button>`).join('')}<button type="button" role="tab" data-tab="${me.id}" aria-selected="${boardTab === me.id}">🚢 Your fleet <small>${left(me.id)} left</small></button></div>`;
@@ -1043,11 +1057,11 @@ function renderGame() {
       if (out) cls.push('eliminated');
       return `<section class="${cls.join(' ')}" data-owner="${p}">
         <div class="row between"><h2>${face(p, names[p], bots.has(p))}${nm(p)}'s waters</h2>${out ? '<span class="pill out">Sunk</span>' : ''}</div>
-        ${boardHTML({ owner: p, ships: over ? G.fleets[p] : null, clickable: myTurn && !out, fresh: true })}
+        ${boardHTML({ owner: p, ships: over ? G.fleets[p] : null, clickable: (myTurn || liveNow) && !out, fresh: true })}
         ${fleetListHTML(p)}
       </section>`;
     }).join('');
-    body = `${callOutHTML()}${sonarLoot && myTurn ? '<p class="status noteline">📡 Tap a square on an opponent\'s board to ping the 3×3 patch around it.</p>' : ''}${peekMode && myTurn ? '<p class="status noteline">👀 Tap a square on an opponent\'s board to peek.</p>' : ''}
+    body = `${callOutHTML()}${sonarLoot && (myTurn || liveNow) ? '<p class="status noteline">📡 Tap a square on an opponent\'s board to ping the 3×3 patch around it.</p>' : ''}${peekMode && (myTurn || liveNow) ? '<p class="status noteline">👀 Tap a square on an opponent\'s board to peek.</p>' : ''}
       ${tabs}
       <div class="boards">${targets}
         <section class="card bsec ${boardTab === me.id ? 'tab-on' : ''}" data-owner="${me.id}"><div class="row between"><h2>Your fleet</h2>${imOut ? '<span class="pill out">Sunk</span>' : ''}</div>
@@ -1055,7 +1069,7 @@ function renderGame() {
           ${fleetListHTML(me.id)}
           <p class="muted small">Yellow outlines mark the latest shots.</p></section>
       </div>
-      ${myTurn ? backpackBarHTML(G.pack || [], 'battleship', !busy) : ''}${over ? cheatLogHTML() : ''}${feedHTML()}
+      ${myTurn || liveNow ? backpackBarHTML(G.pack || [], 'battleship', !busy) : ''}${over ? cheatLogHTML() : ''}${feedHTML()}
       ${legend}`;
   }
 
@@ -1070,16 +1084,17 @@ function renderGame() {
     </header>
     ${body}
     ${canDelete ? `<p><button class="link danger" id="del">Delete this game</button></p>` : ''}
-    ${myTurn ? `<div class="firebar">
+    ${liveNow ? `<div class="firebar livebar"><span class="aimwrap"><span id="aimtext">${Date.now() < bsReloadAt ? 'Reloading…' : '⚔️ Guns ready: tap a square'}</span></span></div>` : ''}
+    ${myTurn && !liveNow ? `<div class="firebar">
       <span class="aimwrap"><span class="aimdots" aria-hidden="true">${Array.from({ length: need }, (_, i) => `<i class="${i < aims.cells.size ? 'on' : ''}"></i>`).join('')}</span>
       <span id="aimtext">${aims.target ? (aims.cells.size === need ? `Ready: ${need} at ${nm(aims.target)}` : `Aimed ${aims.cells.size} of ${need}`) : `Tap ${need === 1 ? 'a square' : `${need} squares`} to aim`}</span></span>
       ${aims.cells.size ? '<button class="link" id="clearAim">Clear</button>' : ''}
       <span data-clockslot></span>
       <button class="fire ${aims.target && aims.cells.size === need && !busy ? 'ready' : ''}" id="fire" ${aims.target && aims.cells.size === need && !busy ? '' : 'disabled'}>Fire!</button><span class="error" id="fireerr" hidden></span></div>` : ''}`);
-  document.body.classList.toggle('has-firebar', myTurn);
-  if (myTurn && G.cheatsOn) rumour(BS_RUMOURS);
+  document.body.classList.toggle('has-firebar', myTurn || liveNow);
+  if ((myTurn || liveNow) && G.cheatsOn) rumour(BS_RUMOURS);
   // Shot clock: 45 seconds to fire (not when every opponent is the robot).
-  if (myTurn && !busy && opponents.some((p) => !bots.has(p))) shotClock(`bs.${game.id}.${game.move}.${game.turn}`, 45, async () => {
+  if (myTurn && !liveNow && !busy && opponents.some((p) => !bots.has(p))) shotClock(`bs.${game.id}.${game.move}.${game.turn}`, 45, async () => {
     const { data } = await sb.rpc('shot_clock', { p_kind: 'battleship', p_game: game.id });
     if (data) splash(['TOO SLOW!', '⏱ SHOT CLOCK', data], { tone: 'red', sound: null, ms: 2000 });
     aims = { target: null, cells: new Set() };
@@ -1087,7 +1102,7 @@ function renderGame() {
   });
   else stopShotClock();
   // Phones and full screen: instructions pop up once instead of taking up room on the page.
-  const tipNow = sonarLoot && myTurn ? '📡 Tap a square on their board to ping the 3×3 around it.' : peekMode && myTurn ? '👀 Tap a square on their board to peek.' : myTurn || game.status === 'setup' ? sub.replace(/<[^>]+>/g, '') : '';
+  const tipNow = liveNow ? '' : sonarLoot && myTurn ? '📡 Tap a square on their board to ping the 3×3 around it.' : peekMode && myTurn ? '👀 Tap a square on their board to peek.' : myTurn || game.status === 'setup' ? sub.replace(/<[^>]+>/g, '') : '';
   const key = `${game.id}|${game.move}|${game.status}|${tipNow}`;
   if ((isPhone() || app.classList.contains('fs-on')) && key !== lastNoteKey && tipNow) note(tipNow);
   lastNoteKey = key;
@@ -1128,6 +1143,7 @@ function renderGame() {
     const target = b.dataset.target, cell = +b.dataset.cell;
     if (sonarLoot) { doSonar(target, cell); return; }
     if (peekMode) { doPeek(target, cell); return; }
+    if (liveNow) { liveFire(target, cell, b); return; }
     if (aims.target !== target) aims = { target, cells: new Set() };
     const max = Math.min(Math.max(1, game.spt + G.shotMod), MODES[game.mode].n ** 2 - G.shots.filter((s) => s.target === target).length);
     if (aims.cells.has(cell)) aims.cells.delete(cell);
@@ -1152,6 +1168,23 @@ function renderGame() {
   };
 }
 
+// A live shot: one square, straight away, then the guns reload.
+async function liveFire(target, cell, el) {
+  const bar = document.getElementById('aimtext');
+  if (Date.now() < bsReloadAt) { if (bar) bar.textContent = 'Reloading…'; navigator.vibrate?.(15); return; }
+  bsReloadAt = Date.now() + BS_RELOAD;
+  el.classList.add('aim'); navigator.vibrate?.(30);
+  if (bar) bar.textContent = 'Reloading…';
+  setTimeout(() => { const t = document.getElementById('aimtext'); if (t && liveBS) t.textContent = '⚔️ Guns ready: tap a square'; }, BS_RELOAD);
+  const { error } = await sb.rpc('fire_live', { p_game: G.game.id, p_target: target, p_cell: cell });
+  if (error) {
+    note(/nobody has fired at yet/.test(error.message || '') ? 'Too slow! Someone just hit that square.' : friendly(error), 'error'); el.classList.remove('aim');
+    if (/Still reloading/.test(error.message || '')) bsReloadAt = Date.now() + 600;
+    if (/live battle is over/i.test(error.message || '')) liveBS = false;
+  }
+  await loadGame(G.game.id); renderGame();
+}
+
 // ---------------------------------------------------------------- cheating (server-run, 2 per player per game)
 const CHEATS = { peek: '👀 Peek', extra: '➕ Extra shot', move: '🚢 Ship slipped away' };
 const cheatLabel = (k) => CHEATS[k] || k;
@@ -1174,7 +1207,8 @@ function cheatBarHTML() {
 }
 function callOutHTML() {
   const g = G.game;
-  if (!G.cheatsOn || g.status !== 'playing' || !g.move || g.eliminated.includes(me.id)) return '';
+  // Not during a live battle: shots fly every second, and its penalties are about turns.
+  if (!G.cheatsOn || liveBS || g.status !== 'playing' || !g.move || g.eliminated.includes(me.id)) return '';
   const shooter = lastShooter();
   if (!shooter || shooter === me.id || G.accusations.some((a) => a.move === g.move)) return '';
   return `<div class="callout"><span><strong>${nm(shooter)}</strong> just fired. Something fishy?<br><span class="muted small">Right: they lose their next turn. Wrong: you fire one shot fewer.</span></span>
@@ -1197,7 +1231,7 @@ function cheatLogHTML() {
 function cheatError(e) { note(friendly(e), 'error'); }
 // The cheats have no buttons (see CLAUDE.md for the gestures): hold a rival's square to peek,
 // hold one of your own ships to sneak it away, triple-tap "Your turn" for an extra shot.
-const canCheat = () => G && !busy && G.cheatsOn && G.game.status === 'playing' && G.game.players[G.game.turn] === me.id && !G.game.eliminated.includes(me.id);
+const canCheat = () => G && !busy && G.cheatsOn && G.game.status === 'playing' && (liveBS || G.game.players[G.game.turn] === me.id) && !G.game.eliminated.includes(me.id);
 onHold(app, '.bsec button[data-cell]', (el) => { if (canCheat() && el.dataset.target !== me.id) doPeek(el.dataset.target, +el.dataset.cell); });
 onHold(app, '.bsec .cell.ship', async (el) => {
   if (!canCheat() || el.closest('.bsec')?.dataset.owner !== me.id) return;
@@ -1281,7 +1315,7 @@ function playEffects() {
       else { splash(['ALL SHIPS LOST', 'DEFEATED', `${nm(game.winner).replace(/<[^>]+>/g, '')} rules the waves`], { tone: 'red', ms: 2600 }); sfx('lose', { delay: 0.8 }); }
     } else if (G.prevStatus === 'setup' && game.status === 'playing') {
       banner(nowMine ? 'Battle stations! You fire first' : 'Battle stations!');
-    } else if (nowMine && (G.prevTurnMine === false || fresh.some((s) => s.shooter !== me.id))) banner('Your turn');
+    } else if (!liveBS && nowMine && (G.prevTurnMine === false || fresh.some((s) => s.shooter !== me.id))) banner('Your turn');
     lastShipDrama(fresh);
     announceChaos({ gameId: game.id });
   }, wait);

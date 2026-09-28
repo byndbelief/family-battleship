@@ -1,5 +1,5 @@
 // Putt Post, live: turns and scores are saved on the server; putts replay for everyone.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, dramaOn, face } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, dramaOn, face, livePresence, avatarOf, splash } from './common.js';
 import {
   LW, LH, HOLES, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, drawHole,
   inPoly, inRect, segDist, reduceMotion,
@@ -16,8 +16,14 @@ let cheatsUsed = 0, lastStroke = null, drag = null;
 let flowing = false;       // a replay, judging, robot or turn flow is running
 let afterPanel = false;    // the "plant an attack" panel after my hole is open
 let pack = [], magnetOn = false;   // backpack items; Magnet Cup active this hole
+// Live race: while everyone has the game open, all play the current hole at once (no turn order,
+// no cheating), and rivals' balls roll across your screen as ghosts streamed over the live channel.
+let liveOn = false, live = null, ghosts = {}, ballSentAt = 0;
 
 const n = () => G.game.players.length;
+// Live: have I already played the hole everyone is on?
+const myHoleDone = () => G.turns.some((x) => x.player === me.id && Math.floor(x.t / n()) === Math.floor(G.game.t / n()));
+const stillPlaying = () => G.game.players.filter((p) => !G.turns.some((x) => x.player === p && Math.floor(x.t / n()) === Math.floor(G.game.t / n())));
 const curPlayer = () => G.game.players[G.game.t % n()];
 const curHole = () => G.game.start + Math.floor(G.game.t / n());
 const magnetize = (h, on) => (on ? { ...h, cupR: 13, cupSpeed: 7.5 } : h);
@@ -64,7 +70,7 @@ function sizeCanvas() {
 // robot). The first time it runs out this turn costs a stroke; after that it stops for the turn.
 let clockHitT = -1;
 function clockCheck() {
-  const on = G && (mode === 'aim' || mode === 'wedge') && !locked && curPlayer() === me.id && n() > 1
+  const on = G && !liveOn && (mode === 'aim' || mode === 'wedge') && !locked && curPlayer() === me.id && n() > 1
     && !G.game.players.some(isBot) && clockHitT !== G.game.t;
   if (!on) { if (!(G && locked && mode === 'aim')) stopShotClock(); return; }
   shotClock(`golf.${G.game.id}.${G.game.t}.${strokes}`, 30, async () => {
@@ -77,8 +83,25 @@ function loop(t) {
   clockCheck();
   if (locked && mode !== 'aim') { setLocked(false); showAim(null); }
   scene.fx = (scene.fx || []).filter((f) => { f.x += f.vx; f.y += f.vy; f.vy += f.g || 0; f.life -= 0.02; return f.life > 0; });
-  if (scene.hole) { const k = cv.width / LW; ctx.setTransform(k, 0, 0, k, 0, 0); drawHole(ctx, scene.hole, t, scene); }
+  if (scene.hole) { const k = cv.width / LW; ctx.setTransform(k, 0, 0, k, 0, 0); drawHole(ctx, scene.hole, t, scene); if (liveOn) drawGhosts(); }
   requestAnimationFrame(loop);
+}
+// Rivals' balls in a live race: a ball with their face floating over it.
+const faceImgs = {};
+function drawGhosts() {
+  const hole = G?.game && curHole();
+  Object.entries(ghosts).forEach(([p, gb]) => {
+    if (gb.hole !== hole || gb.holed || Date.now() - gb.at > 60000) return;
+    ctx.globalAlpha = 0.85; ctx.fillStyle = '#FFE08A'; ctx.strokeStyle = '#0006'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(gb.x, gb.y, R, 0, 7); ctx.fill(); ctx.stroke();
+    const u = G.names?.[p] ?? names[p], av = avatarOf(u), fx = gb.x, fy = gb.y - 17;
+    ctx.globalAlpha = 1; ctx.fillStyle = '#0008'; ctx.beginPath(); ctx.arc(fx, fy, 10, 0, 7); ctx.fill();
+    if (av && av.includes('/')) {
+      if (!faceImgs[av]) { faceImgs[av] = new Image(); faceImgs[av].src = av; }
+      if (faceImgs[av].complete) { ctx.save(); ctx.beginPath(); ctx.arc(fx, fy, 9, 0, 7); ctx.clip(); ctx.drawImage(faceImgs[av], fx - 9, fy - 9, 18, 18); ctx.restore(); }
+    } else { ctx.font = '13px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.fillText(av || String(u || '?')[0].toUpperCase(), fx, fy + 1); }
+  });
+  ctx.globalAlpha = 1;
 }
 function burst(x, y, colors, count = 36, g = 0.05) {
   for (let i = 0; i < count; i++) { const a = Math.random() * 6.283, v = Math.random() * 3 + 0.6; scene.fx.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 1, g, life: 1, s: Math.random() * 2.5 + 1, c: colors[i % colors.length] }); }
@@ -117,9 +140,14 @@ function roll(stroke, h, speed = 2) {
         if (!quiet && ev === 'bump') sfx('boing');
         if (ev !== 'cup' && Math.hypot(b.x - h.cup[0], b.y - h.cup[1]) < (h.cupR || CUP_R)) b.lip = true;   // rolled over the hole and kept going
         if (ev === 'bump') h.bumpers.forEach(([x, y, r], j) => { const dx = b.x - x, dy = b.y - y; if (dx * dx + dy * dy < (r + R + 2) ** 2) scene.bumpLit[j] = performance.now() + 180; });
-        if (ev === 'cup' || ev === 'water' || ev === 'stop') { scene.trail = []; scene.clock = b.clock; return done({ ev, b }); }
+        if (ev === 'cup' || ev === 'water' || ev === 'stop') {
+          scene.trail = []; scene.clock = b.clock;
+          if (liveOn && mode === 'rolling') live?.send('ball', { p: me.id, hole: curHole(), x: Math.round(b.x), y: Math.round(b.y), holed: ev === 'cup' });
+          return done({ ev, b });
+        }
       }
       scene.trail.push({ x: b.x, y: b.y }); if (scene.trail.length > 14) scene.trail.shift();
+      if (liveOn && mode === 'rolling' && performance.now() - ballSentAt > 90) { ballSentAt = performance.now(); live?.send('ball', { p: me.id, hole: curHole(), x: Math.round(b.x), y: Math.round(b.y) }); }
       setTimeout(() => requestAnimationFrame(step), 0);
     };
     requestAnimationFrame(step);
@@ -166,7 +194,7 @@ function renderCard() {
     h += `<tr class="${st[k].played && st[k].toPar === lead ? 'lead' : ''}"><td>${face(p)}${who(p)}${badges}</td>`;
     idx.forEach((i) => {
       const v = cellScore(p, i), cls = [];
-      if (cur && cur.p === p && cur.h === i) cls.push('now');
+      if (cur && (liveOn ? cur.h === i && cellScore(p, i) == null : cur.p === p && cur.h === i)) cls.push('now');
       if (v === 'skip') cls.push('skip'); else if (v) cls.push(v < HOLES[i].par ? 'under' : v > HOLES[i].par ? 'over' : '');
       h += `<td class="${cls.join(' ')}">${v === 'skip' ? '–' : v ?? ''}</td>`;
     });
@@ -175,7 +203,7 @@ function renderCard() {
   $('scorecard').innerHTML = h + '</tbody></table>';
   $('del').hidden = g.created_by !== me.id;
   // Skip ahead, only while it's your turn and nothing is rolling.
-  const canJump = !over && curPlayer() === me.id && mode === 'aim' && curHole() < g.start + g.count - 1;
+  const canJump = !over && !liveOn && curPlayer() === me.id && mode === 'aim' && curHole() < g.start + g.count - 1;
   $('jumpRow').hidden = !canJump;
   if (canJump) { let o = ''; for (let i = curHole() + 1; i < g.start + g.count; i++) o += `<option value="${i}">Hole ${i + 1}: ${esc(HOLES[i].name)}</option>`; $('jumpTo').innerHTML = o; }
 }
@@ -190,6 +218,12 @@ async function decide() {
     const last = [...G.turns].reverse().find((x) => !x.skipped);
     if (last && last.player !== me.id && last.t > seenT()) { await replayTurn(last); markSeen(last.t); }
     return showFinal();
+  }
+  // Live race: no replays, no turn order. Play the hole if you haven't, else watch the others.
+  if (liveOn && n() > 1) {
+    if (G.turns.length) markSeen(Math.max(...G.turns.map((x) => x.t)));
+    if (!myHoleDone()) return myTurnLive();
+    return waitingLive();
   }
   // Watch the last player's hole if you haven't yet.
   if (prev && !prev.skipped && prev.player !== me.id && prev.t > seenT()) { await replayTurn(prev); markSeen(prev.t); if (G.game.t !== g.t) return decide(); }
@@ -211,6 +245,41 @@ function waiting(cur) {
   $('tip').textContent = `Waiting for ${who(cur).replace(/<[^>]+>/g, '')} to play hole ${curHole() + 1}. This page updates when they do.`;
   $('cheats').hidden = true; $('pack').innerHTML = '';
   renderCard();
+}
+
+function waitingLive() {
+  mode = 'idle';
+  scene = { hole: holeWithAttack(G.game.seed, curHole(), 0), fx: [], clock: 0 };
+  setHud(curHole(), me.id, 0, false);
+  const left = stillPlaying().filter((p) => p !== me.id).map((p) => who(p).replace(/<[^>]+>/g, ''));
+  $('tip').textContent = `⚔️ Live race: waiting for ${left.join(' & ') || 'the others'} to finish hole ${curHole() + 1}.`;
+  $('cheats').hidden = true; $('pack').innerHTML = '';
+  renderCard();
+}
+async function myTurnLive() {
+  flowing = true;
+  const { data: atk } = await sb.rpc('golf_my_attack', { p_game: G.game.id });
+  curAttack = atk?.type || 0; curAttacker = atk?.attacker || null;
+  flowing = false;
+  startTurn();
+  if (!curAttack) $('tip').textContent = `⚔️ Live race! Everyone's on hole ${curHole() + 1} at once. Drag back and let go.`;
+}
+function setLive(v) {
+  if (v === liveOn) return;
+  liveOn = v; ghosts = {};
+  if (G.game.status !== 'playing') return;
+  if (v) {
+    stopShotClock();
+    splash(['⛳ LIVE RACE', "Everyone's here", 'Same hole, same time. Go!'], { tone: 'gold', ms: 2200 });
+    if (mode === 'idle' && !flowing) decide();
+    else if (mode === 'aim') $('tip').textContent = `⚔️ Live race! Everyone's on hole ${curHole() + 1} at once. Drag back and let go.`;
+  } else {
+    note('Live race over: back to taking turns.');
+    // Mid-hole when it isn't your turn in order: that hole waits for your turn.
+    if (['aim', 'rolling', 'wedge', 'reveal'].includes(mode) && curPlayer() !== me.id) { closeModal(); setLocked(false); mode = 'idle'; decide(); }
+    else if (mode === 'idle' && !flowing) decide();
+    else if (mode === 'aim') $('tip').textContent = 'Your turn. Drag back and let go.';
+  }
 }
 
 // Plays back a saved turn.
@@ -281,7 +350,7 @@ function startTurn() {
   const h = H();
   cheatsUsed = 0; lastStroke = null; strokes = 0; current = [];
   mode = 'aim'; scene = { hole: h, fx: [], clock: 0, ball: { x: h.tee[0], y: h.tee[1] } };
-  if (n() > 1) rumour(GOLF_RUMOURS);
+  if (n() > 1 && !liveOn) rumour(GOLF_RUMOURS);
   setHud(curHole(), me.id, 0, false);
   $('tip').textContent = 'Drag back from anywhere on the course, then let go to putt.' + (h.extra ? ' This hole has random obstacles.' : '');
   $('send').hidden = true;
@@ -374,7 +443,7 @@ function clearSpot(h, x, y) {
 }
 function renderPack() {
   const el = $('pack'), on = mode === 'aim';
-  el.innerHTML = G.game.status === 'playing' && curPlayer() === me.id ? backpackBarHTML(pack, 'golf', on) : '';
+  el.innerHTML = G.game.status === 'playing' && (liveOn ? !myHoleDone() : curPlayer() === me.id) ? backpackBarHTML(pack, 'golf', on) : '';
   el.querySelectorAll('[data-loot]').forEach((b) => {
     const item = b.dataset.item;
     if ((item === 'magnet' && magnetOn) || (item === 'golden_tee' && !lastStroke)) b.disabled = true;
@@ -399,7 +468,7 @@ function renderCheats() {
 }
 // Hidden cheats (see CLAUDE.md): hold your ball for a foot wedge, triple-tap the stroke counter
 // for a mulligan, hold the hole's name to toggle the pencil whip. Only with other players around.
-const canCheat = () => n() > 1 && (mode === 'aim' || mode === 'wedge');
+const canCheat = () => n() > 1 && !liveOn && (mode === 'aim' || mode === 'wedge');
 function cheatWedge() {
   if (cheatsUsed & 1) return note('Your foot already did its work this hole.');
   mode = 'wedge'; drag = null; scene.aim = null; showAim(null); setLocked(false); sfx('sneaky');
@@ -431,8 +500,9 @@ async function finishTurn(holed) {
   mode = 'done'; $('cheats').hidden = true; $('pack').innerHTML = '';
   const par = HOLES[curHole()].par, t = G.game.t;
   if (holed) celebrate(strokes, par);
-  const { data, error } = await sb.rpc('golf_submit_turn', { p_game: G.game.id, p_strokes: current.map(fromStroke), p_actual: strokes, p_cheats: cheatsUsed, p_holed: holed });
-  if (error) { $('tip').textContent = `Couldn't save that hole: ${friendly(error)}`; return; }
+  const wasLive = liveOn;
+  const { data, error } = await sb.rpc(wasLive ? 'golf_submit_live' : 'golf_submit_turn', { p_game: G.game.id, p_strokes: current.map(fromStroke), p_actual: strokes, p_cheats: cheatsUsed, p_holed: holed });
+  if (error) { $('tip').textContent = `Couldn't save that hole: ${friendly(error)}`; if (wasLive) { mode = 'idle'; await load(G.game.id); decide(); } return; }
   markSeen(t);
   $('tip').textContent = (holed ? `In the cup: ${scoreWord(strokes, par)}.` : `Picked up after ${MAX_STROKES} strokes.`)
     + (data.earned ? ` You earned ${data.earned} sneak attack${data.earned > 1 ? 's' : ''}!` : '')
@@ -461,7 +531,7 @@ function renderAfter() {
       <div class="row"><button class="go" id="plant" ${pick.target && pick.type ? '' : 'disabled'}>Plant it</button><span class="small muted" id="plantErr"></span></div>`;
   }
   h += '</div>';
-  h += isBot(next) ? `<div class="row between"><strong>${nm(next)} is up next.</strong><button class="go" id="botGo">Let it play</button></div>`
+  h += liveOn ? `<div class="row between"><strong>⚔️ The next hole starts when everyone's in.</strong><button id="doneAfter">Done</button></div>` : isBot(next) ? `<div class="row between"><strong>${nm(next)} is up next.</strong><button class="go" id="botGo">Let it play</button></div>`
     : `<div class="row between"><strong>${nm(next)} is up next. They'll get an alert.</strong><button id="doneAfter">Done</button></div>`;
   el.innerHTML = h;
   el.querySelectorAll('input[name=atkT]').forEach((r) => { r.onchange = () => { pick.target = r.value; renderAfter(); }; });
@@ -612,8 +682,10 @@ $('del').onclick = async () => {
   announceChaos({ gameId: id });
   requestAnimationFrame(loop);
   let pending = false;
-  const refresh = () => { if (pending) return; pending = true; setTimeout(async () => { pending = false; await load(id); renderCard(); announceChaos({ gameId: id }); if (mode === 'idle' && !flowing) decide(); }, 200); };
-  liveGame(`golf-${id}`, [
+  const refresh = () => { if (pending) return; pending = true; setTimeout(async () => { pending = false; await load(id); renderCard(); announceChaos({ gameId: id });
+    G.turns.forEach((x) => { if (ghosts[x.player] && Math.floor(x.t / n()) === Math.floor((G.game.t - 1) / n())) ghosts[x.player].holed = true; });
+    if (mode === 'idle' && !flowing) decide(); else if (liveOn && mode === 'idle') waitingLive(); }, 200); };
+  live = liveGame(`golf-${id}`, [
     { event: '*', table: 'golf_games', filter: `id=eq.${id}` },
     { event: 'INSERT', table: 'golf_turns', filter: `game_id=eq.${id}` },
     { event: 'INSERT', table: 'golf_accusations', filter: `game_id=eq.${id}` },
@@ -622,7 +694,10 @@ $('del').onclick = async () => {
     if (await chaosClock()) return refresh();   // anything overdue on a stalled turn lands now
     const { data } = await sb.from('golf_games').select('updated_at').eq('id', id).maybeSingle();
     if (data && data.updated_at !== G.game.updated_at) refresh();
+  }, {
+    ball: (m) => { if (liveOn && m.p && m.p !== me.id) ghosts[m.p] = { hole: m.hole, x: m.x, y: m.y, holed: !!m.holed, at: Date.now() }; },
   });
+  if (n() > 1 && !G.game.players.some(isBot)) livePresence('golf', id, setLive);
   navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.url) location.href = e.data.url; });
   const upNext = () => nextUpChip(me.id, id, (p) => (bots.has(p) ? '🤖 ' : '') + (names[p] ?? G?.names?.[p] ?? 'someone'));
   upNext(); setInterval(() => { if (!document.hidden) upNext(); }, 20000);

@@ -53,7 +53,17 @@ takes a bare username.
   freely on their own side (`duel_dodge` skips turn and fuel while live). Shells fly concurrently
   (`shells` in `duel.js`; `shot` is only a turn-based shell). Each shot records the move its wind
   was read at (`duel_shots.wind_move`). When someone leaves it goes back to turns, the player shot
-  at last going first. Dodge therefore mostly matters in the few seconds before live kicks in. The aim
+  at last going first. Dodge therefore mostly matters in the few seconds before live kicks in.
+- **Live chaos in Battleship and Putt Post too** (`015_live_chaos.sql`, `livePresence()` in
+  `common.js`, `live_here(kind, game)` on the server; never with the robot). Battleship: while
+  everyone still afloat has the game open, tap any rival's square to fire one shot (`fire_live`,
+  1.5 s enforced / 2 s on the page); the view stays on your board instead of jumping to each hit;
+  cheats work live, but the "call cheater" box is hidden (its penalties are about turns). Putt Post:
+  everyone plays the current hole at once, each into their own turn slot (`golf_submit_live`; the
+  slot is `hole row * n + player index`), rivals' balls show as ghosts with their face (broadcast
+  `ball`), the hole moves on when all are in, first in the cup earns a sneak attack, and cheating is
+  refused while live. `_golf_submit` now always advances `t` past slots already played, so turns
+  pick up cleanly when live ends. The aim
   hint is deliberately a rough guide — a hidden per-turn error, a wobble, 65% of the flight —
   because the family found an accurate one made every shot a hit. Don't make it exact again.
 - **The robot is meant to be hard at Pro and Ace, easy at Rookie.** Battleship (`012`): hunts by
@@ -115,7 +125,7 @@ takes a bare username.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.
