@@ -98,6 +98,13 @@ takes a bare username.
   page calls `card_timeout` (slow player draws 1). The robot plays via `card_bot_play` from a
   watching page and counts as always present. Gauntlet deals it for any player count; the chaos
   clock makes a staller draw 2/4, and a 24 h Gauntlet forfeit goes to the fewest cards.
+- **Game toolbar** (`setGameTools` in common.js): ⛶ full screen and 🗑 delete live in one fixed
+  cluster at the top-right of every game page; don't put per-page full-screen or delete buttons
+  back. Pages call `setGameTools({ fs, canDelete, onDelete })` on render (onDelete returns an error
+  message or navigates away); app.js's `view()` hides it so only the Battleship game view shows it.
+  The page's top row carries class `gtop` to leave room. While full screen is on, the toolbar and
+  ⚙️ Settings move *inside* the `.fs-on` element (`fsHost`): native full screen puts that element
+  on the browser's top layer, above any z-index. In full screen Settings sits top-left.
 - **Chaos Cards loot** (`024_card_loot.sql`): 👀 `xray` (see a hand; the cards come back only to
   the user's page), 🎨 `paint` (set the colour), 🗑️ `trash` (discard a card), 🎁 `gift` (hand a card
   to an opponent), all through `card_use_loot` on your own turn, none ending it. Trash and Gift

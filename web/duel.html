@@ -154,7 +154,7 @@
 </head>
 <body>
 <div class="wrap">
-  <nav class="row between"><a href="./">← All games</a><span class="small muted" id="live"></span></nav>
+  <nav class="row between gtop"><a href="./">← All games</a><span class="small muted" id="live"></span></nav>
   <div id="gtbar"></div>
   <header class="row between" style="align-items:flex-end">
     <div><span class="small muted" style="letter-spacing:.14em;text-transform:uppercase;font-weight:700">Hilltop Duel</span><h1 id="title">Loading…</h1></div>
@@ -169,7 +169,6 @@
       <span class="wind" id="wind"></span>
       <div class="hp right"><span id="n1"></span><div class="bar"><i id="hp1" style="background:var(--teal);width:100%"></i></div></div>
     </div>
-    <span class="fsslot"><button type="button" class="fsbtn" data-fs="#play" aria-label="Full screen">⛶</button></span>
   </div>
   <div class="botlive" id="botLive" hidden><button type="button" id="botLiveBtn" aria-pressed="false">⚔️ Live battle vs robot: <b>Off</b></button><span class="small muted" id="botLiveTip">No turns: you both fire whenever you've reloaded.</span></div>
   <section class="panel" id="controls" hidden>
@@ -193,7 +192,7 @@
   <section class="panel" id="endPanel" hidden></section>
   <div id="nextSlot"></div>
   <details class="panel mfold" id="shotsFold"><summary><h2>Shots</h2></summary><ul class="feed" id="feed"></ul>
-    <p><button class="link" id="del" hidden>Delete this duel</button></p></details>
+    </details>
   </div>
 </div>
 <script type="module" src="duel.js"></script>

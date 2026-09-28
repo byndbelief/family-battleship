@@ -1,7 +1,7 @@
 // Chaos Cards: a shedding card game (plays like Uno) with chaos cards and chaos events.
 // Everything is decided on the server (card_play, card_draw…); this page shows the table, your
 // own hand (the only one you can read) and what just happened, and asks the robot to play.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, sfx, liveGame, nextUpChip, names, gauntletBar, note, splash, chaosClock, face, avatar, livePresence, jumpToNext, announceChaos, isPhone, ITEMS, backpack, backpackBarHTML } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, sfx, liveGame, nextUpChip, names, gauntletBar, note, splash, chaosClock, face, avatar, livePresence, jumpToNext, announceChaos, isPhone, ITEMS, backpack, backpackBarHTML, setGameTools } from './common.js';
 
 const $ = (id) => document.getElementById(id);
 let G = null;                 // { game, hand }
@@ -129,7 +129,7 @@ function render() {
   $('passBtn').disabled = !(mine && g.drew && !busy);
   renderPack(g, mine && !busy, over);
   $('botLiveRow').hidden = !(!over && g.players.some(isBot));
-  $('del').hidden = g.created_by !== me.id;
+  setGameTools({ fs: '#play', canDelete: g.created_by === me.id, onDelete: deleteGame });
   $('feed').innerHTML = log.map((l) => `<li>${isBot(l.p) ? '' : face(l.p)}${esc(l.line)}</li>`).join('') || '<li class="muted">Moves show up here.</li>';
   // The end.
   if (over) {
@@ -277,13 +277,11 @@ $('seats').addEventListener('click', async (e) => {
   else note('Too late: they already called it.');
   await refreshNow();
 });
-$('del').onclick = async () => {
-  const b = $('del');
-  if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Tap again to delete the game for everyone'; return; }
+async function deleteGame() {
   const { error } = await sb.rpc('card_delete', { p_game: G.game.id });
-  if (error) { b.textContent = friendly(error); return; }
+  if (error) return friendly(error);
   location.href = './';
-};
+}
 
 // ---------------------------------------------------------------- the robot, and the live timer
 // The robot plays a moment after its turn comes round (and now and then catches someone who

@@ -27,7 +27,13 @@ function fsLabels() {
   document.body.classList.toggle('fs-lock', on);
   document.querySelectorAll('[data-fs]').forEach((b) => { b.textContent = on ? '✕' : '⛶'; b.setAttribute('aria-label', on ? 'Exit full screen' : 'Full screen'); });
 }
-function fsSync() { fsLabels(); dispatchEvent(new Event('resize')); }
+// Native full screen puts the game area on the browser's top layer, above everything else in the
+// page whatever its z-index, so the toolbar and Settings ride inside it while it's on.
+function fsHost() {
+  const host = document.querySelector('.fs-on') || document.body;
+  ['gameTools', 'setBtn'].forEach((id) => { const el = document.getElementById(id); if (el && el.parentElement !== host) host.appendChild(el); });
+}
+function fsSync() { fsHost(); fsLabels(); dispatchEvent(new Event('resize')); }
 export function fsExit() {
   document.querySelectorAll('.fs-on').forEach((el) => el.classList.remove('fs-on'));
   if (fsNative()) (document.exitFullscreen || document.webkitExitFullscreen)?.call(document)?.catch?.(() => {});
@@ -48,6 +54,57 @@ const fsChanged = () => { if (!fsNative() && document.querySelector('.fs-on') &&
 document.addEventListener('fullscreenchange', fsChanged); document.addEventListener('webkitfullscreenchange', fsChanged);
 // The page redrew the game area: keep its button's label right.
 export const fsRefresh = () => fsLabels();
+
+// ---------------------------------------------------------------- the game toolbar
+// One place on every game page for ⛶ full screen and 🗑 delete: pinned to the top-right corner,
+// above the game even in full screen. The page's top row (class gtop) leaves room for it, and in
+// full screen the game area keeps a strip clear at the top (Settings moves to the top-left).
+// setGameTools({ fs: '#play', canDelete, onDelete }) shows or updates it; setGameTools(null) hides it.
+// onDelete() returns an error message, or nothing when the game is gone.
+let tools = null, toolsOpts = null;
+const toolsCss = document.createElement('style');
+toolsCss.textContent = `
+  #gameTools{position:fixed;top:calc(10px + env(safe-area-inset-top,0px));right:calc(10px + env(safe-area-inset-right,0px));z-index:71;display:flex;gap:8px;align-items:center}
+  #gameTools[hidden]{display:none}
+  #gameTools .gtb{width:40px;height:40px;border-radius:12px;border:1.5px solid #ffffff55;background:#141026cc;color:#fff;font-size:19px;line-height:1;padding:0;cursor:pointer;display:grid;place-items:center;box-shadow:0 4px 12px #0004}
+  #gameTools .gtb.del.armed{width:auto;padding:0 14px;font-size:14px;font-weight:800;background:#C0392B;border-color:#C0392B;white-space:nowrap}
+  #gameTools .gtb:disabled{opacity:.6}
+  body.has-tools .gtop{padding-right:var(--gtw,56px)}
+  body.has-tools.fs-lock .fs-on{padding-top:calc(58px + env(safe-area-inset-top,0px))}
+  body.fs-lock #setBtn{right:auto!important;left:calc(10px + env(safe-area-inset-left,0px))}
+  @media (pointer:fine){#gameTools .fsbtn{display:none!important}}`;
+document.head.appendChild(toolsCss);
+export function setGameTools(opts) {
+  toolsOpts = opts;
+  if (!opts) { if (tools) tools.hidden = true; document.body.classList.remove('has-tools'); return; }
+  if (!tools) {
+    tools = document.createElement('div'); tools.id = 'gameTools'; tools.setAttribute('role', 'toolbar'); tools.setAttribute('aria-label', 'Game');
+    tools.innerHTML = `<button type="button" class="gtb fsbtn" data-fs="" aria-label="Full screen">⛶</button><button type="button" class="gtb del" aria-label="Delete this game" title="Delete this game">🗑</button>`;
+    document.body.appendChild(tools);
+    const del = tools.querySelector('.del');
+    let t = null;
+    const disarm = () => { clearTimeout(t); delete del.dataset.armed; del.classList.remove('armed'); del.textContent = '🗑'; del.setAttribute('aria-label', 'Delete this game'); fit(); };
+    del.onclick = async () => {
+      if (!del.dataset.armed) {
+        del.dataset.armed = '1'; del.classList.add('armed'); del.textContent = '🗑 Delete for everyone?'; del.setAttribute('aria-label', 'Tap again to delete the game for everyone');
+        fit(); t = setTimeout(disarm, 4000); return;
+      }
+      clearTimeout(t); del.disabled = true;
+      const err = await toolsOpts?.onDelete?.();
+      del.disabled = false;
+      if (err) { disarm(); note(err, 'error'); }
+    };
+  }
+  tools.hidden = false;
+  const host = document.querySelector('.fs-on') || document.body;
+  if (tools.parentElement !== host) host.appendChild(tools);   // re-attach after a page redraw
+  const fsb = tools.querySelector('[data-fs]');
+  fsb.dataset.fs = opts.fs || ''; fsb.hidden = !opts.fs;
+  tools.querySelector('.del').hidden = !opts.canDelete;
+  document.body.classList.add('has-tools');
+  fsLabels(); fit();
+}
+function fit() { if (tools) requestAnimationFrame(() => document.documentElement.style.setProperty('--gtw', `${Math.ceil(tools.getBoundingClientRect().width) + 16}px`)); }
 
 export const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 export const me = { id: null, username: null };

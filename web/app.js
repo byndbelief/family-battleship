@@ -1,5 +1,5 @@
 import { USERNAME_DOMAIN } from './config.js';
-import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence, jumpToNext, startOnline, online, agoText } from './common.js';
+import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence, jumpToNext, startOnline, online, agoText, setGameTools } from './common.js';
 import { HOLES, holeWithAttack, drawHole, LW, LH } from './golf-engine.js';
 import { W as DW, H as DH, startXs, buildTop } from './duel-engine.js';
 const app = document.getElementById('app');
@@ -73,7 +73,7 @@ function friendly(err) {
   const m = err?.message || String(err);
   return m.replace(/^.*?ERROR:\s*/, '');
 }
-function view(html) { app.innerHTML = html; }
+function view(html) { setGameTools(null); app.innerHTML = html; }   // only a game view shows the toolbar again
 function setChannel(ch) {
   if (bsPresence) { bsPresence.stop(); bsPresence = null; liveBS = false; }
   if (channel) sb.removeChannel(channel);
@@ -1237,7 +1237,7 @@ function renderGame() {
   const fbPack = deskBar() ? `<span class="fbpack">${backpackBarHTML(G.pack || [], 'battleship', !busy)}</span>` : packMini ? `<div class="fbmini">${packMini}</div>` : '';
   view(`
     <header class="stack">
-      <div class="row between"><button class="link" id="back">← All games</button><span class="row" style="gap:10px"><span class="live" id="live">Live</span>${fsButton('#app')}</span></div>
+      <div class="row between gtop"><button class="link" id="back">← All games</button><span class="live" id="live">Live</span></div>
       <div id="gtbar">${G.gtHTML || ''}</div>
       <h1>${title}</h1>
       ${sub ? `<p class="muted gsub">${sub}</p>` : ''}
@@ -1245,7 +1245,6 @@ function renderGame() {
       ${game.status === 'playing' && !imOut && game.players.some((p) => bots.has(p)) ? `<div class="botlive"><button type="button" class="chip" id="botLiveBtn" aria-pressed="${!!game.live_bot}">⚔️ Live battle vs robot: <b>${game.live_bot ? 'On' : 'Off'}</b></button></div>` : ''}
     </header>
     ${body}
-    ${canDelete ? `<p><button class="link danger" id="del">Delete this game</button></p>` : ''}
     ${liveNow ? `<div class="firebar livebar ${packMini ? 'withmini' : ''}">${packMini ? fbPack : ''}<span class="aimwrap"><span id="aimtext">${Date.now() < bsReloadAt ? 'Reloading…' : '⚔️ Guns ready: tap a square'}</span></span>${deskBar() ? fbPack : ''}</div>` : ''}
     ${myTurn && !liveNow ? `<div class="firebar ${packMini ? 'withmini' : ''}">${packMini ? fbPack : ''}
       <span class="aimwrap"><span class="aimdots" aria-hidden="true">${Array.from({ length: need }, (_, i) => `<i class="${i < aims.cells.size ? 'on' : ''}"></i>`).join('')}</span>
@@ -1288,13 +1287,11 @@ function renderGame() {
   fsRefresh();
   document.getElementById('back').onclick = () => { location.hash = ''; };
 
-  const del = document.getElementById('del');
-  if (del) del.onclick = async () => {
-    if (!del.dataset.armed) { del.dataset.armed = '1'; del.textContent = 'Tap again to delete the game for everyone'; return; }
+  setGameTools({ fs: '#app', canDelete, onDelete: async () => {
     const { error } = await sb.rpc('delete_game', { p_game: game.id });
-    if (error) { del.textContent = friendly(error); return; }
+    if (error) return friendly(error);
     location.hash = '';
-  };
+  } });
 
   const shuffle = document.getElementById('shuffle');
   if (shuffle) {

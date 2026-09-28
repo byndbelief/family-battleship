@@ -1,6 +1,6 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, shotClock, stopShotClock, chaosClock, dramaOn, face, jumpToNext } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, shotClock, stopShotClock, chaosClock, dramaOn, face, jumpToNext, setGameTools } from './common.js';
 import { W, H, CRATER_R, BERTHA_R, rng, buildTop as buildTopN, applyCrater, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, startXs, zones, aimDir } from './duel-engine.js';
 
 const $ = (id) => document.getElementById(id);
@@ -333,7 +333,7 @@ function render() {
       pack = await backpack(); await load(g.id); render(); showAim();
     };
   });
-  $('del').hidden = g.created_by !== me.id;
+  setGameTools({ fs: '#play', canDelete: g.created_by === me.id, onDelete: deleteGame });
   // Live vs robot: a switch whenever the robot is in the duel.
   const bl = $('botLive'); bl.hidden = !(g.status === 'playing' && mi >= 0 && g.players.some(isBot));
   if (!bl.hidden) { const b = $('botLiveBtn'); b.setAttribute('aria-pressed', String(!!g.live_bot)); b.querySelector('b').textContent = g.live_bot ? 'On' : 'Off'; }
@@ -758,13 +758,11 @@ $('botLiveBtn').onclick = async () => {
   if (error) { note(friendly(error), 'error'); return; }
   await load(g.id); render(); here();
 };
-$('del').onclick = async () => {
-  const b = $('del');
-  if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Tap again to delete the duel for everyone'; return; }
+async function deleteGame() {
   const { error } = await sb.rpc('duel_delete', { p_game: G.game.id });
-  if (error) { b.textContent = friendly(error); return; }
+  if (error) return friendly(error);
   location.href = './';
-};
+}
 
 (async () => {
   if (!(await signedIn())) return;

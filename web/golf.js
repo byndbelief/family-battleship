@@ -1,5 +1,5 @@
 // Putt Post, live: turns and scores are saved on the server; putts replay for everyone.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, dramaOn, face, livePresence, avatarOf, splash, jumpToNext } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, dramaOn, face, livePresence, avatarOf, splash, jumpToNext, setGameTools } from './common.js';
 import {
   LW, LH, HOLES, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, drawHole,
   inPoly, inRect, segDist, reduceMotion,
@@ -204,7 +204,7 @@ function renderCard() {
     h += `<td class="tot">${st[k].strokes || ''}</td><td>${st[k].played ? (st[k].toPar > 0 ? '+' : '') + st[k].toPar : ''}</td></tr>`;
   });
   $('scorecard').innerHTML = h + '</tbody></table>';
-  $('del').hidden = g.created_by !== me.id;
+  setGameTools({ fs: '#play', canDelete: g.created_by === me.id, onDelete: deleteGame });
   // Live race vs robot: a switch whenever the robot is playing.
   const bl = $('botLive'); bl.hidden = !(g.status === 'playing' && n() > 1 && g.players.some(isBot));
   if (!bl.hidden) { const b = $('botLiveBtn'); b.setAttribute('aria-pressed', String(!!g.live_bot)); b.querySelector('b').textContent = g.live_bot ? 'On' : 'Off'; }
@@ -746,13 +746,11 @@ $('jumpGo').onclick = async () => {
   if (error) { $('jumpNote').textContent = friendly(error); return; }
   mode = 'idle'; await load(G.game.id); notify('golf', G.game.id); decide();
 };
-$('del').onclick = async () => {
-  const b = $('del');
-  if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Tap again to delete the game for everyone'; return; }
+async function deleteGame() {
   const { error } = await sb.rpc('golf_delete', { p_game: G.game.id });
-  if (error) { b.textContent = friendly(error); return; }
+  if (error) return friendly(error);
   location.href = './';
-};
+}
 
 // ---------------------------------------------------------------- start
 (async () => {
