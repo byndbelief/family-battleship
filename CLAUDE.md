@@ -90,6 +90,10 @@ takes a bare username.
   one beside each name (duel HP labels, Putt Post turn pill and scorecard, Battleship board tabs and
   headers); it styles itself, so golf/duel pages need no CSS for it. The lobby's chaos feed pins the face of whoever
   caused an event (`chaos_events.actor`) to its icon; pure chaos and the robot keep just the icon. phoenix_lord has the golden phoenix, dad_commander 😎, obanai_rocks 🐍.
+- **Game over → next game** (`jumpToNext()` in `common.js`): after the win/lose screen, a banner
+  counts down 3 s and goes to the next Gauntlet round (or the rivalry's next Gauntlet), else the next
+  game waiting on you; "Stay here" cancels. Only the first time a device sees a game end, and only
+  within 10 minutes of it ending, so opening an old result never bounces you away.
 - Sound effects are synthesized (`web/sfx.js`, no audio files).
 - **Settings** (⚙️ in the corner of every page, `openSettings` in `common.js`): per-device
   switches for Sound, Vibration (every `navigator.vibrate` goes through it) and Big moments

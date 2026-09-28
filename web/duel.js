@@ -1,6 +1,6 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, shotClock, stopShotClock, chaosClock, dramaOn, face } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, shotClock, stopShotClock, chaosClock, dramaOn, face, jumpToNext } from './common.js';
 import { W, H, TANK_X, CRATER_R, BERTHA_R, rng, buildTop, applyCrater, windFor, tankPos, simulate, damage } from './duel-engine.js';
 
 const $ = (id) => document.getElementById(id);
@@ -164,6 +164,7 @@ function endDrama(g) {
   const won = g.winner === me.id;
   splash(['K.O.!', won ? 'VICTORY' : 'DEFEATED', won ? 'You hold the hill' : `${nm(g.winner).replace(/<[^>]+>/g, '')} takes the hill`], { tone: won ? 'gold' : 'red', ms: 2800 });
   sfx(won ? 'fanfare' : 'lose', { delay: 0.9 });
+  jumpToNext(g, me.id, (p) => (bots.has(p) ? '🤖 ' : '') + (names[p] ?? G?.names?.[p] ?? 'someone'), 3200);
 }
 function stamp(text, tone = '', ms = 2400) { const el = document.createElement('div'); el.className = `stamp ${tone}`; el.innerHTML = `<span>${text}</span>`; document.body.appendChild(el); setTimeout(() => el.remove(), ms); }
 

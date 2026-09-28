@@ -1,5 +1,5 @@
 import { USERNAME_DOMAIN } from './config.js';
-import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence } from './common.js';
+import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence, jumpToNext } from './common.js';
 import { HOLES, holeWithAttack, drawHole, LW, LH } from './golf-engine.js';
 import { W as DW, H as DH, TANK_X, buildTop } from './duel-engine.js';
 const app = document.getElementById('app');
@@ -1313,6 +1313,7 @@ function playEffects() {
       danger(false);
       if (game.winner === me.id) { splash(['FLEET DESTROYED', 'VICTORY', 'The seas are yours'], { ms: 2600 }); sfx('fanfare', { delay: 0.8 }); if (!reduceMotion) setTimeout(() => fx.fireworks(10), 900); }
       else { splash(['ALL SHIPS LOST', 'DEFEATED', `${nm(game.winner).replace(/<[^>]+>/g, '')} rules the waves`], { tone: 'red', ms: 2600 }); sfx('lose', { delay: 0.8 }); }
+      jumpToNext(game, me.id, (p) => (bots.has(p) ? '🤖 ' : '') + (names[p] ?? 'someone'), 3200);
     } else if (G.prevStatus === 'setup' && game.status === 'playing') {
       banner(nowMine ? 'Battle stations! You fire first' : 'Battle stations!');
     } else if (!liveBS && nowMine && (G.prevTurnMine === false || fresh.some((s) => s.shooter !== me.id))) banner('Your turn');
