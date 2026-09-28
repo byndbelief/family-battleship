@@ -94,7 +94,7 @@ takes a bare username.
   the table (colour storm, card rain, reverse). One card left without calling "Last card!" leaves
   you `exposed`; anyone can catch you (+2) until you call it late or the next move is made. Hands
   are secret (`card_hands` RLS: own row only); `card_piles` has no policy at all, so the deck never
-  leaves the server — keep it that way. Live (`live_here` kind `'cards'`): 10 s turns, any player's
+  leaves the server — keep it that way. Live (`live_here` kind `'cards'`): 20 s turns (`019_cards_turn_time.sql`; `TURN_S` in cards.js), any player's
   page calls `card_timeout` (slow player draws 1). The robot plays via `card_bot_play` from a
   watching page and counts as always present. Gauntlet deals it for any player count; the chaos
   clock makes a staller draw 2/4, and a 24 h Gauntlet forfeit goes to the fewest cards.
@@ -179,7 +179,7 @@ takes a bare username.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.

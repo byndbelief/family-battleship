@@ -79,7 +79,7 @@ function render() {
   announce(g);
   $('title').innerHTML = over ? (g.winner === me.id ? `${face(me.id)}You win!` : `${face(g.winner)}${nm(g.winner)} wins!`)
     : mine ? `${face(me.id)}Your turn` : `${face(g.players[g.turn])}${nm(g.players[g.turn])}'s turn`;
-  $('status').textContent = over ? '' : liveOn ? '⚡ Live: 10 s a turn' : '';
+  $('status').textContent = over ? '' : liveOn ? `⚡ Live: ${TURN_S} s a turn` : '';
   // Opponents, in the order play reaches them from you.
   const seatOrder = g.players.map((_, k) => g.players[(mi + 1 + k) % g.players.length]).filter((p) => p !== me.id);
   $('seats').innerHTML = seatOrder.map((p) => {
@@ -225,10 +225,11 @@ function robotTurn() {
     await refreshNow();
   }, botsTurn ? 1300 : 2200);
 }
+const TURN_S = 20;   // live turn length; card_timeout (019) allows a timeout after 19.5 s
 setInterval(() => {
   if (!G || !liveOn || G.game.status !== 'playing') return;
-  const left = 10 - (Date.now() - new Date(G.game.turn_at).getTime()) / 1000;
-  $('timerBar').style.width = `${Math.max(0, Math.min(1, left / 10)) * 100}%`;
+  const left = TURN_S - (Date.now() - new Date(G.game.turn_at).getTime()) / 1000;
+  $('timerBar').style.width = `${Math.max(0, Math.min(1, left / TURN_S)) * 100}%`;
   if (left < -0.3 && askedTimeout !== G.game.move) {
     askedTimeout = G.game.move;
     sb.rpc('card_timeout', { p_game: G.game.id }).then(() => refreshNow());
@@ -253,10 +254,10 @@ let refreshNow = async () => {};
     const { data } = await sb.from('card_games').select('updated_at').eq('id', id).maybeSingle();
     if (data && data.updated_at !== G.game.updated_at) refresh();
   });
-  // Live mode: while everyone at the table has the page open, 10 seconds a turn.
+  // Live mode: while everyone at the table has the page open, TURN_S seconds a turn.
   livePresence('cards', id, (v) => {
     liveOn = v;
-    if (v && G.game.status === 'playing') splash(['⚡ LIVE TABLE', G.game.players.filter((p) => !isBot(p)).length > 1 ? "Everyone's here" : 'You vs the robot', '10 seconds a turn!'], { tone: 'gold', ms: 1800 });
+    if (v && G.game.status === 'playing') splash(['⚡ LIVE TABLE', G.game.players.filter((p) => !isBot(p)).length > 1 ? "Everyone's here" : 'You vs the robot', `${TURN_S} seconds a turn!`], { tone: 'gold', ms: 1800 });
     else if (!v && G.game.status === 'playing') note('Live table over: take your time again.');
     render();
   });
