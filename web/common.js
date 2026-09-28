@@ -57,7 +57,7 @@ export const bots = new Set();    // profile ids of robot players
 export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // Player pictures, by username: a file in web/avatars/, or an emoji. Anyone without one gets their initial.
-const AVATARS = { phoenix_lord: 'avatars/phoenix_lord.jpg', dad_commander: '😎' };
+const AVATARS = { phoenix_lord: 'avatars/phoenix_lord.jpg', dad_commander: '😎', obanai_rocks: '🐍' };
 export function avatar(p, cls = 'avatar') {
   if (p?.bot) return `<span class="${cls}" aria-hidden="true">🤖</span>`;
   const a = AVATARS[p?.username];
