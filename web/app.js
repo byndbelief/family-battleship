@@ -8,8 +8,12 @@ const app = document.getElementById('app');
 const MODES = [
   { n: 8, ships: [4, 3, 3, 2] },
   { n: 10, ships: [5, 4, 3, 3, 2] },
+  { n: 12, ships: [4, 3, 3, 2], shared: true },   // Shared Ocean (028): every fleet on one grid
 ];
-const ROWS = 'ABCDEFGHIJ';
+const ROWS = 'ABCDEFGHIJKL';
+// The Shared Ocean board has one owner, the sea itself: aims, cells and tabs use this in mode 2.
+const OCEAN = 'ocean';
+const isShared = () => !!MODES[G?.game.mode]?.shared;
 
 // ---------------------------------------------------------------- state
 
@@ -165,7 +169,7 @@ function quake(red) {
   document.body.classList.remove('quake'); void document.body.offsetWidth; document.body.classList.add('quake');
   if (red) { const v = document.createElement('div'); v.className = 'vignette'; document.body.appendChild(v); setTimeout(() => v.remove(), 800); }
 }
-const cellEl = (owner, i) => app.querySelector(`[data-o="${owner}"][data-i="${i}"]`);
+const cellEl = (owner, i) => app.querySelector(`[data-o="${isShared() ? OCEAN : owner}"][data-i="${i}"]`);
 const centerOf = (el) => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
 
 // Flies a shell at each new shot, then reveals the result where it lands.
@@ -332,7 +336,7 @@ async function lobby() {
           <div class="stack"><span class="eyebrow" id="oppHint">Opponents</span>
             <div class="choice">${others.map(([id, u]) => `<button type="button" class="chip" data-opp="${esc(u)}" data-id="${id}" aria-pressed="false">${bots.has(id) ? '🤖 ' : ''}${esc(u)}${bots.has(id) ? ' (robot)' : ''}</button>`).join('')}</div></div>
           <div class="stack" data-for="battleship"><span class="eyebrow">Board</span>
-            <div class="choice"><label><input type="radio" name="mode" value="0">Quick 8×8 · 4 ships</label><label><input type="radio" name="mode" value="1" checked>Classic 10×10 · 5 ships</label></div></div>
+            <div class="choice"><label><input type="radio" name="mode" value="0">Quick 8×8 · 4 ships</label><label><input type="radio" name="mode" value="1" checked>Classic 10×10 · 5 ships</label><label><input type="radio" name="mode" value="2">🌊 Shared ocean 12×12 · every fleet on one grid</label></div></div>
           <div class="stack" data-for="battleship"><span class="eyebrow">Shots per turn</span>
             <div class="choice"><label><input type="radio" name="spt" value="1">1 shot</label><label><input type="radio" name="spt" value="3" checked>3 shots</label></div></div>
           <div class="stack" data-for="golf" hidden><span class="eyebrow">Course</span>
@@ -1075,9 +1079,10 @@ async function loadGame(id) {
   else (accRes.data ?? []).forEach((a) => { if (!seenA.has(a.move)) { seenA.add(a.move); freshA.push(a); } });
   G = {
     game, shots: shots ?? [],
-    cheats: cheatsRes.data ?? [], accusations: accRes.data ?? [], sonars: sonars ?? [], pack,
+    cheats: cheatsRes.data ?? [], accusations: accRes.data ?? [], sonars: sonars ?? [],
+    pack: MODES[game.mode].shared ? pack.filter((l) => l.item !== 'sonar') : pack,   // a ping needs a rival's board
     themes: Object.fromEntries((themeRows ?? []).map((r) => [r.id, r.bs_theme])),   // each fleet is drawn in its owner's theme (027)
-    cheatsOn: !cheatsRes.error && !accRes.error,
+    cheatsOn: !cheatsRes.error && !accRes.error && !MODES[game.mode].shared,   // no cheats on the shared ocean
     shotMod: (modRes.data ?? []).find((m) => m.player_id === me.id)?.shot_mod ?? 0,
     fresh, freshA, prevStatus, prevTurnMine, fxDue: true,
     draft: same ? G.draft : null, // keep an unsaved ship layout across live refreshes
@@ -1091,25 +1096,36 @@ async function loadGame(id) {
 function boardHTML({ owner, ships, clickable, fresh }) {
   const { game, shots } = G;
   const { n } = MODES[game.mode];
-  const at = shots.filter((s) => s.target === owner && !pending.has(s.id));
+  const ocean = owner === OCEAN, over = game.status === 'over';
+  // The shared ocean shows every shot in the game (a miss there has no target).
+  const at = shots.filter((s) => (ocean || s.target === owner) && !pending.has(s.id));
   const shotAt = new Map(at.map((s) => [s.cell, s]));
   const peeks = (G.cheats || []).filter((c) => c.kind === 'peek' && c.player_id === me.id && c.detail?.target === owner)
     .concat((G.sonars || []).filter((l) => l.detail?.target === owner));
   const peekShip = new Set(peeks.flatMap((c) => c.detail.ships)), peekArea = new Set(peeks.flatMap((c) => c.detail.area));
   const sunk = new Set(at.flatMap((s) => s.sunk_cells ?? []));
   const shipAt = new Set(ships ? fleetCells(game.mode, ships).flat() : []);
+  // On the ocean: your own fleet, and every fleet once the battle is over.
+  const fleetsHere = ocean ? Object.entries(G.fleets).filter(([p]) => p === me.id || over) : [];
+  if (ocean) fleetsHere.forEach(([, f]) => fleetCells(game.mode, f).flat().forEach((x) => shipAt.add(x)));
+  const mine = new Set(ocean && G.fleets[me.id] ? fleetCells(game.mode, G.fleets[me.id]).flat() : []);
   const aiming = aims.target === owner ? aims.cells : null;
   // The sea view (027): one stretch of water in the owner's theme, the ships drawn across their
   // squares, and the squares on top (see-through) for aiming and the shot markers.
-  const theme = themeOf(G.themes?.[owner]), at2 = (r, c) => `grid-area:${r + 2}/${c + 2}`;
+  const theme = themeOf(G.themes?.[ocean ? me.id : owner]), at2 = (r, c) => `grid-area:${r + 2}/${c + 2}`;
   let h = `<div class="board seaview t-${theme}" style="grid-template-columns:18px repeat(${n},1fr)"><span class="lbl egg" data-egg style="grid-area:1/1"></span>`
     + `<div class="sea sea-${theme}" style="grid-area:2/2/span ${n}/span ${n}"></div>`;
-  const vessel = (cells, L, wreck) => {
+  const vessel = (cells, L, wreck, th = theme) => {
     const r0 = Math.min(...cells.map((x) => Math.floor(x / n))), c0 = Math.min(...cells.map((x) => x % n));
     const horiz = new Set(cells.map((x) => Math.floor(x / n))).size === 1 && L > 1;
-    return `<span class="vessel ${wreck ? 'wreck' : ''}" style="grid-area:${r0 + 2}/${c0 + 2}/span ${horiz ? 1 : L}/span ${horiz ? L : 1}">${vesselSVG(theme, L, horiz || L === 1)}</span>`;
+    return `<span class="vessel ${wreck ? 'wreck' : ''}" style="grid-area:${r0 + 2}/${c0 + 2}/span ${horiz ? 1 : L}/span ${horiz ? L : 1}">${vesselSVG(th, L, horiz || L === 1)}</span>`;
   };
-  if (ships) fleetCells(game.mode, ships).forEach((cells, k) => { h += vessel(cells, MODES[game.mode].ships[k], cells.every((x) => sunk.has(x))); });
+  if (ocean) {
+    // Each fleet in its owner's theme; a rival's ship shows once it's sunk (or when it's all over).
+    const drawn = new Set(fleetsHere.map(([p]) => p));
+    fleetsHere.forEach(([p, f]) => fleetCells(game.mode, f).forEach((cells, k) => { h += vessel(cells, MODES[game.mode].ships[k], cells.every((x) => sunk.has(x)), themeOf(G.themes?.[p])); }));
+    at.filter((s) => s.sunk_cells?.length && !drawn.has(s.target)).forEach((s) => { h += vessel(s.sunk_cells, s.sunk_cells.length, true, themeOf(G.themes?.[s.target])); });
+  } else if (ships) fleetCells(game.mode, ships).forEach((cells, k) => { h += vessel(cells, MODES[game.mode].ships[k], cells.every((x) => sunk.has(x))); });
   else at.filter((s) => s.sunk_cells?.length).forEach((s) => { h += vessel(s.sunk_cells, s.sunk_cells.length, true); });   // their ships show once sunk
   for (let c = 0; c < n; c++) h += `<span class="lbl" style="${at2(-1, c)}">${c + 1}</span>`;
   for (let r = 0; r < n; r++) {
@@ -1123,7 +1139,7 @@ function boardHTML({ owner, ships, clickable, fresh }) {
       if (s && fresh && s.move === game.move) cls.push('new');
       if (!s && peekShip.has(i)) cls.push('peek-ship'); else if (!s && peekArea.has(i)) cls.push('peek-empty');
       const label = cellName(game.mode, i);
-      h += clickable && !s
+      h += clickable && !s && !mine.has(i)
         ? `<button class="${cls.join(' ')}" style="${at2(r, c)}" data-o="${owner}" data-i="${i}" data-target="${owner}" data-cell="${i}" aria-label="Aim at ${label}"></button>`
         : `<span class="${cls.join(' ')}" style="${at2(r, c)}" data-o="${owner}" data-i="${i}" aria-label="${label}"></span>`;
     }
@@ -1145,6 +1161,12 @@ function feedHTML() {
     const ss = shots.filter((s) => s.move === m);
     const hits = ss.filter((s) => s.hit).length;
     const who = ss[0].shooter === me.id ? 'You' : nm(ss[0].shooter);
+    const whose = (p) => (p === me.id ? 'your' : `${nm(p)}'s`);
+    if (MODES[game.mode].shared) {   // one ocean: say whose ship each hit found
+      const cells = ss.map((s) => `${cellName(game.mode, s.cell)} ${s.hit ? `hit ${s.target === me.id ? 'you' : nm(s.target)}` : 'miss'}`).join(', ');
+      const sank = ss.filter((s) => s.sunk_ship != null).map((s) => `${whose(s.target)} ${shipName(game.mode, s.sunk_ship)}`);
+      return `<li class="${hits ? 'hit' : ''}"><strong>${who}</strong> fired: ${cells}.${sank.length ? ` Sank ${sank.join(' and ')}.` : ''}</li>`;
+    }
     const tgt = ss[0].target === me.id ? 'you' : nm(ss[0].target);
     const cells = ss.map((s) => `${cellName(game.mode, s.cell)} ${s.hit ? 'hit' : 'miss'}`).join(', ');
     const sank = ss.filter((s) => s.sunk_ship != null).map((s) => shipName(game.mode, s.sunk_ship));
@@ -1158,7 +1180,7 @@ function feedHTML() {
 
 // Switch a phone to one board without redrawing (the tabs; also used so a shot is always seen landing).
 function showBoard(owner) {
-  if (!owner) return;
+  if (!owner || isShared()) return;   // the shared ocean is always on screen
   boardTab = owner;
   app.querySelectorAll('.bsec').forEach((el) => el.classList.toggle('tab-on', el.dataset.owner === owner));
   app.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === owner)));
@@ -1171,14 +1193,15 @@ function renderGame() {
   const imOut = game.eliminated.includes(me.id);
   const liveNow = liveBS && game.status === 'playing' && !imOut;
   const perTurn = Math.max(1, game.spt + (myTurn ? G.shotMod : 0));
-  const need = aims.target ? Math.min(perTurn, MODES[game.mode].n ** 2 - G.shots.filter((s) => s.target === aims.target).length) : perTurn;
+  const shared = isShared();
+  const need = aims.target ? Math.min(perTurn, openSquares(aims.target)) : perTurn;
 
   let title, sub = '';
   if (game.status === 'setup') title = G.fleets[me.id] ? 'Waiting for ships' : 'Place your fleet';
   else if (game.status === 'over') title = game.winner === me.id ? 'You win!' : `${nm(game.winner)} wins!`;
   else if (imOut) { title = "You're out"; sub = 'Your fleet is sunk. You can keep watching the battle.'; }
-  else if (liveNow) { title = '⚔️ Live battle'; sub = "No turns! Tap any rival's square to fire. Your guns reload in 1 second."; }
-  else if (myTurn) { title = 'Your turn'; sub = `Pick ${perTurn === 1 ? 'a square' : `${perTurn} squares`}${G.shotMod < 0 ? ' (one fewer for that false accusation)' : G.shotMod > 0 ? ' (one sneaky extra 🤫)' : ''} on ${opponents.length > 1 ? "one opponent's" : `${nm(opponents[0])}'s`} board, then fire.`; }
+  else if (liveNow) { title = '⚔️ Live battle'; sub = shared ? 'No turns! Tap any square of the ocean to fire. Your guns reload in 1 second.' : "No turns! Tap any rival's square to fire. Your guns reload in 1 second."; }
+  else if (myTurn) { title = 'Your turn'; sub = `Pick ${perTurn === 1 ? 'a square' : `${perTurn} squares`}${G.shotMod < 0 ? ' (one fewer for that false accusation)' : G.shotMod > 0 ? ' (one sneaky extra 🤫)' : ''} ${shared ? 'anywhere on the ocean (not on your own ships)' : `on ${opponents.length > 1 ? "one opponent's" : `${nm(opponents[0])}'s`} board`}, then fire.`; }
   else { title = `${nm(game.players[game.turn])}'s turn`; sub = 'This page updates as soon as they fire.'; }
 
   const playersStrip = `<div class="players">${game.players.map((p) => {
@@ -1190,10 +1213,11 @@ function renderGame() {
 
   let body = '';
   if (game.status === 'setup' && !G.fleets[me.id]) {
-    if (!G.draft) G.draft = randomFleet(game.mode);
+    if (!G.draft && shared) oceanShuffle();   // the server knows where everyone else has anchored
+    else if (!G.draft) G.draft = randomFleet(game.mode);
     body = `<section class="card narrow" style="margin:0">
-      <p class="muted">Shuffle until you like where your ships are. Nobody else can see them.</p>
-      ${boardHTML({ owner: me.id, ships: G.draft })}
+      <p class="muted">${shared ? 'Everyone hides their ships on the same ocean. Shuffle until you like your spot: nobody else can see it, and it never overlaps anyone.' : 'Shuffle until you like where your ships are. Nobody else can see them.'}</p>
+      ${G.draft ? boardHTML({ owner: me.id, ships: G.draft }) : '<p class="muted">Finding a clear patch of sea…</p>'}
       <div class="fleet-list">${MODES[game.mode].ships.map((L, i) => `<span>${shipName(game.mode, i)} · ${L}</span>`).join('')}</div>
       <p class="error" id="err" hidden></p>
       <div class="row"><button id="shuffle">Shuffle ships</button><button class="primary" id="ready">Ready</button></div>
@@ -1211,6 +1235,19 @@ function renderGame() {
         <p class="muted small">${waiting.length ? 'The battle starts the moment the last fleet is placed.' : 'Everyone is set. Starting…'}</p>
       </section>
       <section class="card narrow" style="margin:0"><h2>Your fleet</h2>${boardHTML({ owner: me.id, ships: G.fleets[me.id] })}</section>`;
+  } else if (shared) {
+    const over = game.status === 'over';
+    const left = (p) => MODES[game.mode].ships.length - new Set(G.shots.filter((s) => s.target === p && s.sunk_ship != null).map((s) => s.sunk_ship)).size;
+    const roll = game.players.map((p) => `<li class="${game.eliminated.includes(p) ? 'out' : ''}">${face(p, names[p], bots.has(p))}<strong>${p === me.id ? 'You' : nm(p)}</strong>
+      <span class="muted small">${game.eliminated.includes(p) ? 'Sunk' : `${left(p)} ship${left(p) === 1 ? '' : 's'} left`}</span>${fleetListHTML(p)}</li>`).join('');
+    body = `<section class="card bsec tab-on ${aims.target ? 'target-active' : ''}" data-owner="${OCEAN}">
+        <div class="row between"><h2>🌊 The ocean</h2>${imOut ? '<span class="pill out">Your fleet is sunk</span>' : ''}</div>
+        ${boardHTML({ owner: OCEAN, ships: G.fleets[me.id], clickable: (myTurn || liveNow) && !imOut, fresh: true })}
+        <p class="muted small">Your ships are the ones you can see. Everyone else's are hiding out there too: a hit tells you whose.</p>
+      </section>
+      <section class="card"><h2>Fleets</h2><ul class="oceanroll">${roll}</ul></section>
+      ${feedHTML()}
+      ${legend}`;
   } else {
     const over = game.status === 'over';
     // Which board a phone shows: your target on your turn, your fleet otherwise, until you pick one.
@@ -1261,7 +1298,7 @@ function renderGame() {
     ${liveNow ? `<div class="firebar livebar ${packMini ? 'withmini' : ''}">${packMini ? fbPack : ''}<span class="aimwrap"><span id="aimtext">${Date.now() < bsReloadAt ? 'Reloading…' : '⚔️ Guns ready: tap a square'}</span></span>${deskBar() ? fbPack : ''}</div>` : ''}
     ${myTurn && !liveNow ? `<div class="firebar ${packMini ? 'withmini' : ''}">${packMini ? fbPack : ''}
       <span class="aimwrap"><span class="aimdots" aria-hidden="true">${Array.from({ length: need }, (_, i) => `<i class="${i < aims.cells.size ? 'on' : ''}"></i>`).join('')}</span>
-      <span id="aimtext">${aims.target ? (aims.cells.size === need ? `Ready: ${need} at ${nm(aims.target)}` : `Aimed ${aims.cells.size} of ${need}`) : `Tap ${need === 1 ? 'a square' : `${need} squares`} to aim`}</span></span>
+      <span id="aimtext">${aims.target ? (aims.cells.size === need ? `Ready: ${need} ${aims.target === OCEAN ? `shot${need === 1 ? '' : 's'}` : `at ${nm(aims.target)}`}` : `Aimed ${aims.cells.size} of ${need}`) : `Tap ${need === 1 ? 'a square' : `${need} squares`} to aim`}</span></span>
       ${aims.cells.size ? '<button class="link" id="clearAim">Clear</button>' : ''}
       ${deskBar() ? fbPack : ''}
       <span data-clockslot></span>
@@ -1307,11 +1344,15 @@ function renderGame() {
 
   const shuffle = document.getElementById('shuffle');
   if (shuffle) {
-    shuffle.onclick = () => { G.draft = randomFleet(game.mode); renderGame(); };
+    shuffle.onclick = () => { if (shared) oceanShuffle(); else { G.draft = randomFleet(game.mode); renderGame(); } };
     document.getElementById('ready').onclick = async (e) => {
       e.target.disabled = true;
       const { error } = await sb.rpc('set_fleet', { p_game: game.id, p_ships: G.draft });
-      if (error) { const el = document.getElementById('err'); el.hidden = false; el.textContent = friendly(error); e.target.disabled = false; return; }
+      if (error) {
+        const el = document.getElementById('err'); el.hidden = false; el.textContent = friendly(error); e.target.disabled = false;
+        if (shared && /anchored there first/.test(error.message || '')) oceanShuffle();   // someone beat you to it: a fresh spot
+        return;
+      }
       notify(game.id);
       await loadGame(game.id);
       renderGame();
@@ -1325,7 +1366,7 @@ function renderGame() {
     if (peekMode) { doPeek(target, cell); return; }
     if (liveNow) { liveFire(target, cell, b); return; }
     if (aims.target !== target) aims = { target, cells: new Set() };
-    const max = Math.min(Math.max(1, game.spt + G.shotMod), MODES[game.mode].n ** 2 - G.shots.filter((s) => s.target === target).length);
+    const max = Math.min(Math.max(1, game.spt + G.shotMod), openSquares(target));
     if (aims.cells.has(cell)) aims.cells.delete(cell);
     else if (aims.cells.size < max) aims.cells.add(cell);
     else if (max === 1) aims.cells = new Set([cell]);
@@ -1338,7 +1379,7 @@ function renderGame() {
   const fire = document.getElementById('fire');
   if (fire) fire.onclick = async () => {
     busy = true; fire.disabled = true;
-    const { error } = await sb.rpc('fire', { p_game: game.id, p_target: aims.target, p_cells: [...aims.cells] });
+    const { error } = await sb.rpc('fire', { p_game: game.id, p_target: aims.target === OCEAN ? null : aims.target, p_cells: [...aims.cells] });
     busy = false;
     if (error) { const el = document.getElementById('fireerr'); el.hidden = false; el.textContent = friendly(error); if (isPhone()) note(friendly(error), 'error'); fire.disabled = false; return; }
     aims = { target: null, cells: new Set() };
@@ -1348,6 +1389,27 @@ function renderGame() {
   };
 }
 
+// Squares still worth aiming at: on a rival's board, the ones nobody has fired at; on the shared
+// ocean, those less your own ships.
+function openSquares(target) {
+  const { game, shots } = G, n = MODES[game.mode].n;
+  if (target !== OCEAN) return n ** 2 - shots.filter((s) => s.target === target).length;
+  const gone = new Set(shots.map((s) => s.cell));
+  if (G.fleets[me.id]) fleetCells(game.mode, G.fleets[me.id]).flat().forEach((x) => gone.add(x));
+  return n ** 2 - gone.size;
+}
+// Shared Ocean setup: the server deals a spot clear of every fleet already anchored.
+let oceanDealing = false;
+async function oceanShuffle() {
+  if (oceanDealing) return;
+  oceanDealing = true;
+  const id = G.game.id;
+  let res; try { res = await sb.rpc('bs_shuffle', { p_game: id }); } finally { oceanDealing = false; }
+  const { data, error } = res;
+  if (G?.game.id !== id) return;
+  if (error) return note(friendly(error), 'error');
+  G.draft = data; renderGame();
+}
 // Desktop (not full screen): the backpack rides in the fire bar, so your turn is one panel.
 const deskBar = () => matchMedia('(min-width:1000px) and (min-height:560px)').matches && !app.classList.contains('fs-on');
 // The robot in a live battle: ask the server to fire for it (it keeps the robot to one shot every
@@ -1383,7 +1445,7 @@ async function liveFire(target, cell, el) {
   el.classList.add('aim'); navigator.vibrate?.(30);
   if (bar) bar.textContent = 'Reloading…';
   setTimeout(() => { const t = document.getElementById('aimtext'); if (t && liveBS) t.textContent = '⚔️ Guns ready: tap a square'; }, BS_RELOAD);
-  const { error } = await sb.rpc('fire_live', { p_game: G.game.id, p_target: target, p_cell: cell });
+  const { error } = await sb.rpc('fire_live', { p_game: G.game.id, p_target: target === OCEAN ? null : target, p_cell: cell });
   if (error) {
     note(/nobody has fired at yet/.test(error.message || '') ? 'Too slow! Someone just hit that square.' : friendly(error), 'error'); el.classList.remove('aim');
     if (/Still reloading/.test(error.message || '')) bsReloadAt = Date.now() + 600;

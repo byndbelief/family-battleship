@@ -132,6 +132,15 @@ takes a bare username.
   a crossing win posts a chaos note), 👽 ufo is an easter egg: five quick taps on a board's empty
   top-left corner → `unlock_bs_theme('take me to your leader')`. Don't advertise it in the UI.
   Picker in ⚙️ Settings (`set_bs_theme`). Opponents' ships show only once sunk, as wrecks.
+- **Shared Ocean** (Battleship mode 2, `028_bs_shared.sql`): every fleet (4,3,3,2 each) hides on one
+  12×12 grid and you fire at the ocean, not a player. The page's board owner is the sentinel
+  `'ocean'` (`OCEAN`, `isShared()` in `app.js`); `fire`/`fire_live` get `p_target: null` and the
+  server (`_fire_ocean`) records `shots.target` = the owner of the ship hit, **null for a miss**
+  (so `target` is nullable now — code reading shots must not assume it). Placing goes through
+  `bs_shuffle()` because nobody can see the others' fleets; `set_fleet` refuses an overlap
+  ("anchored there first") and the page reshuffles. Your own squares aren't clickable (server
+  refuses them too). No cheats or accusations there (a trigger refuses them) and the page hides
+  Sonar; Double Salvo, live battles and the robot (`_bot_pick_shared`) all work.
 - **Battleship ready check** (`022_fleet_ready.sql`): fleets are secret until the game ends, so
   who has placed theirs is `games.ready`, kept by a trigger on `fleets` insert. The setup screen
   lists every player as ✅ Ready or ⏳ Placing ships from it.
@@ -232,7 +241,7 @@ takes a bare username.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.
