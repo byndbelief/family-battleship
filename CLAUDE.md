@@ -66,6 +66,15 @@ takes a bare username.
   pick up cleanly when live ends. The aim
   hint is deliberately a rough guide — a hidden per-turn error, a wobble, 65% of the flight —
   because the family found an accurate one made every shot a hit. Don't make it exact again.
+- **Duel weapons** (`016_duel_weapons.sql`; physics in `duel-engine.js`: `simulateWeapon`,
+  `weaponCraters`, `weaponDamage`): loot shells beside 💣 Big Bertha, loaded from the backpack on
+  your turn (or any time live), one special shell at a time (`duel_games.armed`, player → weapon).
+  🎆 Cluster Bomb splits at the top of its arc into three bomblets (up to 3 craters, saved as a
+  list); 🚀 Homing Missile steers at the enemy on the way down; ⚡ Railgun is a straight beam
+  through hills (the angle setting maps to -40°..+40°, power is ignored, 45 on a direct hit only);
+  🪨 Dirt Bomb piles a hill (a mound crater `[x, y, r, 1]`). The server checks craters fit the
+  weapon and records it on the shot (`duel_shots.weapon`) so replays match. Everyone got a
+  starter crate of all four; about a third of loot drops are weapons now. Robots don't use them.
 - **The robot is meant to be hard at Pro and Ace, easy at Rookie.** Battleship (`012`): hunts by
   probability (every way each unsunk ship could still fit) — ~45 shots to clear a 10×10 fleet vs
   ~52 before. Duel: tight aim that steadies with every shot it takes (Pro hits ~52% → ~75% by its
@@ -131,7 +140,7 @@ takes a bare username.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.

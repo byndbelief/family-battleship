@@ -154,6 +154,10 @@ export const ITEMS = {
   magnet: { icon: '🧲', name: 'Magnet Cup', game: 'golf', desc: 'A huge, grabby cup for this hole.' },
   shield: { icon: '🛡️', name: 'Shield', game: 'duel', desc: 'Halves the next hit on your tank.' },
   bertha: { icon: '💣', name: 'Big Bertha', game: 'duel', desc: 'Your next shell has a monster blast.' },
+  cluster: { icon: '🎆', name: 'Cluster Bomb', game: 'duel', desc: 'Bursts at the top of its arc into three bomblets.' },
+  homing: { icon: '🚀', name: 'Homing Missile', game: 'duel', desc: 'Curves toward their tank on the way down. Smaller blast.' },
+  railgun: { icon: '⚡', name: 'Railgun', game: 'duel', desc: 'A straight beam through hills: aim only, no power. 45 on a direct hit.' },
+  dirt: { icon: '🪨', name: 'Dirt Bomb', game: 'duel', desc: 'Piles up a hill where it lands: build a wall, or block their shot.' },
   scroll: { icon: '📜', name: 'Curse Scroll', game: 'any', desc: 'Hex any player in a random game of theirs.' },
 };
 

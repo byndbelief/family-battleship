@@ -1,7 +1,7 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
 import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, shotClock, stopShotClock, chaosClock, dramaOn, face, jumpToNext } from './common.js';
-import { W, H, TANK_X, CRATER_R, BERTHA_R, rng, buildTop, applyCrater, windFor, tankPos, simulate, damage } from './duel-engine.js';
+import { W, H, TANK_X, CRATER_R, BERTHA_R, rng, buildTop, applyCrater, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle } from './duel-engine.js';
 
 const $ = (id) => document.getElementById(id);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -49,6 +49,10 @@ const cv = $('cv'), ctx = cv.getContext('2d');
 const stars = Array.from({ length: 90 }, (_, i) => { const r = rng(i * 7919 + 3); return { x: r() * W, y: r() * 240, s: r() * 1.4 + 0.3, t: r() * 6 }; });
 const myIdx = () => G.game.players.indexOf(me.id);
 const turnId = () => G.game.players[G.game.turn];
+// The special shell a player has loaded (🎆 cluster, 🚀 homing, ⚡ railgun, 🪨 dirt), or null.
+const armedOf = (id) => G?.game.armed?.[id] || null;
+// A saved shot's crater(s) as a list (a cluster bomb saves several).
+const craterList = (c) => (!c ? [] : Array.isArray(c[0]) ? c : [c]);
 const isBot = (id) => bots.has(id);
 const who = (id) => (id === me.id ? 'You' : nm(id));
 const seenKey = () => `duel.seen.${G.game.id}`;
@@ -73,7 +77,8 @@ function draw(t) {
   [0, 1].forEach((p) => {
     const { x, y } = tankPos(p, top, X), col = p ? '#3DD6C6' : '#FF6B5A', dir = p ? -1 : 1;
     const aiming = g.status === 'playing' && (liveOn || (!shot && g.turn === p));
-    const ang = aiming && p === myIdx() ? +$('angle').value : aiming && oppAim && (liveOn || oppAim.move === g.move) ? oppAim.angle : (shot && shot.p === p ? shot.angle : 45);
+    let ang = aiming && p === myIdx() ? +$('angle').value : aiming && oppAim && (liveOn || oppAim.move === g.move) ? oppAim.angle : (shot && shot.p === p ? shot.angle : 45);
+    if (armedOf(g.players[p]) === 'railgun' || (shot && shot.p === p && shot.weapon === 'railgun')) ang = railAngle(ang);
     ctx.save(); ctx.translate(x, y); if (g.hp[p] <= 0) ctx.globalAlpha = 0.45;
     ctx.strokeStyle = col; ctx.lineWidth = 4; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(0, -14); ctx.lineTo(Math.cos((ang * Math.PI) / 180) * 20 * dir, -14 - Math.sin((ang * Math.PI) / 180) * 20); ctx.stroke();
@@ -92,24 +97,42 @@ function draw(t) {
     }
     drawHint(t);
   }
-  shells.forEach((sh) => {
-    const n = sh.i, pts = sh.path;
-    for (let j = Math.max(0, n - 40); j < n; j++) { ctx.globalAlpha = (j - (n - 40)) / 40; ctx.fillStyle = '#FFC857'; ctx.beginPath(); ctx.arc(pts[j].x, pts[j].y, 2, 0, 7); ctx.fill(); }
-    ctx.globalAlpha = 1;
-    if (n < pts.length) { const q = pts[n]; ctx.shadowColor = '#FFC857'; ctx.shadowBlur = 18; ctx.fillStyle = '#FFF4D6'; ctx.beginPath(); ctx.arc(q.x, q.y, 4, 0, 7); ctx.fill(); ctx.shadowBlur = 0; }
-  });
+  shells.forEach((sh) => drawShell(sh, t));
   particles.forEach((q) => { ctx.globalAlpha = Math.max(0, q.life); ctx.fillStyle = q.c; ctx.beginPath(); ctx.arc(q.x, q.y, q.s, 0, 7); ctx.fill(); });
   ctx.globalAlpha = 1;
+}
+// Each kind of shell has its own look in flight.
+const SHELL_LOOK = {
+  null: { trail: '#FFC857', head: '#FFF4D6', glow: '#FFC857', r: 4 },
+  cluster: { trail: '#FF8AD8', head: '#FFE3F6', glow: '#FF4FC1', r: 3.5 },
+  homing: { trail: '#FF7A3C', head: '#FFD2B0', glow: '#FF5A1F', r: 4.5 },
+  dirt: { trail: '#B08355', head: '#8A5A2B', glow: '#00000000', r: 6 },
+};
+function drawShell(sh, t) {
+  const n = Math.min(sh.i, sh.path.length), pts = sh.path;
+  if (sh.weapon === 'railgun') {   // a beam: a white-hot core in a cyan glow, fading once it's done
+    const fade = sh.i >= pts.length ? Math.max(0, 1 - (sh.i - pts.length) / 20) : 1;
+    ctx.save(); ctx.globalAlpha = fade; ctx.lineCap = 'round';
+    [[10, '#29E7FF33'], [5, '#29E7FFAA'], [2, '#FFFFFF']].forEach(([w, c]) => { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); for (let j = 1; j < n; j++) ctx.lineTo(pts[j].x, pts[j].y); ctx.stroke(); });
+    ctx.restore(); return;
+  }
+  const L = SHELL_LOOK[sh.weapon] || SHELL_LOOK.null, len = sh.weapon === 'homing' ? 60 : 40;
+  for (let j = Math.max(0, n - len); j < n; j++) {
+    ctx.globalAlpha = (j - (n - len)) / len; ctx.fillStyle = sh.weapon === 'cluster' && j % 3 === 0 ? '#FFF4D6' : L.trail;
+    ctx.beginPath(); ctx.arc(pts[j].x + (sh.weapon === 'homing' ? Math.sin(j + t / 40) * 1.5 : 0), pts[j].y, sh.weapon === 'homing' ? 2.6 : 2, 0, 7); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  if (n < pts.length) { const q = pts[n]; ctx.shadowColor = L.glow; ctx.shadowBlur = 18; ctx.fillStyle = L.head; ctx.beginPath(); ctx.arc(q.x, q.y, L.r, 0, 7); ctx.fill(); ctx.shadowBlur = 0; }
 }
 // Aim hint: a rough guide, not a solution. Each turn it carries a small hidden error (a few
 // degrees and a bit of power, different every turn), it wobbles a little even in calm air, sways
 // with the wind, and only shows the first 65% of the flight. Reduced motion: a still band.
 const hintCache = new Map();
 function hintPath(angle, power, windX) {
-  const g = G.game, X = xs(), key = `${g.move}|${X[myIdx()]}|${angle.toFixed(1)}|${power.toFixed(1)}|${windX.toFixed(2)}`;
+  const g = G.game, X = xs(), wpn = armedOf(me.id), key = `${g.move}|${wpn}|${X[myIdx()]}|${angle.toFixed(1)}|${power.toFixed(1)}|${windX.toFixed(2)}`;
   if (!hintCache.has(key)) {
     if (hintCache.size > 300) hintCache.clear();
-    const { path } = simulate(g.seed, g.move, top, myIdx(), angle, power, windX, X);
+    const { path } = simulateWeapon(g.seed, g.move, top, myIdx(), angle, power, windX, X, wpn)[0];
     hintCache.set(key, path.slice(0, Math.ceil(path.length * 0.65)));
   }
   return hintCache.get(key);
@@ -143,6 +166,16 @@ function boom(x, y, big = 1) {
   const cols = ['#FFF4D6', '#FFC857', '#FF6B5A', '#B79CFF'];
   for (let i = 0; i < 70 * big; i++) { const a = Math.random() * 6.28, v = Math.random() * 5 * big + 1; particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2, life: 1, s: Math.random() * 3 + 1, c: cols[i % 4] }); }
 }
+// Where a shell lands: a boom sized to its crater, or a dust cloud and a thud for a Dirt Bomb.
+function blast(c) {
+  if (c[3]) {
+    sfx('thud'); sfx('thud', { delay: 0.12 }); navigator.vibrate?.(50);
+    const cols = ['#8A5A2B', '#B08355', '#6B4423', '#D6B28A'];
+    for (let i = 0; i < 70; i++) { const a = Math.PI + Math.random() * Math.PI, v = Math.random() * 4 + 1; particles.push({ x: c[0], y: c[1], vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1.2, s: Math.random() * 4 + 2, c: cols[i % 4] }); }
+    return;
+  }
+  boom(c[0], c[1], c[2] >= 40 ? 2 : c[2] <= 14 ? 0.7 : 1);
+}
 // A hit: small ones get a number, big ones a flash and DIRECT HIT!; a knockout waits for the K.O. screen.
 function hitDrama(before, after) {
   if (after.some((h) => h <= 0)) return;
@@ -169,21 +202,31 @@ function endDrama(g) {
 function stamp(text, tone = '', ms = 2400) { const el = document.createElement('div'); el.className = `stamp ${tone}`; el.innerHTML = `<span>${text}</span>`; document.body.appendChild(el); setTimeout(() => el.remove(), ms); }
 
 // Flies a shell along its path, then blows up where the server says it landed.
-function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1, X = xs()) {
+// Flies a shot (every shell of it: a cluster bomb makes three), then, for a replay, sets off the
+// craters the server saved. Resolves with { impact, impacts } (impact = the first shell's).
+function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1, X = xs(), weapon = null) {
   return new Promise((done) => {
     if (!liveOn) top = buildTop(G.game.seed, beforeCraters);   // live: the ground is already current
-    const sim = simulate(G.game.seed, move, top, p, angle, power, windX, X);
-    const s = { p, angle, path: sim.path, xs: X, i: reduceMotion ? sim.path.length : 0 };
-    shells.push(s); if (!liveOn) shot = s;
-    sfx('cannon'); if (!reduceMotion) sfx('whistle', { delay: 0.15, dur: Math.max(0.3, sim.path.length / 3 / 60 - 0.15) });
+    const sims = simulateWeapon(G.game.seed, move, top, p, angle, power, windX, X, weapon);
+    const mine = sims.map((sim) => ({ p, angle, weapon, path: sim.path, xs: X, i: reduceMotion ? sim.path.length : 0 }));
+    shells.push(...mine); if (!liveOn) shot = mine[0];
+    const longest = Math.max(...sims.map((x) => x.path.length));
+    if (weapon === 'railgun') { sfx('flash'); sfx('cannon', { delay: 0.02 }); }
+    else { sfx('cannon'); if (!reduceMotion) sfx('whistle', { delay: 0.15, dur: Math.max(0.3, longest / 3 / 60 - 0.15) }); }
+    if (weapon === 'cluster' && !reduceMotion) { const split = sims[0].path.findIndex((q, j) => j > 0 && q.y > sims[0].path[j - 1].y); if (split > 0) sfx('pop', { delay: split / 3 / 60 }); }
+    const speed = weapon === 'railgun' ? 6 : 3;
     const step = () => {
-      // Slow motion as the shell closes in on a tank.
-      const q = s.path[Math.min(s.i, s.path.length - 1)], near = !reduceMotion && dramaOn() && [0, 1].some((t) => { const k = tankPos(t, top, X); return Math.hypot(q.x - k.x, q.y - (k.y - 8)) < 90; });
-      s.i = Math.min(s.path.length, s.i + (near ? 1 : 3));
-      if (s.i < s.path.length) return requestAnimationFrame(step);
-      shells = shells.filter((x) => x !== s); if (shot === s) shot = null;
-      if (crater) { boom(crater[0], crater[1]); if (!reduceMotion && cv.animate) cv.animate([{ transform: 'translate(-6px,3px)' }, { transform: 'translate(5px,-3px)' }, { transform: 'none' }], { duration: 350 }); }
-      done(sim);
+      // Slow motion as a shell closes in on a tank.
+      const near = !reduceMotion && dramaOn() && weapon !== 'railgun' && mine.some((s) => { const q = s.path[Math.min(s.i, s.path.length - 1)]; return [0, 1].some((t) => { const k = tankPos(t, top, X); return Math.hypot(q.x - k.x, q.y - (k.y - 8)) < 90; }); });
+      mine.forEach((s) => { s.i += near ? 1 : speed; });
+      if (mine.some((s) => s.i < s.path.length)) return requestAnimationFrame(step);
+      // A railgun beam lingers a moment before it fades.
+      const linger = weapon === 'railgun' && !reduceMotion ? 350 : 0;
+      setTimeout(() => { shells = shells.filter((x) => !mine.includes(x)); }, linger);
+      if (shot && mine.includes(shot)) shot = null;
+      const list = craterList(crater);
+      if (list.length) { list.forEach(blast); if (!list[0][3] && !reduceMotion && cv.animate) cv.animate([{ transform: 'translate(-6px,3px)' }, { transform: 'translate(5px,-3px)' }, { transform: 'none' }], { duration: 350 }); }
+      done({ impact: sims[0].impact, impacts: sims.map((x) => x.impact) });
     };
     requestAnimationFrame(step);
   });
@@ -193,7 +236,7 @@ function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1, X = x
 function render() {
   const g = G.game, mi = myIdx();
   top = top || buildTop(g.seed, g.craters);
-  const tag = (p) => (g.shields.includes(p) ? ' 🛡️' : '') + (g.bertha.includes(p) ? ' 💣' : '');
+  const tag = (p) => (g.shields.includes(p) ? ' 🛡️' : '') + (g.bertha.includes(p) ? ' 💣' : '') + (armedOf(p) ? ` ${WEAPONS[armedOf(p)].icon}` : '');
   // Face, name (the part that gives way on a narrow screen, with …), then the HP, which always shows.
   const label = (p) => `${face(g.players[p])}<span class="nm">${who(g.players[p])}</span><span>&nbsp;· ${g.hp[p]}${tag(g.players[p])}</span>`;
   $('n0').innerHTML = `<span style="color:var(--coral)">●&nbsp;</span>${label(0)}`;
@@ -223,20 +266,23 @@ function render() {
   $('pack').innerHTML = over ? '' : backpackBarHTML(pack, 'duel', !busy);
   $('pack').querySelectorAll('[data-loot]').forEach((b) => {
     const item = b.dataset.item;
-    if ((item === 'bertha' && (!mine || g.bertha.includes(me.id))) || (item === 'shield' && g.shields.includes(me.id))) b.disabled = true;
+    const shell = item === 'bertha' || WEAPONS[item];
+    if ((shell && (!mine || g.bertha.includes(me.id) || armedOf(me.id))) || (item === 'shield' && g.shields.includes(me.id))) b.disabled = true;
     b.onclick = async () => {
       b.disabled = true;
       const { error } = await useLoot(+b.dataset.loot, g.id);
       if (error) { $('err').textContent = friendly(error); return; }
-      stamp(`${ITEMS[item].icon} ${ITEMS[item].name}!`, '', 1500); sfx('pop');
-      pack = await backpack(); await load(g.id); render();
+      stamp(`${ITEMS[item].icon} ${ITEMS[item].name}${WEAPONS[item] ? '<br><small style="font-size:.45em">loaded</small>' : '!'}`, '', 1500); sfx('pop');
+      if (WEAPONS[item]) { note(`${ITEMS[item].icon} ${ITEMS[item].desc}`); hintCache.clear(); }
+      pack = await backpack(); await load(g.id); render(); showAim();
     };
   });
   $('del').hidden = g.created_by !== me.id;
   $('feed').innerHTML = [...G.shots].reverse().slice(0, 6).map((s) => {
     const before = s.move > 1 ? G.shots.find((x) => x.move === s.move - 1)?.hp_after || [100, 100] : [100, 100];
     const hurt = [0, 1].map((p) => before[p] - s.hp_after[p]).map((d, p) => (d ? `${who(g.players[p])} −${d}` : '')).filter(Boolean).join(', ');
-    return `<li><strong>${who(s.shooter)}</strong> fired at ${s.angle}°, power ${s.power}: ${s.crater ? hurt || 'a miss, but a nice crater' : 'the shell flew off the map'}.</li>`;
+    const wl = s.weapon ? `${WEAPONS[s.weapon].icon} ${WEAPONS[s.weapon].name.toLowerCase()} ` : '';
+    return `<li><strong>${who(s.shooter)}</strong> fired ${wl}at ${s.weapon === 'railgun' ? railAngle(s.angle) : s.angle}°${s.weapon === 'railgun' ? '' : `, power ${s.power}`}: ${s.weapon === 'dirt' && s.crater ? hurt || 'a brand-new hill' : s.crater ? hurt || 'a miss, but a nice crater' : s.weapon === 'railgun' ? 'the beam missed' : 'the shell flew off the map'}.</li>`;
   }).join('') || '<li class="muted">No shots yet.</li>';
   if (over) {
     $('endPanel').hidden = false;
@@ -275,9 +321,9 @@ async function decide() {
   // Watch the last shot if it's new to you.
   if (last && last.shooter !== me.id && last.move > seenMove()) {
     busy = true; render();
-    const before = g.craters.slice(0, g.craters.length - (last.crater ? 1 : 0));
+    const before = g.craters.slice(0, g.craters.length - craterCount(last.crater));
     const lp = g.players.indexOf(last.shooter), LX = [...baseXs()]; if (last.from_x != null) LX[lp] = last.from_x; if (last.target_x != null) LX[1 - lp] = last.target_x;
-    await flyShell(lp, last.angle, last.power, before, last.wind_move ?? last.move - 1, last.crater, last.wind_x || 1, LX);
+    await flyShell(lp, last.angle, last.power, before, last.wind_move ?? last.move - 1, last.crater, last.wind_x || 1, LX, last.weapon);
     markSeen(last.move); top = buildTop(g.seed, g.craters); busy = false;
     hitDrama(G.shots[G.shots.length - 2]?.hp_after || [100, 100], last.hp_after);
   }
@@ -296,12 +342,12 @@ async function fire() {
   const moved = X[p] !== baseXs()[p] ? X[p] : null;
   busy = true; drag = null; render();
   navigator.vibrate?.(40);
-  live?.send('shot', { move, angle, power, x: X[p], tx: X[1 - p] });
-  const big = g.bertha.includes(me.id);
-  const sim = await flyShell(p, angle, power, g.craters, move, null, g.gust === move ? 3 : 1, X);
-  const crater = sim.impact ? [Math.round(sim.impact.x), Math.round(sim.impact.y), big ? BERTHA_R : CRATER_R] : null;
-  if (crater) boom(crater[0], crater[1], big ? 2 : 1);
-  const hp = damage(top, sim.impact, g.hp, big, g.players.map((x) => g.shields.includes(x) && x !== me.id), X);
+  const wpn = armedOf(me.id), big = !wpn && g.bertha.includes(me.id);
+  live?.send('shot', { move, angle, power, x: X[p], tx: X[1 - p], w: wpn });
+  const sim = await flyShell(p, angle, power, g.craters, move, null, g.gust === move ? 3 : 1, X, wpn);
+  const cr = weaponCraters(sim.impacts, wpn, big), crater = wpn === 'cluster' ? (cr.length ? cr : null) : cr[0] || null;
+  cr.forEach(blast);
+  const hp = weaponDamage(top, sim.impacts, g.hp, wpn, big, g.players.map((x) => g.shields.includes(x) && x !== me.id), X);
   const { error } = await sb.rpc('duel_fire', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_hp: hp, p_target_x: X[1 - p], ...(moved != null ? { p_x: moved } : {}) });
   busy = false; myX = null;
   if (error) { $('err').textContent = friendly(error); render(); return; }
@@ -315,16 +361,16 @@ async function fire() {
 
 // The other player just pulled the trigger: fly their shell here right away, the same way
 // their page does, instead of waiting for the database to catch up.
-async function watchLiveShot({ move, angle, power, x, tx, live: isLive, wx }, refresh) {
-  if (isLive) return watchShellLive({ angle, power, x, move, wx });
+async function watchLiveShot({ move, angle, power, x, tx, live: isLive, wx, w }, refresh) {
+  if (isLive) return watchShellLive({ angle, power, x, move, wx, w });
   const g = G?.game;
   if (!g || busy || g.status !== 'playing' || move !== g.move || turnId() === me.id) return;
   const p = g.turn, shooter = g.players[p], big = g.bertha.includes(shooter), mi = myIdx(), hpBefore = g.hp[mi];
   busy = true; oppAim = { move, angle, power, x }; render();
   const WX = [...baseXs()]; if (x != null) WX[p] = x; if (tx != null) WX[1 - p] = tx;
   dodgeX = null;   // their shell is already in the air
-  const sim = await flyShell(p, angle, power, g.craters, move, null, g.gust === move ? 3 : 1, WX);
-  if (sim.impact) boom(Math.round(sim.impact.x), Math.round(sim.impact.y), big ? 2 : 1);
+  const sim = await flyShell(p, angle, power, g.craters, move, null, g.gust === move ? 3 : 1, WX, w || null);
+  weaponCraters(sim.impacts, w || null, big && !w).forEach(blast);
   markSeen(move + 1); oppAim = null;
   // Wait for their shot to land in the database, then show where things stand.
   for (let i = 0; i < 8 && G.game.move === move; i++) { await sleep(500); await load(g.id); }
@@ -343,13 +389,13 @@ async function fireLive() {
   reloadAt = Date.now() + RELOAD; showReload();
   const angle = +$('angle').value, power = +$('power').value, move = g.move, windX = g.gust === move ? 3 : 1, X = xs();
   navigator.vibrate?.(40); drag = null;
-  live?.send('shot', { live: true, move, angle, power, x: X[p], wx: windX });
-  const big = g.bertha.includes(me.id);
-  const sim = await flyShell(p, angle, power, g.craters, move, null, windX, X);
+  const wpn = armedOf(me.id), big = !wpn && g.bertha.includes(me.id);
+  live?.send('shot', { live: true, move, angle, power, x: X[p], wx: windX, w: wpn });
+  const sim = await flyShell(p, angle, power, g.craters, move, null, windX, X, wpn);
   // Damage is worked out where the tanks stand when it lands (they may have driven meanwhile).
-  const now = G.game, Xi = xs(), crater = sim.impact ? [Math.round(sim.impact.x), Math.round(sim.impact.y), big ? BERTHA_R : CRATER_R] : null;
-  const hp = damage(top, sim.impact, now.hp, big, now.players.map((x) => now.shields.includes(x) && x !== me.id), Xi);
-  if (crater) { boom(crater[0], crater[1], big ? 2 : 1); applyCrater(top, crater); }
+  const now = G.game, Xi = xs(), cr = weaponCraters(sim.impacts, wpn, big), crater = wpn === 'cluster' ? (cr.length ? cr : null) : cr[0] || null;
+  const hp = weaponDamage(top, sim.impacts, now.hp, wpn, big, now.players.map((x) => now.shields.includes(x) && x !== me.id), Xi);
+  cr.forEach((c) => { blast(c); applyCrater(top, c); });
   const { error } = await sb.rpc('duel_fire_live', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater,
     p_dmg: [0, 1].map((k) => now.hp[k] - hp[k]), p_x: X[p] !== baseXs()[p] ? X[p] : null, p_target_x: Xi[1 - p], p_wind_move: move, p_wind_x: windX });
   if (error) { note(friendly(error), 'error'); if (/live battle is over/i.test(error.message || '')) setLive(false); }
@@ -357,13 +403,13 @@ async function fireLive() {
   await load(g.id); decide();
 }
 // Their live shell: fly it here as it's fired. The damage arrives with the next refresh.
-async function watchShellLive({ angle, power, x, move, wx }) {
+async function watchShellLive({ angle, power, x, move, wx, w }) {
   const g = G?.game, mi = G ? myIdx() : -1;
   if (!g || !liveOn || mi < 0 || g.status !== 'playing') return;
   const p = 1 - mi, big = g.bertha.includes(g.players[p]), X = xs(); if (x != null) X[p] = x;
   oppAim = { ...(oppAim || {}), angle, power, x };
-  const sim = await flyShell(p, angle, power, g.craters, move ?? g.move, null, wx || 1, X);
-  if (sim.impact) { const c = [Math.round(sim.impact.x), Math.round(sim.impact.y), big ? BERTHA_R : CRATER_R]; boom(c[0], c[1], big ? 2 : 1); applyCrater(top, c); }
+  const sim = await flyShell(p, angle, power, g.craters, move ?? g.move, null, wx || 1, X, w || null);
+  weaponCraters(sim.impacts, w || null, big && !w).forEach((c) => { blast(c); applyCrater(top, c); });
 }
 function showReload() {
   const b = $('fire'), left = reloadAt - Date.now();
@@ -462,7 +508,8 @@ const sendAim = () => {
 };
 // Sets the aim from anywhere (sliders, − / + buttons, dragging on the battlefield).
 function showAim() {
-  $('angleOut').textContent = $('angle').value + '°'; $('powerOut').textContent = $('power').value;
+  const rail = G && armedOf(me.id) === 'railgun';
+  $('angleOut').textContent = (rail ? railAngle(+$('angle').value) : $('angle').value) + '°'; $('powerOut').textContent = rail ? '⚡' : $('power').value;
   ['angle', 'power'].forEach((id) => { const el = $(id); el.style.setProperty('--fill', `${((el.value - el.min) / (el.max - el.min)) * 100}%`); });
 }
 const aimKey = () => `duel.aim.${G.game.id}`;
@@ -566,7 +613,8 @@ function aimFromPointer(e) {
   const p = myIdx(), t = tankPos(p, top, xs()), dir = p === 0 ? 1 : -1;
   const dx = (gx - t.x) * dir, dy = t.y - 14 - gy;
   drag = { x: gx, y: gy };
-  const ang = dx <= 0 ? 85 : (Math.atan2(dy, dx) * 180) / Math.PI;
+  const rail = armedOf(me.id) === 'railgun';   // the railgun aims -40° to +40°, straight at where you point
+  const ang = rail ? (Math.atan2(dy, Math.max(1, dx)) * 180) / Math.PI + 45 : dx <= 0 ? 85 : (Math.atan2(dy, dx) * 180) / Math.PI;
   setAim(ang, Math.hypot(dx, dy) / 3.4);
 }
 cv.addEventListener('pointerdown', (e) => { if (!canAim()) return; e.preventDefault(); cv.setPointerCapture?.(e.pointerId); aimFromPointer(e); });
