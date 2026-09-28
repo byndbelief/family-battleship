@@ -103,7 +103,10 @@ takes a bare username.
   counts down 3 s and goes to the next Gauntlet round (or the rivalry's next Gauntlet), else the next
   game waiting on you; "Stay here" cancels. Quick-play games also get 🔁 Rematch (same players,
   same settings; not Gauntlet rounds, where the next round is the rematch); with nothing else
-  waiting, the banner offers just Rematch, no countdown. Only the first time a device sees a game end, and only
+  waiting, the banner counts down 5 s to a **new game** (an automatic rematch). A rematch joins a
+  running game of that kind for exactly those players if there is one (one per group, like Quick
+  play); on an automatic countdown only one player's page (lowest human id) creates it and the
+  others wait up to ~6 s to join, so both screens land in the same single new game. Only the first time a device sees a game end, and only
   within 10 minutes of it ending, so opening an old result never bounces you away.
 - Sound effects are synthesized (`web/sfx.js`, no audio files).
 - **Settings** (⚙️ in the corner of every page, `openSettings` in `common.js`): per-device

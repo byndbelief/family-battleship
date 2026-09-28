@@ -348,7 +348,7 @@ export async function gauntletBar(gauntletId, gameId, meId, nameOf) {
 // Game over, straight on to the next one: the next Gauntlet round (or the rivalry's next
 // Gauntlet) first, else the next game waiting on you. A banner counts down ("Stay here" cancels).
 // Quick-play games also get a Rematch button (same players, same settings); with nothing else
-// waiting, the banner offers just that, without a countdown. Only the first time this device sees
+// waiting, the banner counts down to a new game instead (a rematch that starts by itself). Only the first time this device sees
 // the game end, and only if it ended in the last 10 minutes, so an old result never bounces you
 // away. `wait` lets the win/lose screen play first.
 export async function jumpToNext(kind, game, meId, nameOf, wait = 3000) {
@@ -379,29 +379,55 @@ export async function jumpToNext(kind, game, meId, nameOf, wait = 3000) {
   document.getElementById('nextJump')?.remove();
   const el = document.createElement('div'); el.id = 'nextJump';
   el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:95;display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 14px;border-radius:16px;background:#1B1646;color:#fff;font:700 15px/1.3 system-ui,sans-serif;box-shadow:0 10px 30px #000a;width:max-content;max-width:calc(100vw - 24px);box-sizing:border-box';
-  const vs = target ? target.players.filter((p) => p !== meId).map(nameOf).join(' & ') || 'solo' : '';
-  el.innerHTML = (target
-    ? `<b id="nextJumpN" style="flex:none;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#F2C230;color:#2A2100">3</b><span style="flex:1 1 170px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(target.label)}: ${KIND_ICON[target.kind]} vs ${esc(vs)}</span>`
-    : '<span style="flex:1 1 auto;min-width:0;white-space:nowrap">Play again?</span>')
-    + '<span style="display:flex;gap:8px;margin-left:auto">' + (canRematch ? `<button type="button" data-nj="rematch" style="${btn};background:#F2C230;color:#2A2100">🔁 Rematch</button>` : '')
-    + `<button type="button" data-nj="stay" style="${btn};background:#ffffff22;color:#fff" aria-label="${target ? 'Stay here' : 'Close'}">${target ? 'Stay here' : '✕'}</button></span>`;
+  const them = game.players.filter((p) => p !== meId).map(nameOf).join(' & ') || 'solo';
+  const vs = target ? target.players.filter((p) => p !== meId).map(nameOf).join(' & ') || 'solo' : them;
+  const secs = target ? 3 : 5;   // nothing waiting: a little longer before a brand-new game starts
+  const label = target ? `${esc(target.label)}: ${KIND_ICON[target.kind]} vs ${esc(vs)}` : `New game: ${KIND_ICON[kind]} vs ${esc(them)}`;
+  el.innerHTML = `<b id="nextJumpN" style="flex:none;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#F2C230;color:#2A2100">${secs}</b><span style="flex:1 1 170px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${label}</span>`
+    + '<span style="display:flex;gap:8px;margin-left:auto">' + (canRematch && target ? `<button type="button" data-nj="rematch" style="${btn};background:#F2C230;color:#2A2100">🔁 Rematch</button>` : '')
+    + `<button type="button" data-nj="stay" style="${btn};background:#ffffff22;color:#fff">Stay here</button></span>`;
   document.body.appendChild(el);
-  let n = 3, iv = null;
+  let n = secs, iv = null;
   const stop = () => { clearInterval(iv); el.remove(); };
-  if (target) iv = setInterval(() => { n -= 1; const b = document.getElementById('nextJumpN'); if (b) b.textContent = String(n); if (n <= 0) { stop(); go(hrefFor(target.kind, target.id)); } }, 1000);
+  const startRematch = async (btnEl) => {
+    clearInterval(iv);
+    if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Setting up…'; }
+    const b = document.getElementById('nextJumpN'); if (b) b.textContent = '…';
+    const { data, error } = await rematch(kind, game, meId, !btnEl);
+    if (error || !data) { if (btnEl) { btnEl.textContent = '🔁 Rematch'; btnEl.disabled = false; } else el.remove(); note(error ? friendly(error) : "Couldn't start a rematch", 'error'); return; }
+    if (!data.joined) notify(kind, data.id);
+    el.remove(); go(hrefFor(kind, data.id));
+  };
+  iv = setInterval(() => {
+    n -= 1; const b = document.getElementById('nextJumpN'); if (b) b.textContent = String(n);
+    if (n <= 0) { clearInterval(iv); if (target) { stop(); go(hrefFor(target.kind, target.id)); } else startRematch(null); }
+  }, 1000);
   el.querySelector('[data-nj="stay"]').onclick = stop;
   const rm = el.querySelector('[data-nj="rematch"]');
-  if (rm) rm.onclick = async () => {
-    clearInterval(iv); rm.disabled = true; rm.textContent = 'Setting up…';
-    const b = document.getElementById('nextJumpN'); if (b) b.remove();
-    const { data, error } = await rematch(kind, game, meId);
-    if (error || !data) { rm.textContent = '🔁 Rematch'; rm.disabled = false; note(error ? friendly(error) : "Couldn't start a rematch", 'error'); return; }
-    notify(kind, data);
-    el.remove(); go(hrefFor(kind, data));
-  };
+  if (rm) rm.onclick = () => startRematch(rm);
 }
-// The same game again: same players, same settings.
-async function rematch(kind, game, meId) {
+// The same game again: same players, same settings. If one is already running for exactly these
+// players (the other player's page just started it), join that instead of making a second one.
+// Resolves { data: { id, joined }, error }.
+// When the countdown (not a tap) starts it, every page counts down together, so one player's page
+// makes the game and the others wait a few seconds to join it.
+async function rematch(kind, game, meId, auto = false) {
+  const table = { duel: 'duel_games', golf: 'golf_games', battleship: 'games' }[kind];
+  const key = [...game.players].sort().join(',');
+  const find = async () => {
+    const { data: running } = await sb.from(table).select('id, players').neq('id', game.id).in('status', kind === 'battleship' ? ['setup', 'playing'] : ['playing']).is('gauntlet_id', null).order('created_at', { ascending: false }).limit(30);
+    return (running ?? []).find((x) => [...x.players].sort().join(',') === key);
+  };
+  const host = [...game.players].filter((p) => !bots.has(p)).sort()[0] === meId;
+  for (let i = 0; i < (auto && !host ? 8 : 1); i++) {
+    const same = await find();
+    if (same) return { data: { id: same.id, joined: true }, error: null };
+    if (auto && !host) await new Promise((r) => setTimeout(r, 750));
+  }
+  const { data, error } = await createRematch(kind, game, meId);
+  return { data: data ? { id: data, joined: false } : null, error };
+}
+async function createRematch(kind, game, meId) {
   const others = game.players.filter((p) => p !== meId);
   const { data: prof } = others.length ? await sb.from('profiles').select('id, username').in('id', others) : { data: [] };
   const un = others.map((id) => (prof ?? []).find((p) => p.id === id)?.username).filter(Boolean);
