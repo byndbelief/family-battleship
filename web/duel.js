@@ -286,8 +286,18 @@ function render() {
   const liveNow = liveOn && !over && mi >= 0 && !out, mine = !over && !out && (liveNow || turnId() === me.id);
   $('title').innerHTML = over ? (g.winner === me.id ? 'You win!' : `${nm(g.winner)} wins!`) : out ? "💀 You're out" : liveNow ? '⚔️ Live battle' : mine ? 'Your shot' : `${nm(turnId())}'s shot`;
   $('status').textContent = over ? '' : out ? 'Watching the rest fight it out' : liveNow ? 'Fire at will!' : mine ? `Move ${g.move + 1}` : busy ? '' : 'Waiting…';
-  $('controls').hidden = !mine || (busy && !liveNow);
-  if (mine) showFuel();
+  // The controls stay up for the whole game: off your shot Fire! waits (and says whose shot it
+  // is), but you can line up your next angle and power.
+  $('controls').hidden = over || out || mi < 0 || g.status !== 'playing';
+  const waiting = !mine || (busy && !liveNow);
+  $('controls').classList.toggle('waiting', waiting);
+  if (liveNow) showReload();
+  else {
+    const fb = $('fire'); fb.disabled = waiting;
+    fb.textContent = !waiting ? 'Fire!' : mine ? 'Firing…' : `${nm(turnId()).replace(/<[^>]+>/g, '')}'s shot`;
+  }
+  document.querySelector('#controls .aimtip').textContent = waiting && !mine ? 'Not your shot yet: line up your next one while you wait.' : 'Drag on the battlefield to aim: which way sets the angle, how far sets the power. Fine-tune below.';
+  showFuel();
   // Dodge row: on their turn, against a person (the robot fires too fast to dodge). Live: just drive.
   $('dodge').hidden = !(g.status === 'playing' && !mine && !out && mi >= 0 && !busy && !isBot(turnId()));
   if (!$('dodge').hidden) showDodge();
@@ -306,7 +316,7 @@ function render() {
   cv.style.touchAction = canAim() ? 'none' : 'manipulation';   // dragging aims on your turn instead of scrolling
   cv.style.cursor = canAim() ? 'crosshair' : '';
   // Phones, on your shot: the backpack as a row of icons right above Fire!; otherwise its own panel below.
-  const mini = isPhone() && mine && !$('controls').hidden;
+  const mini = isPhone() && !$('controls').hidden;
   $('packMini').innerHTML = mini ? backpackBarHTML(pack, 'duel', !busy, { compact: true }) : '';
   $('pack').innerHTML = over || out || mini ? '' : backpackBarHTML(pack, 'duel', !busy);
   document.querySelectorAll('#pack [data-loot], #packMini [data-loot]').forEach((b) => {
@@ -739,7 +749,7 @@ function aimFromPointer(e) {
 cv.addEventListener('pointerdown', (e) => { if (!canAim()) return; e.preventDefault(); cv.setPointerCapture?.(e.pointerId); aimFromPointer(e); });
 cv.addEventListener('pointermove', (e) => { if (drag && canAim()) aimFromPointer(e); });
 ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => cv.addEventListener(ev, () => { drag = null; }));
-$('fire').onclick = () => { if (liveOn) fireLive(); else if (!busy) fire(); };
+$('fire').onclick = () => { if (liveOn) fireLive(); else if (!busy && G && turnId() === me.id) fire(); };
 $('botLiveBtn').onclick = async () => {
   const g = G?.game; if (!g) return;
   const b = $('botLiveBtn'); b.disabled = true;

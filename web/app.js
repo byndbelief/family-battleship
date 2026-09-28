@@ -1227,11 +1227,14 @@ function renderGame() {
           ${fleetListHTML(me.id)}
           <p class="muted small">Yellow outlines mark the latest shots.</p></section>
       </div>
-      ${(myTurn || liveNow) && !deskBar() ? backpackBarHTML(G.pack || [], 'battleship', !busy) : ''}${over ? cheatLogHTML() : ''}${feedHTML()}
+      ${over ? cheatLogHTML() : ''}${feedHTML()}
       ${legend}`;
   }
 
   const canDelete = game.created_by === me.id;
+  // The backpack rides in the fire bar: the full bar on a desktop, a row of icons on top of it otherwise.
+  const packMini = (myTurn || liveNow) && !deskBar() ? backpackBarHTML(G.pack || [], 'battleship', !busy, { compact: true }) : '';
+  const fbPack = deskBar() ? `<span class="fbpack">${backpackBarHTML(G.pack || [], 'battleship', !busy)}</span>` : packMini ? `<div class="fbmini">${packMini}</div>` : '';
   view(`
     <header class="stack">
       <div class="row between"><button class="link" id="back">← All games</button><span class="row" style="gap:10px"><span class="live" id="live">Live</span>${fsButton('#app')}</span></div>
@@ -1243,15 +1246,16 @@ function renderGame() {
     </header>
     ${body}
     ${canDelete ? `<p><button class="link danger" id="del">Delete this game</button></p>` : ''}
-    ${liveNow ? `<div class="firebar livebar"><span class="aimwrap"><span id="aimtext">${Date.now() < bsReloadAt ? 'Reloading…' : '⚔️ Guns ready: tap a square'}</span></span>${deskBar() ? `<span class="fbpack">${backpackBarHTML(G.pack || [], 'battleship', !busy)}</span>` : ''}</div>` : ''}
-    ${myTurn && !liveNow ? `<div class="firebar">
+    ${liveNow ? `<div class="firebar livebar ${packMini ? 'withmini' : ''}">${packMini ? fbPack : ''}<span class="aimwrap"><span id="aimtext">${Date.now() < bsReloadAt ? 'Reloading…' : '⚔️ Guns ready: tap a square'}</span></span>${deskBar() ? fbPack : ''}</div>` : ''}
+    ${myTurn && !liveNow ? `<div class="firebar ${packMini ? 'withmini' : ''}">${packMini ? fbPack : ''}
       <span class="aimwrap"><span class="aimdots" aria-hidden="true">${Array.from({ length: need }, (_, i) => `<i class="${i < aims.cells.size ? 'on' : ''}"></i>`).join('')}</span>
       <span id="aimtext">${aims.target ? (aims.cells.size === need ? `Ready: ${need} at ${nm(aims.target)}` : `Aimed ${aims.cells.size} of ${need}`) : `Tap ${need === 1 ? 'a square' : `${need} squares`} to aim`}</span></span>
       ${aims.cells.size ? '<button class="link" id="clearAim">Clear</button>' : ''}
-      ${deskBar() ? `<span class="fbpack">${backpackBarHTML(G.pack || [], 'battleship', !busy)}</span>` : ''}
+      ${deskBar() ? fbPack : ''}
       <span data-clockslot></span>
       <button class="fire ${aims.target && aims.cells.size === need && !busy ? 'ready' : ''}" id="fire" ${aims.target && aims.cells.size === need && !busy ? '' : 'disabled'}>Fire!</button><span class="error" id="fireerr" hidden></span></div>` : ''}`);
   document.body.classList.toggle('has-firebar', myTurn || liveNow);
+  document.body.classList.toggle('fb-mini', !!packMini);
   if ((myTurn || liveNow) && G.cheatsOn) rumour(BS_RUMOURS);
   // Shot clock: 45 seconds to fire (not when every opponent is the robot).
   if (myTurn && !liveNow && !busy && opponents.some((p) => !bots.has(p))) shotClock(`bs.${game.id}.${game.move}.${game.turn}`, 45, async () => {
@@ -1442,7 +1446,8 @@ async function doSonar(target, cell) {
   stamp(data.ships.length ? `📡 ${data.ships.length} ship square${data.ships.length > 1 ? 's' : ''}!` : '📡 Just fish', 'blue', 1800); sfx('ping');
 }
 function wireCheats() {
-  app.querySelectorAll('.backpack [data-loot]').forEach((b) => {
+  app.querySelectorAll('.backpack [data-loot], .packmini [data-loot]').forEach((b) => {
+    if (b.dataset.item === 'sonar') b.classList.toggle('on', sonarLoot === +b.dataset.loot);   // armed: tap a square to ping
     b.onclick = async () => {
       if (b.dataset.item === 'sonar') { sonarLoot = sonarLoot ? null : +b.dataset.loot; renderGame(); return; }
       b.disabled = true;

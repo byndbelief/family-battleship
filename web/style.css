@@ -293,6 +293,10 @@ body.quake { animation: quake .45s linear 1; }
 @media (prefers-reduced-motion: reduce) { .firebar .fire.ready { animation: none; } }
 body.has-firebar #nextUp, body.has-firebar #setBtn { bottom: calc(var(--fbh, 80px) + 10px) !important; }
 body.has-firebar { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
+/* Phones and tablets: the backpack as a row of icons along the top of the fire bar */
+.firebar.withmini { flex-wrap: wrap; row-gap: 4px; padding-top: 4px; }
+.firebar .fbmini { flex: 1 0 100%; min-width: 0; }
+body.has-firebar.fb-mini { padding-bottom: calc(210px + env(safe-area-inset-bottom, 0px)); }
 .botlive { display: flex; }
 .botlive .chip[aria-pressed=true] { background: var(--hit); border-color: var(--hit); color: #fff; }
 /* Desktop: the fire bar is a compact panel centered under the boards, and the boards grow with

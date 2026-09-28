@@ -52,6 +52,9 @@
   .hp>span:first-child{display:flex;align-items:center;max-width:100%;min-width:0}
   .hp .nm{overflow:hidden;text-overflow:ellipsis;min-width:0}
   .hp .face{flex:none}
+  /* Off your shot the controls stay up: Fire! waits, driving is locked, aiming can be lined up */
+  #controls.waiting .moverow{opacity:.4}
+  #controls.waiting #fire{opacity:.55;font-size:.8em}
   /* 3-4 players: a chip per tank across the top, the wind on its own line below */
   .hud.multi{flex-wrap:wrap;align-items:flex-start}
   .hud.multi .hp{display:none}
