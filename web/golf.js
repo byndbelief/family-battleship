@@ -1,5 +1,5 @@
 // Putt Post, live: turns and scores are saved on the server; putts replay for everyone.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock } from './common.js';
 import {
   LW, LH, HOLES, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, drawHole,
   inPoly, inRect, segDist, reduceMotion,
@@ -59,7 +59,21 @@ function sizeCanvas() {
   cv.style.width = w + 'px'; cv.style.height = (w * LH) / LW + 'px';
   cv.width = Math.round(w * dpr); cv.height = Math.round(((w * LH) / LW) * dpr);
 }
+// Shot clock: 30 seconds for each putt on your turn, against other people (not solo, not the
+// robot). The first time it runs out this turn costs a stroke; after that it stops for the turn.
+let clockHitT = -1;
+function clockCheck() {
+  const on = G && (mode === 'aim' || mode === 'wedge') && !locked && curPlayer() === me.id && n() > 1
+    && !G.game.players.some(isBot) && clockHitT !== G.game.t;
+  if (!on) { if (!(G && locked && mode === 'aim')) stopShotClock(); return; }
+  shotClock(`golf.${G.game.id}.${G.game.t}.${strokes}`, 30, async () => {
+    clockHitT = G.game.t;
+    const { data } = await sb.rpc('shot_clock', { p_kind: 'golf', p_game: G.game.id });
+    if (data) note(`⏱️ Too slow! ${data}.`, 'error');
+  });
+}
 function loop(t) {
+  clockCheck();
   if (locked && mode !== 'aim') { setLocked(false); showAim(null); }
   scene.fx = (scene.fx || []).filter((f) => { f.x += f.vx; f.y += f.vy; f.vy += f.g || 0; f.life -= 0.02; return f.life > 0; });
   if (scene.hole) { const k = cv.width / LW; ctx.setTransform(k, 0, 0, k, 0, 0); drawHole(ctx, scene.hole, t, scene); }
@@ -604,6 +618,7 @@ $('del').onclick = async () => {
     { event: 'INSERT', table: 'golf_accusations', filter: `game_id=eq.${id}` },
   ], refresh, async () => {
     if (!G) return;
+    if (await chaosClock()) return refresh();   // anything overdue on a stalled turn lands now
     const { data } = await sb.from('golf_games').select('updated_at').eq('id', id).maybeSingle();
     if (data && data.updated_at !== G.game.updated_at) refresh();
   });

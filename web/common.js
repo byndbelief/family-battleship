@@ -430,3 +430,71 @@ export function rumour(lines, chance = 0.25) {
 const holdCss = document.createElement('style');
 holdCss.textContent = '.nohold{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}';
 document.head.appendChild(holdCss);
+
+// ---------------------------------------------------------------- clocks
+// Shot clock: a countdown pill while it's your turn. The time left is remembered for this turn
+// (so reloading doesn't reset it) and pauses while the page is hidden. At zero, onExpire runs
+// once; the server decides the penalty (shot_clock), once per turn.
+let clockState = null;
+// It sits in the page's [data-clockslot] (next to the game's controls) when there is one.
+const mountClock = (el) => { const slot = document.querySelector('[data-clockslot]'); el.classList.toggle('inline', !!slot); if (slot) { if (el.parentNode !== slot) slot.appendChild(el); } else if (!el.isConnected) document.body.appendChild(el); };
+export function shotClock(key, seconds, onExpire) {
+  if (clockState?.key === key) { mountClock(clockState.el); return; }   // pages that redraw get it back
+  stopShotClock();
+  const store = `clock.${key}`;
+  let left = seconds;
+  try { const v = sessionStorage.getItem(store); if (v != null) left = +v; } catch {}
+  if (left <= 0) return;
+  const el = document.createElement('div'); el.id = 'shotClock'; el.setAttribute('role', 'timer'); el.setAttribute('aria-label', 'Shot clock');
+  mountClock(el);
+  const st = { key, left, el, timer: null };
+  const paint = () => {
+    const s = Math.max(0, Math.ceil(st.left));
+    el.innerHTML = `<span>⏱</span><b>${s}</b>`;
+    el.classList.toggle('hurry', s <= 10); el.style.setProperty('--frac', String(Math.max(0, st.left / seconds)));
+  };
+  st.timer = setInterval(() => {
+    if (document.hidden) return;
+    st.left -= 1; try { sessionStorage.setItem(store, String(st.left)); } catch {}
+    paint();
+    if (st.left <= 10 && st.left > 0) sfx('tick', { hi: st.left <= 5 });
+    if (st.left <= 0) { stopShotClock(); sfx('alarm'); onExpire(); }
+  }, 1000);
+  clockState = st; paint();
+}
+export function stopShotClock() {
+  if (!clockState) return;
+  clearInterval(clockState.timer); clockState.el.remove(); clockState = null;
+}
+// Chaos clock: ask the server to apply anything overdue on my games (throttled). Returns how
+// many hits landed, so a page can reload when something changed.
+let lastChaosClock = 0;
+export async function chaosClock() {
+  if (Date.now() - lastChaosClock < 60000) return 0;
+  lastChaosClock = Date.now();
+  const { data } = await sb.rpc('chaos_clock');
+  return data || 0;
+}
+// "chaos in 1h 20m" for a turn that started at turnAt (2h, 8h, then 24h for Gauntlet rounds).
+export function chaosIn(turnAt, gauntlet) {
+  if (!turnAt) return '';
+  const hrs = (Date.now() - new Date(turnAt).getTime()) / 3600000;
+  const next = [2, 8, ...(gauntlet ? [24] : [])].find((h) => h > hrs);
+  if (next == null) return '';
+  const m = Math.max(1, Math.round((next - hrs) * 60));
+  const txt = m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
+  return next === 24 ? `⏰ forfeit in ${txt}` : `⏰ chaos in ${txt}`;
+}
+const clockCss = document.createElement('style');
+clockCss.textContent = `
+  #shotClock{position:fixed;left:50%;top:calc(8px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:75;display:flex;align-items:center;gap:6px;
+    padding:6px 14px 6px 12px;border-radius:99px;background:#141026ee;color:#fff;font:800 18px/1 system-ui,sans-serif;box-shadow:0 6px 18px #0008;
+    border:2px solid #FFC857;background-image:linear-gradient(90deg,#FFC85733 calc(var(--frac,1)*100%),transparent 0)}
+  #shotClock b{font-variant-numeric:tabular-nums;min-width:1.4em;text-align:right}
+  #shotClock.hurry{border-color:#FF5A4E;background-image:linear-gradient(90deg,#FF5A4E55 calc(var(--frac,1)*100%),transparent 0);animation:clockPulse 1s ease-in-out infinite}
+  @keyframes clockPulse{50%{transform:translateX(-50%) scale(1.12)}}
+  @media (prefers-reduced-motion:reduce){#shotClock.hurry{animation:none}}
+  #shotClock.inline{position:static;transform:none;box-shadow:none;font-size:16px;padding:4px 12px 4px 10px;flex:none}
+  #shotClock.inline.hurry{animation-name:clockPulseIn}
+  @keyframes clockPulseIn{50%{transform:scale(1.12)}}`;
+document.head.appendChild(clockCss);

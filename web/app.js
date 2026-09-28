@@ -1,5 +1,5 @@
 import { VAPID_PUBLIC_KEY, USERNAME_DOMAIN } from './config.js';
-import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour } from './common.js';
+import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn } from './common.js';
 import { HOLES, holeWithAttack, drawHole, LW, LH } from './golf-engine.js';
 import { W as DW, H as DH, TANK_X, buildTop } from './duel-engine.js';
 const app = document.getElementById('app');
@@ -339,7 +339,7 @@ async function lobby() {
   if (document.querySelector('.fs-on')) fsExit();
   document.getElementById('nextUp')?.remove();   // the lobby has its own Your move strip
   document.body.classList.remove('has-firebar');
-  danger(false);
+  danger(false); stopShotClock();
   const others = Object.entries(names).filter(([id]) => id !== me.id).sort((a, b) => a[1].localeCompare(b[1]));
   // Quick play (a single game on its own) is one layer down, at #quick; the lobby leads with the Gauntlet.
   const quick = location.hash === '#quick';
@@ -532,6 +532,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && do
 
 // ---- your games, as a list of game states
 async function loadGames() {
+  chaosClock().then((n) => { if (n) loadGames(); });   // overdue stalls land first (throttled to once a minute)
   const [bsRes, golfRes, duelRes, gtRes] = await Promise.all([
     sb.from('games').select('*').order('updated_at', { ascending: false }).limit(40),
     sb.from('golf_games').select('*').order('updated_at', { ascending: false }).limit(40),
@@ -596,7 +597,7 @@ async function loadGames() {
       <canvas class="thumb" data-i="${cards.indexOf(c)}" width="160" height="100" aria-hidden="true"></canvas>
       <span class="gmain">
         <span class="gtitle"><strong>${KIND_ICON[c.kind]} ${KIND_NAME[c.kind]}</strong> <span class="small">${c.vs}</span></span>
-        <span class="muted small">${c.sub}</span>
+        <span class="muted small">${c.sub}${!c.over && !c.mine && c.kind !== 'gauntlet' && c.g.players.length > 1 && chaosIn(c.g.turn_at, c.g.gauntlet_id) ? ` · <span class="clk">${chaosIn(c.g.turn_at, c.g.gauntlet_id)}</span>` : ''}</span>
         ${c.prog != null ? `<span class="prog" aria-hidden="true"><i style="width:${Math.round(Math.max(0, Math.min(1, c.prog)) * 100)}%"></i></span>` : ''}
       </span>
       <span class="gstate">${c.extra}${c.pill}</span>
@@ -632,7 +633,7 @@ function renderGauntlets(all, cards) {
       <span class="gtrival"><strong>vs ${others}</strong><span>Gauntlet #${past.length + 1}${past.length ? ` · 🏆 ${g.players.map((p, i) => `${p === me.id ? 'You' : nm(p)} ${titles[i]}`).join(' · ')}` : ''}</span></span>
       <span class="gtscore">${g.players.map((p, i) => `<span class="${g.scores[i] === lead && lead > 0 ? 'lead' : ''}">${g.scores[i] === lead && lead > 0 ? '👑 ' : ''}${p === me.id ? 'You' : nm(p)} <b>${g.scores[i]}</b></span>`).join('')}</span>
       <span class="gttrack">${dots}</span>
-      <span class="gtnow">Round ${g.round} of ${g.rounds}: ${KIND_ICON[g.current_kind]} ${KIND_NAME[g.current_kind]}${whoseMove ? ` · <strong>${whoseMove}</strong>` : ''}</span>
+      <span class="gtnow">Round ${g.round} of ${g.rounds}: ${KIND_ICON[g.current_kind]} ${KIND_NAME[g.current_kind]}${whoseMove ? ` · <strong>${whoseMove}</strong>` : ''}${round && chaosIn(round.g.turn_at, g.id) ? ` · <span class="gtclk">${chaosIn(round.g.turn_at, g.id)}</span>` : ''}</span>
       <span class="gtplay">${myMove ? `Play round ${g.round} ›` : 'Watch ›'}</span>
     </a>${g.created_by === me.id ? `<button type="button" class="gtoff" data-off="${g.id}">Call off</button>` : ''}</div>`;
   }).join('');
@@ -663,6 +664,7 @@ function renderUpStrip(mine, cards, myFleets, atMe) {
         <span class="row between" style="gap:6px"><strong>${KIND_ICON[c.kind]} ${KIND_NAME[c.kind]}</strong>${c.extra}</span>
         <span class="small">${c.vs}</span>
         <span class="muted small">${c.sub}</span>
+        ${c.kind !== 'gauntlet' && c.g.players.length > 1 ? `<span class="small clk">${chaosIn(c.g.turn_at, c.g.gauntlet_id)}</span>` : ''}
         <span class="upgo">${c.pill.includes('Place') ? 'Place ships' : 'Play'} ›</span>
       </span>
     </a>`).join('');
@@ -1017,9 +1019,18 @@ function renderGame() {
       <span class="aimwrap"><span class="aimdots" aria-hidden="true">${Array.from({ length: need }, (_, i) => `<i class="${i < aims.cells.size ? 'on' : ''}"></i>`).join('')}</span>
       <span id="aimtext">${aims.target ? (aims.cells.size === need ? `Ready: ${need} at ${nm(aims.target)}` : `Aimed ${aims.cells.size} of ${need}`) : `Tap ${need === 1 ? 'a square' : `${need} squares`} to aim`}</span></span>
       ${aims.cells.size ? '<button class="link" id="clearAim">Clear</button>' : ''}
+      <span data-clockslot></span>
       <button class="fire ${aims.target && aims.cells.size === need && !busy ? 'ready' : ''}" id="fire" ${aims.target && aims.cells.size === need && !busy ? '' : 'disabled'}>Fire!</button><span class="error" id="fireerr" hidden></span></div>` : ''}`);
   document.body.classList.toggle('has-firebar', myTurn);
   if (myTurn && G.cheatsOn) rumour(BS_RUMOURS);
+  // Shot clock: 45 seconds to fire (not when every opponent is the robot).
+  if (myTurn && !busy && opponents.some((p) => !bots.has(p))) shotClock(`bs.${game.id}.${game.move}.${game.turn}`, 45, async () => {
+    const { data } = await sb.rpc('shot_clock', { p_kind: 'battleship', p_game: game.id });
+    if (data) splash(['TOO SLOW!', '⏱ SHOT CLOCK', data], { tone: 'red', sound: null, ms: 2000 });
+    aims = { target: null, cells: new Set() };
+    await loadGame(game.id); renderGame();
+  });
+  else stopShotClock();
   // Phones and full screen: instructions pop up once instead of taking up room on the page.
   const tipNow = sonarLoot && myTurn ? '📡 Tap a square on their board to ping the 3×3 around it.' : peekMode && myTurn ? '👀 Tap a square on their board to peek.' : myTurn || game.status === 'setup' ? sub.replace(/<[^>]+>/g, '') : '';
   const key = `${game.id}|${game.move}|${game.status}|${tipNow}`;

@@ -388,3 +388,7 @@ body.has-firebar { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)
 
 /* Hidden cheats use press-and-hold: no callout menus or text selection on those spots */
 .cell, #app > header h1 { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+
+.clk { color: #C0392B; font-weight: 700; }
+@media (prefers-color-scheme: dark) { .clk { color: #FF8A7A; } }
+.gtclk { color: #FFB3A8; font-weight: 700; }

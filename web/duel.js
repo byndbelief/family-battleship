@@ -1,6 +1,6 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, shotClock, stopShotClock, chaosClock } from './common.js';
 import { W, H, TANK_X, CRATER_R, BERTHA_R, rng, buildTop, windFor, tankPos, simulate, damage } from './duel-engine.js';
 
 const $ = (id) => document.getElementById(id);
@@ -166,6 +166,13 @@ function render() {
   $('title').innerHTML = over ? (g.winner === me.id ? 'You win!' : `${nm(g.winner)} wins!`) : mine ? 'Your shot' : `${nm(turnId())}'s shot`;
   $('status').textContent = over ? '' : mine ? `Move ${g.move + 1}` : busy ? '' : 'Waiting…';
   $('controls').hidden = !mine || busy;
+  // Shot clock: 30 seconds to fire (not against the robot, where nobody is waiting on you).
+  if (mine && !busy && !g.players.some(isBot)) shotClock(`duel.${g.id}.${g.move}`, 30, async () => {
+    const { data } = await sb.rpc('shot_clock', { p_kind: 'duel', p_game: g.id });
+    if (data) splash(['TOO SLOW!', '⏱ SHOT CLOCK', data], { tone: 'red', sound: null, ms: 2000 });
+    await load(g.id); render();
+  });
+  else stopShotClock();
   danger(g.status === 'playing' && mi >= 0 && g.hp[mi] > 0 && g.hp[mi] <= 25);   // nearly out: red pulse and a heartbeat
   if (mine && !busy && isPhone()) { try { if (!sessionStorage.getItem('duel.tip')) { sessionStorage.setItem('duel.tip', '1'); note('Drag on the battlefield to aim: direction sets the angle, distance the power.'); } } catch {} }
   cv.style.touchAction = mine && !busy ? 'none' : 'manipulation';   // dragging aims on your turn instead of scrolling
@@ -377,6 +384,7 @@ $('del').onclick = async () => {
   const refresh = () => { if (pending) return; pending = true; setTimeout(async () => { pending = false; if (busy) { setTimeout(refresh, 1000); return; } await load(id); pack = await backpack(); announceChaos({ gameId: id }); decide(); }, 200); };
   live = liveGame(`duel-${id}`, [{ event: '*', table: 'duel_games', filter: `id=eq.${id}` }], refresh, async () => {
     if (busy || !G) return;
+    if (await chaosClock()) return refresh();   // anything overdue on a stalled turn lands now
     const { data } = await sb.from('duel_games').select('updated_at').eq('id', id).maybeSingle();
     if (data && data.updated_at !== G.game.updated_at) refresh();
   }, {
