@@ -98,6 +98,18 @@ takes a bare username.
   page calls `card_timeout` (slow player draws 1). The robot plays via `card_bot_play` from a
   watching page and counts as always present. Gauntlet deals it for any player count; the chaos
   clock makes a staller draw 2/4, and a 24 h Gauntlet forfeit goes to the fewest cards.
+- **Hilltop Duel for 3-4 players** (`023_duel_multi.sql`): free-for-all, last tank standing.
+  Everything is sized by `n = players.length`, and **a 2-player duel must play exactly as before**
+  (keep the `n = 2` branches). Tanks start at `startXs(n)` / `_duel_start_x(n)` and drive within
+  `zones(n)` / `_duel_zone(n, i)` (engine and SQL must agree). With 3+ the angle is absolute, 5-175
+  (past 90 fires left, `aimDir`); 2 players keep 5-85 facing each other. Shells stop at any other
+  tank; a null in `xs` is a tank that's out (`standing()` in duel.js, by the HP *before* the shot, so
+  replays of a knockout still hit). Turns skip dead tanks (`_duel_next`); `duel_shots.xs` records
+  every tank's position for replays (`from_x`/`target_x` remain for 2). Live messages carry `from`
+  (seat); a message without it is from "the other one" of two. The robot targets the weakest tank
+  standing, and live only the first human still standing drives it (`botDriver`). **Never rebuild
+  `hp` as a two-value array**: curses, repairs and the chaos clock update `hp[i]` in place.
+  The Gauntlet deals duels for any group size (`_duel_new`); 24 h forfeit = `_duel_knockout`.
 - **Battleship ready check** (`022_fleet_ready.sql`): fleets are secret until the game ends, so
   who has placed theirs is `games.ready`, kept by a trigger on `fleets` insert. The setup screen
   lists every player as ✅ Ready or ⏳ Placing ships from it.
@@ -198,7 +210,7 @@ takes a bare username.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.

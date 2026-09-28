@@ -498,7 +498,7 @@ async function createRematch(kind, game, meId) {
   const others = game.players.filter((p) => p !== meId);
   const { data: prof } = others.length ? await sb.from('profiles').select('id, username').in('id', others) : { data: [] };
   const un = others.map((id) => (prof ?? []).find((p) => p.id === id)?.username).filter(Boolean);
-  if (kind === 'duel') return sb.rpc('duel_create', { p_opponent: un[0] ?? '', p_bot_level: game.bot_level });
+  if (kind === 'duel') return sb.rpc('duel_create', { p_opponents: un, p_bot_level: game.bot_level });
   if (kind === 'golf') return sb.rpc('golf_create', { opponents: un, p_start: game.start, p_count: game.count, p_random: !!game.seed, p_bot_level: game.bot_level });
   if (kind === 'cards') return sb.rpc('card_create', { opponents: un, p_bot_level: game.bot_level });
   return sb.rpc('create_game', { opponents: un, p_mode: game.mode, p_spt: game.spt });

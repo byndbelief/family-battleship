@@ -1,11 +1,23 @@
 // Hilltop Duel engine: the hills, wind, shell flight and damage. Shared by the duel page and the lobby previews.
 export const W = 800, H = 440, TANK_X = [90, 710], GRAV = 0.12, CRATER_R = 28, BERTHA_R = 44;
 function rng(seed) { let x = seed >>> 0 || 1; return () => { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; }; }
-function baseTerrain(seed) {
+// 3-4 player duels (023): tanks start spread along the ridge and each drives within its own
+// stretch. Two players keep the old spots and halves (and aim facing each other, 5-85°); with more,
+// the angle is absolute, 5-175°, and past 90° fires to the left.
+const START = { 2: [90, 710], 3: [90, 400, 710], 4: [90, 300, 500, 710] };
+const startXs = (n) => START[n] || START[2];
+function zones(n) {
+  if (n <= 2) return [[30, 330], [470, 770]];
+  const s = startXs(n);
+  return s.map((x, i) => [i === 0 ? 30 : Math.floor((s[i - 1] + x) / 2) + 50, i === n - 1 ? 770 : Math.floor((x + s[i + 1]) / 2) - 50]);
+}
+// Which way a shot goes and how steep: { dir: 1 (right) or -1 (left), a: 5-85 }.
+const aimDir = (shooter, angle, xs = TANK_X) => (xs.length <= 2 ? { dir: shooter === 0 ? 1 : -1, a: angle } : angle <= 90 ? { dir: 1, a: angle } : { dir: -1, a: 180 - angle });
+function baseTerrain(seed, n = 2) {
   const r = rng(seed * 2654435761), a = [], waves = [];
   for (let i = 0; i < 4; i++) waves.push({ amp: 18 + r() * 42, f: (0.004 + r() * 0.012) * (i + 1) * 0.6, ph: r() * 6.28 });
   for (let x = 0; x < W; x++) { let y = 300; waves.forEach((w) => { y += Math.sin(x * w.f + w.ph) * w.amp; }); a.push(Math.max(170, Math.min(400, y))); }
-  TANK_X.forEach((tx) => { const py = a[tx]; for (let x = tx - 22; x <= tx + 22; x++) a[x] = py; });
+  startXs(n).forEach((tx) => { const py = a[tx]; for (let x = tx - 22; x <= tx + 22; x++) a[x] = py; });
   return a;
 }
 // A crater [x, y, r] digs a round hole; a mound [x, y, r, 1] (the Dirt Bomb) piles a round hill.
@@ -16,20 +28,25 @@ function applyCrater(top, [cx, cy, r, mound]) {
     else if (cy - dy <= top[x]) top[x] = Math.min(H - 8, Math.max(top[x], cy + dy));
   }
 }
-function buildTop(seed, craters) { const t = baseTerrain(seed); craters.forEach((c) => applyCrater(t, c)); return t; }
+function buildTop(seed, craters, n = 2) { const t = baseTerrain(seed, n); craters.forEach((c) => applyCrater(t, c)); return t; }
 const windFor = (seed, move, x = 1) => { const r = rng(seed * 31 + move * 977 + 7); return Math.round((r() * 2 - 1) * 10) * x; };
-// xs: where the two tanks stand (they can drive a little each turn); the starting spots by default.
-const tankPos = (p, top, xs = TANK_X) => ({ x: xs[p], y: top[xs[p]] });
+// xs: where each tank stands (they can drive a little each turn); the starting spots by default.
+// A null in xs is a tank that's out: shells fly straight through where it was, and it takes no damage.
+const tankPos = (p, top, xs = TANK_X) => (xs[p] == null ? null : { x: xs[p], y: top[xs[p]] });
+// Did a shell at (x, y) reach any tank but the shooter's?
+const hitTank = (x, y, shooter, top, xs, r = 13) => xs.some((tx, p) => { if (p === shooter || tx == null) return false; return Math.hypot(x - tx, y - (top[tx] - 8)) < r; });
+// The tank a homing missile chases: the nearest one that isn't the shooter's.
+const nearestFoe = (x, shooter, top, xs) => { let best = null; xs.forEach((tx, p) => { if (p !== shooter && tx != null && (!best || Math.abs(tx - x) < Math.abs(best.x - x))) best = tankPos(p, top, xs); }); return best; };
 function simulate(seed, move, top, shooter, angle, power, windX = 1, xs = TANK_X) {
-  const dir = shooter === 0 ? 1 : -1, t = tankPos(shooter, top, xs), wind = windFor(seed, move, windX) * 0.004;
+  const { dir, a } = aimDir(shooter, angle, xs), t = tankPos(shooter, top, xs), wind = windFor(seed, move, windX) * 0.004;
   let x = t.x + dir * 14, y = t.y - 18; const v = power * 0.12;
-  let vx = Math.cos((angle * Math.PI) / 180) * v * dir, vy = -Math.sin((angle * Math.PI) / 180) * v;
+  let vx = Math.cos((a * Math.PI) / 180) * v * dir, vy = -Math.sin((a * Math.PI) / 180) * v;
   const path = [];
   for (let i = 0; i < 3000; i++) {
     vx += wind; vy += GRAV; x += vx; y += vy; path.push({ x, y });
     if (x < 0 || x >= W) return { path, impact: null };
     if (y >= top[Math.floor(x)]) return { path, impact: { x, y: top[Math.floor(x)] } };
-    const e = tankPos(1 - shooter, top, xs); if (Math.hypot(x - e.x, y - (e.y - 8)) < 13) return { path, impact: { x, y } };
+    if (hitTank(x, y, shooter, top, xs)) return { path, impact: { x, y } };
     if (y > H + 50) return { path, impact: null };
   }
   return { path, impact: null };
@@ -49,14 +66,15 @@ const WEAPONS = {
 const railAngle = (angle) => angle - 45;
 // Flies a shell from a given state; returns its path and where it hit (null = off the map).
 function flyFrom(state, seed, move, top, shooter, windX, xs, steer) {
-  const wind = windFor(seed, move, windX) * 0.004, e = tankPos(1 - shooter, top, xs), path = [];
+  const wind = windFor(seed, move, windX) * 0.004, path = [];
   let { x, y, vx, vy } = state;
   for (let i = 0; i < 3000; i++) {
-    if (steer && vy > 0) { vx += Math.max(-0.16, Math.min(0.16, (e.x - x) * 0.004)); vx *= 0.99; }
+    const e = steer && vy > 0 ? nearestFoe(x, shooter, top, xs) : null;
+    if (e) { vx += Math.max(-0.16, Math.min(0.16, (e.x - x) * 0.004)); vx *= 0.99; }
     vx += wind; vy += GRAV; x += vx; y += vy; path.push({ x, y });
     if (x < 0 || x >= W) return { path, impact: null };
     if (y >= top[Math.floor(x)]) return { path, impact: { x, y: top[Math.floor(x)] } };
-    if (Math.hypot(x - e.x, y - (e.y - 8)) < 13) return { path, impact: { x, y } };
+    if (hitTank(x, y, shooter, top, xs)) return { path, impact: { x, y } };
     if (y > H + 50) return { path, impact: null };
   }
   return { path, impact: null };
@@ -64,29 +82,29 @@ function flyFrom(state, seed, move, top, shooter, windX, xs, steer) {
 // Every shell a shot makes: [{ path, impact }] (three for a cluster bomb, one otherwise).
 function simulateWeapon(seed, move, top, shooter, angle, power, windX = 1, xs = TANK_X, weapon = null) {
   if (!weapon || weapon === 'dirt') { const s = simulate(seed, move, top, shooter, angle, power, windX, xs); return [s]; }
-  const dir = shooter === 0 ? 1 : -1, t = tankPos(shooter, top, xs), a = (angle * Math.PI) / 180;
+  const { dir, a: deg } = aimDir(shooter, angle, xs), t = tankPos(shooter, top, xs), a = (deg * Math.PI) / 180;
   const start = { x: t.x + dir * 14, y: t.y - 18, vx: Math.cos(a) * power * 0.12 * dir, vy: -Math.sin(a) * power * 0.12 };
   if (weapon === 'railgun') {
     // The railgun aims level-ish: the angle setting (5-85) maps to -40° to +40°.
-    const e = tankPos(1 - shooter, top, xs), path = [], ra = railAngle(angle) * Math.PI / 180;
+    const path = [], ra = railAngle(deg) * Math.PI / 180;
     let { x, y } = start; const vx = Math.cos(ra) * 9 * dir, vy = -Math.sin(ra) * 9;
     // The beam goes straight through hills; it stops at the enemy tank or the edge of the map.
     for (let i = 0; i < 400; i++) {
       x += vx; y += vy; path.push({ x, y });
       if (x < 0 || x >= W || y < -200 || y > H) return [{ path, impact: null }];
-      if (Math.hypot(x - e.x, y - (e.y - 8)) < 16) return [{ path, impact: { x, y } }];
+      if (hitTank(x, y, shooter, top, xs, 16)) return [{ path, impact: { x, y } }];
     }
     return [{ path, impact: null }];
   }
   if (weapon === 'homing') return [flyFrom(start, seed, move, top, shooter, windX, xs, true)];
   // cluster: fly to the top of the arc (or impact), then split into three
-  const wind = windFor(seed, move, windX) * 0.004, e = tankPos(1 - shooter, top, xs), pre = [];
+  const wind = windFor(seed, move, windX) * 0.004, pre = [];
   let { x, y, vx, vy } = start;
   for (let i = 0; i < 3000; i++) {
     vx += wind; vy += GRAV; x += vx; y += vy; pre.push({ x, y });
     if (x < 0 || x >= W) return [{ path: pre, impact: null }];
     if (y >= top[Math.floor(x)]) return [{ path: pre, impact: { x, y: top[Math.floor(x)] } }];
-    if (Math.hypot(x - e.x, y - (e.y - 8)) < 13) return [{ path: pre, impact: { x, y } }];
+    if (hitTank(x, y, shooter, top, xs)) return [{ path: pre, impact: { x, y } }];
     if (vy >= 0) break;
   }
   return [-1.3, 0, 1.3].map((d) => { const s = flyFrom({ x, y, vx: vx + d, vy: vy - Math.abs(d) * 0.4 }, seed, move, top, shooter, windX, xs, false); return { path: pre.concat(s.path), impact: s.impact }; });
@@ -99,11 +117,12 @@ function weaponCraters(impacts, weapon, big = false) {
 // How many craters a saved shot added (a cluster bomb saves a list of them).
 const craterCount = (c) => (!c ? 0 : Array.isArray(c[0]) ? c.length : 1);
 // Damage from every shell of a shot (capped at 60 a tank per shot).
-function weaponDamage(top, impacts, hp, weapon, big = false, shielded = [false, false], xs = TANK_X) {
+function weaponDamage(top, impacts, hp, weapon, big = false, shielded = [], xs = TANK_X) {
   if (!weapon) return damage(top, impacts[0] || null, hp, big, shielded, xs);
   const out = [...hp];
-  [0, 1].forEach((p) => {
+  xs.forEach((_, p) => {
     const t = tankPos(p, top, xs);
+    if (!t) return;
     let dmg = 0;
     impacts.filter(Boolean).forEach((im) => {
       const d = Math.hypot(im.x - t.x, im.y - (t.y - 8));
@@ -118,13 +137,15 @@ function weaponDamage(top, impacts, hp, weapon, big = false, shielded = [false, 
   return out;
 }
 
-// Damage to both tanks from a blast (you can hit yourself). Big Bertha blasts wider;
+// Damage to every tank from a blast (you can hit yourself). Big Bertha blasts wider;
 // a shield halves the hit.
-function damage(top, impact, hp, big = false, shielded = [false, false], xs = TANK_X) {
+function damage(top, impact, hp, big = false, shielded = [], xs = TANK_X) {
   const out = [...hp];
   if (!impact) return out;
-  [0, 1].forEach((p) => {
-    const t = tankPos(p, top, xs), d = Math.hypot(impact.x - t.x, impact.y - (t.y - 8));
+  xs.forEach((_, p) => {
+    const t = tankPos(p, top, xs);
+    if (!t) return;
+    const d = Math.hypot(impact.x - t.x, impact.y - (t.y - 8));
     let dmg = big ? (d < 62 ? Math.round(60 - d * 0.9) : 0) : (d < 40 ? Math.round(46 - d * 1.1) : 0);
     if (shielded[p]) dmg = Math.round(dmg / 2);
     out[p] = Math.max(0, out[p] - dmg);
@@ -132,4 +153,4 @@ function damage(top, impact, hp, big = false, shielded = [false, false], xs = TA
   return out;
 }
 
-export { rng, baseTerrain, applyCrater, buildTop, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle };
+export { startXs, zones, aimDir, hitTank, rng, baseTerrain, applyCrater, buildTop, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle };

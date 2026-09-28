@@ -1,7 +1,7 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
 import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, shotClock, stopShotClock, chaosClock, dramaOn, face, jumpToNext } from './common.js';
-import { W, H, TANK_X, CRATER_R, BERTHA_R, rng, buildTop, applyCrater, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle } from './duel-engine.js';
+import { W, H, CRATER_R, BERTHA_R, rng, buildTop as buildTopN, applyCrater, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, startXs, zones, aimDir } from './duel-engine.js';
 
 const $ = (id) => document.getElementById(id);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -10,41 +10,54 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // ---------------------------------------------------------------- state and drawing
 let G = null;     // { game, shots }
 let top = null, shot = null, particles = [], busy = false, pack = [];
-let live = null;          // the live channel: send('aim' | 'shot', …) to the other player's page
-let oppAim = null;        // { move, angle, power, x } streamed from the other player while they aim
+let live = null;          // the live channel: send('aim' | 'shot', …) to the other players' pages
+// What the others are doing, by seat: aims[p] = { move, angle, power, x } streamed while they aim.
+// Two players: a message without `from` is from "the other one" (an older page).
+let aims = {};
 // Tanks can drive a little each turn (40 px of fuel, own side only). myX is where I've driven to
 // this turn before firing; it's sent with the shot.
 let myX = null, myXMove = -1;
 let botDrive = null;      // { move, x } while the robot rolls to its firing spot
 // Dodging: while someone aims at you, you may shift up to 20 px (from where their turn began).
-// dodgeX is my dodge this turn; oppDodge is the other player's, streamed live while I aim.
-let dodgeX = null, dodgeMove = -1, oppDodge = null;
+// dodgeX is my dodge this turn; dodges[p] are the others', streamed live while I aim.
+let dodgeX = null, dodgeMove = -1, dodges = {};
 const DODGE = 20;
 // Live battle: while both players have the duel open (each page checks in with duel_here every
 // few seconds), there are no turns. Fire whenever the cannon has reloaded, drive anywhere on your
 // side. Shells can be in the air at the same time (shells); `shot` is only a turn-based shell.
-let liveOn = false, reloadAt = 0, liveMyX = null, oppLiveX = null, liveSave = null, seenHp = null, shells = [];
+let liveOn = false, reloadAt = 0, liveMyX = null, liveX = {}, liveSave = null, seenHp = null, shells = [];
 const RELOAD = 3000;
-const FUEL = 40, SIDE = [[30, 330], [470, 770]];
-const baseXs = () => G.game.tank_x || TANK_X;
+const FUEL = 40;
+// 2 players face each other on two halves; 3-4 (023) spread along the ridge, each on its own stretch.
+const N = () => G.game.players.length, multi = () => N() > 2;
+const SIDE = (p) => zones(N())[p];
+const buildTop = (seed, craters) => buildTopN(seed, craters, G ? N() : 2);
+const baseXs = () => G.game.tank_x || startXs(N());
+const COLS = ['#FF6B5A', '#3DD6C6', '#FFC857', '#B79CFF'];
+// Which seat a live message came from (older pages don't say: then it's the other of two).
+const fromOf = (a) => (a?.from != null ? a.from : G ? 1 - myIdx() : -1);
 function xs() {
-  const t = [...baseXs()], g = G.game;
+  const t = [...baseXs()], g = G.game, mi = myIdx();
   if (g.status === 'playing' && liveOn) {
-    const mi = myIdx();
     if (mi >= 0 && liveMyX != null) t[mi] = liveMyX;
-    if (mi >= 0 && oppLiveX != null) t[1 - mi] = oppLiveX;
+    Object.entries(liveX).forEach(([p, x]) => { if (+p !== mi && x != null) t[+p] = x; });
     return t;
   }
   if (g.status === 'playing') {
+    const a = aims[g.turn];
     if (turnId() === me.id && myXMove === g.move && myX != null) t[g.turn] = myX;
-    else if (turnId() !== me.id && oppAim?.move === g.move && oppAim.x != null) t[g.turn] = oppAim.x;
+    else if (turnId() !== me.id && a?.move === g.move && a.x != null) t[g.turn] = a.x;
     if (botDrive?.move === g.move) t[g.turn] = botDrive.x;
-    const di = 1 - g.turn;   // the tank being aimed at
-    if (turnId() !== me.id && myIdx() === di && dodgeMove === g.move && dodgeX != null) t[di] = dodgeX;
-    if (turnId() === me.id && oppDodge?.move === g.move) t[di] = oppDodge.x;
+    // Everyone else may dodge while the shooter aims.
+    if (turnId() !== me.id && mi >= 0 && dodgeMove === g.move && dodgeX != null) t[mi] = dodgeX;
+    Object.entries(dodges).forEach(([p, d]) => { if (+p !== mi && +p !== g.turn && d?.move === g.move) t[+p] = d.x; });
   }
   return t;
 }
+// For flying a shell: tanks already knocked out (by hp before the shot) aren't there to hit.
+const standing = (X, hp, shooter) => X.map((x, i) => (i === shooter || (hp?.[i] ?? 100) > 0 ? x : null));
+// The default barrel for a tank nobody is aiming: toward the middle.
+const restAngle = (p, X) => (multi() ? (X[p] < W / 2 ? 45 : 135) : 45);
 const cv = $('cv'), ctx = cv.getContext('2d');
 const stars = Array.from({ length: 90 }, (_, i) => { const r = rng(i * 7919 + 3); return { x: r() * W, y: r() * 240, s: r() * 1.4 + 0.3, t: r() * 6 }; });
 const myIdx = () => G.game.players.indexOf(me.id);
@@ -74,10 +87,13 @@ function draw(t) {
   ctx.fillStyle = tg; ctx.beginPath(); ctx.moveTo(0, H); for (let x = 0; x < W; x++) ctx.lineTo(x, top[x]); ctx.lineTo(W, H); ctx.fill();
   ctx.strokeStyle = '#9BF5EA'; ctx.lineWidth = 2; ctx.beginPath(); for (let x = 0; x < W; x++) ctx[x ? 'lineTo' : 'moveTo'](x, top[x]); ctx.stroke();
   const X = shot?.xs || xs();
-  [0, 1].forEach((p) => {
-    const { x, y } = tankPos(p, top, X), col = p ? '#3DD6C6' : '#FF6B5A', dir = p ? -1 : 1;
-    const aiming = g.status === 'playing' && (liveOn || (!shot && g.turn === p));
-    let ang = aiming && p === myIdx() ? +$('angle').value : aiming && oppAim && (liveOn || oppAim.move === g.move) ? oppAim.angle : (shot && shot.p === p ? shot.angle : 45);
+  g.players.forEach((_, p) => {
+    const { x, y } = tankPos(p, top, X), col = COLS[p];
+    const aiming = g.status === 'playing' && g.hp[p] > 0 && (liveOn || (!shot && g.turn === p));
+    const a = aims[p];
+    let ang = aiming && p === myIdx() ? +$('angle').value : aiming && a && (liveOn || a.move === g.move) ? a.angle : (shot && shot.p === p ? shot.angle : restAngle(p, X));
+    const aim = aimDir(p, ang, X), dir = aim.dir;
+    ang = aim.a;
     if (armedOf(g.players[p]) === 'railgun' || (shot && shot.p === p && shot.weapon === 'railgun')) ang = railAngle(ang);
     ctx.save(); ctx.translate(x, y); if (g.hp[p] <= 0) ctx.globalAlpha = 0.45;
     ctx.strokeStyle = col; ctx.lineWidth = 4; ctx.lineCap = 'round';
@@ -132,7 +148,7 @@ function hintPath(angle, power, windX) {
   const g = G.game, X = xs(), wpn = armedOf(me.id), key = `${g.move}|${wpn}|${X[myIdx()]}|${angle.toFixed(1)}|${power.toFixed(1)}|${windX.toFixed(2)}`;
   if (!hintCache.has(key)) {
     if (hintCache.size > 300) hintCache.clear();
-    const { path } = simulateWeapon(g.seed, g.move, top, myIdx(), angle, power, windX, X, wpn)[0];
+    const { path } = simulateWeapon(g.seed, g.move, top, myIdx(), angle, power, windX, standing(X, g.hp, myIdx()), wpn)[0];
     hintCache.set(key, path.slice(0, Math.ceil(path.length * 0.65)));
   }
   return hintCache.get(key);
@@ -149,7 +165,9 @@ function drawHint(t) {
   const g = G.game, base = g.gust === g.move ? 3 : 1, windy = windFor(g.seed, g.move, base) !== 0;
   const r = rng(g.seed * 7919 + g.move * 131 + 17), aBias = (r() * 2 - 1) * 3.5, pBias = (r() * 2 - 1) * 6;   // this turn's hidden error
   const q = (v, s) => Math.round(v / s) * s;
-  const A = (w) => Math.max(5, Math.min(85, q(+$('angle').value + aBias + w, 0.5))), P = (w) => Math.max(20, Math.min(100, q(+$('power').value + pBias + w, 0.5)));
+  // The hint never swings across straight up (with 3+ players past 90° is the other way).
+  const cur = +$('angle').value, [alo, ahi] = !multi() ? [5, 85] : cur <= 90 ? [5, 90] : [90, 175];
+  const A = (w) => Math.max(alo, Math.min(ahi, q(cur + aBias + w, 0.5))), P = (w) => Math.max(20, Math.min(100, q(+$('power').value + pBias + w, 0.5)));
   if (reduceMotion) {
     drawDots(hintPath(A(-1.5), P(-2), windy ? base * 0.6 : base), 0.55, t, true);
     drawDots(hintPath(A(1.5), P(2), windy ? base * 1.4 : base), 0.55, t, true);
@@ -178,8 +196,16 @@ function blast(c) {
 }
 // A hit: small ones get a number, big ones a flash and DIRECT HIT!; a knockout waits for the K.O. screen.
 function hitDrama(before, after) {
+  // A knockout waits for the K.O. screen (two players), or gets its own stamp (3-4: the fight goes on).
+  if (multi()) {
+    const out = after.map((h, p) => (h <= 0 && (before[p] ?? 100) > 0 ? p : -1)).filter((p) => p >= 0);
+    if (out.length && G.game.status === 'playing') {
+      stamp(out.includes(myIdx()) ? 'K.O.!<br><small style="font-size:.45em">you\'re out</small>' : `K.O.!<br><small style="font-size:.45em">${out.map((p) => esc(who(G.game.players[p]).replace(/<[^>]+>/g, ''))).join(' & ')} out</small>`, out.includes(myIdx()) ? 'red' : '', 1800);
+      sfx('boom', { size: 2 }); return;
+    }
+  }
   if (after.some((h) => h <= 0)) return;
-  const mi = myIdx(), drops = [0, 1].map((p) => before[p] - after[p]), big = Math.max(...drops);
+  const mi = myIdx(), drops = after.map((h, p) => (before[p] ?? 100) - h), big = Math.max(...drops);
   if (big <= 0) return;
   if (big >= 25) {
     stamp('DIRECT<br>HIT!', drops[mi] === big ? 'red' : '', 1600); sfx('flash', { delay: 0.05 });
@@ -204,9 +230,10 @@ function stamp(text, tone = '', ms = 2400) { const el = document.createElement('
 // Flies a shell along its path, then blows up where the server says it landed.
 // Flies a shot (every shell of it: a cluster bomb makes three), then, for a replay, sets off the
 // craters the server saved. Resolves with { impact, impacts } (impact = the first shell's).
-function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1, X = xs(), weapon = null) {
+function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1, X = xs(), weapon = null, hpBefore = G.game.hp) {
   return new Promise((done) => {
     if (!liveOn) top = buildTop(G.game.seed, beforeCraters);   // live: the ground is already current
+    X = standing(X, hpBefore, p);
     const sims = simulateWeapon(G.game.seed, move, top, p, angle, power, windX, X, weapon);
     const mine = sims.map((sim) => ({ p, angle, weapon, path: sim.path, xs: X, i: reduceMotion ? sim.path.length : 0 }));
     shells.push(...mine); if (!liveOn) shot = mine[0];
@@ -217,7 +244,7 @@ function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1, X = x
     const speed = weapon === 'railgun' ? 6 : 3;
     const step = () => {
       // Slow motion as a shell closes in on a tank.
-      const near = !reduceMotion && dramaOn() && weapon !== 'railgun' && mine.some((s) => { const q = s.path[Math.min(s.i, s.path.length - 1)]; return [0, 1].some((t) => { const k = tankPos(t, top, X); return Math.hypot(q.x - k.x, q.y - (k.y - 8)) < 90; }); });
+      const near = !reduceMotion && dramaOn() && weapon !== 'railgun' && mine.some((s) => { const q = s.path[Math.min(s.i, s.path.length - 1)]; return X.some((_, t) => { const k = tankPos(t, top, X); return k && Math.hypot(q.x - k.x, q.y - (k.y - 8)) < 90; }); });
       mine.forEach((s) => { s.i += near ? 1 : speed; });
       if (mine.some((s) => s.i < s.path.length)) return requestAnimationFrame(step);
       // A railgun beam lingers a moment before it fades.
@@ -239,19 +266,34 @@ function render() {
   const tag = (p) => (g.shields.includes(p) ? ' 🛡️' : '') + (g.bertha.includes(p) ? ' 💣' : '') + (armedOf(p) ? ` ${WEAPONS[armedOf(p)].icon}` : '');
   // Face, name (the part that gives way on a narrow screen, with …), then the HP, which always shows.
   const label = (p) => `${face(g.players[p])}<span class="nm">${who(g.players[p])}</span><span>&nbsp;· ${g.hp[p]}${tag(g.players[p])}</span>`;
-  $('n0').innerHTML = `<span style="color:var(--coral)">●&nbsp;</span>${label(0)}`;
-  $('n1').innerHTML = `${label(1)}<span style="color:var(--teal)">&nbsp;●</span>`;
-  $('hp0').style.width = g.hp[0] + '%'; $('hp1').style.width = g.hp[1] + '%';
+  const many = multi();
+  document.querySelector('.hud').classList.toggle('multi', many);
+  $('hpRow').hidden = !many;
+  if (many) {
+    // One chip per tank: its colour, face, name and HP (the one whose turn it is outlined).
+    $('hpRow').style.setProperty('--n', g.players.length);
+    $('hpRow').innerHTML = g.players.map((id, p) => `<div class="hpc ${g.hp[p] <= 0 ? 'out' : ''} ${g.status === 'playing' && !liveOn && g.turn === p ? 'turn' : ''}" style="--c:${COLS[p]}">
+      <span><i class="dot"></i>${face(id)}<span class="nm">${who(id)}</span><b>${g.hp[p] <= 0 ? '💀' : g.hp[p]}${tag(id)}</b></span>
+      <span class="bar"><i style="width:${g.hp[p]}%"></i></span></div>`).join('');
+  } else {
+    $('n0').innerHTML = `<span style="color:var(--coral)">●&nbsp;</span>${label(0)}`;
+    $('n1').innerHTML = `${label(1)}<span style="color:var(--teal)">&nbsp;●</span>`;
+    $('hp0').style.width = g.hp[0] + '%'; $('hp1').style.width = g.hp[1] + '%';
+  }
   const gusty = g.gust === g.move, w = windFor(g.seed, g.move, gusty ? 3 : 1);
   $('wind').textContent = (gusty ? '🌪️ ' : '') + (w === 0 ? 'No wind' : `Wind ${w < 0 ? '←' : '→'} ${Math.abs(w)}${gusty ? ' (hurricane!)' : ''}`);
-  const over = g.status === 'over', liveNow = liveOn && !over && mi >= 0, mine = !over && (liveNow || turnId() === me.id);
-  $('title').innerHTML = over ? (g.winner === me.id ? 'You win!' : `${nm(g.winner)} wins!`) : liveNow ? '⚔️ Live battle' : mine ? 'Your shot' : `${nm(turnId())}'s shot`;
-  $('status').textContent = over ? '' : liveNow ? 'Fire at will!' : mine ? `Move ${g.move + 1}` : busy ? '' : 'Waiting…';
+  const over = g.status === 'over', out = !over && mi >= 0 && g.hp[mi] <= 0;   // knocked out, still watching (3-4 players)
+  const liveNow = liveOn && !over && mi >= 0 && !out, mine = !over && !out && (liveNow || turnId() === me.id);
+  $('title').innerHTML = over ? (g.winner === me.id ? 'You win!' : `${nm(g.winner)} wins!`) : out ? "💀 You're out" : liveNow ? '⚔️ Live battle' : mine ? 'Your shot' : `${nm(turnId())}'s shot`;
+  $('status').textContent = over ? '' : out ? 'Watching the rest fight it out' : liveNow ? 'Fire at will!' : mine ? `Move ${g.move + 1}` : busy ? '' : 'Waiting…';
   $('controls').hidden = !mine || (busy && !liveNow);
   if (mine) showFuel();
   // Dodge row: on their turn, against a person (the robot fires too fast to dodge). Live: just drive.
-  $('dodge').hidden = !(g.status === 'playing' && !mine && mi >= 0 && !busy && !isBot(turnId()));
+  $('dodge').hidden = !(g.status === 'playing' && !mine && !out && mi >= 0 && !busy && !isBot(turnId()));
   if (!$('dodge').hidden) showDodge();
+  // 3-4 players: the shooter might not be aiming at you.
+  document.querySelector('.dodgetip').textContent = multi() ? `${nm(turnId()).replace(/<[^>]+>/g, '')} is lining up a shot. Shift your tank before they fire.` : "They're lining up a shot at you. Shift your tank before they fire.";
+  $('botLiveTip').textContent = multi() ? "No turns: everyone fires whenever they've reloaded." : "No turns: you both fire whenever you've reloaded.";
   // Shot clock: 30 seconds to fire (not against the robot, where nobody is waiting on you).
   if (mine && !liveNow && !busy && !g.players.some(isBot)) shotClock(`duel.${g.id}.${g.move}`, 30, async () => {
     const { data } = await sb.rpc('shot_clock', { p_kind: 'duel', p_game: g.id });
@@ -263,7 +305,7 @@ function render() {
   if (mine && !busy && isPhone()) { try { if (!sessionStorage.getItem('duel.tip')) { sessionStorage.setItem('duel.tip', '1'); note('Drag on the battlefield to aim: direction sets the angle, distance the power.'); } } catch {} }
   cv.style.touchAction = canAim() ? 'none' : 'manipulation';   // dragging aims on your turn instead of scrolling
   cv.style.cursor = canAim() ? 'crosshair' : '';
-  $('pack').innerHTML = over ? '' : backpackBarHTML(pack, 'duel', !busy);
+  $('pack').innerHTML = over || out ? '' : backpackBarHTML(pack, 'duel', !busy);
   $('pack').querySelectorAll('[data-loot]').forEach((b) => {
     const item = b.dataset.item;
     const shell = item === 'bertha' || WEAPONS[item];
@@ -282,15 +324,16 @@ function render() {
   const bl = $('botLive'); bl.hidden = !(g.status === 'playing' && mi >= 0 && g.players.some(isBot));
   if (!bl.hidden) { const b = $('botLiveBtn'); b.setAttribute('aria-pressed', String(!!g.live_bot)); b.querySelector('b').textContent = g.live_bot ? 'On' : 'Off'; }
   $('feed').innerHTML = [...G.shots].reverse().slice(0, 6).map((s) => {
-    const before = s.move > 1 ? G.shots.find((x) => x.move === s.move - 1)?.hp_after || [100, 100] : [100, 100];
-    const hurt = [0, 1].map((p) => before[p] - s.hp_after[p]).map((d, p) => (d > 0 ? `${who(g.players[p])} −${d}` : '')).filter(Boolean).join(', ');
+    const full = g.players.map(() => 100), before = s.move > 1 ? G.shots.find((x) => x.move === s.move - 1)?.hp_after || full : full;
+    const hurt = s.hp_after.map((h, p) => before[p] - h).map((d, p) => (d > 0 ? `${who(g.players[p])} −${d}${s.hp_after[p] <= 0 ? ' 💀' : ''}` : '')).filter(Boolean).join(', ');
     const wl = s.weapon ? `${WEAPONS[s.weapon].icon} ${WEAPONS[s.weapon].name.toLowerCase()} ` : '';
-    return `<li><strong>${who(s.shooter)}</strong> fired ${wl}at ${s.weapon === 'railgun' ? railAngle(s.angle) : s.angle}°${s.weapon === 'railgun' ? '' : `, power ${s.power}`}: ${s.weapon === 'dirt' && s.crater ? hurt || 'a brand-new hill' : s.crater ? hurt || 'a miss, but a nice crater' : s.weapon === 'railgun' ? 'the beam missed' : 'the shell flew off the map'}.</li>`;
+    const sa = aimDir(g.players.indexOf(s.shooter), s.angle, g.players), shown = s.weapon === 'railgun' ? railAngle(sa.a) : sa.a;
+    return `<li><strong>${who(s.shooter)}</strong> fired ${wl}${multi() ? (sa.dir > 0 ? '→ ' : '← ') : ''}at ${shown}°${s.weapon === 'railgun' ? '' : `, power ${s.power}`}: ${s.weapon === 'dirt' && s.crater ? hurt || 'a brand-new hill' : s.crater ? hurt || 'a miss, but a nice crater' : s.weapon === 'railgun' ? 'the beam missed' : 'the shell flew off the map'}.</li>`;
   }).join('') || '<li class="muted">No shots yet.</li>';
   if (over) {
     $('endPanel').hidden = false;
     // What's next (the countdown, with Rematch and Stay here) shows in #nextSlot, just below.
-    $('endPanel').innerHTML = `<h2>${g.winner === me.id ? '🏆 Victory!' : `${nm(g.winner)} took the hill`}</h2><p class="muted">${g.move} shots fired.</p>`;
+    $('endPanel').innerHTML = `<h2>${g.winner === me.id ? '🏆 Victory!' : `${nm(g.winner)} took the hill`}</h2><p class="muted">${g.move} shots fired${multi() ? ` · last tank standing of ${g.players.length}` : ''}.</p>`;
   }
 }
 
@@ -319,10 +362,12 @@ async function decide() {
   if (last && last.shooter !== me.id && last.move > seenMove()) {
     busy = true; render();
     const before = g.craters.slice(0, g.craters.length - craterCount(last.crater));
-    const lp = g.players.indexOf(last.shooter), LX = [...baseXs()]; if (last.from_x != null) LX[lp] = last.from_x; if (last.target_x != null) LX[1 - lp] = last.target_x;
-    await flyShell(lp, last.angle, last.power, before, last.wind_move ?? last.move - 1, last.crater, last.wind_x || 1, LX, last.weapon);
+    const lp = g.players.indexOf(last.shooter), full = g.players.map(() => 100), prevHp = G.shots[G.shots.length - 2]?.hp_after || full;
+    // Where everyone stood when it was fired (xs, 023), or the older two-tank record.
+    const LX = last.xs ? [...last.xs] : [...baseXs()]; if (!last.xs) { if (last.from_x != null) LX[lp] = last.from_x; if (last.target_x != null) LX[1 - lp] = last.target_x; }
+    await flyShell(lp, last.angle, last.power, before, last.wind_move ?? last.move - 1, last.crater, last.wind_x || 1, LX, last.weapon, prevHp);
     markSeen(last.move); top = buildTop(g.seed, g.craters); busy = false;
-    hitDrama(G.shots[G.shots.length - 2]?.hp_after || [100, 100], last.hp_after);
+    hitDrama(prevHp, last.hp_after);
   }
   top = buildTop(g.seed, g.craters);
   render();
@@ -340,12 +385,13 @@ async function fire() {
   busy = true; drag = null; render();
   navigator.vibrate?.(40);
   const wpn = armedOf(me.id), big = !wpn && g.bertha.includes(me.id);
-  live?.send('shot', { move, angle, power, x: X[p], tx: X[1 - p], w: wpn });
+  live?.send('shot', { from: p, move, angle, power, x: X[p], tx: multi() ? null : X[1 - p], X, w: wpn });
   const sim = await flyShell(p, angle, power, g.craters, move, null, g.gust === move ? 3 : 1, X, wpn);
   const cr = weaponCraters(sim.impacts, wpn, big), crater = wpn === 'cluster' ? (cr.length ? cr : null) : cr[0] || null;
   cr.forEach(blast);
-  const hp = weaponDamage(top, sim.impacts, g.hp, wpn, big, g.players.map((x) => g.shields.includes(x) && x !== me.id), X);
-  const { error } = await sb.rpc('duel_fire', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_hp: hp, p_target_x: X[1 - p], ...(moved != null ? { p_x: moved } : {}) });
+  const hp = weaponDamage(top, sim.impacts, g.hp, wpn, big, g.players.map((x) => g.shields.includes(x) && x !== me.id), standing(X, g.hp, p));
+  const { error } = await sb.rpc('duel_fire', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_hp: hp, p_xs: X,
+    ...(multi() ? {} : { p_target_x: X[1 - p] }), ...(moved != null ? { p_x: moved } : {}) });
   busy = false; myX = null;
   if (error) { $('err').textContent = friendly(error); render(); return; }
   announceChaos({ gameId: g.id }); pack = await backpack();
@@ -358,17 +404,18 @@ async function fire() {
 
 // The other player just pulled the trigger: fly their shell here right away, the same way
 // their page does, instead of waiting for the database to catch up.
-async function watchLiveShot({ move, angle, power, x, tx, live: isLive, wx, w }, refresh) {
-  if (isLive) return watchShellLive({ angle, power, x, move, wx, w });
+async function watchLiveShot(msg, refresh) {
+  const { move, angle, power, x, tx, live: isLive, wx, w, X: sentX } = msg;
+  if (isLive) return watchShellLive(msg);
   const g = G?.game;
   if (!g || busy || g.status !== 'playing' || move !== g.move || turnId() === me.id) return;
-  const p = g.turn, shooter = g.players[p], big = g.bertha.includes(shooter), mi = myIdx(), hpBefore = g.hp[mi];
-  busy = true; oppAim = { move, angle, power, x }; render();
-  const WX = [...baseXs()]; if (x != null) WX[p] = x; if (tx != null) WX[1 - p] = tx;
+  const p = g.turn, shooter = g.players[p], big = g.bertha.includes(shooter);
+  busy = true; aims[p] = { move, angle, power, x }; render();
+  const WX = sentX ? [...sentX] : [...baseXs()]; if (!sentX) { if (x != null) WX[p] = x; if (tx != null) WX[1 - p] = tx; }
   dodgeX = null;   // their shell is already in the air
   const sim = await flyShell(p, angle, power, g.craters, move, null, g.gust === move ? 3 : 1, WX, w || null);
   weaponCraters(sim.impacts, w || null, big && !w).forEach(blast);
-  markSeen(move + 1); oppAim = null;
+  markSeen(move + 1); delete aims[p];
   // Wait for their shot to land in the database, then show where things stand.
   for (let i = 0; i < 8 && G.game.move === move; i++) { await sleep(500); await load(g.id); }
   busy = false;
@@ -387,24 +434,26 @@ async function fireLive() {
   const angle = +$('angle').value, power = +$('power').value, move = g.move, windX = g.gust === move ? 3 : 1, X = xs();
   navigator.vibrate?.(40); drag = null;
   const wpn = armedOf(me.id), big = !wpn && g.bertha.includes(me.id);
-  live?.send('shot', { live: true, move, angle, power, x: X[p], wx: windX, w: wpn });
+  live?.send('shot', { live: true, from: p, move, angle, power, x: X[p], wx: windX, w: wpn });
   const sim = await flyShell(p, angle, power, g.craters, move, null, windX, X, wpn);
   // Damage is worked out where the tanks stand when it lands (they may have driven meanwhile).
   const now = G.game, Xi = xs(), cr = weaponCraters(sim.impacts, wpn, big), crater = wpn === 'cluster' ? (cr.length ? cr : null) : cr[0] || null;
-  const hp = weaponDamage(top, sim.impacts, now.hp, wpn, big, now.players.map((x) => now.shields.includes(x) && x !== me.id), Xi);
+  const hp = weaponDamage(top, sim.impacts, now.hp, wpn, big, now.players.map((x) => now.shields.includes(x) && x !== me.id), standing(Xi, now.hp, p));
   cr.forEach((c) => { blast(c); applyCrater(top, c); });
   const { error } = await sb.rpc('duel_fire_live', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater,
-    p_dmg: [0, 1].map((k) => now.hp[k] - hp[k]), p_x: X[p] !== baseXs()[p] ? X[p] : null, p_target_x: Xi[1 - p], p_wind_move: move, p_wind_x: windX });
+    p_dmg: now.hp.map((h, k) => h - hp[k]), p_x: X[p] !== baseXs()[p] ? X[p] : null, p_target_x: multi() ? null : Xi[1 - p], p_xs: Xi, p_wind_move: move, p_wind_x: windX });
   if (error) { note(friendly(error), 'error'); if (/live battle is over/i.test(error.message || '')) setLive(false); }
   else { hitDrama(now.hp, hp); seenHp = hp; nudge(); announceChaos({ gameId: g.id }); pack = await backpack(); }
   await load(g.id); decide();
 }
 // Their live shell: fly it here as it's fired. The damage arrives with the next refresh.
-async function watchShellLive({ angle, power, x, move, wx, w }) {
+async function watchShellLive(msg) {
+  const { angle, power, x, move, wx, w } = msg;
   const g = G?.game, mi = G ? myIdx() : -1;
   if (!g || !liveOn || mi < 0 || g.status !== 'playing') return;
-  const p = 1 - mi, big = g.bertha.includes(g.players[p]), X = xs(); if (x != null) X[p] = x;
-  oppAim = { ...(oppAim || {}), angle, power, x };
+  const p = fromOf(msg); if (p < 0 || p === mi) return;
+  const big = g.bertha.includes(g.players[p]), X = xs(); if (x != null) X[p] = x;
+  aims[p] = { ...(aims[p] || {}), angle, power, x };
   const sim = await flyShell(p, angle, power, g.craters, move ?? g.move, null, wx || 1, X, w || null);
   weaponCraters(sim.impacts, w || null, big && !w).forEach((c) => { blast(c); applyCrater(top, c); });
 }
@@ -423,14 +472,14 @@ async function here(on = true) {
 }
 function setLive(v) {
   if (v === liveOn) return;
-  liveOn = v; liveMyX = oppLiveX = null; oppAim = null; myX = null; dodgeX = null; drag = null;
+  liveOn = v; liveMyX = null; liveX = {}; aims = {}; myX = null; dodgeX = null; drag = null;
   hintCache.clear();
   if (v) {
     live?.send('here', {});
     stopShotClock();
     const vsBot = G?.game.players.some(isBot);
     if (vsBot) botReloadAt = Date.now() + 4000;   // a few seconds' grace before the robot opens fire
-    splash(['⚔️ LIVE BATTLE', vsBot ? 'You vs the robot' : "You're both here", 'No turns. Fire at will!'], { tone: 'red', ms: 2200 });
+    splash(['⚔️ LIVE BATTLE', vsBot && !multi() ? 'You vs the robot' : multi() ? "Everyone's here" : "You're both here", 'No turns. Fire at will!'], { tone: 'red', ms: 2200 });
   } else {
     reloadAt = 0; showReload();
     if (G?.game.status === 'playing') note('Live battle over: back to taking turns.');
@@ -444,20 +493,34 @@ function setLive(v) {
 // It gives you 4 s to get going, and wobbles more than in turns (see botLiveShot).
 let botReloadAt = 0, botBusy = false;
 const BOT_RELOAD = [4500, 3200, 2600];
-setInterval(() => { if (liveOn && !botBusy && G?.game.status === 'playing' && G.game.players.some(isBot) && Date.now() >= botReloadAt) botLiveShot(); }, 250);
+// Who the robot shoots at: with two players the other tank; with more, the weakest one still
+// standing (the nearest on a tie). It only searches angles that way.
+function botTarget(bi, X) {
+  const g = G.game;
+  if (!multi()) return 1 - bi;
+  return g.players.map((_, p) => p).filter((p) => p !== bi && g.hp[p] > 0)
+    .sort((a, b) => g.hp[a] - g.hp[b] || Math.abs(X[a] - X[bi]) - Math.abs(X[b] - X[bi]))[0];
+}
+const botAngles = (bi, ti, X, step) => { const right = !multi() || X[ti] > X[bi], out = []; for (let a = 10; a <= 85; a += step) out.push(right ? a : 180 - a); return out; };
+// Keep a wobbled angle on the side it was aimed at.
+const botClamp = (a, aimed) => (!multi() || aimed <= 90 ? Math.max(5, Math.min(85, a)) : Math.max(95, Math.min(175, a)));
+// Only one page drives the robot live: the first person at the table still standing.
+const botDriver = () => { const g = G.game; return g.players.find((p, k) => !isBot(p) && g.hp[k] > 0) === me.id; };
+setInterval(() => { if (liveOn && !botBusy && G?.game.status === 'playing' && G.game.players.some(isBot) && botDriver() && Date.now() >= botReloadAt) botLiveShot(); }, 250);
 async function botLiveShot() {
   botBusy = true;
   try {
-    const g = G.game, bi = g.players.findIndex(isBot), mi = 1 - bi, lvl = g.bot_level ?? 1;
+    const g = G.game, bi = g.players.findIndex(isBot), lvl = g.bot_level ?? 1;
+    if (g.hp[bi] <= 0) return;
     botReloadAt = Date.now() + BOT_RELOAD[lvl];
     // Roll to a nearby spot first.
-    const [lo, hi] = SIDE[bi], from = xs()[bi], to = Math.max(lo, Math.min(hi, from + Math.round((Math.random() * 2 - 1) * 30)));
-    if (!reduceMotion) for (let x = from; x !== to; x += Math.sign(to - x) * Math.min(3, Math.abs(to - x))) { oppLiveX = x; await sleep(30); if (!liveOn) return; }
-    oppLiveX = to;
-    const X = xs(), target = tankPos(mi, top, X), move = g.move, windX = g.gust === move ? 3 : 1;
+    const [lo, hi] = SIDE(bi), from = xs()[bi], to = Math.max(lo, Math.min(hi, from + Math.round((Math.random() * 2 - 1) * 30)));
+    if (!reduceMotion) for (let x = from; x !== to; x += Math.sign(to - x) * Math.min(3, Math.abs(to - x))) { liveX[bi] = x; await sleep(30); if (!liveOn) return; }
+    liveX[bi] = to;
+    const X = xs(), mi = botTarget(bi, X), target = tankPos(mi, top, X), move = g.move, windX = g.gust === move ? 3 : 1, SX = standing(X, g.hp, bi);
     let best = null;
-    for (let a = 10; a <= 85; a += 1) for (let pw = 20; pw <= 100; pw += 2) {
-      const sim = simulate(g.seed, move, top, bi, a, pw, windX, X);
+    for (const a of botAngles(bi, mi, X, 1)) for (let pw = 20; pw <= 100; pw += 2) {
+      const sim = simulate(g.seed, move, top, bi, a, pw, windX, SX);
       const d = sim.impact ? Math.hypot(sim.impact.x - target.x, sim.impact.y - target.y) : 999;
       if (!best || d < best.d) best = { d, a, pw };
     }
@@ -466,16 +529,16 @@ async function botLiveShot() {
     const taken = G.shots.filter((s) => s.shooter === g.players[bi]).length, learn = 1.8 * (lvl === 0 ? 1 : Math.max(0.6, 0.85 ** taken));
     const base = [{ a: 6, p: 8 }, { a: 1.7, p: 2.4 }, { a: 0.6, p: 0.8 }][lvl];
     const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
-    const angle = Math.max(5, Math.min(85, Math.round(best.a + gauss() * base.a * learn))), power = Math.max(20, Math.min(100, Math.round(best.pw + gauss() * base.p * learn)));
-    oppAim = { move, angle, power, x: to };
+    const angle = botClamp(Math.round(best.a + gauss() * base.a * learn), best.a), power = Math.max(20, Math.min(100, Math.round(best.pw + gauss() * base.p * learn)));
+    aims[bi] = { move, angle, power, x: to };
     await sleep(reduceMotion ? 0 : 250);
     if (!liveOn) return;
     const sim = await flyShell(bi, angle, power, g.craters, move, null, windX, X);
     const now = G.game, Xi = xs(), crater = sim.impact ? [Math.round(sim.impact.x), Math.round(sim.impact.y), CRATER_R] : null;
-    const hp = damage(top, sim.impact, now.hp, false, now.players.map((x) => now.shields.includes(x) && x !== now.players[bi]), Xi);
+    const hp = damage(top, sim.impact, now.hp, false, now.players.map((x) => now.shields.includes(x) && x !== now.players[bi]), standing(Xi, now.hp, bi));
     if (crater) { blast(crater); applyCrater(top, crater); }
-    const { error } = await sb.rpc('duel_fire_live_bot', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_dmg: [0, 1].map((k) => now.hp[k] - hp[k]),
-      p_x: to !== baseXs()[bi] ? to : null, p_target_x: Xi[mi], p_wind_move: move, p_wind_x: windX });
+    const { error } = await sb.rpc('duel_fire_live_bot', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_dmg: now.hp.map((h, k) => h - hp[k]),
+      p_x: to !== baseXs()[bi] ? to : null, p_target_x: multi() ? null : Xi[mi], p_xs: Xi, p_wind_move: move, p_wind_x: windX });
     if (error) { if (/Still reloading/.test(error.message || '')) botReloadAt = Date.now() + 800; else if (!/over/i.test(error.message || '')) note(friendly(error), 'error'); }
     else { hitDrama(now.hp, hp); seenHp = hp; }
     await load(g.id); decide();
@@ -490,16 +553,17 @@ async function robotShot() {
   // one with the best shot (Rookie drives more at random), and never just sits still.
   $('status').textContent = `${nm(g.players[p]).replace(/<[^>]+>/g, '')} is sizing you up…`;
   await sleep(reduceMotion ? 0 : 400);
-  const start = baseXs()[p], [lo, hi] = SIDE[p];
+  const start = baseXs()[p], [lo, hi] = SIDE(p), ti = botTarget(p, baseXs());
   const spots = [-40, -30, -20, -10, 0, 10, 20, 30, 40].map((d) => start + d).filter((x) => x >= lo && x <= hi);
-  const coarse = (X) => { const tg = tankPos(1 - p, top, X); let b = 999;
-    for (let a = 10; a <= 85; a += 3) for (let pw = 20; pw <= 100; pw += 4) {
-      const sim = simulate(g.seed, g.move, top, p, a, pw, windX, X);
+  const coarse = (X) => { const tg = tankPos(ti, top, X), SX = standing(X, g.hp, p); let b = 999;
+    for (const a of botAngles(p, ti, X, 3)) for (let pw = 20; pw <= 100; pw += 4) {
+      const sim = simulate(g.seed, g.move, top, p, a, pw, windX, SX);
       if (sim.impact) b = Math.min(b, Math.hypot(sim.impact.x - tg.x, sim.impact.y - tg.y));
     } return b; };
   // Pro and Ace also dodge: they'd rather not stand where your last shell landed.
   const theirs = [...G.shots].reverse().find((s) => s.shooter !== g.players[p] && s.crater);
-  const dodge = (x) => (g.bot_level > 0 && theirs ? 0.35 * Math.min(90, Math.abs(x - theirs.crater[0])) : 0);
+  const tc = theirs ? craterList(theirs.crater)[0] : null;
+  const dodge = (x) => (g.bot_level > 0 && tc ? 0.35 * Math.min(90, Math.abs(x - tc[0])) : 0);
   const scored = spots.map((x) => { const X = [...baseXs()]; X[p] = x; return { x, d: coarse(X) - dodge(x) + Math.random() * (g.bot_level === 0 ? 60 : 8) }; }).sort((u, v) => u.d - v.d);
   let goal = scored[0].x;
   if (goal === start) goal = Math.max(lo, Math.min(hi, start + (Math.random() < 0.5 ? -1 : 1) * (6 + Math.round(Math.random() * 10))));
@@ -508,10 +572,10 @@ async function robotShot() {
   if (reduceMotion) botDrive.x = goal;
   else while (botDrive.x !== goal) { botDrive.x += Math.sign(goal - botDrive.x) * Math.min(2, Math.abs(goal - botDrive.x)); if (botDrive.x % 8 === 0) sfx('tick'); await sleep(60); }
   await sleep(reduceMotion ? 0 : 250);
-  const X = xs(), target = tankPos(1 - p, top, X);
+  const X = xs(), target = tankPos(ti, top, X), SX = standing(X, g.hp, p);
   let best = null;
-  for (let a = 10; a <= 85; a++) for (let pw = 20; pw <= 100; pw += 2) {
-    const sim = simulate(g.seed, g.move, top, p, a, pw, g.gust === g.move ? 3 : 1, X);
+  for (const a of botAngles(p, ti, X, 1)) for (let pw = 20; pw <= 100; pw += 2) {
+    const sim = simulate(g.seed, g.move, top, p, a, pw, g.gust === g.move ? 3 : 1, SX);
     const d = sim.impact ? Math.hypot(sim.impact.x - target.x, sim.impact.y - target.y) : 999;
     if (!best || d < best.d) best = { d, a, pw };
   }
@@ -522,15 +586,15 @@ async function robotShot() {
   const base = [{ a: 6, p: 8 }, { a: 1.7, p: 2.4 }, { a: 0.6, p: 0.8 }][lvl];
   const skill = { a: base.a * learn, p: base.p * learn };
   const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
-  const angle = Math.max(5, Math.min(85, Math.round(best.a + gauss() * skill.a)));
+  const angle = botClamp(Math.round(best.a + gauss() * skill.a), best.a);
   const power = Math.max(20, Math.min(100, Math.round(best.pw + gauss() * skill.p)));
   $('status').textContent = `${nm(g.players[p]).replace(/<[^>]+>/g, '')} is aiming…`;
   await sleep(reduceMotion ? 0 : 900);
   const sim = await flyShell(p, angle, power, g.craters, g.move, null, g.gust === g.move ? 3 : 1, X);
   const crater = sim.impact ? [Math.round(sim.impact.x), Math.round(sim.impact.y), CRATER_R] : null;
   if (crater) boom(crater[0], crater[1]);
-  const hp = damage(top, sim.impact, g.hp, false, g.players.map((x) => g.shields.includes(x) && x !== g.players[p]), X);
-  const { error } = await sb.rpc('duel_fire_bot', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_hp: hp, ...(goal !== start ? { p_x: goal } : {}) });
+  const hp = damage(top, sim.impact, g.hp, false, g.players.map((x) => g.shields.includes(x) && x !== g.players[p]), SX);
+  const { error } = await sb.rpc('duel_fire_bot', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_hp: hp, p_xs: X, ...(goal !== start ? { p_x: goal } : {}) });
   botDrive = null;
   markSeen(g.move + 1);
   busy = false;
@@ -547,17 +611,19 @@ const sendAim = () => {
   if (!G || (busy && !liveOn)) return;
   const now = Date.now();
   if (now - aimT < 90) { if (!aimQueued) { aimQueued = true; setTimeout(() => { aimQueued = false; sendAim(); }, 90); } return; }
-  aimT = now; live?.send('aim', { move: G.game.move, angle: +$('angle').value, power: +$('power').value, x: xs()[myIdx()] });
+  aimT = now; live?.send('aim', { from: myIdx(), move: G.game.move, angle: +$('angle').value, power: +$('power').value, x: xs()[myIdx()] });
 };
 // Sets the aim from anywhere (sliders, − / + buttons, dragging on the battlefield).
 function showAim() {
-  const rail = G && armedOf(me.id) === 'railgun';
-  $('angleOut').textContent = (rail ? railAngle(+$('angle').value) : $('angle').value) + '°'; $('powerOut').textContent = rail ? '⚡' : $('power').value;
+  const rail = G && armedOf(me.id) === 'railgun', v = +$('angle').value;
+  // 3-4 players: the angle is shown as a direction and a steepness (→ 40°, ← 40°).
+  const many = G && multi(), elev = many ? (v <= 90 ? v : 180 - v) : v;
+  $('angleOut').textContent = (many ? (v <= 90 ? '→ ' : '← ') : '') + (rail ? railAngle(elev) : elev) + '°'; $('powerOut').textContent = rail ? '⚡' : $('power').value;
   ['angle', 'power'].forEach((id) => { const el = $(id); el.style.setProperty('--fill', `${((el.value - el.min) / (el.max - el.min)) * 100}%`); });
 }
 const aimKey = () => `duel.aim.${G.game.id}`;
 function setAim(angle, power) {
-  $('angle').value = Math.max(5, Math.min(85, Math.round(angle)));
+  $('angle').value = Math.max(5, Math.min(G && multi() ? 175 : 85, Math.round(angle)));
   $('power').value = Math.max(20, Math.min(100, Math.round(power)));
   showAim(); sendAim();
   try { localStorage.setItem(aimKey(), JSON.stringify({ angle: +$('angle').value, power: +$('power').value })); } catch {}
@@ -568,7 +634,7 @@ function setAim(angle, power) {
 // never past your side of the hill. The other player sees it live; the move goes with the shot.
 function driveBy(d) {
   if (liveOn && G && myIdx() >= 0 && G.game.status === 'playing') {
-    const p = myIdx(), [lo, hi] = SIDE[p], cur = liveMyX ?? baseXs()[p], nx = Math.max(lo, Math.min(hi, cur + d * 2));
+    const p = myIdx(), [lo, hi] = SIDE(p), cur = liveMyX ?? baseXs()[p], nx = Math.max(lo, Math.min(hi, cur + d * 2));
     if (nx === cur) return;
     liveMyX = nx; sendAim();
     if (nx % 8 === 0) sfx('tick');
@@ -576,7 +642,7 @@ function driveBy(d) {
     return;
   }
   const g = G?.game; if (!g || busy || shot || g.status !== 'playing' || turnId() !== me.id) return;
-  const p = myIdx(), start = baseXs()[p], [lo, hi] = SIDE[p];
+  const p = myIdx(), start = baseXs()[p], [lo, hi] = SIDE(p);
   if (myXMove !== g.move || myX == null) { myXMove = g.move; myX = start; }
   const nx = Math.max(lo, Math.min(hi, Math.max(start - FUEL, Math.min(start + FUEL, myX + d * 2))));
   if (nx === myX) return;
@@ -595,14 +661,14 @@ function showFuel() {
   $('fuelOut').textContent = FUEL - used; $('fuelBar').style.width = `${((FUEL - used) / FUEL) * 100}%`;
 }
 function dodgeBy(d) {
-  const g = G?.game; if (!g || busy || shot || g.status !== 'playing' || turnId() === me.id || isBot(turnId())) return;
-  const i = myIdx(), start = (g.turn_x || baseXs())[i], [lo, hi] = SIDE[i];
+  const g = G?.game; if (!g || busy || shot || g.status !== 'playing' || turnId() === me.id || isBot(turnId()) || g.hp[myIdx()] <= 0) return;
+  const i = myIdx(), start = (g.turn_x || baseXs())[i], [lo, hi] = SIDE(i);
   if (dodgeMove !== g.move || dodgeX == null) { dodgeMove = g.move; dodgeX = baseXs()[i]; }
   const nx = Math.max(Math.max(lo, start - DODGE), Math.min(Math.min(hi, start + DODGE), dodgeX + d * 2));
   if (nx === dodgeX) return;
   dodgeX = nx; showDodge();
   if (Math.abs(nx - start) % 8 === 0) sfx('tick');
-  live?.send('dodge', { move: g.move, x: nx });
+  live?.send('dodge', { from: i, move: g.move, x: nx });
   clearTimeout(dodgeSave); dodgeSave = setTimeout(saveDodge, 350);
 }
 let dodgeSave = null;
@@ -611,7 +677,7 @@ async function saveDodge() {
   const x = dodgeX;
   const { error } = await sb.rpc('duel_dodge', { p_game: g.id, p_move: dodgeMove, p_x: x });
   if (error) { note(friendly(error), 'error'); dodgeX = null; await load(g.id); render(); return; }
-  live?.send('dodge', { move: g.move, x });
+  live?.send('dodge', { from: myIdx(), move: g.move, x });
 }
 function showDodge() {
   const g = G?.game; if (!g || !$('dodgeOut')) return;
@@ -650,13 +716,19 @@ document.querySelectorAll('[data-step]').forEach((b) => {
 // Drag on the battlefield to aim: the direction from your tank sets the angle and the
 // distance sets the power. The aim hint follows your finger.
 let drag = null;
-const canAim = () => G && G.game.status === 'playing' && myIdx() >= 0 && (liveOn || (!busy && !shot && turnId() === me.id));
+const canAim = () => G && G.game.status === 'playing' && myIdx() >= 0 && G.game.hp[myIdx()] > 0 && (liveOn || (!busy && !shot && turnId() === me.id));
 function aimFromPointer(e) {
   const r = cv.getBoundingClientRect(), gx = ((e.clientX - r.left) / r.width) * W, gy = ((e.clientY - r.top) / r.height) * H;
-  const p = myIdx(), t = tankPos(p, top, xs()), dir = p === 0 ? 1 : -1;
-  const dx = (gx - t.x) * dir, dy = t.y - 14 - gy;
+  const p = myIdx(), t = tankPos(p, top, xs()), rail = armedOf(me.id) === 'railgun';   // the railgun aims -40° to +40°, straight at where you point
   drag = { x: gx, y: gy };
-  const rail = armedOf(me.id) === 'railgun';   // the railgun aims -40° to +40°, straight at where you point
+  if (multi()) {
+    // 3-4 players: point either way; the side you drag to is the side you fire.
+    const right = gx >= t.x, dx = Math.abs(gx - t.x), dy = t.y - 14 - gy;
+    const e = rail ? Math.max(5, Math.min(85, (Math.atan2(dy, Math.max(1, dx)) * 180) / Math.PI + 45)) : Math.max(5, Math.min(85, (Math.atan2(Math.max(dy, 0), Math.max(1, dx)) * 180) / Math.PI));
+    setAim(right ? e : 180 - e, Math.hypot(dx, dy) / 3.4);
+    return;
+  }
+  const dir = p === 0 ? 1 : -1, dx = (gx - t.x) * dir, dy = t.y - 14 - gy;
   const ang = rail ? (Math.atan2(dy, Math.max(1, dx)) * 180) / Math.PI + 45 : dx <= 0 ? 85 : (Math.atan2(dy, dx) * 180) / Math.PI;
   setAim(ang, Math.hypot(dx, dy) / 3.4);
 }
@@ -684,6 +756,7 @@ $('del').onclick = async () => {
   if (!(await signedIn())) return;
   const id = (location.hash.match(/game=([0-9a-f-]{36})/) || [])[1];
   if (!id || !(await load(id))) { $('title').textContent = 'Duel not found'; return; }
+  if (multi()) { $('angle').max = 175; if (+$('angle').value === 45 && baseXs()[myIdx()] > W / 2) $('angle').value = 135; }   // 3-4 players aim either way
   try { const a = JSON.parse(localStorage.getItem(`duel.aim.${id}`) || 'null'); if (a) { $('angle').value = a.angle; $('power').value = a.power; } } catch {}
   showAim();
   $('shotsFold').open = !isPhone();
@@ -699,9 +772,13 @@ $('del').onclick = async () => {
     const { data } = await sb.from('duel_games').select('updated_at').eq('id', id).maybeSingle();
     if (data && data.updated_at !== G.game.updated_at) refresh();
   }, {
-    dodge: (a) => { if (G && a.move === G.game.move && turnId() === me.id) oppDodge = a; },
+    dodge: (a) => { const p = fromOf(a); if (G && p >= 0 && p !== myIdx() && a.move === G.game.move) dodges[p] = a; },
     here: () => here(),
-    aim: (a) => { if (G && liveOn) { oppAim = a; if (a.x != null) oppLiveX = a.x; return; } if (G && a.move === G.game.move && turnId() !== me.id) { oppAim = a; $('status').textContent = 'Aiming…'; } },
+    aim: (a) => {
+      const p = fromOf(a); if (!G || p < 0 || p === myIdx()) return;
+      if (liveOn) { aims[p] = a; if (a.x != null) liveX[p] = a.x; return; }
+      if (a.move === G.game.move && p === G.game.turn && turnId() !== me.id) { aims[p] = a; $('status').textContent = 'Aiming…'; }
+    },
     shot: (s) => watchLiveShot(s, refresh),
   });
   navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.url) location.href = e.data.url; });

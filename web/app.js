@@ -1,7 +1,7 @@
 import { USERNAME_DOMAIN } from './config.js';
 import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence, jumpToNext, startOnline, online, agoText } from './common.js';
 import { HOLES, holeWithAttack, drawHole, LW, LH } from './golf-engine.js';
-import { W as DW, H as DH, TANK_X, buildTop } from './duel-engine.js';
+import { W as DW, H as DH, startXs, buildTop } from './duel-engine.js';
 const app = document.getElementById('app');
 
 const MODES = [
@@ -272,12 +272,12 @@ const KIND_NAME = { battleship: 'Battleship', golf: 'Putt Post', duel: 'Hilltop 
 const KIND_BLURB = {
   battleship: 'Hide your fleet, hunt theirs. Peeking is allowed.',
   golf: '18 wild holes, sneak attacks and mulligans.',
-  duel: 'Tanks on hills. Mind the wind.',
+  duel: 'Tanks on hills. Mind the wind. Up to 4 in a free-for-all.',
   cards: 'Match colours, dump your hand. Chaos cards and card storms.',
   gauntlet: 'A best-of series of random games. Winner takes the crown.',
 };
 const KIND_SHORT = { battleship: 'Battleship', golf: 'Putt Post', duel: 'Duel', cards: 'Cards', gauntlet: 'Gauntlet' };
-const KIND_WHO = { battleship: '2–3 players', golf: 'Solo or up to 4', duel: '2 players', cards: '2–4 players', gauntlet: '2–4 players · 3, 5 or 7 rounds' };
+const KIND_WHO = { battleship: '2–3 players', golf: 'Solo or up to 4', duel: '2–4 players', cards: '2–4 players', gauntlet: '2–4 players · 3, 5 or 7 rounds' };
 
 async function lobby() {
   G = null;
@@ -391,7 +391,7 @@ async function lobby() {
   const picked = () => chips.filter((x) => x.getAttribute('aria-pressed') === 'true');
   const LIMITS = {
     battleship: [1, 2, 'Opponents (pick one, or two for a 3-way battle)'], golf: [0, 3, 'Opponents (none for a solo round, up to three)'],
-    duel: [1, 1, 'Opponent (pick one)'], cards: [1, 3, 'Opponents (one to three)'], gauntlet: [1, 3, 'Opponents (one to three)'],
+    duel: [1, 3, 'Opponents (one for a duel, up to three for a free-for-all)'], cards: [1, 3, 'Opponents (one to three)'], gauntlet: [1, 3, 'Opponents (one to three)'],
   };
   const refreshForm = () => {
     if (!chosen) return;
@@ -407,7 +407,6 @@ async function lobby() {
   };
   chips.forEach((c) => c.addEventListener('click', () => {
     c.setAttribute('aria-pressed', c.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
-    if (kind() === 'duel') chips.forEach((o) => { if (o !== c) o.setAttribute('aria-pressed', 'false'); });
     refreshForm();
   }));
   const form = document.getElementById('newgame');
@@ -442,7 +441,7 @@ async function lobby() {
       const [st, ct] = app.querySelector('input[name=course]:checked').value.split(',').map(Number);
       res = await sb.rpc('golf_create', { opponents, p_start: st, p_count: ct, p_random: document.getElementById('golfRandom').checked, p_bot_level: botLevel });
     } else if (k === 'duel') {
-      res = await sb.rpc('duel_create', { p_opponent: opponents[0], p_bot_level: botLevel });
+      res = await sb.rpc('duel_create', { p_opponents: opponents, p_bot_level: botLevel });
     } else if (k === 'cards') {
       res = await sb.rpc('card_create', { opponents, p_bot_level: botLevel });
     } else if (k === 'gauntlet') {
@@ -532,7 +531,7 @@ async function loadGames() {
   });
   duel.forEach((g) => {
     const pill = g.status === 'over' ? (g.winner === me.id ? `<span class="pill done">You won</span>` : `<span class="pill done">${nm(g.winner)} won</span>`) : turnPill(g.players[g.turn]);
-    cards.push({ at: g.updated_at, kind: 'duel', g, href: `duel.html#game=${g.id}`, mine: pill.includes('turn"'), over: g.status === 'over', prog: null, pill, sub: `${g.hp[0]} – ${g.hp[1]} HP${g.move ? ` · shot ${g.move}` : ''}`, vs: vsOf(g.players), extra: round(g) });
+    cards.push({ at: g.updated_at, kind: 'duel', g, href: `duel.html#game=${g.id}`, mine: pill.includes('turn"'), over: g.status === 'over', prog: null, pill, sub: `${g.hp.join(' – ')} HP${g.hp.length > 2 ? ` · ${g.hp.filter((h) => h > 0).length} standing` : ''}${g.move ? ` · shot ${g.move}` : ''}`, vs: vsOf(g.players), extra: round(g) });
   });
   cardGames.forEach((g) => {
     const pill = g.status === 'over' ? (g.winner === me.id ? `<span class="pill done">You won</span>` : `<span class="pill done">${nm(g.winner)} won</span>`) : turnPill(g.players[g.turn]);
@@ -778,7 +777,7 @@ function drawSample(cv, kind) {
     for (let i = 0; i < 100; i++) if ((i * 37) % 11 === 3) shots.push({ game_id: 'sample', cell: i, hit: ships.has(i), sunk_cells: [] });
     drawPreview(cv, { kind, g: { id: 'sample', mode: 1 } }, [{ game_id: 'sample', ships: sampleFleet }], shots);
   } else if (kind === 'golf') drawPreview(cv, { kind, g: { seed: 20260927 }, hole: 6 });
-  else if (kind === 'duel') drawPreview(cv, { kind, g: { seed: 4242, craters: [], hp: [80, 45] } });
+  else if (kind === 'duel') drawPreview(cv, { kind, g: { seed: 4242, craters: [], hp: [80, 45, 100] } });
   else if (kind === 'cards') drawPreview(cv, { kind, g: { top: 'CB', color: 'B' } });
   else drawPreview(cv, { kind, g: { rounds: 5, round: 3, status: 'playing', current_kind: 'battleship', history: [{ kind: 'golf' }, { kind: 'duel' }] } });
 }
@@ -827,15 +826,18 @@ function drawPreview(cv, card, myFleets, atMe) {
     drawHole(c, hole, 0, { ball: { x: hole.tee[0], y: hole.tee[1] } });
     c.restore();
   } else if (card.kind === 'duel') {
-    const g = card.g, top = buildTop(g.seed, g.craters), sx = w / DW, sy = h / DH;
+    const g = card.g, n = g.hp.length, top = buildTop(g.seed, g.craters, n), sx = w / DW, sy = h / DH;
     const sky = c.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, '#1B1646'); sky.addColorStop(1, '#7A3E72'); c.fillStyle = sky; c.fillRect(0, 0, w, h);
     c.fillStyle = '#FFE3A3'; c.beginPath(); c.arc(w * 0.76, h * 0.2, 14, 0, 7); c.fill();
     c.fillStyle = '#1F8C8A'; c.beginPath(); c.moveTo(0, h); for (let x = 0; x < DW; x += 4) c.lineTo(x * sx, top[x] * sy); c.lineTo(w, h); c.fill();
     c.strokeStyle = '#9BF5EA'; c.lineWidth = 1.5; c.beginPath(); for (let x = 0; x < DW; x += 4) c[x ? 'lineTo' : 'moveTo'](x * sx, top[x] * sy); c.stroke();
-    [0, 1].forEach((p) => {
-      const X = g.tank_x || TANK_X, tx = X[p] * sx, ty = top[X[p]] * sy;
-      c.fillStyle = p ? '#3DD6C6' : '#FF6B5A'; c.fillRect(tx - 8, ty - 7, 16, 7);
-      c.fillStyle = '#ffffff33'; c.fillRect(tx - 20, ty - 20, 40, 4); c.fillStyle = p ? '#3DD6C6' : '#FF6B5A'; c.fillRect(tx - 20, ty - 20, 40 * g.hp[p] / 100, 4);
+    const cols = ['#FF6B5A', '#3DD6C6', '#FFC857', '#B79CFF'], bw = n > 2 ? 28 : 40;
+    g.hp.forEach((_, p) => {
+      const X = g.tank_x || startXs(n), tx = X[p] * sx, ty = top[X[p]] * sy;
+      c.globalAlpha = g.hp[p] > 0 ? 1 : 0.4;
+      c.fillStyle = cols[p]; c.fillRect(tx - 8, ty - 7, 16, 7);
+      c.fillStyle = '#ffffff33'; c.fillRect(tx - bw / 2, ty - 20, bw, 4); c.fillStyle = cols[p]; c.fillRect(tx - bw / 2, ty - 20, bw * g.hp[p] / 100, 4);
+      c.globalAlpha = 1;
     });
   } else {
     const g = card.g;

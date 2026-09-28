@@ -52,6 +52,21 @@
   .hp>span:first-child{display:flex;align-items:center;max-width:100%;min-width:0}
   .hp .nm{overflow:hidden;text-overflow:ellipsis;min-width:0}
   .hp .face{flex:none}
+  /* 3-4 players: a chip per tank across the top, the wind on its own line below */
+  .hud.multi{flex-wrap:wrap;align-items:flex-start}
+  .hud.multi .hp{display:none}
+  .hud.multi .wind{order:2;width:100%;text-align:center;margin-top:4px}
+  .hprow{display:grid;grid-template-columns:repeat(var(--n,3),minmax(0,1fr));gap:6px;width:100%}
+  .hprow[hidden]{display:none}
+  .hpc{display:flex;flex-direction:column;gap:3px;min-width:0;padding:4px 6px;border-radius:10px;background:#0006;font-size:12px}
+  .hpc.turn{box-shadow:0 0 0 2px var(--c)}
+  .hpc.out{opacity:.45}
+  .hpc>span{display:flex;align-items:center;gap:3px;min-width:0;white-space:nowrap}
+  .hpc .nm{overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+  .hpc b{flex:none}
+  .hpc i.dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--c)}
+  .hpc .bar{height:6px;border-radius:99px;background:#ffffff22;overflow:hidden}
+  .hpc .bar i{display:block;height:100%;border-radius:99px;background:var(--c);transition:width .6s}
   .wind{align-self:flex-start;background:#0008;border-radius:999px;padding:3px 10px;white-space:nowrap}
   @media (max-width:520px){.hud{font-size:11px;inset:8px 8px auto 8px}}
   .sliders{display:flex;flex-direction:column;gap:10px}
@@ -90,7 +105,8 @@
   .feed li{border-left:3px solid var(--line);padding-left:10px}
   @media (prefers-reduced-motion:reduce){.stamp span{animation:none}}
   #play{display:flex;flex-direction:column;gap:16px}
-  .stage .fsslot{position:absolute;right:8px;bottom:8px}
+  .stage .fsslot{position:absolute;right:8px;bottom:8px;opacity:.55;transition:opacity .2s}
+  .stage .fsslot:hover,.stage .fsslot:focus-within,.stage .fsslot:active{opacity:1}   /* see-through, so a tank at the far right still shows */
   /* Full screen: the battlefield takes all the room the controls leave. */
   #play.fs-on{gap:8px}
   #play.fs-on .stage{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;border:0;background:#0E0C22}
@@ -145,13 +161,14 @@
   <div class="stage">
     <canvas id="cv" width="1600" height="880" aria-label="Artillery battlefield"></canvas>
     <div class="hud">
+      <div class="hprow" id="hpRow" hidden></div>
       <div class="hp"><span id="n0"></span><div class="bar"><i id="hp0" style="background:var(--coral);width:100%"></i></div></div>
       <span class="wind" id="wind"></span>
       <div class="hp right"><span id="n1"></span><div class="bar"><i id="hp1" style="background:var(--teal);width:100%"></i></div></div>
     </div>
     <span class="fsslot"><button type="button" class="fsbtn" data-fs="#play" aria-label="Full screen">⛶</button></span>
   </div>
-  <div class="botlive" id="botLive" hidden><button type="button" id="botLiveBtn" aria-pressed="false">⚔️ Live battle vs robot: <b>Off</b></button><span class="small muted">No turns: you both fire whenever you've reloaded.</span></div>
+  <div class="botlive" id="botLive" hidden><button type="button" id="botLiveBtn" aria-pressed="false">⚔️ Live battle vs robot: <b>Off</b></button><span class="small muted" id="botLiveTip">No turns: you both fire whenever you've reloaded.</span></div>
   <section class="panel" id="controls" hidden>
     <p class="small muted aimtip noteline">Drag on the battlefield to aim: which way sets the angle, how far sets the power. Fine-tune below.</p>
     <div class="controls">
