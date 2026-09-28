@@ -1,7 +1,7 @@
 // Chaos Cards: a shedding card game (plays like Uno) with chaos cards and chaos events.
 // Everything is decided on the server (card_play, card_draw…); this page shows the table, your
 // own hand (the only one you can read) and what just happened, and asks the robot to play.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, sfx, liveGame, nextUpChip, names, gauntletBar, note, splash, chaosClock, face, avatar, livePresence, jumpToNext, announceChaos, isPhone, ITEMS, backpack, backpackBarHTML, setGameTools } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, sfx, liveGame, nextUpChip, names, gauntletBar, note, splash, chaosClock, face, avatar, livePresence, jumpToNext, announceChaos, isPhone, ITEMS, backpack, backpackBarHTML, setGameTools, condenseTop } from './common.js';
 
 const $ = (id) => document.getElementById(id);
 let G = null;                 // { game, hand }
@@ -314,6 +314,7 @@ setInterval(() => {
 let refreshNow = async () => {};
 (async () => {
   if (!(await signedIn())) return;
+  condenseTop($('title'), [document.querySelector('header')]);   // phones: ← · title · toolbar
   const id = (location.hash.match(/game=([0-9a-f-]{36})/) || [])[1];
   if (!id || !(await load(id))) { $('title').textContent = 'Game not found'; return; }
   $('logFold').open = !isPhone();

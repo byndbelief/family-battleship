@@ -74,7 +74,20 @@ toolsCss.textContent = `
   #gameTools .gtb:disabled{opacity:.6}
   .gtop{padding-right:var(--gtw,56px)}
   body.fs-lock .fs-on{padding-top:calc(58px + env(safe-area-inset-top,0px))}
-  @media (pointer:fine){#gameTools .fsbtn{display:none!important}}`;
+  @media (pointer:fine){#gameTools .fsbtn{display:none!important}}
+  /* Phones: the top row is ← · title · toolbar (condenseTop moves the title in) */
+  @media (max-width:640px){
+    .gtop{min-height:46px;align-items:center!important;gap:8px;flex-wrap:nowrap!important;margin-bottom:4px}
+    .gtop > a:first-child, .gtop > #back{font-size:0!important;flex:none;text-decoration:none;width:34px;height:40px;display:grid;place-items:center;border-radius:12px}
+    .gtop > a:first-child::before, .gtop > #back::before{content:'←';font-size:24px;line-height:1;font-weight:700}
+    .gtop #live, .gtop > .live{display:none!important}
+    .gtop .intop{flex:1;min-width:0;margin:0!important}
+    .gtop h1.intop, .gtop .intop h1, .gtop .intop h2{font-size:19px!important;line-height:1.15;margin:0!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .gtop .intop .small, .gtop .intop .eyebrow{font-size:11px!important;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+    .hdrgone{display:none!important}
+    #gtbar:empty{display:none}
+    header.stack:has(> .gtop){gap:6px}
+  }`;
 document.head.appendChild(toolsCss);
 function settingsButton() {
   if (tools) return;
@@ -109,6 +122,13 @@ function settingsButton() {
   };
   fit();
 }
+// Phones: move a page's title (el) into its top row next to ←, and hide what that makes redundant.
+export function condenseTop(el, hide = []) {
+  if (!el || !isPhone()) return;
+  const top = document.querySelector('.gtop'); if (!top) return;
+  el.classList.add('intop'); top.insertBefore(el, top.children[1] || null);
+  hide.forEach((h) => h?.classList.add('hdrgone'));
+}
 export function setGameTools(opts) {
   settingsButton();
   toolsOpts = opts;
@@ -125,7 +145,20 @@ export function setGameTools(opts) {
   }
   fsLabels(); fit();
 }
-function fit() { if (tools) requestAnimationFrame(() => document.documentElement.style.setProperty('--gtw', `${Math.ceil(tools.getBoundingClientRect().width) + 16}px`)); }
+function fit() {
+  if (!tools) return;
+  requestAnimationFrame(() => {
+    const t = tools.getBoundingClientRect();
+    document.documentElement.style.setProperty('--gtw', `${Math.ceil(t.width) + 16}px`);
+    // Phones: line the top row up with the toolbar (it's pinned at the very top).
+    const row = document.querySelector('.gtop');
+    if (row && isPhone() && !document.querySelector('.fs-on') && scrollY < 4) {
+      row.style.marginTop = '';
+      const r = row.getBoundingClientRect(), shift = Math.round((t.top + t.height / 2) - (r.top + r.height / 2));
+      if (shift < 0) row.style.marginTop = `${shift}px`;
+    }
+  });
+}
 
 export const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 export const me = { id: null, username: null };

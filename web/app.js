@@ -1237,9 +1237,9 @@ function renderGame() {
   const fbPack = deskBar() ? `<span class="fbpack">${backpackBarHTML(G.pack || [], 'battleship', !busy)}</span>` : packMini ? `<div class="fbmini">${packMini}</div>` : '';
   view(`
     <header class="stack">
-      <div class="row between gtop"><button class="link" id="back">← All games</button><span class="live" id="live">Live</span></div>
+      <div class="row between gtop"><button class="link" id="back">← All games</button>${isPhone() ? `<h1 class="intop">${title}</h1>` : ''}<span class="live" id="live">Live</span></div>
       <div id="gtbar">${G.gtHTML || ''}</div>
-      <h1>${title}</h1>
+      ${isPhone() ? '' : `<h1>${title}</h1>`}
       ${sub ? `<p class="muted gsub">${sub}</p>` : ''}
       ${playersStrip}
     </header>
