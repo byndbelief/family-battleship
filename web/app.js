@@ -259,19 +259,6 @@ function loginView(msg) {
   });
 }
 
-async function signOut() {
-  // Stop this device getting the signed-out player's alerts.
-  try {
-    const reg = await navigator.serviceWorker?.getRegistration();
-    const sub = await reg?.pushManager.getSubscription();
-    if (sub) { await sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint); await sub.unsubscribe(); }
-  } catch {}
-  await sb.auth.signOut();
-  me = null;
-  location.hash = '';
-  loginView();
-}
-
 // ---------------------------------------------------------------- alerts
 
 function b64ToBytes(b64) {
@@ -348,8 +335,7 @@ async function lobby() {
     <div class="lobby${quick ? ' quickmode' : ''}">
       <div class="quickhead"><a href="#">← Game Room</a><h1>Quick play</h1><p class="muted">One game on its own, outside the Gauntlet. One of each kind per group of players at a time.</p></div>
       <header class="row between">
-        <div class="stack lobhead"><span class="eyebrow">Family Game Room</span><h1>Ahoy, ${esc(me.username)}</h1><a class="mytrophies" href="#player=${me.id}">🏆 My trophies</a></div>
-        <button class="link" id="signout">Sign out</button>
+        <div class="stack lobhead"><span class="eyebrow">Family Game Room</span><h1>Ahoy, ${esc(me.username)}</h1></div>
       </header>
       <section class="gthero" id="gtSec">
         <div class="gthead"><span class="gtcup" aria-hidden="true">🏆</span><div><h2>The Gauntlet</h2><p class="small">One running Gauntlet per rival: surprise rounds of putts, duels and sea battles. Win the most rounds for the crown, and the next Gauntlet starts on its own.</p></div></div>
@@ -415,7 +401,6 @@ async function lobby() {
       </div>
       <section class="card" id="alerts"></section>
     </div>`);
-  document.getElementById('signout').onclick = signOut;
   // Start a Gauntlet: pick 1-3 opponents and a length, go.
   const gchips = [...app.querySelectorAll('[data-gopp]')], gtGo = document.getElementById('gtGo');
   const gPicked = () => gchips.filter((c) => c.getAttribute('aria-pressed') === 'true');

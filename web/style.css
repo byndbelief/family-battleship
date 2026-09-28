@@ -422,7 +422,6 @@ body.has-firebar { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)
 .scard { color: var(--ink); text-decoration: none; }
 .scard:hover { border-color: var(--accent); }
 .scard .sgo { margin-left: auto; color: var(--accent); }
-.mytrophies { font-size: 14px; font-weight: 700; margin-top: 2px; }
 .phead { display: flex; gap: 14px; align-items: center; }
 .phead h1 { font-size: 26px; }
 .avatar { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; font-family: var(--display); font-size: 30px; flex: none;
