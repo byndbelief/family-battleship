@@ -124,6 +124,14 @@ takes a bare username.
   standing, and live only the first human still standing drives it (`botDriver`). **Never rebuild
   `hp` as a two-value array**: curses, repairs and the chaos clock update `hp[i]` in place.
   The Gauntlet deals duels for any group size (`_duel_new`); 24 h forfeit = `_duel_knockout`.
+- **Battleship themes** (`027_bs_themes.sql`, art in `web/bs-themes.js`): the board is a sea view —
+  one water layer (`.sea-<theme>`) under the grid, ships drawn as SVG across their squares
+  (`vesselSVG`), see-through squares on top; cells are placed explicitly (grid-area) because the
+  water overlaps them. Each fleet is drawn in its **owner's** theme (`profiles.bs_theme`, read by
+  everyone). 🌊 sea free, 🏴‍☠️ pirate at 3 Battleship wins, ⚔️ viking at 10 (counted from `results`;
+  a crossing win posts a chaos note), 👽 ufo is an easter egg: five quick taps on a board's empty
+  top-left corner → `unlock_bs_theme('take me to your leader')`. Don't advertise it in the UI.
+  Picker in ⚙️ Settings (`set_bs_theme`). Opponents' ships show only once sunk, as wrecks.
 - **Battleship ready check** (`022_fleet_ready.sql`): fleets are secret until the game ends, so
   who has placed theirs is `games.ready`, kept by a trigger on `fleets` insert. The setup screen
   lists every player as ✅ Ready or ⏳ Placing ships from it.
@@ -224,7 +232,7 @@ takes a bare username.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.

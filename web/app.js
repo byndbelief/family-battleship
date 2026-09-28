@@ -1,6 +1,7 @@
 import { USERNAME_DOMAIN } from './config.js';
 import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence, jumpToNext, startOnline, online, agoText, setGameTools } from './common.js';
 import { HOLES, holeWithAttack, drawHole, LW, LH } from './golf-engine.js';
+import { THEMES, themeOf, vesselSVG } from './bs-themes.js';
 import { W as DW, H as DH, startXs, buildTop } from './duel-engine.js';
 const app = document.getElementById('app');
 
@@ -1060,7 +1061,8 @@ async function loadGame(id) {
     sb.from('player_mods').select('*').eq('game_id', id),
   ]);
   if (!game) return false;
-  const [{ data: sonars }, pack] = await Promise.all([sb.from('loot').select('*').eq('used_game', id).eq('item', 'sonar'), backpack()]);
+  const [{ data: sonars }, pack, { data: themeRows }] = await Promise.all([sb.from('loot').select('*').eq('used_game', id).eq('item', 'sonar'), backpack(),
+    sb.from('profiles').select('id, bs_theme').in('id', game.players)]);
   const same = G?.game.id === id;
   const prevMove = same ? G.game.move : null;
   const prevStatus = same ? G.game.status : null, prevTurnMine = same ? G.game.status === 'playing' && G.game.players[G.game.turn] === me.id : null;
@@ -1074,6 +1076,7 @@ async function loadGame(id) {
   G = {
     game, shots: shots ?? [],
     cheats: cheatsRes.data ?? [], accusations: accRes.data ?? [], sonars: sonars ?? [], pack,
+    themes: Object.fromEntries((themeRows ?? []).map((r) => [r.id, r.bs_theme])),   // each fleet is drawn in its owner's theme (027)
     cheatsOn: !cheatsRes.error && !accRes.error,
     shotMod: (modRes.data ?? []).find((m) => m.player_id === me.id)?.shot_mod ?? 0,
     fresh, freshA, prevStatus, prevTurnMine, fxDue: true,
@@ -1096,10 +1099,21 @@ function boardHTML({ owner, ships, clickable, fresh }) {
   const sunk = new Set(at.flatMap((s) => s.sunk_cells ?? []));
   const shipAt = new Set(ships ? fleetCells(game.mode, ships).flat() : []);
   const aiming = aims.target === owner ? aims.cells : null;
-  let h = `<div class="board" style="grid-template-columns:18px repeat(${n},1fr)"><span></span>`;
-  for (let c = 0; c < n; c++) h += `<span class="lbl">${c + 1}</span>`;
+  // The sea view (027): one stretch of water in the owner's theme, the ships drawn across their
+  // squares, and the squares on top (see-through) for aiming and the shot markers.
+  const theme = themeOf(G.themes?.[owner]), at2 = (r, c) => `grid-area:${r + 2}/${c + 2}`;
+  let h = `<div class="board seaview t-${theme}" style="grid-template-columns:18px repeat(${n},1fr)"><span class="lbl egg" data-egg style="grid-area:1/1"></span>`
+    + `<div class="sea sea-${theme}" style="grid-area:2/2/span ${n}/span ${n}"></div>`;
+  const vessel = (cells, L, wreck) => {
+    const r0 = Math.min(...cells.map((x) => Math.floor(x / n))), c0 = Math.min(...cells.map((x) => x % n));
+    const horiz = new Set(cells.map((x) => Math.floor(x / n))).size === 1 && L > 1;
+    return `<span class="vessel ${wreck ? 'wreck' : ''}" style="grid-area:${r0 + 2}/${c0 + 2}/span ${horiz ? 1 : L}/span ${horiz ? L : 1}">${vesselSVG(theme, L, horiz || L === 1)}</span>`;
+  };
+  if (ships) fleetCells(game.mode, ships).forEach((cells, k) => { h += vessel(cells, MODES[game.mode].ships[k], cells.every((x) => sunk.has(x))); });
+  else at.filter((s) => s.sunk_cells?.length).forEach((s) => { h += vessel(s.sunk_cells, s.sunk_cells.length, true); });   // their ships show once sunk
+  for (let c = 0; c < n; c++) h += `<span class="lbl" style="${at2(-1, c)}">${c + 1}</span>`;
   for (let r = 0; r < n; r++) {
-    h += `<span class="lbl">${ROWS[r]}</span>`;
+    h += `<span class="lbl" style="${at2(r, -1)}">${ROWS[r]}</span>`;
     for (let c = 0; c < n; c++) {
       const i = r * n + c, cls = ['cell'], s = shotAt.get(i);
       if (shipAt.has(i)) cls.push('ship');
@@ -1110,8 +1124,8 @@ function boardHTML({ owner, ships, clickable, fresh }) {
       if (!s && peekShip.has(i)) cls.push('peek-ship'); else if (!s && peekArea.has(i)) cls.push('peek-empty');
       const label = cellName(game.mode, i);
       h += clickable && !s
-        ? `<button class="${cls.join(' ')}" data-o="${owner}" data-i="${i}" data-target="${owner}" data-cell="${i}" aria-label="Aim at ${label}"></button>`
-        : `<span class="${cls.join(' ')}" data-o="${owner}" data-i="${i}" aria-label="${label}"></span>`;
+        ? `<button class="${cls.join(' ')}" style="${at2(r, c)}" data-o="${owner}" data-i="${i}" data-target="${owner}" data-cell="${i}" aria-label="Aim at ${label}"></button>`
+        : `<span class="${cls.join(' ')}" style="${at2(r, c)}" data-o="${owner}" data-i="${i}" aria-label="${label}"></span>`;
     }
   }
   return h + '</div>';
@@ -1347,6 +1361,20 @@ setInterval(async () => {
     if (data) { await loadGame(G.game.id); renderGame(); }
   } finally { botAsk = false; }
 }, 600);
+// Themes (027): a new pick in Settings redraws the boards. And somewhere on every board there's a
+// way to meet the UFO fleet (tap the empty corner five times, quickly). Nobody is told.
+addEventListener('bstheme', async () => { if (G?.game) { await loadGame(G.game.id); renderGame(); } });
+let eggTaps = [];
+document.addEventListener('click', async (e) => {
+  if (!e.target.closest?.('[data-egg]')) return;
+  const now = Date.now(); eggTaps = eggTaps.filter((t) => now - t < 2500).concat(now);
+  if (eggTaps.length < 5) return;
+  eggTaps = [];
+  const { data } = await sb.rpc('unlock_bs_theme', { p_word: 'take me to your leader' });
+  if (data !== 'ufo') return;
+  splash(['👽 ABDUCTED!', 'You found', 'THE UFO FLEET'], { tone: 'gold', ms: 2600 }); sfx('fanfare');
+  if (G?.game) { await loadGame(G.game.id); renderGame(); }
+});
 // A live shot: one square, straight away, then the guns reload.
 async function liveFire(target, cell, el) {
   const bar = document.getElementById('aimtext');

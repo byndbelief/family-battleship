@@ -4,6 +4,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY, VAPID_PUBLIC_KEY } from './config.js';
 import { sfx, isMuted, setMuted } from './sfx.js';
 export { sfx };
+import { THEMES, vesselSVG } from './bs-themes.js';
 
 // ---------------------------------------------------------------- full screen for the game area
 // A page puts fsButton('#someId') inside the part of the page that is the game. On phones
@@ -868,6 +869,42 @@ function sw(key, on, label, hint) {
   return `<div class="setrow"><div><strong>${label}</strong><span>${hint}</span></div>
     <button type="button" class="switch" role="switch" aria-checked="${on}" data-sw="${key}" aria-label="${label}"><i></i></button></div>`;
 }
+// ⚓ Battleship themes (027): a tile per theme; the locked ones say how to get them (the UFO doesn't).
+async function themeTiles(wrap) {
+  const box = wrap.querySelector('#themeTiles'); if (!box) return;
+  if (!document.getElementById('themeTileCss')) {
+    const st = document.createElement('style'); st.id = 'themeTileCss';
+    st.textContent = `.themes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:0 12px 12px}
+.themes button{display:flex;flex-direction:column;align-items:stretch;gap:4px;padding:0;border:2px solid transparent;border-radius:12px;background:none;color:inherit;cursor:pointer;font:inherit;min-width:0}
+.themes button .thsea{display:block;height:44px;border-radius:9px;overflow:hidden;padding:9px 6px;box-sizing:border-box}
+.themes button .thsea svg{display:block;width:100%;height:100%}
+.themes button b{font-size:11px;line-height:1.2;text-align:center}
+.themes button small{font-size:10px;opacity:.7;text-align:center;line-height:1.1}
+.themes button[aria-checked=true]{border-color:#F2C230;box-shadow:0 0 0 2px #F2C23055}
+.themes button.locked .thsea{filter:grayscale(1) brightness(.55)}
+.themes button.locked{cursor:default}`;
+    document.head.appendChild(st);
+  }
+  const { data, error } = await sb.rpc('bs_themes');
+  if (error || !data) { box.innerHTML = ''; return; }
+  const draw = (cur) => {
+    box.innerHTML = Object.entries(THEMES).map(([k, t]) => {
+      const open = data.unlocked.includes(k), hidden = !open && t.lock?.secret;
+      const left = t.lock?.wins ? Math.max(0, t.lock.wins - data.wins) : 0;
+      return `<button type="button" role="radio" data-theme="${k}" aria-checked="${cur === k}" class="${open ? '' : 'locked'}" ${open ? '' : 'aria-disabled="true"'}
+        title="${hidden ? 'A secret. Nobody knows how.' : open ? t.name : `Win ${left} more Battleship game${left === 1 ? '' : 's'}`}">
+        <span class="thsea sea sea-${hidden ? 'sea' : k}">${hidden ? '' : vesselSVG(k, 3, true)}</span>
+        <b>${hidden ? '❓ ???' : `${open ? t.icon : '🔒'} ${t.name}`}</b>${open ? '' : `<small>${hidden ? 'a secret…' : `${left} more win${left === 1 ? '' : 's'}`}</small>`}</button>`;
+    }).join('');
+    box.querySelectorAll('[data-theme]:not(.locked)').forEach((b) => { b.onclick = async () => {
+      const { error: e } = await sb.rpc('set_bs_theme', { p_theme: b.dataset.theme });
+      if (e) { note(friendly(e), 'error'); return; }
+      draw(b.dataset.theme); sfx('pop');
+      dispatchEvent(new Event('bstheme'));   // a Battleship page redraws its boards
+    }; });
+  };
+  draw(data.current);
+}
 export async function openSettings() {
   if (document.getElementById('setSheet')) return;
   const { data: { session } } = await sb.auth.getSession();
@@ -886,6 +923,8 @@ export async function openSettings() {
       ${uid ? `<div class="setgroup">
         <div class="setrow"><div><strong>🏆 Gauntlet length</strong><span>Picked for you when you start one</span></div>
           <div class="setseg" role="radiogroup" aria-label="Gauntlet length">${[3, 5, 7].map((r) => `<button type="button" role="radio" aria-checked="${gauntletRounds() === r}" data-rounds="${r}">${r}</button>`).join('')}</div></div>
+        <div class="setrow themerow"><div><strong>⚓ Battleship fleet</strong><span id="themeHint">Everyone sees your ships in your theme</span></div></div>
+        <div class="themes" id="themeTiles" role="radiogroup" aria-label="Battleship theme"></div>
         <div class="setrow" id="alertRow"><div><strong>🔔 Turn alerts</strong><span id="alertHint">Checking…</span></div><span id="alertCtl"></span></div>
         <a class="setrow link" href="./#player=${uid}"><div><strong>🏅 My trophies</strong><span>Your trophy case and badges</span></div><span class="setgo">›</span></a>
       </div>
@@ -911,6 +950,7 @@ export async function openSettings() {
     if (k === 'sound') { setMuted(!on); if (on) setTimeout(() => sfx('click'), 30); }
     else { setPref(k, on); if (k === 'haptics' && on) navigator.vibrate?.(20); if (k === 'drama' && !on) danger(false); }
   }; });
+  if (uid) themeTiles(wrap);
   wrap.querySelectorAll('[data-rounds]').forEach((b) => { b.onclick = () => {
     setPref('gtRounds', +b.dataset.rounds);
     wrap.querySelectorAll('[data-rounds]').forEach((o) => o.setAttribute('aria-checked', String(o === b)));
