@@ -63,6 +63,14 @@ const SOUNDS = {
   buzz(t) { tone('square', 140, 120, t, 0.4, 0.12); },
   ping(t) { tone('sine', 1250, 1250, t, 0.9, 0.25); tone('sine', 1250, 1250, t + 0.45, 0.6, 0.08); },
   click(t) { tone('triangle', 1200, 1200, t, 0.03, 0.08); },
+  // Drama
+  drumroll(t, o = {}) { const d = o.dur || 1.2; for (let i = 0; i < d / 0.045; i++) noise(t + i * 0.045, 0.05, 0.12 + 0.25 * (i * 0.045 / d), 'bandpass', 220, 180, 1.5, 0.002); tone('sine', 70, 70, t + d, 0.35, 0.5); },
+  heartbeat(t) { tone('sine', 60, 40, t, 0.12, 0.7); tone('sine', 55, 38, t + 0.2, 0.14, 0.5); },
+  gasp(t) { noise(t, 0.9, 0.35, 'bandpass', 900, 420, 1.2, 0.12); tone('sine', 380, 260, t, 0.9, 0.06, 0.1); },
+  cheer(t) { noise(t, 1.6, 0.35, 'bandpass', 1400, 2200, 0.8, 0.15); noise(t + 0.3, 1.2, 0.2, 'highpass', 3000, 5000, 0.7, 0.2); },
+  alarm(t) { for (let i = 0; i < 4; i++) { tone('square', 880, 880, t + i * 0.3, 0.13, 0.08); tone('square', 660, 660, t + i * 0.3 + 0.15, 0.13, 0.08); } },
+  stinger(t) { [110, 131, 165].forEach((f) => tone('sawtooth', f, f * 0.98, t, 1.1, 0.07, 0.02)); noise(t, 0.4, 0.4, 'lowpass', 600, 80); tone('sine', 55, 40, t, 1, 0.5); },
+  flash(t) { noise(t, 0.25, 0.6, 'highpass', 5000, 1200, 0.7, 0.002); tone('sine', 120, 30, t, 0.6, 0.9); },
 };
 
 export function sfx(name, opts) {

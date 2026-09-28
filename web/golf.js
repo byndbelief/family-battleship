@@ -93,11 +93,14 @@ function roll(stroke, h, speed = 2) {
     if (!quiet) sfx('putt', { power: Math.hypot(b.vx, b.vy) / 8 });
     let lastClack = 0;
     const step = () => {
-      const per = skipReplay && mode === 'replay' ? 400 : speed;
+      // Will it drop? Half speed while the ball creeps up on the cup.
+      const nearCup = !quiet && !reduceMotion && Math.hypot(b.x - h.cup[0], b.y - h.cup[1]) < 50 && Math.hypot(b.vx, b.vy) < 3;
+      const per = skipReplay && mode === 'replay' ? 400 : nearCup ? 1 : speed;
       for (let i = 0; i < per; i++) {
         const ev = tick(b, h);
         if (!quiet && ev === 'wall' && performance.now() - lastClack > 70) { lastClack = performance.now(); sfx('clack'); }
         if (!quiet && ev === 'bump') sfx('boing');
+        if (ev !== 'cup' && Math.hypot(b.x - h.cup[0], b.y - h.cup[1]) < (h.cupR || CUP_R)) b.lip = true;   // rolled over the hole and kept going
         if (ev === 'bump') h.bumpers.forEach(([x, y, r], j) => { const dx = b.x - x, dy = b.y - y; if (dx * dx + dy * dy < (r + R + 2) ** 2) scene.bumpLit[j] = performance.now() + 180; });
         if (ev === 'cup' || ev === 'water' || ev === 'stop') { scene.trail = []; scene.clock = b.clock; return done({ ev, b }); }
       }
@@ -108,8 +111,11 @@ function roll(stroke, h, speed = 2) {
   });
 }
 function afterStroke(ev, b, h, sx, sy) {
-  if (ev === 'cup') { if (!(skipReplay && mode === 'replay')) sfx('cup'); b.hidden = true; scene.flagOut = true; burst(h.cup[0], h.cup[1], ['#F2C14E', '#fff', '#E4572E', '#7FD3F7'], 60, 0.04); return { holed: true, penalty: 0 }; }
+  if (ev === 'cup') { if (!(skipReplay && mode === 'replay')) { sfx('cup'); sfx('cheer', { delay: 0.2 }); } b.hidden = true; scene.flagOut = true; burst(h.cup[0], h.cup[1], ['#F2C14E', '#fff', '#E4572E', '#7FD3F7'], 60, 0.04); return { holed: true, penalty: 0 }; }
   if (ev === 'water') { if (!(skipReplay && mode === 'replay')) sfx('plunk'); burst(b.x, b.y, ['#BFE9FF', '#fff', '#3FA7E0'], 30, 0.08); b.x = sx; b.y = sy; b.vx = b.vy = 0; return { holed: false, penalty: 1 }; }
+  if (!(skipReplay && mode === 'replay') && (b.lip || Math.hypot(b.x - h.cup[0], b.y - h.cup[1]) < (h.cupR || CUP_R) * 2.2)) {
+    bigText(`<span class="small-pop">${b.lip ? 'Lipped out!' : 'Ooooh!'}</span>`, 1400); sfx('gasp');
+  }
   b.x = q20(b.x); b.y = q20(b.y); b.vx = b.vy = 0; return { holed: false, penalty: 0 };
 }
 const toStroke = ([x, y, vx, vy]) => ({ x, y, vx, vy });

@@ -266,6 +266,7 @@ export async function gauntletBar(gauntletId, gameId, meId, nameOf) {
   if (!gauntletId) { if (el) el.innerHTML = ''; return ''; }
   const { data: gt } = await sb.from('gauntlets').select('*').eq('id', gauntletId).maybeSingle();
   if (!gt) { if (el) el.innerHTML = ''; return ''; }
+  roundIntro(gt, gameId, meId, nameOf);
   const lead = Math.max(...gt.scores), who = (p) => (p === meId ? 'You' : esc(nameOf(p)));
   const table = gt.players.map((p, i) => `<span class="gtp${gt.scores[i] === lead && lead > 0 ? ' lead' : ''}">${gt.scores[i] === lead && lead > 0 ? '👑 ' : ''}${who(p)} <b>${gt.scores[i]}</b></span>`).join('');
   const done = gt.history || [];
@@ -339,3 +340,57 @@ gtCss.textContent = `
   @media (prefers-reduced-motion:reduce){.gtbar .gtgo{animation:none}}
   .fs-on .gtbar{display:none}`;
 document.head.appendChild(gtCss);
+
+// ---------------------------------------------------------------- drama
+// A full-screen moment: big lines slam in over a dark flash ("ROUND 3", "K.O.!"), then clear.
+// Tap to skip. Reduced motion keeps the words and drops the slam.
+export function splash(lines, { tone = 'gold', ms = 2200, sound = 'stinger' } = {}) {
+  document.getElementById('dramaSplash')?.remove();
+  const el = document.createElement('div'); el.id = 'dramaSplash'; el.className = `drama drama-${tone}`;
+  el.setAttribute('role', 'status');
+  el.innerHTML = lines.map((l, i) => `<span class="dl dl${i}" style="animation-delay:${i * 180}ms">${l}</span>`).join('');
+  el.onclick = () => el.remove();
+  document.body.appendChild(el);
+  if (sound) sfx(sound);
+  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 350); }, ms);
+}
+// A red pulse around the screen with a heartbeat while you're nearly out.
+let dangerTimer = null;
+export function danger(on) {
+  let v = document.getElementById('dangerV');
+  if (!on) { v?.remove(); clearInterval(dangerTimer); dangerTimer = null; return; }
+  if (v) return;
+  v = document.createElement('div'); v.id = 'dangerV'; v.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(v);
+  sfx('heartbeat'); dangerTimer = setInterval(() => { if (!document.hidden) sfx('heartbeat'); }, 1300);
+}
+// The first time you open a Gauntlet round: which round, which game, and what's at stake.
+const GT_NAME = { battleship: 'Battleship', golf: 'Putt Post', duel: 'Hilltop Duel' };
+export function roundIntro(gt, gameId, meId, nameOf) {
+  if (!gt || gt.status !== 'playing' || gt.current_game !== gameId) return;
+  const key = `drama.intro.${gameId}`;
+  try { if (localStorage.getItem(key)) return; localStorage.setItem(key, '1'); } catch { return; }
+  const left = gt.rounds - gt.round;   // rounds after this one
+  const clinch = gt.players.filter((_, i) => gt.scores[i] + 1 > Math.max(...gt.players.map((__, j) => (j === i ? -1 : gt.scores[j] + left))));
+  const who = (p) => (p === meId ? 'YOU' : esc(nameOf(p)).toUpperCase());
+  const stakes = clinch.length === 1 ? `MATCH POINT: ${who(clinch[0])}` : gt.round === gt.rounds ? 'FINAL ROUND' : `${gt.scores.join(' – ')}`;
+  splash([`ROUND ${gt.round}`, `${GT_ICON[gt.current_kind]} ${GT_NAME[gt.current_kind].toUpperCase()}`, stakes], { tone: clinch.length || gt.round === gt.rounds ? 'red' : 'gold', ms: 2600 });
+}
+const dramaCss = document.createElement('style');
+dramaCss.textContent = `
+  .drama{position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:16px;text-align:center;
+    background:radial-gradient(circle at 50% 50%,#000a,#000e 70%);cursor:pointer;overflow:hidden;animation:dramaIn .2s ease-out both}
+  .drama.out{opacity:0;transition:opacity .3s}
+  .drama .dl{display:block;font-family:"Bungee","Rubik Mono One","Arial Black",Impact,sans-serif;line-height:1;color:#FFE08A;-webkit-text-stroke:2px #3A1D00;paint-order:stroke fill;
+    text-shadow:0 5px 0 #3A1D00,0 0 36px #F2C230;animation:dramaSlam .5s cubic-bezier(.2,1.6,.4,1) both}
+  .drama .dl0{font-size:clamp(20px,6vw,34px);letter-spacing:.2em;color:#fff}
+  .drama .dl1{font-size:clamp(38px,12vw,84px)}
+  .drama .dl2{font-size:clamp(18px,5.5vw,30px);letter-spacing:.08em;color:#fff;max-width:92vw;animation-name:dramaRise}
+  @keyframes dramaRise{from{transform:translateY(14px);opacity:0}}
+  .drama-red .dl1,.drama-red .dl2{color:#FF6B5E;-webkit-text-stroke-color:#2A0000;text-shadow:0 5px 0 #2A0000,0 0 36px #FF5A4E}
+  @keyframes dramaIn{from{opacity:0}}
+  @keyframes dramaSlam{0%{transform:scale(2.6);opacity:0}60%{transform:scale(.94);opacity:1}100%{transform:none}}
+  #dangerV{position:fixed;inset:0;z-index:55;pointer-events:none;box-shadow:inset 0 0 90px 30px #E0201Aaa;animation:dangerPulse 1.3s ease-in-out infinite}
+  @keyframes dangerPulse{0%,100%{opacity:.35}15%{opacity:1}30%{opacity:.5}45%{opacity:.85}}
+  @media (prefers-reduced-motion:reduce){.drama,.drama .dl{animation:none}#dangerV{animation:none;opacity:.6}}`;
+document.head.appendChild(dramaCss);

@@ -1,5 +1,5 @@
 import { VAPID_PUBLIC_KEY, USERNAME_DOMAIN } from './config.js';
-import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar } from './common.js';
+import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger } from './common.js';
 import { HOLES, holeWithAttack, drawHole, LW, LH } from './golf-engine.js';
 import { W as DW, H as DH, TANK_X, buildTop } from './duel-engine.js';
 const app = document.getElementById('app');
@@ -171,6 +171,8 @@ function animateShots(newShots) {
   // Bring the impact into view first.
   const first = cellEl(newShots[0].target, newShots[0].cell);
   if (first) { const r = first.getBoundingClientRect(); if (r.top < 60 || r.bottom > innerHeight - 90) { first.scrollIntoView({ block: 'center', behavior: 'smooth' }); delay = 450; } }
+  // Incoming! A drumroll before their shells land on you.
+  if (newShots.some((s) => s.target === me.id)) { showBoard(me.id); sfx('drumroll', { dur: 0.9 }); delay += 950; }
   Object.values(byMove).forEach((batch) => {
     batch.forEach((s, k) => {
       setTimeout(() => {
@@ -337,6 +339,7 @@ async function lobby() {
   if (document.querySelector('.fs-on')) fsExit();
   document.getElementById('nextUp')?.remove();   // the lobby has its own Your move strip
   document.body.classList.remove('has-firebar');
+  danger(false);
   const others = Object.entries(names).filter(([id]) => id !== me.id).sort((a, b) => a[1].localeCompare(b[1]));
   // Quick play (a single game on its own) is one layer down, at #quick; the lobby leads with the Gauntlet.
   const quick = location.hash === '#quick';
@@ -1189,12 +1192,27 @@ function playEffects() {
     });
     const nowMine = game.status === 'playing' && game.players[game.turn] === me.id;
     if (G.prevStatus === 'playing' && game.status === 'over') {
-      if (game.winner === me.id) { stamp('Victory!'); sfx('fanfare'); if (!reduceMotion) fx.fireworks(10); } else { stamp('Defeated', 'red', 2800); sfx('lose'); }
+      danger(false);
+      if (game.winner === me.id) { splash(['FLEET DESTROYED', 'VICTORY', 'The seas are yours'], { ms: 2600 }); sfx('fanfare', { delay: 0.8 }); if (!reduceMotion) setTimeout(() => fx.fireworks(10), 900); }
+      else { splash(['ALL SHIPS LOST', 'DEFEATED', `${nm(game.winner).replace(/<[^>]+>/g, '')} rules the waves`], { tone: 'red', ms: 2600 }); sfx('lose', { delay: 0.8 }); }
     } else if (G.prevStatus === 'setup' && game.status === 'playing') {
       banner(nowMine ? 'Battle stations! You fire first' : 'Battle stations!');
     } else if (nowMine && (G.prevTurnMine === false || fresh.some((s) => s.shooter !== me.id))) banner('Your turn');
+    lastShipDrama(fresh);
     announceChaos({ gameId: game.id });
   }, wait);
+}
+// Down to one ship: a MAYDAY for you (plus a heartbeat while it lasts), a heads-up when a rival is.
+const shipsLeft = (p) => MODES[G.game.mode].ships.length - new Set(G.shots.filter((s) => s.target === p && s.sunk_ship != null).map((s) => s.sunk_ship)).size;
+function lastShipDrama(fresh) {
+  const { game } = G, playing = game.status === 'playing';
+  const mineLeft = shipsLeft(me.id), imOut = game.eliminated.includes(me.id);
+  danger(playing && !imOut && mineLeft === 1);
+  const once = (k) => { try { if (localStorage.getItem(k)) return false; localStorage.setItem(k, '1'); } catch { return false; } return true; };
+  if (!playing) return;
+  if (!imOut && mineLeft === 1 && once(`drama.last.${game.id}.${me.id}`)) splash(['MAYDAY', 'LAST SHIP', 'One more hit and you sink'], { tone: 'red', sound: 'alarm', ms: 2400 });
+  game.players.filter((p) => p !== me.id && !game.eliminated.includes(p) && shipsLeft(p) === 1 && fresh.some((s) => s.target === p && s.sunk_ship != null))
+    .forEach((p) => { if (once(`drama.last.${game.id}.${p}`)) splash(['ONE SHIP LEFT', nm(p).replace(/<[^>]+>/g, '').toUpperCase(), 'Finish them!'], { ms: 2200 }); });
 }
 
 boot();

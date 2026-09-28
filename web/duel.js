@@ -1,6 +1,6 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger } from './common.js';
 import { W, H, TANK_X, CRATER_R, BERTHA_R, rng, buildTop, windFor, tankPos, simulate, damage } from './duel-engine.js';
 
 const $ = (id) => document.getElementById(id);
@@ -93,6 +93,28 @@ function boom(x, y, big = 1) {
   const cols = ['#FFF4D6', '#FFC857', '#FF6B5A', '#B79CFF'];
   for (let i = 0; i < 70 * big; i++) { const a = Math.random() * 6.28, v = Math.random() * 5 * big + 1; particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2, life: 1, s: Math.random() * 3 + 1, c: cols[i % 4] }); }
 }
+// A hit: small ones get a number, big ones a flash and DIRECT HIT!; a knockout waits for the K.O. screen.
+function hitDrama(before, after) {
+  if (after.some((h) => h <= 0)) return;
+  const mi = myIdx(), drops = [0, 1].map((p) => before[p] - after[p]), big = Math.max(...drops);
+  if (big <= 0) return;
+  if (big >= 25) {
+    stamp('DIRECT<br>HIT!', drops[mi] === big ? 'red' : '', 1600); sfx('flash', { delay: 0.05 });
+    navigator.vibrate?.([60, 40, 140]);
+    if (!reduceMotion) { const f = document.createElement('div'); f.style.cssText = 'position:fixed;inset:0;z-index:58;background:#fff;pointer-events:none;opacity:.85;transition:opacity .35s'; document.body.appendChild(f); requestAnimationFrame(() => { f.style.opacity = '0'; }); setTimeout(() => f.remove(), 400); }
+  } else if (drops[mi] > 0) stamp(`−${drops[mi]}`, 'red', 1400);
+  else stamp(`Hit! −${big}`, '', 1400);
+}
+// The end: a K.O. screen the first time you see it, then just the result panel.
+function endDrama(g) {
+  danger(false);
+  const key = `drama.end.${g.id}`; let seen = false;
+  try { seen = !!localStorage.getItem(key); localStorage.setItem(key, '1'); } catch {}
+  if (seen) return;
+  const won = g.winner === me.id;
+  splash(['K.O.!', won ? 'VICTORY' : 'DEFEATED', won ? 'You hold the hill' : `${nm(g.winner).replace(/<[^>]+>/g, '')} takes the hill`], { tone: won ? 'gold' : 'red', ms: 2800 });
+  sfx(won ? 'fanfare' : 'lose', { delay: 0.9 });
+}
 function stamp(text, tone = '', ms = 2400) { const el = document.createElement('div'); el.className = `stamp ${tone}`; el.innerHTML = `<span>${text}</span>`; document.body.appendChild(el); setTimeout(() => el.remove(), ms); }
 
 // Flies a shell along its path, then blows up where the server says it landed.
@@ -103,7 +125,9 @@ function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1) {
     shot = { p, angle, path: sim.path, i: reduceMotion ? sim.path.length : 0 };
     sfx('cannon'); if (!reduceMotion) sfx('whistle', { delay: 0.15, dur: Math.max(0.3, sim.path.length / 3 / 60 - 0.15) });
     const step = () => {
-      shot.i = Math.min(shot.path.length, shot.i + 3);
+      // Slow motion as the shell closes in on a tank.
+      const q = shot.path[Math.min(shot.i, shot.path.length - 1)], near = !reduceMotion && [0, 1].some((t) => { const k = tankPos(t, top); return Math.hypot(q.x - k.x, q.y - (k.y - 8)) < 90; });
+      shot.i = Math.min(shot.path.length, shot.i + (near ? 1 : 3));
       if (shot.i < shot.path.length) return requestAnimationFrame(step);
       shot = null;
       if (crater) { boom(crater[0], crater[1]); if (!reduceMotion && cv.animate) cv.animate([{ transform: 'translate(-6px,3px)' }, { transform: 'translate(5px,-3px)' }, { transform: 'none' }], { duration: 350 }); }
@@ -127,6 +151,7 @@ function render() {
   $('title').innerHTML = over ? (g.winner === me.id ? 'You win!' : `${nm(g.winner)} wins!`) : mine ? 'Your shot' : `${nm(turnId())}'s shot`;
   $('status').textContent = over ? '' : mine ? `Move ${g.move + 1}` : busy ? '' : 'Waiting…';
   $('controls').hidden = !mine || busy;
+  danger(g.status === 'playing' && mi >= 0 && g.hp[mi] > 0 && g.hp[mi] <= 25);   // nearly out: red pulse and a heartbeat
   if (mine && !busy && isPhone()) { try { if (!sessionStorage.getItem('duel.tip')) { sessionStorage.setItem('duel.tip', '1'); note('Drag on the battlefield to aim: direction sets the angle, distance the power.'); } } catch {} }
   cv.style.touchAction = mine && !busy ? 'none' : 'manipulation';   // dragging aims on your turn instead of scrolling
   cv.style.cursor = mine && !busy ? 'crosshair' : '';
@@ -182,12 +207,11 @@ async function decide() {
     const before = g.craters.slice(0, g.craters.length - (last.crater ? 1 : 0));
     await flyShell(g.players.indexOf(last.shooter), last.angle, last.power, before, last.move - 1, last.crater, last.wind_x || 1);
     markSeen(last.move); top = buildTop(g.seed, g.craters); busy = false;
-    const lost = (G.shots[G.shots.length - 2]?.hp_after || [100, 100])[myIdx()] - last.hp_after[myIdx()];
-    if (lost > 0) stamp(`−${lost}`, 'red', 1400);
+    hitDrama(G.shots[G.shots.length - 2]?.hp_after || [100, 100], last.hp_after);
   }
   top = buildTop(g.seed, g.craters);
   render();
-  if (g.status === 'over') { stamp(g.winner === me.id ? 'Victory!' : 'Defeated', g.winner === me.id ? '' : 'red', 2800); sfx(g.winner === me.id ? 'fanfare' : 'lose', { delay: 0.3 }); return; }
+  if (g.status === 'over') { endDrama(g); return; }
   const cur = turnId();
   if (isBot(cur)) {
     const stale = Date.now() - new Date(g.updated_at).getTime() > 15000;
@@ -209,7 +233,7 @@ async function fire() {
   busy = false;
   if (error) { $('err').textContent = friendly(error); render(); return; }
   announceChaos({ gameId: g.id }); pack = await backpack();
-  if (hp[1 - p] < g.hp[1 - p]) stamp(`Hit! −${g.hp[1 - p] - hp[1 - p]}`, '', 1400);
+  hitDrama(g.hp, hp);
   markSeen(move + 1);
   notify('duel', g.id);
   await sleep(600);
@@ -231,8 +255,7 @@ async function watchLiveShot({ move, angle, power }, refresh) {
   busy = false;
   if (G.game.move === move) return refresh();   // still not saved; the regular checks will pick it up
   top = buildTop(G.game.seed, G.game.craters);
-  const lost = hpBefore - G.game.hp[mi];
-  if (lost > 0) stamp(`−${lost}`, 'red', 1400);
+  hitDrama(g.hp, G.game.hp);
   pack = await backpack(); announceChaos({ gameId: g.id });
   decide();
 }
@@ -262,8 +285,7 @@ async function robotShot() {
   busy = false;
   if (error) { $('err').textContent = friendly(error); return render(); }
   nudge();
-  const lost = g.hp[myIdx()] - hp[myIdx()];
-  if (lost > 0) stamp(`−${lost}`, 'red', 1400);
+  hitDrama(g.hp, hp);
   await sleep(600);
   await load(g.id); decide();
 }
