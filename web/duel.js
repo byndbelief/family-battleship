@@ -1,7 +1,7 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
 import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, shotClock, stopShotClock, chaosClock, dramaOn, face, jumpToNext, setGameTools, condenseTop, compactPack } from './common.js';
-import { W, H, CRATER_R, BERTHA_R, rng, buildTop as buildTopN, applyCrater, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, startXs, zones, aimDir, digCut } from './duel-engine.js';
+import { W, H, CRATER_R, BERTHA_R, rng, buildTop as buildTopN, applyCrater, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, startXs, zones, aimDir, digCut, coveredAt, TUN } from './duel-engine.js';
 
 const $ = (id) => document.getElementById(id);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -116,6 +116,22 @@ function draw(t) {
   const tg = ctx.createLinearGradient(0, 170, 0, H); tg.addColorStop(0, '#3DD6C6'); tg.addColorStop(0.08, '#1F8C8A'); tg.addColorStop(1, '#0F2E3F');
   ctx.fillStyle = tg; ctx.beginPath(); ctx.moveTo(0, H); for (let x = 0; x < W; x++) ctx.lineTo(x, top[x]); ctx.lineTo(W, H); ctx.fill();
   ctx.strokeStyle = '#9BF5EA'; ctx.lineWidth = 2; ctx.beginPath(); for (let x = 0; x < W; x++) ctx[x ? 'lineTo' : 'moveTo'](x, top[x]); ctx.stroke();
+  // Tunnels (⛏️ Dig): the hollow inside the hill, dark, with the tank sitting in it under its roof.
+  if (top.under?.length) {
+    ctx.fillStyle = '#04090F'; ctx.strokeStyle = '#9BF5EAAA'; ctx.lineWidth = 2;
+    for (let x = 0; x < W; x++) {
+      if (top.under[x] == null) continue;
+      let e = x; while (e + 1 < W && top.under[e + 1] != null) e++;
+      ctx.beginPath(); ctx.moveTo(x, top.under[x] - TUN);
+      for (let k = x; k <= e; k++) ctx.lineTo(k, top.under[k] - TUN);
+      for (let k = e; k >= x; k--) ctx.lineTo(k, top.under[k]);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      // a miner's lamp glow along the floor
+      const gl = ctx.createLinearGradient(0, top.under[x] - TUN, 0, top.under[x]); gl.addColorStop(0, '#FFC85700'); gl.addColorStop(1, '#FFC85733');
+      ctx.fillStyle = gl; ctx.fill(); ctx.fillStyle = '#04090F';
+      x = e;
+    }
+  }
   const X = shot?.xs || xs();
   g.players.forEach((_, p) => {
     const { x, y } = tankPos(p, top, X), col = COLS[p];
@@ -301,7 +317,7 @@ function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1, X = x
 function render() {
   const g = G.game, mi = myIdx();
   top = top || ground();
-  const X0 = xs(), tag = (p) => (dugIn(g, p, X0[g.players.indexOf(p)]) ? ' 🕳️' : '') + (g.shields.includes(p) ? ' 🛡️' : '') + (g.bertha.includes(p) ? ' 💣' : '') + (armedOf(p) ? ` ${WEAPONS[armedOf(p)].icon}` : '');
+  const X0 = xs(), tag = (p) => (coveredAt(top, X0[g.players.indexOf(p)]) ? ' ⛰️' : '') + (dugIn(g, p, X0[g.players.indexOf(p)]) ? ' 🕳️' : '') + (g.shields.includes(p) ? ' 🛡️' : '') + (g.bertha.includes(p) ? ' 💣' : '') + (armedOf(p) ? ` ${WEAPONS[armedOf(p)].icon}` : '');
   // Face, name (the part that gives way on a narrow screen, with …), then the HP, which always shows.
   const label = (p) => `${face(g.players[p])}<span class="nm">${who(g.players[p])}</span><span>&nbsp;· ${g.hp[p]}${tag(g.players[p])}</span>`;
   const many = multi();
@@ -783,7 +799,7 @@ $('digBtn').addEventListener('click', () => {
   digOn = !digOn; showDig(); sfx('tick'); navigator.vibrate?.(15);
   try { localStorage.setItem('duel.dig', digOn ? '1' : ''); } catch {}
   if (G) { sendAim(); refreshTop(); }
-  if (digOn) note('⛏️ Dig mode: your tank keeps its level and ploughs straight through hills. Same fuel.');
+  if (digOn) note('⛏️ Dig mode: your tank burrows down into the hill. Get deep enough and the hill covers you: shells hit the roof, blasts do half. Same fuel.');
 });
 try { digOn = !!localStorage.getItem('duel.dig'); } catch {}
 showDig();
