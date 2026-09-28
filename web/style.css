@@ -399,7 +399,23 @@ body.has-firebar { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)
 
 /* ---------------------------------------------------------------- Quick play: one layer down (#quick) */
 .lobby:not(.quickmode) #newSec, .lobby:not(.quickmode) .quickhead { display: none; }
-.lobby.quickmode > :not(.quickhead):not(#newSec) { display: none !important; }
+.lobby.quickmode > :not(.quickhead):not(.lobmain), .lobby.quickmode .lobmain > :not(#newSec) { display: none !important; }
+/* The lobby's two groups only matter on desktop; elsewhere they vanish and the sections stack. */
+.lobmain, .lobside { display: contents; }
+/* The scoreboard's too; on phones "Every stat" stays last, as before. */
+#statsBody .smain, #statsBody .sside { display: contents; }
+#statsBody .sall { order: 5; }
+@media (min-width: 1000px) and (min-height: 560px) {
+  .lobby.lobhome { max-width: 1320px; display: grid; grid-template-columns: minmax(0, 1fr) 380px; column-gap: 28px; row-gap: 20px; align-items: start; }
+  .lobby.lobhome > header { grid-column: 1 / -1; }
+  .lobby.lobhome .lobmain, .lobby.lobhome .lobside { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+  .lobby.lobhome .lobside .lobby-cols { display: flex; flex-direction: column; gap: 12px; }
+  .lobby.lobhome .upstrip { grid-auto-columns: min(46%, 300px); }
+  .lobby.statsview { max-width: 1320px; }
+  #statsBody { display: grid !important; grid-template-columns: minmax(0, 1fr) 400px; column-gap: 24px; align-items: start; }
+  #statsBody .smain, #statsBody .sside { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+  #statsBody .sall { order: 0; }
+}
 .quickhead { display: flex; flex-direction: column; gap: 4px; }
 .quickhead a { font-weight: 700; align-self: flex-start; }
 .quickentry { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--paper); border: 1.5px solid var(--line); color: var(--ink); text-decoration: none; }

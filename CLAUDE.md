@@ -31,7 +31,11 @@ takes a bare username.
   Both pages are CSS grids whose rows are content-sized with a last `1fr` row, so the game area can
   span them all without spreading the side column. Battleship: boards sized to leave room for a
   compact floating fire bar that also carries the backpack (`deskBar()`). The ▶ Next chip sits top
-  center on desktop.
+  center on desktop. The lobby (`.lobby.lobhome`) is two columns: `.lobmain` (Gauntlet, Your move) and
+  `.lobside` (scoreboard / quick play links, your games, backpack, chaos); the scoreboard likewise
+  (`.smain` standings + every stat, `.sside` hall of fame + head to head). On phones those wrappers
+  are `display: contents`, so the stacking order is unchanged. The scoreboard and trophy case reuse
+  the `.lobby` class, so desktop lobby rules must target `.lobhome`, not `.lobby`.
 - **Mobile first.** On phones the game area is the focus: lists fold (`details.mfold`),
   tips/instructions/errors are quick popovers (`note()` / `noteMirror()` in `common.js`),
   cheats and backpack are one scrollable row each. **Full screen covers only the game

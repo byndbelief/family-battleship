@@ -288,11 +288,12 @@ async function lobby() {
   // Quick play (a single game on its own) is one layer down, at #quick; the lobby leads with the Gauntlet.
   const quick = location.hash === '#quick';
   view(`
-    <div class="lobby${quick ? ' quickmode' : ''}">
+    <div class="lobby${quick ? ' quickmode' : ' lobhome'}">
       <div class="quickhead"><a href="#">← Game Room</a><h1>Quick play</h1><p class="muted">One game on its own, outside the Gauntlet. One of each kind per group of players at a time.</p></div>
       <header class="row between">
         <div class="stack lobhead"><span class="eyebrow">Family Game Room</span><h1>Ahoy, ${esc(me.username)}</h1></div>
       </header>
+      <div class="lobmain">
       <section class="gthero" id="gtSec">
         <div class="gthead"><span class="gtcup" aria-hidden="true">🏆</span><div><h2>The Gauntlet</h2><p class="small">One running Gauntlet per rival: surprise rounds of putts, duels and sea battles. Win the most rounds for the crown, and the next Gauntlet starts on its own.</p></div></div>
         <div class="gtlive" id="gtLive"></div>
@@ -340,6 +341,8 @@ async function lobby() {
           <div><button class="primary" type="submit" id="start" disabled>Start game</button></div>
         </form>
       </section>
+      </div>
+      <div class="lobside">
       <a class="quickentry" href="#stats"><span class="qicons" aria-hidden="true">🏅</span><span><strong>Family scoreboard</strong><span class="muted small">All-time titles, wins, streaks and bragging rights</span></span><span class="qgo" aria-hidden="true">›</span></a>
       <a class="quickentry" href="#quick"><span class="qicons" aria-hidden="true">⚓⛳💥</span><span><strong>Quick play</strong><span class="muted small">Battleship, Putt Post or Hilltop Duel on its own</span></span><span class="qgo" aria-hidden="true">›</span></a>
       <section class="stack">
@@ -353,6 +356,7 @@ async function lobby() {
         </div>
         <section class="card" id="packCard" hidden></section>
         <section class="card" id="chaosCard" hidden></section>
+      </div>
       </div>
     </div>`);
   // Start a Gauntlet: pick 1-3 opponents and a length, go.
@@ -812,11 +816,16 @@ async function statsView() {
   const cols = ps.filter((p) => p.played || p.gauntlets || p.holes);
   const table = `<div class="stable-wrap"><table class="stable"><thead><tr><th></th>${cols.map((p) => `<th>${who(p)}</th>`).join('')}</tr></thead><tbody>
     ${rows.map(([label, k]) => `<tr><th>${label}</th>${cols.map((p) => `<td>${typeof k === 'function' ? k(p) : p[k]}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  // Desktop: standings and every stat on the left, hall of fame and head to head beside them.
   body.innerHTML = `
+    <div class="smain">
     <section class="stack" style="gap:10px"><h2>Standings</h2><div class="scards">${cards}</div></section>
+    <section class="card sall"><h2>📊 Every stat</h2>${table}</section>
+    </div>
+    <div class="sside">
     ${awards ? `<section class="card"><h2>🏛️ Hall of fame</h2><ul class="pack">${awards}</ul></section>` : ''}
     ${h2h ? `<section class="card"><h2>⚔️ Head to head</h2><ul class="h2h">${h2h}</ul><p class="muted small">One-on-one games, Gauntlet rounds included.</p></section>` : ''}
-    <section class="card"><h2>📊 Every stat</h2>${table}</section>`;
+    </div>`;
 }
 
 // ---------------------------------------------------------------- a player's trophy case (#player=<id>)
