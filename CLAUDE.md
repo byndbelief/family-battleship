@@ -38,7 +38,9 @@ takes a bare username.
   Calling cheater stays visible: that's the counterplay.
 - **Hilltop Duel tanks move** (`011_tank_moves.sql`): up to 40 px of fuel a turn, own side
   only, sent with the shot (`duel_fire(…, p_x)`), recorded per shot (`duel_shots.from_x`) so
-  replays fire from the right spot. Engine functions take the tank positions (`xs`). The aim
+  replays fire from the right spot. Engine functions take the tank positions (`xs`). The robot
+  drives too: it scouts spots within its fuel with a coarse search, rolls to the best (Rookie
+  more at random) and fires from there via `duel_fire_bot(…, p_x)`. The aim
   hint is deliberately a rough guide — a hidden per-turn error, a wobble, 65% of the flight —
   because the family found an accurate one made every shot a hit. Don't make it exact again.
 - **Clocks push play along** (`008_clocks.sql`, `shotClock` / `chaosClock` / `chaosIn` in

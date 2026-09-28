@@ -15,6 +15,7 @@ let oppAim = null;        // { move, angle, power, x } streamed from the other p
 // Tanks can drive a little each turn (40 px of fuel, own side only). myX is where I've driven to
 // this turn before firing; it's sent with the shot.
 let myX = null, myXMove = -1;
+let botDrive = null;      // { move, x } while the robot rolls to its firing spot
 const FUEL = 40, SIDE = [[30, 330], [470, 770]];
 const baseXs = () => G.game.tank_x || TANK_X;
 function xs() {
@@ -22,6 +23,7 @@ function xs() {
   if (g.status === 'playing') {
     if (turnId() === me.id && myXMove === g.move && myX != null) t[g.turn] = myX;
     else if (turnId() !== me.id && oppAim?.move === g.move && oppAim.x != null) t[g.turn] = oppAim.x;
+    if (botDrive?.move === g.move) t[g.turn] = botDrive.x;
   }
   return t;
 }
@@ -304,7 +306,27 @@ async function watchLiveShot({ move, angle, power, x }, refresh) {
 // The robot tries every angle and power, keeps the one that lands closest, then wobbles it by skill.
 async function robotShot() {
   busy = true; render();
-  const g = G.game, p = g.turn, X = xs(), target = tankPos(1 - p, top, X);
+  const g = G.game, p = g.turn, windX = g.gust === g.move ? 3 : 1;
+  // The robot drives too: it scouts spots within its fuel with a quick coarse search, takes the
+  // one with the best shot (Rookie drives more at random), and never just sits still.
+  $('status').textContent = `${nm(g.players[p]).replace(/<[^>]+>/g, '')} is sizing you up…`;
+  await sleep(reduceMotion ? 0 : 400);
+  const start = baseXs()[p], [lo, hi] = SIDE[p];
+  const spots = [-40, -30, -20, -10, 0, 10, 20, 30, 40].map((d) => start + d).filter((x) => x >= lo && x <= hi);
+  const coarse = (X) => { const tg = tankPos(1 - p, top, X); let b = 999;
+    for (let a = 10; a <= 85; a += 3) for (let pw = 20; pw <= 100; pw += 4) {
+      const sim = simulate(g.seed, g.move, top, p, a, pw, windX, X);
+      if (sim.impact) b = Math.min(b, Math.hypot(sim.impact.x - tg.x, sim.impact.y - tg.y));
+    } return b; };
+  const scored = spots.map((x) => { const X = [...baseXs()]; X[p] = x; return { x, d: coarse(X) + Math.random() * (g.bot_level === 0 ? 60 : 12) }; }).sort((u, v) => u.d - v.d);
+  let goal = scored[0].x;
+  if (goal === start) goal = Math.max(lo, Math.min(hi, start + (Math.random() < 0.5 ? -1 : 1) * (6 + Math.round(Math.random() * 10))));
+  $('status').textContent = `${nm(g.players[p]).replace(/<[^>]+>/g, '')} is on the move…`;
+  botDrive = { move: g.move, x: start };
+  if (reduceMotion) botDrive.x = goal;
+  else while (botDrive.x !== goal) { botDrive.x += Math.sign(goal - botDrive.x) * Math.min(2, Math.abs(goal - botDrive.x)); if (botDrive.x % 8 === 0) sfx('tick'); await sleep(60); }
+  await sleep(reduceMotion ? 0 : 250);
+  const X = xs(), target = tankPos(1 - p, top, X);
   let best = null;
   for (let a = 10; a <= 85; a++) for (let pw = 20; pw <= 100; pw += 2) {
     const sim = simulate(g.seed, g.move, top, p, a, pw, g.gust === g.move ? 3 : 1, X);
@@ -321,7 +343,8 @@ async function robotShot() {
   const crater = sim.impact ? [Math.round(sim.impact.x), Math.round(sim.impact.y), CRATER_R] : null;
   if (crater) boom(crater[0], crater[1]);
   const hp = damage(top, sim.impact, g.hp, false, g.players.map((x) => g.shields.includes(x) && x !== g.players[p]), X);
-  const { error } = await sb.rpc('duel_fire_bot', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_hp: hp });
+  const { error } = await sb.rpc('duel_fire_bot', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_hp: hp, ...(goal !== start ? { p_x: goal } : {}) });
+  botDrive = null;
   markSeen(g.move + 1);
   busy = false;
   if (error) { $('err').textContent = friendly(error); return render(); }
