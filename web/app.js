@@ -655,6 +655,24 @@ function renderHere() {
 }
 addEventListener('online', renderHere);
 
+// Your move cards: a badge when an opponent in that game is live, and a glow when they're
+// already at the table. Repainted in place on every check-in, so previews don't redraw.
+function paintUpLive() {
+  document.querySelectorAll('#upStrip .uplive').forEach((b) => {
+    const ppl = b.dataset.players.split(',').filter(Boolean).map((id) => online[names[id]]).filter((r) => r?.live);
+    const at = ppl.filter((r) => r.game === b.dataset.game), show = at.length ? at : ppl;
+    b.hidden = !show.length;
+    b.closest('.upcard').classList.toggle('attable', at.length > 0);
+    if (!show.length) return;
+    // One opponent: their name is on the line above, so keep it short.
+    const solo = b.dataset.players.split(',').filter(Boolean).length === 1;
+    const who = show.length === 1 ? esc(show[0].u) : `${show.length} players`, what = at.length ? 'at the table' : 'live';
+    b.innerHTML = `<i></i>${solo ? `${at.length ? 'At the table' : 'Live'} now` : `${who} ${show.length === 1 ? 'is' : 'are'} ${what}`}`;
+    b.title = `${show.map((r) => r.u).join(' & ')} ${show.length === 1 ? 'is' : 'are'} ${what} now`;
+  });
+}
+addEventListener('online', paintUpLive);
+
 // One card per rival (a group of players): their running Gauntlet, which one it is, and
 // how many Gauntlets each of them has won.
 const groupKey = (players) => [...players].sort().join(',');
@@ -708,12 +726,14 @@ function renderUpStrip(mine, cards, myFleets, atMe) {
       <span class="upbody">
         <span class="row between" style="gap:6px"><strong>${KIND_ICON[c.kind]} ${KIND_NAME[c.kind]}</strong>${c.extra}</span>
         <span class="small upvs">${c.g.players.filter((p) => p !== me.id && !bots.has(p)).map((p) => avatar({ username: names[p] }, 'mini')).join('')}${c.vs}</span>
+        <span class="uplive" data-game="${c.g.id}" data-players="${c.g.players.filter((p) => p !== me.id && !bots.has(p)).join(',')}" hidden></span>
         <span class="muted small">${c.sub}</span>
         ${c.kind !== 'gauntlet' && c.g.players.length > 1 ? `<span class="small clk">${chaosIn(c.g.turn_at, c.g.gauntlet_id)}</span>` : ''}
         <span class="upgo">${c.pill.includes('Place') ? 'Place ships' : 'Play'} ›</span>
       </span>
     </a>`).join('');
   strip.scrollLeft = keep;
+  paintUpLive();
   strip.querySelectorAll('canvas.preview').forEach((cv) => drawPreview(cv, cards[+cv.dataset.i], myFleets, atMe));
   const step = (d) => { const w = strip.querySelector('.upcard')?.getBoundingClientRect().width || 240; strip.scrollBy({ left: d * (w + 12), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); };
   document.getElementById('upPrev').onclick = () => step(-1);

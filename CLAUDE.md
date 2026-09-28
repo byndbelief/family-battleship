@@ -104,7 +104,8 @@ takes a bare username.
   `loadMe` in app.js) and paints any avatar carrying `data-u` (every `avatar()`/`face()` does):
   green ring `.is-on` while live, glowing `.is-here` while at your game. The lobby header's Who's
   here row (`renderHere`, on the `online` event) lists everyone else with where they are or when
-  last seen. Robots are left out. It's a DB heartbeat on purpose: the e2e stack's Realtime is a
+  last seen; Your move cards get a "Live now" / "At the table now" badge (`paintUpLive`, repainted
+  in place). Robots are left out. It's a DB heartbeat on purpose: the e2e stack's Realtime is a
   stub with no presence.
 - **Deleting finished games** (`020_hide_finished.sql`): 🗑 on each finished game, each Gauntlet
   bundle and each round inside one, plus "Clear all" — two taps. It is **per player**: a row in
