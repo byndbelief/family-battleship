@@ -82,7 +82,7 @@ takes a bare username.
   "here". It acts from the watching page: Duel `botLiveShot` (drives a little, aims at where you are
   now, reload Rookie 2.3 s / Pro 1.6 s / Ace 1.3 s — yours 1.5 s, server floor 1.2 s (025) — wobble 1.8× turn-based, 4 s grace) →
   `duel_fire_live_bot`; Battleship the page asks `fire_live_bot` every 1.2 s and the server picks
-  target and square and allows one shot per 2.4 s; Putt Post `botLiveHole` plays its ball as a 🤖
+  target and square and allows one shot per 1.2 s, asked every 0.6 s (026; your guns: 1 s, server floor 0.8 s); Putt Post `botLiveHole` plays its ball as a 🤖
   ghost (think Rookie 3.6 s / Pro 2.6 s / Ace 2 s per putt) → `golf_submit_live_bot`. In a live
   Battleship game `fire` no longer also runs `_bot_maybe_play`. The aim
   hint is deliberately a rough guide — a hidden per-turn error, a wobble, 65% of the flight —
@@ -224,7 +224,7 @@ takes a bare username.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.

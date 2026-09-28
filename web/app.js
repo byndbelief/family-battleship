@@ -26,7 +26,7 @@ let sonarLoot = null;           // next tap on an opponent's board spends this S
 // Live battle: while everyone still afloat has the game open there are no turns. Tap any rival's
 // square to fire, one shot at a time, whenever your guns have reloaded (bsPresence checks in).
 let bsPresence = null, liveBS = false, bsReloadAt = 0;
-const BS_RELOAD = 2000;
+const BS_RELOAD = 1000;   // the server allows a live shot every 0.8 s (026)
 const seenShots = new Map();    // game id -> Set of shot ids already animated
 const seenAccusations = new Map();
 const pending = new Set();      // shot ids whose shell is still in the air
@@ -1163,7 +1163,7 @@ function renderGame() {
   if (game.status === 'setup') title = G.fleets[me.id] ? 'Waiting for ships' : 'Place your fleet';
   else if (game.status === 'over') title = game.winner === me.id ? 'You win!' : `${nm(game.winner)} wins!`;
   else if (imOut) { title = "You're out"; sub = 'Your fleet is sunk. You can keep watching the battle.'; }
-  else if (liveNow) { title = '⚔️ Live battle'; sub = "No turns! Tap any rival's square to fire. Your guns reload in 2 seconds."; }
+  else if (liveNow) { title = '⚔️ Live battle'; sub = "No turns! Tap any rival's square to fire. Your guns reload in 1 second."; }
   else if (myTurn) { title = 'Your turn'; sub = `Pick ${perTurn === 1 ? 'a square' : `${perTurn} squares`}${G.shotMod < 0 ? ' (one fewer for that false accusation)' : G.shotMod > 0 ? ' (one sneaky extra 🤫)' : ''} on ${opponents.length > 1 ? "one opponent's" : `${nm(opponents[0])}'s`} board, then fire.`; }
   else { title = `${nm(game.players[game.turn])}'s turn`; sub = 'This page updates as soon as they fire.'; }
 
@@ -1337,7 +1337,7 @@ function renderGame() {
 // Desktop (not full screen): the backpack rides in the fire bar, so your turn is one panel.
 const deskBar = () => matchMedia('(min-width:1000px) and (min-height:560px)').matches && !app.classList.contains('fs-on');
 // The robot in a live battle: ask the server to fire for it (it keeps the robot to one shot every
-// 2.4 s however many pages ask, and picks the target and square itself).
+// 1.2 s however many pages ask, and picks the target and square itself).
 let botAsk = false, bsLiveSince = 0;
 setInterval(async () => {
   if (!liveBS || botAsk || Date.now() - bsLiveSince < 3000 || !G || G.game.status !== 'playing' || !G.game.players.some((p) => bots.has(p))) return;
@@ -1346,7 +1346,7 @@ setInterval(async () => {
     const { data } = await sb.rpc('fire_live_bot', { p_game: G.game.id });
     if (data) { await loadGame(G.game.id); renderGame(); }
   } finally { botAsk = false; }
-}, 1200);
+}, 600);
 // A live shot: one square, straight away, then the guns reload.
 async function liveFire(target, cell, el) {
   const bar = document.getElementById('aimtext');
