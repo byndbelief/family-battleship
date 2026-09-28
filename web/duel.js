@@ -164,7 +164,7 @@ function endDrama(g) {
   const won = g.winner === me.id;
   splash(['K.O.!', won ? 'VICTORY' : 'DEFEATED', won ? 'You hold the hill' : `${nm(g.winner).replace(/<[^>]+>/g, '')} takes the hill`], { tone: won ? 'gold' : 'red', ms: 2800 });
   sfx(won ? 'fanfare' : 'lose', { delay: 0.9 });
-  jumpToNext(g, me.id, (p) => (bots.has(p) ? '🤖 ' : '') + (names[p] ?? G?.names?.[p] ?? 'someone'), 3200);
+  jumpToNext('duel', g, me.id, (p) => (bots.has(p) ? '🤖 ' : '') + (names[p] ?? G?.names?.[p] ?? 'someone'), 3200);
 }
 function stamp(text, tone = '', ms = 2400) { const el = document.createElement('div'); el.className = `stamp ${tone}`; el.innerHTML = `<span>${text}</span>`; document.body.appendChild(el); setTimeout(() => el.remove(), ms); }
 

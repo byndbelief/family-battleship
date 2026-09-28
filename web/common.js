@@ -343,9 +343,11 @@ export async function gauntletBar(gauntletId, gameId, meId, nameOf) {
 }
 // Game over, straight on to the next one: the next Gauntlet round (or the rivalry's next
 // Gauntlet) first, else the next game waiting on you. A banner counts down ("Stay here" cancels).
-// Only the first time this device sees the game end, and only if it ended in the last 10 minutes,
-// so opening an old result never bounces you away. `wait` lets the win/lose screen play first.
-export async function jumpToNext(game, meId, nameOf, wait = 3000) {
+// Quick-play games also get a Rematch button (same players, same settings); with nothing else
+// waiting, the banner offers just that, without a countdown. Only the first time this device sees
+// the game end, and only if it ended in the last 10 minutes, so an old result never bounces you
+// away. `wait` lets the win/lose screen play first.
+export async function jumpToNext(kind, game, meId, nameOf, wait = 3000) {
   const key = `next.jumped.${game.id}`;
   try { if (localStorage.getItem(key)) return; localStorage.setItem(key, '1'); } catch { return; }
   if (Date.now() - new Date(game.updated_at).getTime() > 600000) return;
@@ -361,22 +363,47 @@ export async function jumpToNext(game, meId, nameOf, wait = 3000) {
     }
   }
   if (!target) { const list = (await myTurns(meId)).filter((x) => x.id !== game.id); if (list.length) target = { ...list[0], label: 'Your move' }; }
-  if (!target) return;
+  const canRematch = !game.gauntlet_id;
+  if (!target && !canRematch) return;
   await new Promise((r) => setTimeout(r, wait));
-  const vs = target.players.filter((p) => p !== meId).map(nameOf).join(' & ') || 'solo', href = hrefFor(target.kind, target.id);
-  document.getElementById('nextJump')?.remove();
-  const el = document.createElement('div'); el.id = 'nextJump';
-  el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:95;display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:16px;background:#1B1646;color:#fff;font:700 15px/1.3 system-ui,sans-serif;box-shadow:0 10px 30px #000a;width:max-content;max-width:calc(100vw - 24px);box-sizing:border-box';
-  el.innerHTML = `<b id="nextJumpN" style="flex:none;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#F2C230;color:#2A2100">3</b><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(target.label)}: ${KIND_ICON[target.kind]} vs ${esc(vs)}</span><button type="button" style="border:0;border-radius:99px;padding:6px 12px;font:inherit;background:#ffffff22;color:#fff;cursor:pointer;flex:none;white-space:nowrap">Stay here</button>`;
-  document.body.appendChild(el);
-  let n = 3;
-  const go = () => {
+  const go = (href) => {
     const u = new URL(href, location.href);
     if (u.pathname === location.pathname) { location.hash = u.hash; if (!/\/(index\.html)?$/.test(u.pathname)) location.reload(); }
     else location.href = href;
   };
-  const iv = setInterval(() => { n -= 1; const b = document.getElementById('nextJumpN'); if (b) b.textContent = String(n); if (n <= 0) { clearInterval(iv); el.remove(); go(); } }, 1000);
-  el.querySelector('button').onclick = () => { clearInterval(iv); el.remove(); };
+  const btn = 'border:0;border-radius:99px;padding:6px 12px;font:inherit;cursor:pointer;flex:none;white-space:nowrap';
+  document.getElementById('nextJump')?.remove();
+  const el = document.createElement('div'); el.id = 'nextJump';
+  el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:95;display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 14px;border-radius:16px;background:#1B1646;color:#fff;font:700 15px/1.3 system-ui,sans-serif;box-shadow:0 10px 30px #000a;width:max-content;max-width:calc(100vw - 24px);box-sizing:border-box';
+  const vs = target ? target.players.filter((p) => p !== meId).map(nameOf).join(' & ') || 'solo' : '';
+  el.innerHTML = (target
+    ? `<b id="nextJumpN" style="flex:none;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#F2C230;color:#2A2100">3</b><span style="flex:1 1 170px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(target.label)}: ${KIND_ICON[target.kind]} vs ${esc(vs)}</span>`
+    : '<span style="flex:1 1 auto;min-width:0;white-space:nowrap">Play again?</span>')
+    + '<span style="display:flex;gap:8px;margin-left:auto">' + (canRematch ? `<button type="button" data-nj="rematch" style="${btn};background:#F2C230;color:#2A2100">🔁 Rematch</button>` : '')
+    + `<button type="button" data-nj="stay" style="${btn};background:#ffffff22;color:#fff" aria-label="${target ? 'Stay here' : 'Close'}">${target ? 'Stay here' : '✕'}</button></span>`;
+  document.body.appendChild(el);
+  let n = 3, iv = null;
+  const stop = () => { clearInterval(iv); el.remove(); };
+  if (target) iv = setInterval(() => { n -= 1; const b = document.getElementById('nextJumpN'); if (b) b.textContent = String(n); if (n <= 0) { stop(); go(hrefFor(target.kind, target.id)); } }, 1000);
+  el.querySelector('[data-nj="stay"]').onclick = stop;
+  const rm = el.querySelector('[data-nj="rematch"]');
+  if (rm) rm.onclick = async () => {
+    clearInterval(iv); rm.disabled = true; rm.textContent = 'Setting up…';
+    const b = document.getElementById('nextJumpN'); if (b) b.remove();
+    const { data, error } = await rematch(kind, game, meId);
+    if (error || !data) { rm.textContent = '🔁 Rematch'; rm.disabled = false; note(error ? friendly(error) : "Couldn't start a rematch", 'error'); return; }
+    notify(kind, data);
+    el.remove(); go(hrefFor(kind, data));
+  };
+}
+// The same game again: same players, same settings.
+async function rematch(kind, game, meId) {
+  const others = game.players.filter((p) => p !== meId);
+  const { data: prof } = others.length ? await sb.from('profiles').select('id, username').in('id', others) : { data: [] };
+  const un = others.map((id) => (prof ?? []).find((p) => p.id === id)?.username).filter(Boolean);
+  if (kind === 'duel') return sb.rpc('duel_create', { p_opponent: un[0] ?? '', p_bot_level: game.bot_level });
+  if (kind === 'golf') return sb.rpc('golf_create', { opponents: un, p_start: game.start, p_count: game.count, p_random: !!game.seed, p_bot_level: game.bot_level });
+  return sb.rpc('create_game', { opponents: un, p_mode: game.mode, p_spt: game.spt });
 }
 document.addEventListener('click', (e) => {
   const a = e.target.closest?.('a[data-reload]');

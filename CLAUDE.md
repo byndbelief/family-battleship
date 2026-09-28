@@ -92,7 +92,9 @@ takes a bare username.
   caused an event (`chaos_events.actor`) to its icon; pure chaos and the robot keep just the icon. phoenix_lord has the golden phoenix, dad_commander 😎, obanai_rocks 🐍.
 - **Game over → next game** (`jumpToNext()` in `common.js`): after the win/lose screen, a banner
   counts down 3 s and goes to the next Gauntlet round (or the rivalry's next Gauntlet), else the next
-  game waiting on you; "Stay here" cancels. Only the first time a device sees a game end, and only
+  game waiting on you; "Stay here" cancels. Quick-play games also get 🔁 Rematch (same players,
+  same settings; not Gauntlet rounds, where the next round is the rematch); with nothing else
+  waiting, the banner offers just Rematch, no countdown. Only the first time a device sees a game end, and only
   within 10 minutes of it ending, so opening an old result never bounces you away.
 - Sound effects are synthesized (`web/sfx.js`, no audio files).
 - **Settings** (⚙️ in the corner of every page, `openSettings` in `common.js`): per-device

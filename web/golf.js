@@ -632,6 +632,7 @@ async function showFinal() {
   mode = 'over';
   $('cheats').hidden = true; $('send').hidden = true;
   renderCard();
+  jumpToNext('golf', G.game, me.id, (p) => (bots.has(p) ? '🤖 ' : '') + (names[p] ?? 'someone'), 3500);
   const st = standings().filter((s) => s.played);
   if (!st.length) return;
   const best = Math.min(...st.map((s) => s.toPar)), winners = st.filter((s) => s.toPar === best).map((s) => s.p);
@@ -650,7 +651,6 @@ async function showFinal() {
       ${log.length ? `<details><summary class="small">The truth comes out</summary><ul class="small" style="text-align:left;margin:6px 0 0;padding-left:18px">${log.map((l) => `<li>${l}</li>`).join('')}</ul></details>` : '<p class="small muted">Nobody cheated. Allegedly.</p>'}`;
   }
   modal(`${h}<a class="go" href="./" style="text-decoration:none;display:inline-block;border-radius:12px;padding:10px 22px;background:var(--flag);color:#fff;font-family:var(--display)">Back to all games</a>`);
-  jumpToNext(G.game, me.id, (p) => (bots.has(p) ? '🤖 ' : '') + (names[p] ?? 'someone'), 3500);
   for (let i = 0; i < 4; i++) setTimeout(() => burst(60 + Math.random() * 240, 80 + Math.random() * 200, ['#F2C14E', '#E4572E', '#7FD3F7', '#fff'], 50, 0.05), i * 350);
 }
 
