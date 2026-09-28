@@ -171,13 +171,18 @@ takes a bare username.
   starter crate of all four; about a third of loot drops are weapons now. Robots don't use them.
 - **Digging** (`029_duel_dig.sql`): two new terrain edits in `duel_games.craters`, both
   **relative** to the ground at that point in the list (so the server never needs hill heights):
-  a cut `[a, b, from, 2]` (⛏️ Dig mode on the Move bar: the tank keeps its level and ploughs through
-  hills; `digCut()` in the engine and `_duel_cut()` on the server must stay identical) and a pit
+  a cut `[a, b, from, 2]` (⛏️ Dig mode on the Move bar, a tunnel: see below; `digCut()` in the engine and `_duel_cut()` on the server must stay identical) and a pit
   `[x, depth, r, 3]` (🕳️ Foxhole loot). `duel_games.foxholes` is player → x; you're dug in while
   your tank stands at that x: blasts × 0.6 (× 0.5 more with a Shield) — the `shielded` damage arg
   now takes multipliers (`guards()` in duel.js). Digs save with the shot (`duel_fire p_dig`) or,
   live, with the drive (`duel_dodge p_dig`); until then `pendingCuts()` draws them. Since edits can
   land after a shot, replays find the ground before a shot with `cratersBefore()`, not by count.
+  **Tunnels**: a dig slopes down 0.8 px/px from the tank's footing; where there's ≥ 6 px of hill
+  above the 22 px hollow it becomes a tunnel (`top.under[x]` = its floor; `top[x]` stays the
+  surface), else an open trench. A tank in a tunnel stands on the floor (`standY`) and is covered
+  (`coveredAt`, ⛰️ in the HP chip): shells hit the roof, blasts are measured along the ground and
+  halved (so a thick hill never makes you immune), the railgun ignores cover, and its own shells
+  leave from the surface above it (`muzzleY`). A crater that bites into the hollow opens it.
 - **Compact backpack**: `compactPack()` in common.js (phone width *or* a touch screen) picks the
   icon row; by width alone a redraw while a phone was sideways swapped in the full panel mid-game.
 - **The robot is meant to be hard at Pro and Ace, easy at Rookie.** Battleship (`012`): hunts by
