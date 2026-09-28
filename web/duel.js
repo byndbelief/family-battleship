@@ -37,7 +37,7 @@ const N = () => G.game.players.length, multi = () => N() > 2;
 const SIDE = (p) => zones(N())[p];
 const buildTop = (seed, craters) => buildTopN(seed, craters, G ? N() : 2);
 const baseXs = () => G.game.tank_x || startXs(N());
-const COLS = ['#FF6B5A', '#3DD6C6', '#FFC857', '#B79CFF'];
+const COLS = ['#FF6B5A', '#3DD6C6', '#FFC857', '#B79CFF', '#7FE07A', '#FF8FD0'];
 // Which seat a live message came from (older pages don't say: then it's the other of two).
 const fromOf = (a) => (a?.from != null ? a.from : G ? 1 - myIdx() : -1);
 function xs() {
@@ -326,7 +326,7 @@ function render() {
   $('hpRow').hidden = !many;
   if (many) {
     // One chip per tank: its colour, face, name and HP (the one whose turn it is outlined).
-    $('hpRow').style.setProperty('--n', g.players.length);
+    $('hpRow').style.setProperty('--n', g.players.length > 4 ? 3 : g.players.length);   // 5-6 tanks: two rows of chips
     $('hpRow').innerHTML = g.players.map((id, p) => `<div class="hpc ${g.hp[p] <= 0 ? 'out' : ''} ${g.status === 'playing' && !liveOn && g.turn === p ? 'turn' : ''}" style="--c:${COLS[p]}">
       <span><i class="dot"></i>${face(id)}<span class="nm">${who(id)}</span><b>${g.hp[p] <= 0 ? '💀' : g.hp[p]}${tag(id)}</b></span>
       <span class="bar"><i style="width:${g.hp[p]}%"></i></span></div>`).join('');

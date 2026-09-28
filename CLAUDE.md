@@ -189,6 +189,11 @@ takes a bare username.
   page on load, the lobby per preview). Start spots and stretches scale with the width and match
   the server's `_duel_start_x(n, w)` / `_duel_zone(n, i, w)`; at 800 they're the old numbers, and
   duels made before 031 stay 800.
+  **Up to 6 tanks** (`032_six_players.sql`): 5 → 1400, 6 → 1600, tanks evenly spread; HP chips go
+  to two rows of three. Shell speed per power point is `0.12 × √(W/800)` (`PV()`), so full power
+  spans any field (range ∝ speed²); at 800 it's unchanged. Putt Post also takes 6 (just the cap).
+  Battleship stays 3, Chaos Cards and the Gauntlet 4. Local e2e: add `test_five` / `test_six` to
+  `auth.users` to have 6 players.
 - **Compact backpack**: `compactPack()` in common.js (phone width *or* a touch screen) picks the
   icon row; by width alone a redraw while a phone was sideways swapped in the full panel mid-game.
 - **The robot is meant to be hard at Pro and Ace, easy at Rookie.** Battleship (`012`): hunts by
@@ -263,7 +268,7 @@ takes a bare username.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.

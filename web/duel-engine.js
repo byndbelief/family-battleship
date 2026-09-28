@@ -4,13 +4,17 @@ export const TANK_X = [90, 710], GRAV = 0.12, CRATER_R = 28, BERTHA_R = 44;
 // page zooms out: 1000 for three, 1200 for four (duel_games.world). The page sets it for the duel
 // it shows; the numbers everywhere else follow (these are live bindings for importers too).
 export let W = 800, H = 440;
-export function setWorld(w = 800) { W = w || 800; H = Math.round((440 * W) / 800); }
+export function setWorld(w = 800) { W = w || 800; H = Math.round((440 * W) / 800); }   // 5 tanks: 1400, 6: 1600 (032)
 function rng(seed) { let x = seed >>> 0 || 1; return () => { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; }; }
 // 3-4 player duels (023): tanks start spread along the ridge and each drives within its own
 // stretch. Two players keep the old spots and halves (and aim facing each other, 5-85°); with more,
 // the angle is absolute, 5-175°, and past 90° fires to the left.
 // Spread across the battlefield's width (the same spots as _duel_start_x / _duel_zone, 031).
-const startXs = (n) => (n === 3 ? [90, Math.floor(W / 2), W - 90] : n === 4 ? [90, Math.round(W * 0.375), Math.round(W * 0.625), W - 90] : [90, W - 90]);
+const startXs = (n) => (n === 3 ? [90, Math.floor(W / 2), W - 90] : n === 4 ? [90, Math.round(W * 0.375), Math.round(W * 0.625), W - 90]
+  : n > 4 ? Array.from({ length: n }, (_, k) => Math.round(90 + (k * (W - 180)) / (n - 1))) : [90, W - 90]);   // 5-6 (032): evenly
+// Shell speed per point of power. Range goes with speed², so on a wider battlefield shells fly
+// faster by √(width/800): full power spans any field, and 2 tanks play exactly as always.
+const PV = () => 0.12 * Math.sqrt(W / 800);
 function zones(n) {
   if (n <= 2) return [[30, Math.floor(W / 2) - 70], [Math.floor(W / 2) + 70, W - 30]];
   const s = startXs(n);
@@ -81,7 +85,7 @@ const muzzleY = (top, t, x) => (coveredAt(top, t.x) ? top[clampX(x)] - 4 : t.y -
 const nearestFoe = (x, shooter, top, xs) => { let best = null; xs.forEach((tx, p) => { if (p !== shooter && tx != null && (!best || Math.abs(tx - x) < Math.abs(best.x - x))) best = tankPos(p, top, xs); }); return best; };
 function simulate(seed, move, top, shooter, angle, power, windX = 1, xs = TANK_X) {
   const { dir, a } = aimDir(shooter, angle, xs), t = tankPos(shooter, top, xs), wind = windFor(seed, move, windX) * 0.004;
-  let x = t.x + dir * 14, y = muzzleY(top, t, t.x + dir * 14); const v = power * 0.12;
+  let x = t.x + dir * 14, y = muzzleY(top, t, t.x + dir * 14); const v = power * PV();
   let vx = Math.cos((a * Math.PI) / 180) * v * dir, vy = -Math.sin((a * Math.PI) / 180) * v;
   const path = [];
   for (let i = 0; i < 3000; i++) {
@@ -125,7 +129,7 @@ function flyFrom(state, seed, move, top, shooter, windX, xs, steer) {
 function simulateWeapon(seed, move, top, shooter, angle, power, windX = 1, xs = TANK_X, weapon = null) {
   if (!weapon || weapon === 'dirt') { const s = simulate(seed, move, top, shooter, angle, power, windX, xs); return [s]; }
   const { dir, a: deg } = aimDir(shooter, angle, xs), t = tankPos(shooter, top, xs), a = (deg * Math.PI) / 180;
-  const start = { x: t.x + dir * 14, y: muzzleY(top, t, t.x + dir * 14), vx: Math.cos(a) * power * 0.12 * dir, vy: -Math.sin(a) * power * 0.12 };
+  const start = { x: t.x + dir * 14, y: muzzleY(top, t, t.x + dir * 14), vx: Math.cos(a) * power * PV() * dir, vy: -Math.sin(a) * power * PV() };
   if (weapon === 'railgun') {
     // The railgun aims level-ish: the angle setting (5-85) maps to -40° to +40°.
     const path = [], ra = railAngle(deg) * Math.PI / 180;

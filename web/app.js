@@ -395,8 +395,8 @@ async function lobby() {
   const kind = () => chosen;
   const picked = () => chips.filter((x) => x.getAttribute('aria-pressed') === 'true');
   const LIMITS = {
-    battleship: [1, 2, 'Opponents (pick one, or two for a 3-way battle)'], golf: [0, 3, 'Opponents (none for a solo round, up to three)'],
-    duel: [1, 3, 'Opponents (one for a duel, up to three for a free-for-all)'], cards: [1, 3, 'Opponents (one to three)'], gauntlet: [1, 3, 'Opponents (one to three)'],
+    battleship: [1, 2, 'Opponents (pick one, or two for a 3-way battle)'], golf: [0, 5, 'Opponents (none for a solo round, up to five)'],
+    duel: [1, 5, 'Opponents (one for a duel, up to five for a free-for-all)'], cards: [1, 3, 'Opponents (one to three)'], gauntlet: [1, 3, 'Opponents (one to three)'],
   };
   const refreshForm = () => {
     if (!chosen) return;
@@ -837,7 +837,7 @@ function drawPreview(cv, card, myFleets, atMe) {
     c.fillStyle = '#FFE3A3'; c.beginPath(); c.arc(w * 0.76, h * 0.2, 14, 0, 7); c.fill();
     c.fillStyle = '#1F8C8A'; c.beginPath(); c.moveTo(0, h); for (let x = 0; x < DW; x += 4) c.lineTo(x * sx, top[x] * sy); c.lineTo(w, h); c.fill();
     c.strokeStyle = '#9BF5EA'; c.lineWidth = 1.5; c.beginPath(); for (let x = 0; x < DW; x += 4) c[x ? 'lineTo' : 'moveTo'](x * sx, top[x] * sy); c.stroke();
-    const cols = ['#FF6B5A', '#3DD6C6', '#FFC857', '#B79CFF'], bw = n > 2 ? 28 : 40;
+    const cols = ['#FF6B5A', '#3DD6C6', '#FFC857', '#B79CFF', '#7FE07A', '#FF8FD0'], bw = n > 2 ? 28 : 40;
     g.hp.forEach((_, p) => {
       const X = g.tank_x || startXs(n), tx = X[p] * sx, ty = top[X[p]] * sy;
       c.globalAlpha = g.hp[p] > 0 ? 1 : 0.4;
