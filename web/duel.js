@@ -278,6 +278,9 @@ function render() {
     };
   });
   $('del').hidden = g.created_by !== me.id;
+  // Live vs robot: a switch whenever the robot is in the duel.
+  const bl = $('botLive'); bl.hidden = !(g.status === 'playing' && mi >= 0 && g.players.some(isBot));
+  if (!bl.hidden) { const b = $('botLiveBtn'); b.setAttribute('aria-pressed', String(!!g.live_bot)); b.querySelector('b').textContent = g.live_bot ? 'On' : 'Off'; }
   $('feed').innerHTML = [...G.shots].reverse().slice(0, 6).map((s) => {
     const before = s.move > 1 ? G.shots.find((x) => x.move === s.move - 1)?.hp_after || [100, 100] : [100, 100];
     const hurt = [0, 1].map((p) => before[p] - s.hp_after[p]).map((d, p) => (d > 0 ? `${who(g.players[p])} −${d}` : '')).filter(Boolean).join(', ');
@@ -331,7 +334,7 @@ async function decide() {
   render();
   if (g.status === 'over') { if (liveOn) setLive(false); endDrama(g); return; }
   const cur = turnId();
-  if (isBot(cur)) {
+  if (isBot(cur) && !liveOn) {
     const stale = Date.now() - new Date(g.updated_at).getTime() > 15000;
     if ((last && last.shooter === me.id) || stale) return robotShot();
   }
@@ -420,7 +423,7 @@ function showReload() {
 async function here(on = true) {
   const g = G?.game;
   if (!g || myIdx() < 0) return;
-  if (g.status !== 'playing' || g.players.some(isBot)) { if (liveOn) setLive(false); return; }
+  if (g.status !== 'playing' || (g.players.some(isBot) && !g.live_bot)) { if (liveOn) setLive(false); return; }
   const { data, error } = await sb.rpc('duel_here', { p_game: g.id, p_on: on });
   if (on && !error) setLive(!!data);
 }
@@ -431,12 +434,58 @@ function setLive(v) {
   if (v) {
     live?.send('here', {});
     stopShotClock();
-    splash(['⚔️ LIVE BATTLE', "You're both here", 'No turns. Fire at will!'], { tone: 'red', ms: 2200 });
+    const vsBot = G?.game.players.some(isBot);
+    if (vsBot) botReloadAt = Date.now() + 4000;   // a few seconds' grace before the robot opens fire
+    splash(['⚔️ LIVE BATTLE', vsBot ? 'You vs the robot' : "You're both here", 'No turns. Fire at will!'], { tone: 'red', ms: 2200 });
   } else {
     reloadAt = 0; showReload();
     if (G?.game.status === 'playing') note('Live battle over: back to taking turns.');
   }
   if (G) { top = buildTop(G.game.seed, G.game.craters); render(); }
+}
+
+// ---------------------------------------------------------------- the robot, live
+// With "Live vs robot" on, the robot fires on its own reload (Rookie 4.5 s, Pro 3.2 s, Ace 2.6 s;
+// yours is 3 s): it rolls a little, aims at where your tank is right now, and wobbles by skill.
+// It gives you 4 s to get going, and wobbles more than in turns (see botLiveShot).
+let botReloadAt = 0, botBusy = false;
+const BOT_RELOAD = [4500, 3200, 2600];
+setInterval(() => { if (liveOn && !botBusy && G?.game.status === 'playing' && G.game.players.some(isBot) && Date.now() >= botReloadAt) botLiveShot(); }, 250);
+async function botLiveShot() {
+  botBusy = true;
+  try {
+    const g = G.game, bi = g.players.findIndex(isBot), mi = 1 - bi, lvl = g.bot_level ?? 1;
+    botReloadAt = Date.now() + BOT_RELOAD[lvl];
+    // Roll to a nearby spot first.
+    const [lo, hi] = SIDE[bi], from = xs()[bi], to = Math.max(lo, Math.min(hi, from + Math.round((Math.random() * 2 - 1) * 30)));
+    if (!reduceMotion) for (let x = from; x !== to; x += Math.sign(to - x) * Math.min(3, Math.abs(to - x))) { oppLiveX = x; await sleep(30); if (!liveOn) return; }
+    oppLiveX = to;
+    const X = xs(), target = tankPos(mi, top, X), move = g.move, windX = g.gust === move ? 3 : 1;
+    let best = null;
+    for (let a = 10; a <= 85; a += 1) for (let pw = 20; pw <= 100; pw += 2) {
+      const sim = simulate(g.seed, move, top, bi, a, pw, windX, X);
+      const d = sim.impact ? Math.hypot(sim.impact.x - target.x, sim.impact.y - target.y) : 999;
+      if (!best || d < best.d) best = { d, a, pw };
+    }
+    // Live it wobbles more than in turns (1.8×) and steadies less (to 60% at best): a person needs time
+    // to aim and it doesn't, and you can drive out of the way.
+    const taken = G.shots.filter((s) => s.shooter === g.players[bi]).length, learn = 1.8 * (lvl === 0 ? 1 : Math.max(0.6, 0.85 ** taken));
+    const base = [{ a: 6, p: 8 }, { a: 1.7, p: 2.4 }, { a: 0.6, p: 0.8 }][lvl];
+    const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+    const angle = Math.max(5, Math.min(85, Math.round(best.a + gauss() * base.a * learn))), power = Math.max(20, Math.min(100, Math.round(best.pw + gauss() * base.p * learn)));
+    oppAim = { move, angle, power, x: to };
+    await sleep(reduceMotion ? 0 : 250);
+    if (!liveOn) return;
+    const sim = await flyShell(bi, angle, power, g.craters, move, null, windX, X);
+    const now = G.game, Xi = xs(), crater = sim.impact ? [Math.round(sim.impact.x), Math.round(sim.impact.y), CRATER_R] : null;
+    const hp = damage(top, sim.impact, now.hp, false, now.players.map((x) => now.shields.includes(x) && x !== now.players[bi]), Xi);
+    if (crater) { blast(crater); applyCrater(top, crater); }
+    const { error } = await sb.rpc('duel_fire_live_bot', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_dmg: [0, 1].map((k) => now.hp[k] - hp[k]),
+      p_x: to !== baseXs()[bi] ? to : null, p_target_x: Xi[mi], p_wind_move: move, p_wind_x: windX });
+    if (error) { if (/Still reloading/.test(error.message || '')) botReloadAt = Date.now() + 800; else if (!/over/i.test(error.message || '')) note(friendly(error), 'error'); }
+    else { hitDrama(now.hp, hp); seenHp = hp; }
+    await load(g.id); decide();
+  } finally { botBusy = false; }
 }
 
 // The robot tries every angle and power, keeps the one that lands closest, then wobbles it by skill.
@@ -621,6 +670,14 @@ cv.addEventListener('pointerdown', (e) => { if (!canAim()) return; e.preventDefa
 cv.addEventListener('pointermove', (e) => { if (drag && canAim()) aimFromPointer(e); });
 ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => cv.addEventListener(ev, () => { drag = null; }));
 $('fire').onclick = () => { if (liveOn) fireLive(); else if (!busy) fire(); };
+$('botLiveBtn').onclick = async () => {
+  const g = G?.game; if (!g) return;
+  const b = $('botLiveBtn'); b.disabled = true;
+  const { error } = await sb.rpc('set_live_bot', { p_kind: 'duel', p_game: g.id, p_on: !g.live_bot });
+  b.disabled = false;
+  if (error) { note(friendly(error), 'error'); return; }
+  await load(g.id); render(); here();
+};
 $('del').onclick = async () => {
   const b = $('del');
   if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Tap again to delete the duel for everyone'; return; }

@@ -96,7 +96,7 @@ function drawGhosts() {
     if (gb.hole !== hole || gb.holed || Date.now() - gb.at > 60000) return;
     ctx.globalAlpha = 0.85; ctx.fillStyle = '#FFE08A'; ctx.strokeStyle = '#0006'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(gb.x, gb.y, R, 0, 7); ctx.fill(); ctx.stroke();
-    const u = G.names?.[p] ?? names[p], av = avatarOf(u), fx = gb.x, fy = gb.y - 17;
+    const u = G.names?.[p] ?? names[p], av = isBot(p) ? '🤖' : avatarOf(u), fx = gb.x, fy = gb.y - 17;
     ctx.globalAlpha = 1; ctx.fillStyle = '#0008'; ctx.beginPath(); ctx.arc(fx, fy, 10, 0, 7); ctx.fill();
     if (av && av.includes('/')) {
       if (!faceImgs[av]) { faceImgs[av] = new Image(); faceImgs[av].src = av; }
@@ -204,6 +204,9 @@ function renderCard() {
   });
   $('scorecard').innerHTML = h + '</tbody></table>';
   $('del').hidden = g.created_by !== me.id;
+  // Live race vs robot: a switch whenever the robot is playing.
+  const bl = $('botLive'); bl.hidden = !(g.status === 'playing' && n() > 1 && g.players.some(isBot));
+  if (!bl.hidden) { const b = $('botLiveBtn'); b.setAttribute('aria-pressed', String(!!g.live_bot)); b.querySelector('b').textContent = g.live_bot ? 'On' : 'Off'; }
   // Skip ahead, only while it's your turn and nothing is rolling.
   const canJump = !over && !liveOn && curPlayer() === me.id && mode === 'aim' && curHole() < g.start + g.count - 1;
   $('jumpRow').hidden = !canJump;
@@ -629,6 +632,60 @@ async function robotTurn() {
   decide();
 }
 
+// ---------------------------------------------------------------- the robot in a live race
+// It plays its own ball on the hole everyone is on, shown as a 🤖 ghost, with a think between
+// putts (Rookie slowest, Ace quickest), then saves its hole. One hole at a time, once.
+let botRowPlaying = -1;
+const botAimFrom = (ball, clock, h, lvl) => {
+  const bx = q20(ball.x), by = q20(ball.y), [cx, cy] = h.cup;
+  let best = null;
+  const trial = (ang, p) => {
+    const sp = 0.6 + p * 10.4, b = { x: bx, y: by, vx: q100(Math.cos(ang) * sp), vy: q100(Math.sin(ang) * sp), ticks: 0, clock };
+    let ev; do { ev = tick(b, h); } while (ev !== 'cup' && ev !== 'water' && ev !== 'stop');
+    const sc = ev === 'cup' ? -1000 + p : ev === 'water' ? 1000 : Math.sqrt((b.x - cx) ** 2 + (b.y - cy) ** 2) + (h.sand.some((r) => inRect(b.x, b.y, r)) ? 20 : 0);
+    if (!best || sc < best.sc) best = { sc, ang, p };
+  };
+  for (let a = 0; a < 360; a += 5) for (let p = 0.06; p <= 1.0001; p += 0.08) trial((a * Math.PI) / 180, p);
+  const a0 = best.ang, p0 = best.p;
+  for (let da = -4; da <= 4; da++) for (let dp = -0.06; dp <= 0.0601; dp += 0.02) trial(a0 + (da * Math.PI) / 180, Math.min(1, Math.max(0.04, p0 + dp)));
+  const sk = BOT_SKILL[lvl], ang = best.ang + (gauss() * sk.aim * Math.PI) / 180, p = Math.min(1, Math.max(0.04, best.p * (1 + gauss() * sk.power))), sp = 0.6 + p * 10.4;
+  return { vx: q100(Math.cos(ang) * sp), vy: q100(Math.sin(ang) * sp) };
+};
+async function botLiveHole() {
+  const g = G?.game, bot = g?.players.find(isBot);
+  if (!bot || g.status !== 'playing' || !liveOn) return;
+  const row = Math.floor(g.t / n());
+  if (botRowPlaying === row || G.turns.some((x) => x.player === bot && Math.floor(x.t / n()) === row)) return;
+  botRowPlaying = row;
+  const hole = curHole(), h = holeWithAttack(g.seed, hole, 0), lvl = g.bot_level ?? 1, think = [3600, 2600, 2000][lvl];
+  let ball = { x: h.tee[0], y: h.tee[1] }, clock = 0, count = 0, holed = false;
+  const strokes = [], still = () => liveOn && G.game.status === 'playing' && Math.floor(G.game.t / n()) === row;
+  ghosts[bot] = { hole, x: ball.x, y: ball.y, at: Date.now() };
+  await sleep(1200 + Math.random() * 1200);
+  while (still() && count < MAX_STROKES && !holed) {
+    await sleep(think * (0.7 + Math.random() * 0.6));
+    if (!still()) break;
+    const aim = botAimFrom(ball, clock, h, lvl), s = { x: q20(ball.x), y: q20(ball.y), vx: aim.vx, vy: aim.vy };
+    strokes.push(fromStroke(s));
+    const b = { x: s.x, y: s.y, vx: s.vx, vy: s.vy, ticks: 0, clock };
+    let ev;
+    for (;;) {
+      for (let i = 0; i < 3; i++) { ev = tick(b, h); if (ev === 'cup' || ev === 'water' || ev === 'stop') break; }
+      ghosts[bot] = { hole, x: b.x, y: b.y, at: Date.now() };
+      if (ev === 'cup' || ev === 'water' || ev === 'stop') break;
+      await new Promise((r) => requestAnimationFrame(r));
+    }
+    clock = b.clock; count += 1;
+    if (ev === 'cup') { holed = true; ghosts[bot].holed = true; }
+    else if (ev === 'water') { count += 1; ball = { x: s.x, y: s.y }; }
+    else ball = { x: q20(b.x), y: q20(b.y) };
+  }
+  if (!still()) { botRowPlaying = -1; return; }
+  const { error } = await sb.rpc('golf_submit_live_bot', { p_game: g.id, p_strokes: strokes, p_actual: Math.max(1, Math.min(12, count)), p_holed: holed });
+  if (error && !/finished this hole/.test(error.message || '')) { botRowPlaying = -1; return; }
+  await load(g.id); renderCard(); if (mode === 'idle' && !flowing) decide();
+}
+
 // ---------------------------------------------------------------- the end
 async function showFinal() {
   mode = 'over';
@@ -700,7 +757,15 @@ $('del').onclick = async () => {
   }, {
     ball: (m) => { if (liveOn && m.p && m.p !== me.id) ghosts[m.p] = { hole: m.hole, x: m.x, y: m.y, holed: !!m.holed, at: Date.now() }; },
   });
-  if (n() > 1 && !G.game.players.some(isBot)) livePresence('golf', id, setLive);
+  if (n() > 1) livePresence('golf', id, setLive);   // with the robot in, the server only counts it live when live_bot is on
+  $('botLiveBtn').onclick = async () => {
+    const b = $('botLiveBtn'); b.disabled = true;
+    const { error } = await sb.rpc('set_live_bot', { p_kind: 'golf', p_game: G.game.id, p_on: !G.game.live_bot });
+    b.disabled = false;
+    if (error) { note(friendly(error), 'error'); return; }
+    await load(G.game.id); renderCard();
+  };
+  setInterval(() => { if (liveOn) botLiveHole(); }, 1500);
   navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.url) location.href = e.data.url; });
   const upNext = () => nextUpChip(me.id, id, (p) => (bots.has(p) ? '🤖 ' : '') + (names[p] ?? G?.names?.[p] ?? 'someone'));
   upNext(); setInterval(() => { if (!document.hidden) upNext(); }, 20000);

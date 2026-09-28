@@ -285,6 +285,8 @@ body.quake { animation: quake .45s linear 1; }
 @media (prefers-reduced-motion: reduce) { .firebar .fire.ready { animation: none; } }
 body.has-firebar #nextUp, body.has-firebar #setBtn { bottom: calc(var(--fbh, 80px) + 10px) !important; }
 body.has-firebar { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
+.botlive { display: flex; }
+.botlive .chip[aria-pressed=true] { background: var(--hit); border-color: var(--hit); color: #fff; }
 /* Desktop: the fire bar is a compact panel centered under the boards, and the boards grow with
    the window but always fit it top to bottom. */
 @media (min-width: 1000px) and (min-height: 560px) {

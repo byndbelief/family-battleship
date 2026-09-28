@@ -930,10 +930,10 @@ async function openGame(id) {
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shots', filter: `game_id=eq.${id}` }, refresh)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'accusations', filter: `game_id=eq.${id}` }, refresh)
     .subscribe((s) => { const l = document.getElementById('live'); if (l) l.classList.toggle('off', s !== 'SUBSCRIBED'); }));
-  if (!G.game.players.some((p) => bots.has(p))) bsPresence = livePresence('battleship', id, (v) => {
-    liveBS = v; aims = { target: null, cells: new Set() }; peekMode = false;
+  bsPresence = livePresence('battleship', id, (v) => {
+    liveBS = v; aims = { target: null, cells: new Set() }; peekMode = false; if (v) bsLiveSince = Date.now();
     if (G?.game.status !== 'playing') return renderGame();
-    if (v) { stopShotClock(); splash(['⚔️ LIVE BATTLE', "Everyone's here", 'No turns. Fire at will!'], { tone: 'red', ms: 2200 }); }
+    if (v) { stopShotClock(); splash(['⚔️ LIVE BATTLE', G.game.players.some((p) => bots.has(p)) ? 'You vs the robot' : "Everyone's here", 'No turns. Fire at will!'], { tone: 'red', ms: 2200 }); }
     else { bsReloadAt = 0; note('Live battle over: back to taking turns.'); }
     renderGame();
   });
@@ -1121,6 +1121,7 @@ function renderGame() {
       <h1>${title}</h1>
       ${sub ? `<p class="muted gsub">${sub}</p>` : ''}
       ${playersStrip}
+      ${game.status === 'playing' && !imOut && game.players.some((p) => bots.has(p)) ? `<div class="botlive"><button type="button" class="chip" id="botLiveBtn" aria-pressed="${!!game.live_bot}">⚔️ Live battle vs robot: <b>${game.live_bot ? 'On' : 'Off'}</b></button></div>` : ''}
     </header>
     ${body}
     ${canDelete ? `<p><button class="link danger" id="del">Delete this game</button></p>` : ''}
@@ -1151,6 +1152,13 @@ function renderGame() {
   const fb = app.querySelector('.firebar');   // keep the ▶ Next chip and 🔊 above it, whatever its height
   if (fb) document.documentElement.style.setProperty('--fbh', `${Math.ceil(fb.getBoundingClientRect().height)}px`);
   app.querySelectorAll('[data-tab]').forEach((b) => { b.onclick = () => showBoard(b.dataset.tab); });
+  const blb = document.getElementById('botLiveBtn');
+  if (blb) blb.onclick = async () => {
+    blb.disabled = true;
+    const { error } = await sb.rpc('set_live_bot', { p_kind: 'battleship', p_game: game.id, p_on: !game.live_bot });
+    if (error) { note(friendly(error), 'error'); blb.disabled = false; return; }
+    await loadGame(game.id); renderGame();
+  };
   const clr = document.getElementById('clearAim');
   if (clr) clr.onclick = () => { aims = { target: null, cells: new Set() }; renderGame(); };
 
@@ -1211,6 +1219,17 @@ function renderGame() {
 
 // Desktop (not full screen): the backpack rides in the fire bar, so your turn is one panel.
 const deskBar = () => matchMedia('(min-width:1000px) and (min-height:560px)').matches && !app.classList.contains('fs-on');
+// The robot in a live battle: ask the server to fire for it (it keeps the robot to one shot every
+// 2.4 s however many pages ask, and picks the target and square itself).
+let botAsk = false, bsLiveSince = 0;
+setInterval(async () => {
+  if (!liveBS || botAsk || Date.now() - bsLiveSince < 3000 || !G || G.game.status !== 'playing' || !G.game.players.some((p) => bots.has(p))) return;
+  botAsk = true;
+  try {
+    const { data } = await sb.rpc('fire_live_bot', { p_game: G.game.id });
+    if (data) { await loadGame(G.game.id); renderGame(); }
+  } finally { botAsk = false; }
+}, 1200);
 // A live shot: one square, straight away, then the guns reload.
 async function liveFire(target, cell, el) {
   const bar = document.getElementById('aimtext');
