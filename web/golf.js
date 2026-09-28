@@ -236,7 +236,7 @@ async function decide() {
   if (cur === me.id) return myTurn();
   if (isBot(cur)) {
     const stale = Date.now() - new Date(g.updated_at).getTime() > 20000;
-    if (prev?.player === me.id || stale || !prev) {
+    if (prev?.player === me.id || (prev && isBot(prev.player) && g.players.find((q) => !isBot(q)) === me.id) || stale || !prev) {   // robot after robot: the first person drives
       if (afterPanel) return;   // they click "Let the robot play" once they've planted (or not)
       return robotTurn();
     }
@@ -662,7 +662,7 @@ async function robotTurn() {
 // ---------------------------------------------------------------- the robot in a live race
 // It plays its own ball on the hole everyone is on, shown as a 🤖 ghost, with a think between
 // putts (Rookie slowest, Ace quickest), then saves its hole. One hole at a time, once.
-let botRowPlaying = -1;
+const botRowPlaying = {};   // robot id -> the hole row it's playing (several robots can race, 033)
 const botAimFrom = (ball, clock, h, lvl) => {
   const bx = q20(ball.x), by = q20(ball.y), [cx, cy] = h.cup;
   let best = null;
@@ -678,12 +678,13 @@ const botAimFrom = (ball, clock, h, lvl) => {
   const sk = BOT_SKILL[lvl], ang = best.ang + (gauss() * sk.aim * Math.PI) / 180, p = Math.min(1, Math.max(0.04, best.p * (1 + gauss() * sk.power))), sp = 0.6 + p * 10.4;
   return { vx: q100(Math.cos(ang) * sp), vy: q100(Math.sin(ang) * sp) };
 };
-async function botLiveHole() {
-  const g = G?.game, bot = g?.players.find(isBot);
+const botLiveHoles = () => G?.game.players.filter(isBot).forEach((b) => botLiveHole(b));
+async function botLiveHole(bot) {
+  const g = G?.game;
   if (!bot || g.status !== 'playing' || !liveOn) return;
   const row = Math.floor(g.t / n());
-  if (botRowPlaying === row || G.turns.some((x) => x.player === bot && Math.floor(x.t / n()) === row)) return;
-  botRowPlaying = row;
+  if (botRowPlaying[bot] === row || G.turns.some((x) => x.player === bot && Math.floor(x.t / n()) === row)) return;
+  botRowPlaying[bot] = row;
   const hole = curHole(), h = holeWithAttack(g.seed, hole, 0), lvl = g.bot_level ?? 1, think = [3600, 2600, 2000][lvl];
   let ball = { x: h.tee[0], y: h.tee[1] }, clock = 0, count = 0, holed = false;
   const strokes = [], still = () => liveOn && G.game.status === 'playing' && Math.floor(G.game.t / n()) === row;
@@ -707,9 +708,9 @@ async function botLiveHole() {
     else if (ev === 'water') { count += 1; ball = { x: s.x, y: s.y }; }
     else ball = { x: q20(b.x), y: q20(b.y) };
   }
-  if (!still()) { botRowPlaying = -1; return; }
-  const { error } = await sb.rpc('golf_submit_live_bot', { p_game: g.id, p_strokes: strokes, p_actual: Math.max(1, Math.min(12, count)), p_holed: holed });
-  if (error && !/finished this hole/.test(error.message || '')) { botRowPlaying = -1; return; }
+  if (!still()) { botRowPlaying[bot] = -1; return; }
+  const { error } = await sb.rpc('golf_submit_live_bot', { p_game: g.id, p_strokes: strokes, p_actual: Math.max(1, Math.min(12, count)), p_holed: holed, p_bot: bot });
+  if (error && !/finished this hole/.test(error.message || '')) { botRowPlaying[bot] = -1; return; }
   await load(g.id); renderCard(); if (mode === 'idle' && !flowing) decide();
 }
 
@@ -794,7 +795,7 @@ async function deleteGame() {
     ball: (m) => { if (liveOn && m.p && m.p !== me.id) ghosts[m.p] = { hole: m.hole, x: m.x, y: m.y, holed: !!m.holed, at: Date.now() }; },
   });
   if (n() > 1) livePresence('golf', id, setLive);   // with the robot in, the server only counts it live when live_bot is on
-  setInterval(() => { if (liveOn) botLiveHole(); }, 1500);
+  setInterval(() => { if (liveOn) botLiveHoles(); }, 1500);
   navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.url) location.href = e.data.url; });
   const upNext = () => nextUpChip(me.id, id, (p) => (bots.has(p) ? '🤖 ' : '') + (names[p] ?? G?.names?.[p] ?? 'someone'));
   upNext(); setInterval(() => { if (!document.hidden) upNext(); }, 20000);

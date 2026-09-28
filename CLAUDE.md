@@ -2,8 +2,9 @@
 
 A private, live multiplayer game site for one family: `dad_commander` (the owner, who
 talks to Claude), `phoenix_lord` (son, ~18) and `obanai_rocks` (daughter, 14), plus the
-robot `admiral_bot`. Logins are `<username>@thegame.com` in Supabase Auth; the site
-takes a bare username.
+robots `admiral_bot`, `bot1`, `bot2`, `bot3` and `bot4` (033). Logins are
+`<username>@thegame.com` in Supabase Auth, made by hand in the dashboard; the site takes a bare
+username. A new account only becomes a robot once it's in `public.bots`.
 
 - **Site:** https://byndbelief.github.io/game-room/ — plain HTML/JS in `web/`, no build step.
 - **Backend:** Supabase project **theGAME** (`okywhdfmdpdvrfhbkyeo`, us-west-2): Postgres with
@@ -194,6 +195,17 @@ takes a bare username.
   spans any field (range ∝ speed²); at 800 it's unchanged. Putt Post also takes 6 (just the cap).
   Battleship stays 3, Chaos Cards and the Gauntlet 4. Local e2e: add `test_five` / `test_six` to
   `auth.users` to have 6 players.
+- **Several robots in one game** (`033_more_bots.sql`): turns always worked for whichever robot's
+  turn it is; after a robot, the first person still at the table drives the next one (duel.js
+  `decide`, golf.js `decide`). Live modes act per robot: Battleship's `fire_live_bot` fires for
+  every robot whose guns have reloaded (each shot in its own sub-transaction), and Hilltop /
+  Putt Post pass `p_bot` to `duel_fire_live_bot` / `golf_submit_live_bot` (per-seat reload timers
+  in duel.js, per-robot hole rows in golf.js). Local e2e only has `admiral_bot`: add `bot1@x.com`
+  and `bot2@x.com` to `auth.users` and re-run 033 to get more.
+- **`live` settings default to false** (033): `fire` and `_golf_submit` read `bs.live` / `golf.live`
+  with `coalesce(..., false)`. Without it, a connection that never ran a live shot read NULL and
+  `if not live` skipped the robot's Battleship turn. Use the same `coalesce` for any new
+  `current_setting` flag.
 - **Compact backpack**: `compactPack()` in common.js (phone width *or* a touch screen) picks the
   icon row; by width alone a redraw while a phone was sideways swapped in the full panel mid-game.
 - **The robot is meant to be hard at Pro and Ace, easy at Rookie.** Battleship (`012`): hunts by
@@ -268,7 +280,7 @@ takes a bare username.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.

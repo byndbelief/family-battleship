@@ -449,7 +449,9 @@ async function decide() {
   const cur = turnId();
   if (isBot(cur) && !liveOn) {
     const stale = Date.now() - new Date(g.updated_at).getTime() > 15000;
-    if ((last && last.shooter === me.id) || stale) return robotShot();
+    // Whoever fired last plays the robot's turn; after another robot, the first person still standing does.
+    const host = g.players.find((q, k) => !isBot(q) && g.hp[k] > 0) === me.id;
+    if ((last && (last.shooter === me.id || (isBot(last.shooter) && host))) || stale) return robotShot();
   }
 }
 
@@ -554,7 +556,7 @@ function setLive(v) {
     live?.send('here', {});
     stopShotClock();
     const vsBot = G?.game.players.some(isBot);
-    if (vsBot) botReloadAt = Date.now() + 4000;   // a few seconds' grace before the robot opens fire
+    if (vsBot) G.game.players.forEach((p, k) => { if (isBot(p)) botReloadAt[k] = Date.now() + 4000 + k * 400; });   // a few seconds' grace before the robots open fire
     splash(['⚔️ LIVE BATTLE', vsBot && !multi() ? 'You vs the robot' : multi() ? "Everyone's here" : "You're both here", 'No turns. Fire at will!'], { tone: 'red', ms: 2200 });
   } else {
     reloadAt = 0; showReload();
@@ -567,7 +569,7 @@ function setLive(v) {
 // With "Live vs robot" on, the robot fires on its own reload (Rookie 2.3 s, Pro 1.6 s, Ace 1.3 s;
 // yours is 1.5 s): it rolls a little, aims at where your tank is right now, and wobbles by skill.
 // It gives you 4 s to get going, and wobbles more than in turns (see botLiveShot).
-let botReloadAt = 0, botBusy = false;
+let botReloadAt = {}, botBusy = new Set();   // by seat: several robots can be in one duel (033)
 const BOT_RELOAD = [2300, 1600, 1300];
 // Who the robot shoots at: with two players the other tank; with more, the weakest one still
 // standing (the nearest on a tie). It only searches angles that way.
@@ -582,13 +584,16 @@ const botAngles = (bi, ti, X, step) => { const right = !multi() || X[ti] > X[bi]
 const botClamp = (a, aimed) => (!multi() || aimed <= 90 ? Math.max(5, Math.min(85, a)) : Math.max(95, Math.min(175, a)));
 // Only one page drives the robot live: the first person at the table still standing.
 const botDriver = () => { const g = G.game; return g.players.find((p, k) => !isBot(p) && g.hp[k] > 0) === me.id; };
-setInterval(() => { if (liveOn && !botBusy && G?.game.status === 'playing' && G.game.players.some(isBot) && botDriver() && Date.now() >= botReloadAt) botLiveShot(); }, 250);
-async function botLiveShot() {
-  botBusy = true;
+setInterval(() => {
+  if (!liveOn || G?.game.status !== 'playing' || !botDriver()) return;
+  G.game.players.forEach((p, bi) => { if (isBot(p) && G.game.hp[bi] > 0 && !botBusy.has(bi) && Date.now() >= (botReloadAt[bi] || 0)) botLiveShot(bi); });
+}, 250);
+async function botLiveShot(bi) {
+  botBusy.add(bi);
   try {
-    const g = G.game, bi = g.players.findIndex(isBot), lvl = g.bot_level ?? 1;
+    const g = G.game, lvl = g.bot_level ?? 1;
     if (g.hp[bi] <= 0) return;
-    botReloadAt = Date.now() + BOT_RELOAD[lvl];
+    botReloadAt[bi] = Date.now() + BOT_RELOAD[lvl];
     // Roll to a nearby spot first.
     const [lo, hi] = SIDE(bi), from = xs()[bi], to = Math.max(lo, Math.min(hi, from + Math.round((Math.random() * 2 - 1) * 30)));
     if (!reduceMotion) for (let x = from; x !== to; x += Math.sign(to - x) * Math.min(3, Math.abs(to - x))) { liveX[bi] = x; await sleep(30); if (!liveOn) return; }
@@ -614,11 +619,11 @@ async function botLiveShot() {
     const hp = damage(top, sim.impact, now.hp, false, guards(now, Xi, now.players[bi]), standing(Xi, now.hp, bi));
     if (crater) { blast(crater); applyCrater(top, crater); }
     const { error } = await sb.rpc('duel_fire_live_bot', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_dmg: now.hp.map((h, k) => h - hp[k]),
-      p_x: to !== baseXs()[bi] ? to : null, p_target_x: multi() ? null : Xi[mi], p_xs: Xi, p_wind_move: move, p_wind_x: windX });
-    if (error) { if (/Still reloading/.test(error.message || '')) botReloadAt = Date.now() + 800; else if (!/over/i.test(error.message || '')) note(friendly(error), 'error'); }
+      p_x: to !== baseXs()[bi] ? to : null, p_target_x: multi() ? null : Xi[mi], p_xs: Xi, p_wind_move: move, p_wind_x: windX, p_bot: g.players[bi] });
+    if (error) { if (/Still reloading/.test(error.message || '')) botReloadAt[bi] = Date.now() + 800; else if (!/over/i.test(error.message || '')) note(friendly(error), 'error'); }
     else { hitDrama(now.hp, hp); seenHp = hp; }
     await load(g.id); decide();
-  } finally { botBusy = false; }
+  } finally { botBusy.delete(bi); }
 }
 
 // The robot tries every angle and power, keeps the one that lands closest, then wobbles it by skill.
