@@ -282,6 +282,9 @@ body.quake { animation: quake .45s linear 1; }
   .boardtabs button small { display: block; font-weight: 400; font-size: 12px; color: var(--muted); margin: 0; }
   .boardtabs button[aria-selected=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .boardtabs button[aria-selected=true] small { color: inherit; opacity: .85; }
+  /* 4+ boards (Battleship for up to 6, 034): each tab keeps a readable name and the row scrolls */
+  .boardtabs.many { scrollbar-width: none; } .boardtabs.many::-webkit-scrollbar { display: none; }
+  .boardtabs.many button { flex: 0 0 auto; min-width: 96px; max-width: 150px; }
   .boards .bsec:not(.tab-on) { display: none; }
   .boards .bsec { padding: 12px; }
   .boards .bsec h2 { font-size: 16px; }

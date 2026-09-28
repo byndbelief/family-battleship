@@ -193,7 +193,7 @@ username. A new account only becomes a robot once it's in `public.bots`.
   **Up to 6 tanks** (`032_six_players.sql`): 5 → 1400, 6 → 1600, tanks evenly spread; HP chips go
   to two rows of three. Shell speed per power point is `0.12 × √(W/800)` (`PV()`), so full power
   spans any field (range ∝ speed²); at 800 it's unchanged. Putt Post also takes 6 (just the cap).
-  Battleship stays 3, Chaos Cards and the Gauntlet 4. Local e2e: add `test_five` / `test_six` to
+  Battleship and the Gauntlet went to 6 as well (034); Chaos Cards stays 4. Local e2e: add `test_five` / `test_six` to
   `auth.users` to have 6 players.
 - **Several robots in one game** (`033_more_bots.sql`): turns always worked for whichever robot's
   turn it is; after a robot, the first person still at the table drives the next one (duel.js
@@ -208,6 +208,13 @@ username. A new account only becomes a robot once it's in `public.bots`.
   was just that). The service worker re-fetches the site's own pages/JS/CSS with `cache:
   'no-cache'` (a cheap 304 when unchanged). The e2e harness blocks service workers
   (`serviceWorkers: 'block'`) because Playwright's `page.route` can't see a worker's requests.
+- **Battleship and the Gauntlet for 6** (`034_six_gauntlet_battleship.sql`): 1–5 opponents.
+  Per-opponent boards need nothing new (phones get a scrolling tab row, `.boardtabs.many`). The
+  shared ocean becomes **mode 3** (16×16, same ships) when 4+ play — `create_game` switches it, so
+  "the shared ocean" is `mode in (2, 3)` everywhere (`isShared()` on the page). Robot turns run in
+  a loop in `_bot_maybe_play` (`_bot_play_one` is one turn); they used to call each other nested,
+  200+ deep when robots finish a game between them. A Gauntlet deals only games that seat
+  everyone: Putt Post, Hilltop, Battleship (6), Chaos Cards (≤ 4).
 - **`live` settings default to false** (033): `fire` and `_golf_submit` read `bs.live` / `golf.live`
   with `coalesce(..., false)`. Without it, a connection that never ran a live shot read NULL and
   `if not live` skipped the robot's Battleship turn. Use the same `coalesce` for any new
@@ -286,7 +293,7 @@ username. A new account only becomes a robot once it's in `public.bots`.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.

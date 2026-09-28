@@ -9,8 +9,9 @@ const MODES = [
   { n: 8, ships: [4, 3, 3, 2] },
   { n: 10, ships: [5, 4, 3, 3, 2] },
   { n: 12, ships: [4, 3, 3, 2], shared: true },   // Shared Ocean (028): every fleet on one grid
+  { n: 16, ships: [4, 3, 3, 2], shared: true },   // the same, a bigger sea for 4-6 players (034)
 ];
-const ROWS = 'ABCDEFGHIJKL';
+const ROWS = 'ABCDEFGHIJKLMNOP';
 // The Shared Ocean board has one owner, the sea itself: aims, cells and tabs use this in mode 2.
 const OCEAN = 'ocean';
 const isShared = () => !!MODES[G?.game.mode]?.shared;
@@ -336,7 +337,7 @@ async function lobby() {
           <div class="stack"><span class="eyebrow" id="oppHint">Opponents</span>
             <div class="choice">${others.map(([id, u]) => `<button type="button" class="chip" data-opp="${esc(u)}" data-id="${id}" aria-pressed="false">${bots.has(id) ? '🤖 ' : ''}${esc(u)}${bots.has(id) ? ' (robot)' : ''}</button>`).join('')}</div></div>
           <div class="stack" data-for="battleship"><span class="eyebrow">Board</span>
-            <div class="choice"><label><input type="radio" name="mode" value="0">Quick 8×8 · 4 ships</label><label><input type="radio" name="mode" value="1" checked>Classic 10×10 · 5 ships</label><label><input type="radio" name="mode" value="2">🌊 Shared ocean 12×12 · every fleet on one grid</label></div></div>
+            <div class="choice"><label><input type="radio" name="mode" value="0">Quick 8×8 · 4 ships</label><label><input type="radio" name="mode" value="1" checked>Classic 10×10 · 5 ships</label><label><input type="radio" name="mode" value="2">🌊 Shared ocean · every fleet on one grid (12×12, 16×16 for 4+)</label></div></div>
           <div class="stack" data-for="battleship"><span class="eyebrow">Shots per turn</span>
             <div class="choice"><label><input type="radio" name="spt" value="1">1 shot</label><label><input type="radio" name="spt" value="3" checked>3 shots</label></div></div>
           <div class="stack" data-for="golf" hidden><span class="eyebrow">Course</span>
@@ -369,12 +370,12 @@ async function lobby() {
       </div>
       </div>
     </div>`);
-  // Start a Gauntlet: pick 1-3 opponents and a length, go.
+  // Start a Gauntlet: pick 1-5 opponents and a length, go.
   const gchips = [...app.querySelectorAll('[data-gopp]')], gtGo = document.getElementById('gtGo');
   const gPicked = () => gchips.filter((c) => c.getAttribute('aria-pressed') === 'true');
   gchips.forEach((c) => c.addEventListener('click', () => {
     const on = c.getAttribute('aria-pressed') !== 'true';
-    if (on && gPicked().length >= 3) return note('Up to three opponents.');
+    if (on && gPicked().length >= 5) return note('Up to five opponents.');
     c.setAttribute('aria-pressed', String(on)); gtGo.disabled = !gPicked().length;
     const ids = gchips.filter((x) => x.getAttribute('aria-pressed') === 'true').map((x) => x.dataset.gid);
     const exists = ids.length && rivalGroups.has([me.id, ...ids].sort().join(','));
@@ -395,8 +396,8 @@ async function lobby() {
   const kind = () => chosen;
   const picked = () => chips.filter((x) => x.getAttribute('aria-pressed') === 'true');
   const LIMITS = {
-    battleship: [1, 2, 'Opponents (pick one, or two for a 3-way battle)'], golf: [0, 5, 'Opponents (none for a solo round, up to five)'],
-    duel: [1, 5, 'Opponents (one for a duel, up to five for a free-for-all)'], cards: [1, 3, 'Opponents (one to three)'], gauntlet: [1, 3, 'Opponents (one to three)'],
+    battleship: [1, 5, 'Opponents (one, or up to five for a free-for-all)'], golf: [0, 5, 'Opponents (none for a solo round, up to five)'],
+    duel: [1, 5, 'Opponents (one for a duel, up to five for a free-for-all)'], cards: [1, 3, 'Opponents (one to three)'], gauntlet: [1, 5, 'Opponents (one to five)'],
   };
   const refreshForm = () => {
     if (!chosen) return;
@@ -1185,6 +1186,8 @@ function showBoard(owner) {
   boardTab = owner;
   app.querySelectorAll('.bsec').forEach((el) => el.classList.toggle('tab-on', el.dataset.owner === owner));
   app.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === owner)));
+  const t = app.querySelector(`.boardtabs.many [data-tab="${owner}"]`);   // a scrolling row: bring the picked tab into view
+  if (t) t.parentElement.scrollTo({ left: t.offsetLeft - t.parentElement.clientWidth / 2 + t.offsetWidth / 2, behavior: 'smooth' });
 }
 function renderGame() {
   if (!G) return;
@@ -1260,7 +1263,7 @@ function renderGame() {
       boardTab = myTurn || liveNow ? (aims.target || opponents.find((p) => !game.eliminated.includes(p)) || opponents[0]) : me.id;
     }
     const left = (p) => MODES[game.mode].ships.length - new Set(G.shots.filter((s) => s.target === p && s.sunk_ship != null).map((s) => s.sunk_ship)).size;
-    const tabs = `<div class="boardtabs" role="tablist" aria-label="Boards">${opponents.map((p) => `<button type="button" role="tab" data-tab="${p}" aria-selected="${boardTab === p}">🎯 ${face(p, names[p], bots.has(p))}${nm(p)} <small>${left(p)} left</small></button>`).join('')}<button type="button" role="tab" data-tab="${me.id}" aria-selected="${boardTab === me.id}">🚢 Your fleet <small>${left(me.id)} left</small></button></div>`;
+    const tabs = `<div class="boardtabs${opponents.length > 3 ? ' many' : ''}" role="tablist" aria-label="Boards">${opponents.map((p) => `<button type="button" role="tab" data-tab="${p}" aria-selected="${boardTab === p}">🎯 ${face(p, names[p], bots.has(p))}${nm(p)} <small>${left(p)} left</small></button>`).join('')}<button type="button" role="tab" data-tab="${me.id}" aria-selected="${boardTab === me.id}">🚢 Your fleet <small>${left(me.id)} left</small></button></div>`;
     const targets = opponents.map((p) => {
       const out = game.eliminated.includes(p);
       const cls = ['card', 'bsec'];
