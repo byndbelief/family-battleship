@@ -502,7 +502,9 @@ async function loadGames() {
   const gtName = Object.fromEntries(gts.map((g) => [g.id, g]));
   const turnPill = (id) => (id === me.id ? `<span class="pill turn">Your turn</span>` : `<span class="pill wait">${nm(id)}'s turn</span>`);
   const vsOf = (players) => { const o = players.filter((p) => p !== me.id); return o.length ? `vs ${o.map(nm).join(' & ')}` : 'Solo round'; };
-  const round = (g) => (g.gauntlet_id && gtName[g.gauntlet_id] ? `<span class="pill gt">🏆 Round ${gtName[g.gauntlet_id].round}</span>` : '');
+  // Which round of its Gauntlet a game is: its place in the history once played, else the current one.
+  const roundNo = (g) => { const gt = gtName[g.gauntlet_id], i = (gt.history || []).findIndex((h) => h.game === g.id); return i >= 0 ? i + 1 : gt.round; };
+  const round = (g) => (g.gauntlet_id && gtName[g.gauntlet_id] ? `<span class="pill gt">🏆 Round ${roundNo(g)}</span>` : '');
   const cards = [];
   bs.forEach((g) => {
     let pill;
@@ -549,8 +551,37 @@ async function loadGames() {
       </span>
       <span class="gstate">${c.extra}${c.pill}</span>
     </a></li>`;
+  // Finished Gauntlet rounds are bundled: one row per Gauntlet, its rounds folded inside.
+  const finishedRows = (cs) => {
+    const items = [], seen = new Map();
+    cs.forEach((c) => {
+      const gid = c.g.gauntlet_id;
+      if (!gid) { items.push({ at: c.at, html: row(c) }); return; }
+      if (!seen.has(gid)) { const b = { at: c.at, gid, rounds: [] }; seen.set(gid, b); items.push(b); }
+      const b = seen.get(gid); b.rounds.push(c); if (c.at > b.at) b.at = c.at;
+    });
+    return items.sort((a, b) => (a.at < b.at ? 1 : -1)).map((it) => it.html ?? bundleRow(it)).join('');
+  };
+  const bundleRow = ({ gid, rounds }) => {
+    const gt = gts.find((x) => x.id === gid), players = gt?.players ?? rounds[0].g.players;
+    const nth = gt ? gts.filter((x) => groupKey(x.players) === groupKey(gt.players) && x.created_at <= gt.created_at).length : null;
+    let res = '';
+    if (gt?.status === 'over') {
+      const top = Math.max(...gt.scores), champs = gt.players.filter((_, i) => gt.scores[i] === top);
+      res = top > 0 ? `👑 ${champs.map((p) => (p === me.id ? 'You' : nm(p))).join(' & ')} won ${gt.scores.join('–')}` : 'Called off';
+    } else if (gt) res = `Still going: round ${gt.round} of ${gt.rounds} · ${gt.scores.join('–')}`;
+    const icons = rounds.slice().sort((a, b) => (a.at < b.at ? -1 : 1)).map((c) => KIND_ICON[c.kind]).join(' ');
+    return `<li class="gbundle"><details><summary class="grow over">
+      <span class="thumb gthumb" aria-hidden="true">🏆</span>
+      <span class="gmain">
+        <span class="gtitle"><strong>Gauntlet${nth ? ` #${nth}` : ''}</strong> <span class="small">${vsOf(players)}</span></span>
+        <span class="muted small">${res}${res ? ' · ' : ''}${rounds.length} round${rounds.length === 1 ? '' : 's'}: ${icons}</span>
+      </span>
+      <span class="gstate"><span class="pill done">${rounds.length} ▾</span></span>
+    </summary><ul class="glist gbrounds">${rounds.map(row).join('')}</ul></details></li>`;
+  };
   list.innerHTML = groups.filter(([, cs]) => cs.length).map(([title, cs]) => title === 'Finished'
-    ? `<div class="stack glist-fold" style="gap:6px"><div class="row between"><span class="eyebrow">Finished (${cs.length})</span><button type="button" class="link small" id="finMore" hidden></button></div><ul class="glist">${cs.map(row).join('')}</ul></div>`
+    ? `<div class="stack glist-fold" style="gap:6px"><div class="row between"><span class="eyebrow">Finished (${cs.length})</span><button type="button" class="link small" id="finMore" hidden></button></div><ul class="glist">${finishedRows(cs)}</ul></div>`
     : `<div class="stack" style="gap:6px"><span class="eyebrow">${title} (${cs.length})</span><ul class="glist">${cs.map(row).join('')}</ul></div>`).join('');
   foldGames();
   list.querySelectorAll('canvas.thumb').forEach((cv) => drawPreview(cv, cards[+cv.dataset.i], myFleets ?? [], atMe ?? []));
@@ -631,7 +662,7 @@ function foldGames() {
   const list = document.getElementById('games'), btn = document.getElementById('gamesMore');
   if (!list || !btn) return;
   const rows = [...list.querySelectorAll(':scope > .stack:not(.glist-fold) .glist > li')], fold = list.querySelector('.glist-fold');
-  const done = fold ? [...fold.querySelectorAll('li')] : [];
+  const done = fold ? [...fold.querySelectorAll(':scope > ul.glist > li')] : [];   // a Gauntlet bundle counts as one
   const showDone = gamesOpen || !rows.length;
   const more = Math.max(0, rows.length - 3) + (rows.length ? (finishedOpen ? done.length : Math.min(3, done.length)) : 0);
   btn.hidden = more <= 0;

@@ -203,6 +203,12 @@ body.quake { animation: quake .45s linear 1; }
 .grow.mine { border-color: var(--flag); box-shadow: inset 4px 0 0 var(--flag); }
 .grow.over { opacity: .75; }
 .grow .thumb { display: block; width: 80px; height: 50px; border-radius: 8px; background: #0E2A44; }
+/* A finished Gauntlet: one row, its rounds folded inside. */
+.gbundle > details > summary { list-style: none; cursor: pointer; }
+.gbundle > details > summary::-webkit-details-marker { display: none; }
+.grow .gthumb { display: grid; place-items: center; font-size: 26px; background: linear-gradient(160deg, #5A3718, #2A1808); }
+.gbundle details[open] > summary .pill { background: var(--flag); color: var(--flag-ink); }
+.gbrounds { margin: 8px 0 4px 18px; padding-left: 10px; border-left: 3px solid var(--flag); }
 .grow .gmain { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .grow .gtitle, .grow .gmain > .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .grow .gstate { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
