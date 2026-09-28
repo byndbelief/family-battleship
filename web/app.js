@@ -600,7 +600,7 @@ function renderUpStrip(mine, cards, myFleets, atMe) {
       <canvas class="preview" data-i="${cards.indexOf(c)}" width="320" height="200" aria-hidden="true"></canvas>
       <span class="upbody">
         <span class="row between" style="gap:6px"><strong>${KIND_ICON[c.kind]} ${KIND_NAME[c.kind]}</strong>${c.extra}</span>
-        <span class="small">${c.vs}</span>
+        <span class="small upvs">${c.g.players.filter((p) => p !== me.id && !bots.has(p)).map((p) => avatar({ username: names[p] }, 'mini')).join('')}${c.vs}</span>
         <span class="muted small">${c.sub}</span>
         ${c.kind !== 'gauntlet' && c.g.players.length > 1 ? `<span class="small clk">${chaosIn(c.g.turn_at, c.g.gauntlet_id)}</span>` : ''}
         <span class="upgo">${c.pill.includes('Place') ? 'Place ships' : 'Play'} ›</span>
