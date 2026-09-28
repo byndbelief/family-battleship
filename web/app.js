@@ -1183,8 +1183,17 @@ function renderGame() {
       <div class="row"><button id="shuffle">Shuffle ships</button><button class="primary" id="ready">Ready</button></div>
     </section>`;
   } else if (game.status === 'setup') {
-    const waiting = game.players.filter((p) => !G.fleets[p] && p !== me.id);
-    body = `<div class="status">Your ships are placed. ${waiting.length ? `Waiting for ${waiting.map(nm).join(' and ')} to place theirs.` : ''} This page updates the moment the game starts.</div>
+    const isReady = (p) => !!G.fleets[p] || (game.ready || []).includes(p);   // others' fleets are secret; games.ready (022) says who's set
+    const waiting = game.players.filter((p) => !isReady(p) && p !== me.id);
+    // Who's set: everyone's avatar with ready or still placing (a green ring = on the site right now).
+    const ready = game.players.filter(isReady).length;
+    body = `<section class="card narrow readyroll" style="margin:0">
+        <div class="row between"><h2>⚓ Ready check</h2><span class="pill ${waiting.length ? 'wait' : 'done'}">${ready} of ${game.players.length} ready</span></div>
+        <ul class="rlist">${game.players.map((p) => { const ok = isReady(p);
+          return `<li class="${ok ? 'ok' : ''}">${avatar({ username: names[p], bot: bots.has(p) }, 'rav')}<span class="rname">${p === me.id ? 'You' : nm(p)}</span>
+            <span class="rstate">${ok ? '✅ Ready' : '<span class="rdots">⏳ Placing ships</span>'}</span></li>`; }).join('')}</ul>
+        <p class="muted small">${waiting.length ? 'The battle starts the moment the last fleet is placed.' : 'Everyone is set. Starting…'}</p>
+      </section>
       <section class="card narrow" style="margin:0"><h2>Your fleet</h2>${boardHTML({ owner: me.id, ships: G.fleets[me.id] })}</section>`;
   } else {
     const over = game.status === 'over';

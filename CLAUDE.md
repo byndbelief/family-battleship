@@ -98,6 +98,9 @@ takes a bare username.
   page calls `card_timeout` (slow player draws 1). The robot plays via `card_bot_play` from a
   watching page and counts as always present. Gauntlet deals it for any player count; the chaos
   clock makes a staller draw 2/4, and a 24 h Gauntlet forfeit goes to the fewest cards.
+- **Battleship ready check** (`022_fleet_ready.sql`): fleets are secret until the game ends, so
+  who has placed theirs is `games.ready`, kept by a trigger on `fleets` insert. The setup screen
+  lists every player as ✅ Ready or ⏳ Placing ships from it.
 - **Who's live** (`021_online.sql`): every page checks in every 15 s through `here_now(page, game,
   away)`, which returns the whole family's status (live = checked in < 45 s ago and not away; a
   hidden tab reports away at once). `common.js` `startOnline` runs it (from `signedIn`, and from
@@ -195,7 +198,7 @@ takes a bare username.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.
