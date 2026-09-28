@@ -316,6 +316,8 @@ body.has-firebar { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)
 }
 #app.fs-on header h1, #app.fs-on .gsub, #app.fs-on .players, #app.fs-on .legend, #app.fs-on #feedFold, #app.fs-on #del,
 #app.fs-on .fleet-list, #app.fs-on .bsec > p.muted.small, #app.fs-on .cheatlog { display: none !important; }
+/* Full screen puts ⚙️ Settings top-right: keep the header's Live dot and ✕ clear of it. */
+#app.fs-on > header > .row:first-child { padding-right: 56px; }
 
 /* ---------------------------------------------------------------- lobby on phones: compact */
 .lobtoggles { display: none; }
