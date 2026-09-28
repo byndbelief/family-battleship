@@ -11,7 +11,20 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let G = null;     // { game, shots }
 let top = null, shot = null, particles = [], busy = false, pack = [];
 let live = null;          // the live channel: send('aim' | 'shot', …) to the other player's page
-let oppAim = null;        // { move, angle, power } streamed from the other player while they aim
+let oppAim = null;        // { move, angle, power, x } streamed from the other player while they aim
+// Tanks can drive a little each turn (40 px of fuel, own side only). myX is where I've driven to
+// this turn before firing; it's sent with the shot.
+let myX = null, myXMove = -1;
+const FUEL = 40, SIDE = [[30, 330], [470, 770]];
+const baseXs = () => G.game.tank_x || TANK_X;
+function xs() {
+  const t = [...baseXs()], g = G.game;
+  if (g.status === 'playing') {
+    if (turnId() === me.id && myXMove === g.move && myX != null) t[g.turn] = myX;
+    else if (turnId() !== me.id && oppAim?.move === g.move && oppAim.x != null) t[g.turn] = oppAim.x;
+  }
+  return t;
+}
 const cv = $('cv'), ctx = cv.getContext('2d');
 const stars = Array.from({ length: 90 }, (_, i) => { const r = rng(i * 7919 + 3); return { x: r() * W, y: r() * 240, s: r() * 1.4 + 0.3, t: r() * 6 }; });
 const myIdx = () => G.game.players.indexOf(me.id);
@@ -36,8 +49,9 @@ function draw(t) {
   const tg = ctx.createLinearGradient(0, 170, 0, H); tg.addColorStop(0, '#3DD6C6'); tg.addColorStop(0.08, '#1F8C8A'); tg.addColorStop(1, '#0F2E3F');
   ctx.fillStyle = tg; ctx.beginPath(); ctx.moveTo(0, H); for (let x = 0; x < W; x++) ctx.lineTo(x, top[x]); ctx.lineTo(W, H); ctx.fill();
   ctx.strokeStyle = '#9BF5EA'; ctx.lineWidth = 2; ctx.beginPath(); for (let x = 0; x < W; x++) ctx[x ? 'lineTo' : 'moveTo'](x, top[x]); ctx.stroke();
+  const X = shot?.xs || xs();
   [0, 1].forEach((p) => {
-    const { x, y } = tankPos(p, top), col = p ? '#3DD6C6' : '#FF6B5A', dir = p ? -1 : 1;
+    const { x, y } = tankPos(p, top, X), col = p ? '#3DD6C6' : '#FF6B5A', dir = p ? -1 : 1;
     const aiming = !shot && g.status === 'playing' && g.turn === p;
     const ang = aiming && p === myIdx() ? +$('angle').value : aiming && oppAim && oppAim.move === g.move ? oppAim.angle : (shot && shot.p === p ? shot.angle : 45);
     ctx.save(); ctx.translate(x, y); if (g.hp[p] <= 0) ctx.globalAlpha = 0.45;
@@ -51,7 +65,7 @@ function draw(t) {
   });
   if (!shot && !busy && g.status === 'playing' && g.turn === myIdx()) {
     if (drag) {
-      const tp = tankPos(myIdx(), top);
+      const tp = tankPos(myIdx(), top, X);
       ctx.strokeStyle = '#FFF4D688'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
       ctx.beginPath(); ctx.moveTo(tp.x, tp.y - 14); ctx.lineTo(drag.x, drag.y); ctx.stroke(); ctx.setLineDash([]);
       ctx.fillStyle = '#FFC85755'; ctx.beginPath(); ctx.arc(drag.x, drag.y, 16, 0, 7); ctx.fill();
@@ -67,17 +81,16 @@ function draw(t) {
   particles.forEach((q) => { ctx.globalAlpha = Math.max(0, q.life); ctx.fillStyle = q.c; ctx.beginPath(); ctx.arc(q.x, q.y, q.s, 0, 7); ctx.fill(); });
   ctx.globalAlpha = 1;
 }
-// Aim hint: dots along most of the shell's real flight (85%). With no wind it holds still and
-// is exact. With wind it sways, as if the wind gusts a bit either side of its real strength, so
-// you still have to judge the gust; the real arc is the middle of the sway. Reduced motion
-// shows the two ends of the sway as a still band instead.
+// Aim hint: a rough guide, not a solution. Each turn it carries a small hidden error (a few
+// degrees and a bit of power, different every turn), it wobbles a little even in calm air, sways
+// with the wind, and only shows the first 65% of the flight. Reduced motion: a still band.
 const hintCache = new Map();
 function hintPath(angle, power, windX) {
-  const g = G.game, key = `${g.move}|${angle}|${power}|${windX.toFixed(2)}`;
+  const g = G.game, X = xs(), key = `${g.move}|${X[myIdx()]}|${angle.toFixed(1)}|${power.toFixed(1)}|${windX.toFixed(2)}`;
   if (!hintCache.has(key)) {
-    if (hintCache.size > 200) hintCache.clear();
-    const { path } = simulate(g.seed, g.move, top, myIdx(), angle, power, windX);
-    hintCache.set(key, path.slice(0, Math.ceil(path.length * 0.85)));
+    if (hintCache.size > 300) hintCache.clear();
+    const { path } = simulate(g.seed, g.move, top, myIdx(), angle, power, windX, X);
+    hintCache.set(key, path.slice(0, Math.ceil(path.length * 0.65)));
   }
   return hintCache.get(key);
 }
@@ -85,19 +98,21 @@ function drawDots(pts, alpha, t, still) {
   const n = pts.length, drift = still ? 0 : (t / 60) % 6;
   for (let j = Math.floor(drift) % 6; j < n; j += 6) {
     const q = pts[j], f = 1 - j / n;
-    ctx.globalAlpha = alpha * (0.2 + 0.8 * f); ctx.fillStyle = '#FFC857'; ctx.shadowColor = '#FFC857'; ctx.shadowBlur = 8;
+    ctx.globalAlpha = alpha * (0.15 + 0.85 * f * f); ctx.fillStyle = '#FFC857'; ctx.shadowColor = '#FFC857'; ctx.shadowBlur = 8;
     ctx.beginPath(); ctx.arc(q.x, Math.max(4, q.y), 2.2 + 2 * f, 0, 7); ctx.fill();
   }
 }
 function drawHint(t) {
-  const g = G.game, angle = +$('angle').value, power = +$('power').value, base = g.gust === g.move ? 3 : 1;
-  const windy = windFor(g.seed, g.move, base) !== 0;
-  if (!windy) drawDots(hintPath(angle, power, base), 1, t, reduceMotion);
-  else if (reduceMotion) { drawDots(hintPath(angle, power, base * 0.6), 0.55, t, true); drawDots(hintPath(angle, power, base * 1.4), 0.55, t, true); }
-  else {
-    // Two slow waves make the gusts feel irregular; the sway spans about 0.55x to 1.45x the real wind.
-    const gust = 1 + 0.3 * Math.sin(t / 700) + 0.15 * Math.sin(t / 260 + 1.3);
-    drawDots(hintPath(angle, power, Math.round(base * gust * 50) / 50), 1, t, false);
+  const g = G.game, base = g.gust === g.move ? 3 : 1, windy = windFor(g.seed, g.move, base) !== 0;
+  const r = rng(g.seed * 7919 + g.move * 131 + 17), aBias = (r() * 2 - 1) * 3.5, pBias = (r() * 2 - 1) * 6;   // this turn's hidden error
+  const q = (v, s) => Math.round(v / s) * s;
+  const A = (w) => Math.max(5, Math.min(85, q(+$('angle').value + aBias + w, 0.5))), P = (w) => Math.max(20, Math.min(100, q(+$('power').value + pBias + w, 0.5)));
+  if (reduceMotion) {
+    drawDots(hintPath(A(-1.5), P(-2), windy ? base * 0.6 : base), 0.55, t, true);
+    drawDots(hintPath(A(1.5), P(2), windy ? base * 1.4 : base), 0.55, t, true);
+  } else {
+    const gust = windy ? 1 + 0.3 * Math.sin(t / 700) + 0.15 * Math.sin(t / 260 + 1.3) : 1;
+    drawDots(hintPath(A(1.4 * Math.sin(t / 900)), P(2 * Math.sin(t / 640 + 1)), Math.round(base * gust * 50) / 50), 1, t, false);
   }
   ctx.globalAlpha = 1; ctx.shadowBlur = 0;
 }
@@ -133,15 +148,15 @@ function endDrama(g) {
 function stamp(text, tone = '', ms = 2400) { const el = document.createElement('div'); el.className = `stamp ${tone}`; el.innerHTML = `<span>${text}</span>`; document.body.appendChild(el); setTimeout(() => el.remove(), ms); }
 
 // Flies a shell along its path, then blows up where the server says it landed.
-function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1) {
+function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1, X = xs()) {
   return new Promise((done) => {
     top = buildTop(G.game.seed, beforeCraters);
-    const sim = simulate(G.game.seed, move, top, p, angle, power, windX);
-    shot = { p, angle, path: sim.path, i: reduceMotion ? sim.path.length : 0 };
+    const sim = simulate(G.game.seed, move, top, p, angle, power, windX, X);
+    shot = { p, angle, path: sim.path, xs: X, i: reduceMotion ? sim.path.length : 0 };
     sfx('cannon'); if (!reduceMotion) sfx('whistle', { delay: 0.15, dur: Math.max(0.3, sim.path.length / 3 / 60 - 0.15) });
     const step = () => {
       // Slow motion as the shell closes in on a tank.
-      const q = shot.path[Math.min(shot.i, shot.path.length - 1)], near = !reduceMotion && dramaOn() && [0, 1].some((t) => { const k = tankPos(t, top); return Math.hypot(q.x - k.x, q.y - (k.y - 8)) < 90; });
+      const q = shot.path[Math.min(shot.i, shot.path.length - 1)], near = !reduceMotion && dramaOn() && [0, 1].some((t) => { const k = tankPos(t, top, X); return Math.hypot(q.x - k.x, q.y - (k.y - 8)) < 90; });
       shot.i = Math.min(shot.path.length, shot.i + (near ? 1 : 3));
       if (shot.i < shot.path.length) return requestAnimationFrame(step);
       shot = null;
@@ -166,6 +181,7 @@ function render() {
   $('title').innerHTML = over ? (g.winner === me.id ? 'You win!' : `${nm(g.winner)} wins!`) : mine ? 'Your shot' : `${nm(turnId())}'s shot`;
   $('status').textContent = over ? '' : mine ? `Move ${g.move + 1}` : busy ? '' : 'Waiting…';
   $('controls').hidden = !mine || busy;
+  if (mine) showFuel();
   // Shot clock: 30 seconds to fire (not against the robot, where nobody is waiting on you).
   if (mine && !busy && !g.players.some(isBot)) shotClock(`duel.${g.id}.${g.move}`, 30, async () => {
     const { data } = await sb.rpc('shot_clock', { p_kind: 'duel', p_game: g.id });
@@ -227,7 +243,8 @@ async function decide() {
   if (last && last.shooter !== me.id && last.move > seenMove()) {
     busy = true; render();
     const before = g.craters.slice(0, g.craters.length - (last.crater ? 1 : 0));
-    await flyShell(g.players.indexOf(last.shooter), last.angle, last.power, before, last.move - 1, last.crater, last.wind_x || 1);
+    const lp = g.players.indexOf(last.shooter), LX = [...baseXs()]; if (last.from_x != null) LX[lp] = last.from_x;
+    await flyShell(lp, last.angle, last.power, before, last.move - 1, last.crater, last.wind_x || 1, LX);
     markSeen(last.move); top = buildTop(g.seed, g.craters); busy = false;
     hitDrama(G.shots[G.shots.length - 2]?.hp_after || [100, 100], last.hp_after);
   }
@@ -242,17 +259,18 @@ async function decide() {
 }
 
 async function fire() {
-  const g = G.game, p = myIdx(), angle = +$('angle').value, power = +$('power').value, move = g.move;
+  const g = G.game, p = myIdx(), angle = +$('angle').value, power = +$('power').value, move = g.move, X = xs();
+  const moved = X[p] !== baseXs()[p] ? X[p] : null;
   busy = true; drag = null; render();
   navigator.vibrate?.(40);
-  live?.send('shot', { move, angle, power });
+  live?.send('shot', { move, angle, power, x: X[p] });
   const big = g.bertha.includes(me.id);
-  const sim = await flyShell(p, angle, power, g.craters, move, null, g.gust === move ? 3 : 1);
+  const sim = await flyShell(p, angle, power, g.craters, move, null, g.gust === move ? 3 : 1, X);
   const crater = sim.impact ? [Math.round(sim.impact.x), Math.round(sim.impact.y), big ? BERTHA_R : CRATER_R] : null;
   if (crater) boom(crater[0], crater[1], big ? 2 : 1);
-  const hp = damage(top, sim.impact, g.hp, big, g.players.map((x) => g.shields.includes(x) && x !== me.id));
-  const { error } = await sb.rpc('duel_fire', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_hp: hp });
-  busy = false;
+  const hp = damage(top, sim.impact, g.hp, big, g.players.map((x) => g.shields.includes(x) && x !== me.id), X);
+  const { error } = await sb.rpc('duel_fire', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_hp: hp, ...(moved != null ? { p_x: moved } : {}) });
+  busy = false; myX = null;
   if (error) { $('err').textContent = friendly(error); render(); return; }
   announceChaos({ gameId: g.id }); pack = await backpack();
   hitDrama(g.hp, hp);
@@ -264,12 +282,13 @@ async function fire() {
 
 // The other player just pulled the trigger: fly their shell here right away, the same way
 // their page does, instead of waiting for the database to catch up.
-async function watchLiveShot({ move, angle, power }, refresh) {
+async function watchLiveShot({ move, angle, power, x }, refresh) {
   const g = G?.game;
   if (!g || busy || g.status !== 'playing' || move !== g.move || turnId() === me.id) return;
   const p = g.turn, shooter = g.players[p], big = g.bertha.includes(shooter), mi = myIdx(), hpBefore = g.hp[mi];
-  busy = true; oppAim = { move, angle, power }; render();
-  const sim = await flyShell(p, angle, power, g.craters, move, null, g.gust === move ? 3 : 1);
+  busy = true; oppAim = { move, angle, power, x }; render();
+  const WX = [...baseXs()]; if (x != null) WX[p] = x;
+  const sim = await flyShell(p, angle, power, g.craters, move, null, g.gust === move ? 3 : 1, WX);
   if (sim.impact) boom(Math.round(sim.impact.x), Math.round(sim.impact.y), big ? 2 : 1);
   markSeen(move + 1); oppAim = null;
   // Wait for their shot to land in the database, then show where things stand.
@@ -285,10 +304,10 @@ async function watchLiveShot({ move, angle, power }, refresh) {
 // The robot tries every angle and power, keeps the one that lands closest, then wobbles it by skill.
 async function robotShot() {
   busy = true; render();
-  const g = G.game, p = g.turn, target = tankPos(1 - p, top);
+  const g = G.game, p = g.turn, X = xs(), target = tankPos(1 - p, top, X);
   let best = null;
   for (let a = 10; a <= 85; a++) for (let pw = 20; pw <= 100; pw += 2) {
-    const sim = simulate(g.seed, g.move, top, p, a, pw, g.gust === g.move ? 3 : 1);
+    const sim = simulate(g.seed, g.move, top, p, a, pw, g.gust === g.move ? 3 : 1, X);
     const d = sim.impact ? Math.hypot(sim.impact.x - target.x, sim.impact.y - target.y) : 999;
     if (!best || d < best.d) best = { d, a, pw };
   }
@@ -298,10 +317,10 @@ async function robotShot() {
   const power = Math.max(20, Math.min(100, Math.round(best.pw + gauss() * skill.p)));
   $('status').textContent = `${nm(g.players[p]).replace(/<[^>]+>/g, '')} is aiming…`;
   await sleep(reduceMotion ? 0 : 900);
-  const sim = await flyShell(p, angle, power, g.craters, g.move, null, g.gust === g.move ? 3 : 1);
+  const sim = await flyShell(p, angle, power, g.craters, g.move, null, g.gust === g.move ? 3 : 1, X);
   const crater = sim.impact ? [Math.round(sim.impact.x), Math.round(sim.impact.y), CRATER_R] : null;
   if (crater) boom(crater[0], crater[1]);
-  const hp = damage(top, sim.impact, g.hp, false, g.players.map((x) => g.shields.includes(x) && x !== g.players[p]));
+  const hp = damage(top, sim.impact, g.hp, false, g.players.map((x) => g.shields.includes(x) && x !== g.players[p]), X);
   const { error } = await sb.rpc('duel_fire_bot', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_hp: hp });
   markSeen(g.move + 1);
   busy = false;
@@ -318,7 +337,7 @@ const sendAim = () => {
   if (!G || busy) return;
   const now = Date.now();
   if (now - aimT < 90) { if (!aimQueued) { aimQueued = true; setTimeout(() => { aimQueued = false; sendAim(); }, 90); } return; }
-  aimT = now; live?.send('aim', { move: G.game.move, angle: +$('angle').value, power: +$('power').value });
+  aimT = now; live?.send('aim', { move: G.game.move, angle: +$('angle').value, power: +$('power').value, x: xs()[myIdx()] });
 };
 // Sets the aim from anywhere (sliders, − / + buttons, dragging on the battlefield).
 function showAim() {
@@ -333,6 +352,31 @@ function setAim(angle, power) {
   try { localStorage.setItem(aimKey(), JSON.stringify({ angle: +$('angle').value, power: +$('power').value })); } catch {}
 }
 ['angle', 'power'].forEach((id) => $(id).addEventListener('input', () => setAim(+$('angle').value, +$('power').value)));
+
+// Driving: ◀ ▶ move the tank 2 px a step (hold to keep going), up to 40 px of fuel a turn,
+// never past your side of the hill. The other player sees it live; the move goes with the shot.
+function driveBy(d) {
+  const g = G?.game; if (!g || busy || shot || g.status !== 'playing' || turnId() !== me.id) return;
+  const p = myIdx(), start = baseXs()[p], [lo, hi] = SIDE[p];
+  if (myXMove !== g.move || myX == null) { myXMove = g.move; myX = start; }
+  const nx = Math.max(lo, Math.min(hi, Math.max(start - FUEL, Math.min(start + FUEL, myX + d * 2))));
+  if (nx === myX) return;
+  myX = nx; showFuel(); sendAim();
+  if (Math.abs(myX - start) % 8 === 0) sfx('tick');
+}
+function showFuel() {
+  const g = G?.game; if (!g || !$('fuelOut')) return;
+  const used = myXMove === g.move && myX != null ? Math.abs(myX - baseXs()[myIdx()]) : 0;
+  $('fuelOut').textContent = FUEL - used; $('fuelBar').style.width = `${((FUEL - used) / FUEL) * 100}%`;
+}
+document.querySelectorAll('[data-mv]').forEach((b) => {
+  let hold = null, rep = null;
+  const stop = () => { clearTimeout(hold); clearInterval(rep); };
+  b.addEventListener('pointerdown', (e) => { e.preventDefault(); b.setPointerCapture?.(e.pointerId); driveBy(+b.dataset.mv); stop(); hold = setTimeout(() => { rep = setInterval(() => driveBy(+b.dataset.mv), 50); }, 300); });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => b.addEventListener(ev, stop));
+  b.addEventListener('contextmenu', (e) => e.preventDefault());
+  b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); driveBy(+b.dataset.mv); } });
+});
 
 // − / + buttons: one step per tap, and they keep going while held.
 document.querySelectorAll('[data-step]').forEach((b) => {
@@ -351,7 +395,7 @@ let drag = null;
 const canAim = () => G && !busy && !shot && G.game.status === 'playing' && turnId() === me.id;
 function aimFromPointer(e) {
   const r = cv.getBoundingClientRect(), gx = ((e.clientX - r.left) / r.width) * W, gy = ((e.clientY - r.top) / r.height) * H;
-  const p = myIdx(), t = tankPos(p, top), dir = p === 0 ? 1 : -1;
+  const p = myIdx(), t = tankPos(p, top, xs()), dir = p === 0 ? 1 : -1;
   const dx = (gx - t.x) * dir, dy = t.y - 14 - gy;
   drag = { x: gx, y: gy };
   const ang = dx <= 0 ? 85 : (Math.atan2(dy, dx) * 180) / Math.PI;

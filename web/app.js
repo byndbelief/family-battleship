@@ -685,7 +685,7 @@ function drawPreview(cv, card, myFleets, atMe) {
     c.fillStyle = '#1F8C8A'; c.beginPath(); c.moveTo(0, h); for (let x = 0; x < DW; x += 4) c.lineTo(x * sx, top[x] * sy); c.lineTo(w, h); c.fill();
     c.strokeStyle = '#9BF5EA'; c.lineWidth = 1.5; c.beginPath(); for (let x = 0; x < DW; x += 4) c[x ? 'lineTo' : 'moveTo'](x * sx, top[x] * sy); c.stroke();
     [0, 1].forEach((p) => {
-      const tx = TANK_X[p] * sx, ty = top[TANK_X[p]] * sy;
+      const X = g.tank_x || TANK_X, tx = X[p] * sx, ty = top[X[p]] * sy;
       c.fillStyle = p ? '#3DD6C6' : '#FF6B5A'; c.fillRect(tx - 8, ty - 7, 16, 7);
       c.fillStyle = '#ffffff33'; c.fillRect(tx - 20, ty - 20, 40, 4); c.fillStyle = p ? '#3DD6C6' : '#FF6B5A'; c.fillRect(tx - 20, ty - 20, 40 * g.hp[p] / 100, 4);
     });

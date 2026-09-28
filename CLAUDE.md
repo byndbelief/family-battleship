@@ -36,6 +36,11 @@ takes a bare username.
   Putt Post (multiplayer only) — hold your ball = 🦶 foot wedge then tap where to kick it,
   triple-tap the Strokes pill = 🔄 mulligan, hold the hole's name = ✏️ pencil whip on/off.
   Calling cheater stays visible: that's the counterplay.
+- **Hilltop Duel tanks move** (`011_tank_moves.sql`): up to 40 px of fuel a turn, own side
+  only, sent with the shot (`duel_fire(…, p_x)`), recorded per shot (`duel_shots.from_x`) so
+  replays fire from the right spot. Engine functions take the tank positions (`xs`). The aim
+  hint is deliberately a rough guide — a hidden per-turn error, a wobble, 65% of the flight —
+  because the family found an accurate one made every shot a hit. Don't make it exact again.
 - **Clocks push play along** (`008_clocks.sql`, `shotClock` / `chaosClock` / `chaosIn` in
   `common.js`). Shot clock on your turn while on the page (Battleship 45 s, duel 30 s, Putt Post
   30 s per putt; never solo or vs the robot; pauses when the page is hidden) — at zero the
@@ -83,7 +88,7 @@ takes a bare username.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.
