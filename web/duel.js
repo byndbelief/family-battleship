@@ -16,6 +16,10 @@ let oppAim = null;        // { move, angle, power, x } streamed from the other p
 // this turn before firing; it's sent with the shot.
 let myX = null, myXMove = -1;
 let botDrive = null;      // { move, x } while the robot rolls to its firing spot
+// Dodging: while someone aims at you, you may shift up to 20 px (from where their turn began).
+// dodgeX is my dodge this turn; oppDodge is the other player's, streamed live while I aim.
+let dodgeX = null, dodgeMove = -1, oppDodge = null;
+const DODGE = 20;
 const FUEL = 40, SIDE = [[30, 330], [470, 770]];
 const baseXs = () => G.game.tank_x || TANK_X;
 function xs() {
@@ -24,6 +28,9 @@ function xs() {
     if (turnId() === me.id && myXMove === g.move && myX != null) t[g.turn] = myX;
     else if (turnId() !== me.id && oppAim?.move === g.move && oppAim.x != null) t[g.turn] = oppAim.x;
     if (botDrive?.move === g.move) t[g.turn] = botDrive.x;
+    const di = 1 - g.turn;   // the tank being aimed at
+    if (turnId() !== me.id && myIdx() === di && dodgeMove === g.move && dodgeX != null) t[di] = dodgeX;
+    if (turnId() === me.id && oppDodge?.move === g.move) t[di] = oppDodge.x;
   }
   return t;
 }
@@ -184,6 +191,9 @@ function render() {
   $('status').textContent = over ? '' : mine ? `Move ${g.move + 1}` : busy ? '' : 'Waiting…';
   $('controls').hidden = !mine || busy;
   if (mine) showFuel();
+  // Dodge row: on their turn, against a person (the robot fires too fast to dodge).
+  $('dodge').hidden = !(g.status === 'playing' && !mine && mi >= 0 && !busy && !isBot(turnId()));
+  if (!$('dodge').hidden) showDodge();
   // Shot clock: 30 seconds to fire (not against the robot, where nobody is waiting on you).
   if (mine && !busy && !g.players.some(isBot)) shotClock(`duel.${g.id}.${g.move}`, 30, async () => {
     const { data } = await sb.rpc('shot_clock', { p_kind: 'duel', p_game: g.id });
@@ -245,7 +255,7 @@ async function decide() {
   if (last && last.shooter !== me.id && last.move > seenMove()) {
     busy = true; render();
     const before = g.craters.slice(0, g.craters.length - (last.crater ? 1 : 0));
-    const lp = g.players.indexOf(last.shooter), LX = [...baseXs()]; if (last.from_x != null) LX[lp] = last.from_x;
+    const lp = g.players.indexOf(last.shooter), LX = [...baseXs()]; if (last.from_x != null) LX[lp] = last.from_x; if (last.target_x != null) LX[1 - lp] = last.target_x;
     await flyShell(lp, last.angle, last.power, before, last.move - 1, last.crater, last.wind_x || 1, LX);
     markSeen(last.move); top = buildTop(g.seed, g.craters); busy = false;
     hitDrama(G.shots[G.shots.length - 2]?.hp_after || [100, 100], last.hp_after);
@@ -265,13 +275,13 @@ async function fire() {
   const moved = X[p] !== baseXs()[p] ? X[p] : null;
   busy = true; drag = null; render();
   navigator.vibrate?.(40);
-  live?.send('shot', { move, angle, power, x: X[p] });
+  live?.send('shot', { move, angle, power, x: X[p], tx: X[1 - p] });
   const big = g.bertha.includes(me.id);
   const sim = await flyShell(p, angle, power, g.craters, move, null, g.gust === move ? 3 : 1, X);
   const crater = sim.impact ? [Math.round(sim.impact.x), Math.round(sim.impact.y), big ? BERTHA_R : CRATER_R] : null;
   if (crater) boom(crater[0], crater[1], big ? 2 : 1);
   const hp = damage(top, sim.impact, g.hp, big, g.players.map((x) => g.shields.includes(x) && x !== me.id), X);
-  const { error } = await sb.rpc('duel_fire', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_hp: hp, ...(moved != null ? { p_x: moved } : {}) });
+  const { error } = await sb.rpc('duel_fire', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_hp: hp, p_target_x: X[1 - p], ...(moved != null ? { p_x: moved } : {}) });
   busy = false; myX = null;
   if (error) { $('err').textContent = friendly(error); render(); return; }
   announceChaos({ gameId: g.id }); pack = await backpack();
@@ -284,12 +294,13 @@ async function fire() {
 
 // The other player just pulled the trigger: fly their shell here right away, the same way
 // their page does, instead of waiting for the database to catch up.
-async function watchLiveShot({ move, angle, power, x }, refresh) {
+async function watchLiveShot({ move, angle, power, x, tx }, refresh) {
   const g = G?.game;
   if (!g || busy || g.status !== 'playing' || move !== g.move || turnId() === me.id) return;
   const p = g.turn, shooter = g.players[p], big = g.bertha.includes(shooter), mi = myIdx(), hpBefore = g.hp[mi];
   busy = true; oppAim = { move, angle, power, x }; render();
-  const WX = [...baseXs()]; if (x != null) WX[p] = x;
+  const WX = [...baseXs()]; if (x != null) WX[p] = x; if (tx != null) WX[1 - p] = tx;
+  dodgeX = null;   // their shell is already in the air
   const sim = await flyShell(p, angle, power, g.craters, move, null, g.gust === move ? 3 : 1, WX);
   if (sim.impact) boom(Math.round(sim.impact.x), Math.round(sim.impact.y), big ? 2 : 1);
   markSeen(move + 1); oppAim = null;
@@ -400,6 +411,39 @@ function showFuel() {
   const used = myXMove === g.move && myX != null ? Math.abs(myX - baseXs()[myIdx()]) : 0;
   $('fuelOut').textContent = FUEL - used; $('fuelBar').style.width = `${((FUEL - used) / FUEL) * 100}%`;
 }
+function dodgeBy(d) {
+  const g = G?.game; if (!g || busy || shot || g.status !== 'playing' || turnId() === me.id || isBot(turnId())) return;
+  const i = myIdx(), start = (g.turn_x || baseXs())[i], [lo, hi] = SIDE[i];
+  if (dodgeMove !== g.move || dodgeX == null) { dodgeMove = g.move; dodgeX = baseXs()[i]; }
+  const nx = Math.max(Math.max(lo, start - DODGE), Math.min(Math.min(hi, start + DODGE), dodgeX + d * 2));
+  if (nx === dodgeX) return;
+  dodgeX = nx; showDodge();
+  if (Math.abs(nx - start) % 8 === 0) sfx('tick');
+  live?.send('dodge', { move: g.move, x: nx });
+  clearTimeout(dodgeSave); dodgeSave = setTimeout(saveDodge, 350);
+}
+let dodgeSave = null;
+async function saveDodge() {
+  const g = G?.game; if (!g || dodgeX == null || dodgeMove !== g.move) return;
+  const x = dodgeX;
+  const { error } = await sb.rpc('duel_dodge', { p_game: g.id, p_move: dodgeMove, p_x: x });
+  if (error) { note(friendly(error), 'error'); dodgeX = null; await load(g.id); render(); return; }
+  live?.send('dodge', { move: g.move, x });
+}
+function showDodge() {
+  const g = G?.game; if (!g || !$('dodgeOut')) return;
+  const i = myIdx(), start = (g.turn_x || baseXs())[i], cur = dodgeMove === g.move && dodgeX != null ? dodgeX : baseXs()[i];
+  const left = DODGE - Math.abs(cur - start);
+  $('dodgeOut').textContent = left; $('dodgeBar').style.width = `${(left / DODGE) * 100}%`;
+}
+document.querySelectorAll('[data-dv]').forEach((b) => {
+  let hold = null, rep = null;
+  const stop = () => { clearTimeout(hold); clearInterval(rep); };
+  b.addEventListener('pointerdown', (e) => { e.preventDefault(); b.setPointerCapture?.(e.pointerId); dodgeBy(+b.dataset.dv); stop(); hold = setTimeout(() => { rep = setInterval(() => dodgeBy(+b.dataset.dv), 50); }, 300); });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => b.addEventListener(ev, stop));
+  b.addEventListener('contextmenu', (e) => e.preventDefault());
+  b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); dodgeBy(+b.dataset.dv); } });
+});
 document.querySelectorAll('[data-mv]').forEach((b) => {
   let hold = null, rep = null;
   const stop = () => { clearTimeout(hold); clearInterval(rep); };
@@ -463,6 +507,7 @@ $('del').onclick = async () => {
     const { data } = await sb.from('duel_games').select('updated_at').eq('id', id).maybeSingle();
     if (data && data.updated_at !== G.game.updated_at) refresh();
   }, {
+    dodge: (a) => { if (G && a.move === G.game.move && turnId() === me.id) oppDodge = a; },
     aim: (a) => { if (G && a.move === G.game.move && turnId() !== me.id) { oppAim = a; $('status').textContent = 'Aiming…'; } },
     shot: (s) => watchLiveShot(s, refresh),
   });

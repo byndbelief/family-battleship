@@ -65,6 +65,9 @@
   input[type=range]:focus-visible{outline:3px solid var(--gold);outline-offset:2px;border-radius:8px}
   button.go#fire{min-height:64px;min-width:120px;font-size:20px}
   .aimtip{margin:0}
+  #dodge{padding:10px 12px;gap:6px;border-color:#3DD6C666}
+  .dodgetip{margin:0}
+  #play.fs-on .dodgetip{display:none}
   .fuel{display:block;height:12px;border-radius:99px;background:#ffffff1f;overflow:hidden;align-self:center}
   .fuel i{display:block;height:100%;width:100%;border-radius:99px;background:linear-gradient(90deg,#FF6B5A,#FFC857);transition:width .1s}
   .moverow output::before{content:'⛽ ';font-size:12px}
@@ -127,6 +130,10 @@
       <div class="row" style="gap:10px;justify-content:center"><span data-clockslot></span><button class="go" id="fire">Fire!</button></div>
     </div>
     <p class="small muted" id="err"></p>
+  </section>
+  <section class="panel" id="dodge" hidden>
+    <div class="slider moverow"><label>Dodge</label><button type="button" class="step" data-dv="-1" aria-label="Dodge left">◀</button><span class="fuel" title="Dodge fuel left"><i id="dodgeBar"></i></span><button type="button" class="step" data-dv="1" aria-label="Dodge right">▶</button><output id="dodgeOut" aria-label="Dodge fuel left">20</output></div>
+    <p class="small muted dodgetip">They're lining up a shot at you. Shift your tank before they fire.</p>
   </section>
   <div id="pack"></div>
   </div>

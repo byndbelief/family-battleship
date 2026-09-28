@@ -41,6 +41,10 @@ takes a bare username.
   replays fire from the right spot. Engine functions take the tank positions (`xs`). The robot
   drives too: it scouts spots within its fuel with a coarse search, rolls to the best (Rookie
   more at random) and fires from there via `duel_fire_bot(…, p_x)`. The aim
+  player being aimed at can **dodge** (`013_dodge.sql`, `duel_dodge`): up to 20 px from where
+  their tank stood when the shooter's turn began (`turn_x`), streamed live and saved as they go;
+  not against the robot (it fires too fast). Each shot records the target's spot as the shooter
+  saw it (`duel_shots.target_x`) so a late dodge can't make devices disagree. The aim
   hint is deliberately a rough guide — a hidden per-turn error, a wobble, 65% of the flight —
   because the family found an accurate one made every shot a hit. Don't make it exact again.
 - **The robot is meant to be hard at Pro and Ace, easy at Rookie.** Battleship (`012`): hunts by
@@ -95,7 +99,7 @@ takes a bare username.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.
