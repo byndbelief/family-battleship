@@ -72,6 +72,10 @@ select{width:auto}
 .putbar{display:grid;grid-template-columns:repeat(4,48px) 1fr 48px;gap:8px;align-items:center}
 .putbar .nudge{width:48px;height:48px;padding:0;font-size:22px;line-height:1;touch-action:manipulation;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 .putbar .go{min-height:52px;font-size:18px}
+/* Not aimed yet (or not your putt): one wide waiting button; the nudges appear once you've aimed */
+#play .putbar.waiting{grid-template-columns:1fr}
+.putbar.waiting .nudge{display:none}
+.putbar.waiting .go{opacity:.6;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 @media (max-width:380px){.putbar{grid-template-columns:repeat(4,42px) 1fr 42px;gap:6px}.putbar .nudge{width:42px;height:42px}}
 
 .send{border:1.5px dashed var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px;background:var(--bg-2)}
@@ -174,6 +178,7 @@ table.score{border-collapse:collapse;width:100%;font-variant-numeric:tabular-num
       <div class="hio" id="hio" hidden></div>
       <div class="overlay" id="gate" hidden><div class="card" id="gateCard"></div></div>
     </div>
+    <div id="packMini"></div>
     <div class="putbar" id="putbar" hidden>
       <button type="button" class="nudge" data-turn="-1" aria-label="Aim left">↺</button>
       <button type="button" class="nudge" data-turn="1" aria-label="Aim right">↻</button>

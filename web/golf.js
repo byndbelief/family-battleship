@@ -84,6 +84,7 @@ function clockCheck() {
 function loop(t) {
   clockCheck();
   if (locked && mode !== 'aim') { setLocked(false); showAim(null); }
+  syncPutbar();
   scene.fx = (scene.fx || []).filter((f) => { f.x += f.vx; f.y += f.vy; f.vy += f.g || 0; f.life -= 0.02; return f.life > 0; });
   if (scene.hole) { const k = cv.width / LW; ctx.setTransform(k, 0, 0, k, 0, 0); drawHole(ctx, scene.hole, t, scene); if (liveOn) drawGhosts(); }
   requestAnimationFrame(loop);
@@ -248,7 +249,7 @@ function waiting(cur) {
   scene = { hole: holeWithAttack(G.game.seed, curHole(), 0), fx: [], clock: 0 };
   setHud(curHole(), cur, 0, false);
   $('tip').textContent = `Waiting for ${who(cur).replace(/<[^>]+>/g, '')} to play hole ${curHole() + 1}. This page updates when they do.`;
-  $('cheats').hidden = true; $('pack').innerHTML = '';
+  $('cheats').hidden = true; $('pack').innerHTML = ''; $('packMini').innerHTML = '';
   renderCard();
 }
 
@@ -258,7 +259,7 @@ function waitingLive() {
   setHud(curHole(), me.id, 0, false);
   const left = stillPlaying().filter((p) => p !== me.id).map((p) => who(p).replace(/<[^>]+>/g, ''));
   $('tip').textContent = `⚔️ Live race: waiting for ${left.join(' & ') || 'the others'} to finish hole ${curHole() + 1}.`;
-  $('cheats').hidden = true; $('pack').innerHTML = '';
+  $('cheats').hidden = true; $('pack').innerHTML = ''; $('packMini').innerHTML = '';
   renderCard();
 }
 async function myTurnLive() {
@@ -378,7 +379,24 @@ function showAim(a) {
   if (!a) { m.hidden = true; return; }
   m.hidden = false; $('pfill').style.width = Math.round(a.p * 100) + '%'; $('ptext').textContent = `Power ${Math.round(a.p * 100)}%`;
 }
-function setLocked(on) { locked = on; $('putbar').hidden = !on; }
+function setLocked(on) { locked = on; syncPutbar(); }
+// Touch screens: the Putt! bar is always up during a game. Until you've dragged back it waits
+// (and says whose turn it is); after, ↺ ↻ − + ✕ and Putt! come alive. Mouse: only as before.
+const touchUI = () => isPhone() || matchMedia('(pointer: coarse)').matches;
+let putbarKey = '';
+function syncPutbar() {
+  if (!G) return;
+  const playing = G.game.status === 'playing' && !['over', 'done'].includes(mode), show = touchUI() ? playing : locked;
+  const ready = locked && mode === 'aim';
+  const label = ready ? 'Putt!' : mode === 'aim' ? '👆 Drag back on the course to aim' : mode === 'rolling' ? 'Rolling…' : mode === 'replay' ? 'Watching…'
+    : mode === 'bot' ? '🤖 Robot putting…' : liveOn ? 'Waiting…' : `${who(curPlayer()).replace(/<[^>]+>/g, '')}${curPlayer() === me.id ? 'r turn' : "'s turn"}`;
+  const key = `${show}|${ready}|${label}`;
+  if (key === putbarKey) return;
+  putbarKey = key;
+  const bar = $('putbar'); bar.hidden = !show; bar.classList.toggle('waiting', !ready);
+  bar.querySelectorAll('button').forEach((b) => { b.disabled = !ready; });
+  $('puttGo').textContent = label;
+}
 function nudgeAim(turn, pow) {
   const a = scene.aim; if (!a || mode !== 'aim') return;
   if (turn) { const t = (turn * Math.PI) / 180, c = Math.cos(t), s = Math.sin(t); [a.dx, a.dy] = [a.dx * c - a.dy * s, a.dx * s + a.dy * c]; }
@@ -447,9 +465,11 @@ function clearSpot(h, x, y) {
     && !h.bumpers.some(([cx, cy, cr]) => (x - cx) ** 2 + (y - cy) ** 2 < (cr + R + 1) ** 2);
 }
 function renderPack() {
-  const el = $('pack'), on = mode === 'aim';
-  el.innerHTML = G.game.status === 'playing' && (liveOn ? !myHoleDone() : curPlayer() === me.id) ? backpackBarHTML(pack, 'golf', on) : '';
-  el.querySelectorAll('[data-loot]').forEach((b) => {
+  const on = mode === 'aim', mini = isPhone();
+  const html = G.game.status === 'playing' && (liveOn ? !myHoleDone() : curPlayer() === me.id) ? backpackBarHTML(pack, 'golf', on, { compact: mini }) : '';
+  // Phones: a row of icons right above the Putt! bar; otherwise the full backpack below the tip.
+  $('packMini').innerHTML = mini ? html : ''; $('pack').innerHTML = mini ? '' : html;
+  document.querySelectorAll('#pack [data-loot], #packMini [data-loot]').forEach((b) => {
     const item = b.dataset.item;
     if ((item === 'magnet' && magnetOn) || (item === 'golden_tee' && !lastStroke)) b.disabled = true;
     b.onclick = async () => {
@@ -502,7 +522,7 @@ function wedgeTo(pt) {
 
 // ---------------------------------------------------------------- finishing a hole
 async function finishTurn(holed) {
-  mode = 'done'; $('cheats').hidden = true; $('pack').innerHTML = '';
+  mode = 'done'; $('cheats').hidden = true; $('pack').innerHTML = ''; $('packMini').innerHTML = '';
   const par = HOLES[curHole()].par, t = G.game.t;
   if (holed) celebrate(strokes, par);
   const wasLive = liveOn;
@@ -579,7 +599,7 @@ async function robotTurn() {
   const { data: atk } = await sb.rpc('golf_bot_attack', { p_game: G.game.id });
   curAttack = atk?.type || 0; curAttacker = atk?.attacker || null;
   const h = H();
-  cheatsUsed = 0; strokes = 0; current = []; mode = 'bot'; $('pack').innerHTML = '';
+  cheatsUsed = 0; strokes = 0; current = []; mode = 'bot'; $('pack').innerHTML = ''; $('packMini').innerHTML = '';
   scene = { hole: h, fx: [], clock: 0, ball: { x: h.tee[0], y: h.tee[1] } };
   setHud(curHole(), bot, 0, false); renderCard();
   if (curAttack) { sfx('sneaky'); bigText(`<span class="small-pop">${ATTACKS[curAttack].icon} ${ATTACKS[curAttack].name}!</span>`, 1700); $('tip').textContent = `${nm(bot).replace(/<[^>]+>/g, '')} got hit with ${ATTACKS[curAttack].name}. Heh.`; await sleep(1500); }
