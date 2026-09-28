@@ -44,7 +44,16 @@ takes a bare username.
   player being aimed at can **dodge** (`013_dodge.sql`, `duel_dodge`): up to 20 px from where
   their tank stood when the shooter's turn began (`turn_x`), streamed live and saved as they go;
   not against the robot (it fires too fast). Each shot records the target's spot as the shooter
-  saw it (`duel_shots.target_x`) so a late dodge can't make devices disagree. The aim
+  saw it (`duel_shots.target_x`) so a late dodge can't make devices disagree.
+- **Live battle** (`014_live_battle.sql`): a duel stops taking turns by itself while both players
+  have it open. Each duel page checks in with `duel_here()` every 3 s (and leaves on hide/close);
+  "both here" = both checked in within 8 s, never with the robot. Live, either player fires
+  whenever their cannon has reloaded (3 s on the page, 2.5 s enforced) via `duel_fire_live`, which
+  takes damage as **amounts** (`p_dmg`) so two shells landing together both count, and drives
+  freely on their own side (`duel_dodge` skips turn and fuel while live). Shells fly concurrently
+  (`shells` in `duel.js`; `shot` is only a turn-based shell). Each shot records the move its wind
+  was read at (`duel_shots.wind_move`). When someone leaves it goes back to turns, the player shot
+  at last going first. Dodge therefore mostly matters in the few seconds before live kicks in. The aim
   hint is deliberately a rough guide — a hidden per-turn error, a wobble, 65% of the flight —
   because the family found an accurate one made every shot a hit. Don't make it exact again.
 - **The robot is meant to be hard at Pro and Ace, easy at Rookie.** Battleship (`012`): hunts by
@@ -102,7 +111,7 @@ takes a bare username.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.

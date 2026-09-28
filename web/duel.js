@@ -1,7 +1,7 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
 import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, shotClock, stopShotClock, chaosClock, dramaOn } from './common.js';
-import { W, H, TANK_X, CRATER_R, BERTHA_R, rng, buildTop, windFor, tankPos, simulate, damage } from './duel-engine.js';
+import { W, H, TANK_X, CRATER_R, BERTHA_R, rng, buildTop, applyCrater, windFor, tankPos, simulate, damage } from './duel-engine.js';
 
 const $ = (id) => document.getElementById(id);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -20,10 +20,21 @@ let botDrive = null;      // { move, x } while the robot rolls to its firing spo
 // dodgeX is my dodge this turn; oppDodge is the other player's, streamed live while I aim.
 let dodgeX = null, dodgeMove = -1, oppDodge = null;
 const DODGE = 20;
+// Live battle: while both players have the duel open (each page checks in with duel_here every
+// few seconds), there are no turns. Fire whenever the cannon has reloaded, drive anywhere on your
+// side. Shells can be in the air at the same time (shells); `shot` is only a turn-based shell.
+let liveOn = false, reloadAt = 0, liveMyX = null, oppLiveX = null, liveSave = null, seenHp = null, shells = [];
+const RELOAD = 3000;
 const FUEL = 40, SIDE = [[30, 330], [470, 770]];
 const baseXs = () => G.game.tank_x || TANK_X;
 function xs() {
   const t = [...baseXs()], g = G.game;
+  if (g.status === 'playing' && liveOn) {
+    const mi = myIdx();
+    if (mi >= 0 && liveMyX != null) t[mi] = liveMyX;
+    if (mi >= 0 && oppLiveX != null) t[1 - mi] = oppLiveX;
+    return t;
+  }
   if (g.status === 'playing') {
     if (turnId() === me.id && myXMove === g.move && myX != null) t[g.turn] = myX;
     else if (turnId() !== me.id && oppAim?.move === g.move && oppAim.x != null) t[g.turn] = oppAim.x;
@@ -61,8 +72,8 @@ function draw(t) {
   const X = shot?.xs || xs();
   [0, 1].forEach((p) => {
     const { x, y } = tankPos(p, top, X), col = p ? '#3DD6C6' : '#FF6B5A', dir = p ? -1 : 1;
-    const aiming = !shot && g.status === 'playing' && g.turn === p;
-    const ang = aiming && p === myIdx() ? +$('angle').value : aiming && oppAim && oppAim.move === g.move ? oppAim.angle : (shot && shot.p === p ? shot.angle : 45);
+    const aiming = g.status === 'playing' && (liveOn || (!shot && g.turn === p));
+    const ang = aiming && p === myIdx() ? +$('angle').value : aiming && oppAim && (liveOn || oppAim.move === g.move) ? oppAim.angle : (shot && shot.p === p ? shot.angle : 45);
     ctx.save(); ctx.translate(x, y); if (g.hp[p] <= 0) ctx.globalAlpha = 0.45;
     ctx.strokeStyle = col; ctx.lineWidth = 4; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(0, -14); ctx.lineTo(Math.cos((ang * Math.PI) / 180) * 20 * dir, -14 - Math.sin((ang * Math.PI) / 180) * 20); ctx.stroke();
@@ -70,9 +81,9 @@ function draw(t) {
     ctx.beginPath(); ctx.roundRect(-16, -10, 32, 10, 4); ctx.fill();
     ctx.fillStyle = '#0008'; for (let i = -12; i <= 12; i += 8) { ctx.beginPath(); ctx.arc(i, 0, 3, 0, 7); ctx.fill(); }
     ctx.restore();
-    if (aiming) { ctx.fillStyle = col; const bob = Math.sin(t / 250) * 3; ctx.beginPath(); ctx.moveTo(x - 6, y - 44 + bob); ctx.lineTo(x + 6, y - 44 + bob); ctx.lineTo(x, y - 36 + bob); ctx.fill(); }
+    if (aiming && !liveOn) { ctx.fillStyle = col; const bob = Math.sin(t / 250) * 3; ctx.beginPath(); ctx.moveTo(x - 6, y - 44 + bob); ctx.lineTo(x + 6, y - 44 + bob); ctx.lineTo(x, y - 36 + bob); ctx.fill(); }
   });
-  if (!shot && !busy && g.status === 'playing' && g.turn === myIdx()) {
+  if (canAim()) {
     if (drag) {
       const tp = tankPos(myIdx(), top, X);
       ctx.strokeStyle = '#FFF4D688'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
@@ -81,12 +92,12 @@ function draw(t) {
     }
     drawHint(t);
   }
-  if (shot) {
-    const n = shot.i, pts = shot.path;
+  shells.forEach((sh) => {
+    const n = sh.i, pts = sh.path;
     for (let j = Math.max(0, n - 40); j < n; j++) { ctx.globalAlpha = (j - (n - 40)) / 40; ctx.fillStyle = '#FFC857'; ctx.beginPath(); ctx.arc(pts[j].x, pts[j].y, 2, 0, 7); ctx.fill(); }
     ctx.globalAlpha = 1;
     if (n < pts.length) { const q = pts[n]; ctx.shadowColor = '#FFC857'; ctx.shadowBlur = 18; ctx.fillStyle = '#FFF4D6'; ctx.beginPath(); ctx.arc(q.x, q.y, 4, 0, 7); ctx.fill(); ctx.shadowBlur = 0; }
-  }
+  });
   particles.forEach((q) => { ctx.globalAlpha = Math.max(0, q.life); ctx.fillStyle = q.c; ctx.beginPath(); ctx.arc(q.x, q.y, q.s, 0, 7); ctx.fill(); });
   ctx.globalAlpha = 1;
 }
@@ -159,16 +170,17 @@ function stamp(text, tone = '', ms = 2400) { const el = document.createElement('
 // Flies a shell along its path, then blows up where the server says it landed.
 function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1, X = xs()) {
   return new Promise((done) => {
-    top = buildTop(G.game.seed, beforeCraters);
+    if (!liveOn) top = buildTop(G.game.seed, beforeCraters);   // live: the ground is already current
     const sim = simulate(G.game.seed, move, top, p, angle, power, windX, X);
-    shot = { p, angle, path: sim.path, xs: X, i: reduceMotion ? sim.path.length : 0 };
+    const s = { p, angle, path: sim.path, xs: X, i: reduceMotion ? sim.path.length : 0 };
+    shells.push(s); if (!liveOn) shot = s;
     sfx('cannon'); if (!reduceMotion) sfx('whistle', { delay: 0.15, dur: Math.max(0.3, sim.path.length / 3 / 60 - 0.15) });
     const step = () => {
       // Slow motion as the shell closes in on a tank.
-      const q = shot.path[Math.min(shot.i, shot.path.length - 1)], near = !reduceMotion && dramaOn() && [0, 1].some((t) => { const k = tankPos(t, top, X); return Math.hypot(q.x - k.x, q.y - (k.y - 8)) < 90; });
-      shot.i = Math.min(shot.path.length, shot.i + (near ? 1 : 3));
-      if (shot.i < shot.path.length) return requestAnimationFrame(step);
-      shot = null;
+      const q = s.path[Math.min(s.i, s.path.length - 1)], near = !reduceMotion && dramaOn() && [0, 1].some((t) => { const k = tankPos(t, top, X); return Math.hypot(q.x - k.x, q.y - (k.y - 8)) < 90; });
+      s.i = Math.min(s.path.length, s.i + (near ? 1 : 3));
+      if (s.i < s.path.length) return requestAnimationFrame(step);
+      shells = shells.filter((x) => x !== s); if (shot === s) shot = null;
       if (crater) { boom(crater[0], crater[1]); if (!reduceMotion && cv.animate) cv.animate([{ transform: 'translate(-6px,3px)' }, { transform: 'translate(5px,-3px)' }, { transform: 'none' }], { duration: 350 }); }
       done(sim);
     };
@@ -186,16 +198,16 @@ function render() {
   $('hp0').style.width = g.hp[0] + '%'; $('hp1').style.width = g.hp[1] + '%';
   const gusty = g.gust === g.move, w = windFor(g.seed, g.move, gusty ? 3 : 1);
   $('wind').textContent = (gusty ? '🌪️ ' : '') + (w === 0 ? 'No wind' : `Wind ${w < 0 ? '←' : '→'} ${Math.abs(w)}${gusty ? ' (hurricane!)' : ''}`);
-  const over = g.status === 'over', mine = !over && turnId() === me.id;
-  $('title').innerHTML = over ? (g.winner === me.id ? 'You win!' : `${nm(g.winner)} wins!`) : mine ? 'Your shot' : `${nm(turnId())}'s shot`;
-  $('status').textContent = over ? '' : mine ? `Move ${g.move + 1}` : busy ? '' : 'Waiting…';
-  $('controls').hidden = !mine || busy;
+  const over = g.status === 'over', liveNow = liveOn && !over && mi >= 0, mine = !over && (liveNow || turnId() === me.id);
+  $('title').innerHTML = over ? (g.winner === me.id ? 'You win!' : `${nm(g.winner)} wins!`) : liveNow ? '⚔️ Live battle' : mine ? 'Your shot' : `${nm(turnId())}'s shot`;
+  $('status').textContent = over ? '' : liveNow ? 'Fire at will!' : mine ? `Move ${g.move + 1}` : busy ? '' : 'Waiting…';
+  $('controls').hidden = !mine || (busy && !liveNow);
   if (mine) showFuel();
-  // Dodge row: on their turn, against a person (the robot fires too fast to dodge).
+  // Dodge row: on their turn, against a person (the robot fires too fast to dodge). Live: just drive.
   $('dodge').hidden = !(g.status === 'playing' && !mine && mi >= 0 && !busy && !isBot(turnId()));
   if (!$('dodge').hidden) showDodge();
   // Shot clock: 30 seconds to fire (not against the robot, where nobody is waiting on you).
-  if (mine && !busy && !g.players.some(isBot)) shotClock(`duel.${g.id}.${g.move}`, 30, async () => {
+  if (mine && !liveNow && !busy && !g.players.some(isBot)) shotClock(`duel.${g.id}.${g.move}`, 30, async () => {
     const { data } = await sb.rpc('shot_clock', { p_kind: 'duel', p_game: g.id });
     if (data) splash(['TOO SLOW!', '⏱ SHOT CLOCK', data], { tone: 'red', sound: null, ms: 2000 });
     await load(g.id); render();
@@ -203,8 +215,8 @@ function render() {
   else stopShotClock();
   danger(g.status === 'playing' && mi >= 0 && g.hp[mi] > 0 && g.hp[mi] <= 25);   // nearly out: red pulse and a heartbeat
   if (mine && !busy && isPhone()) { try { if (!sessionStorage.getItem('duel.tip')) { sessionStorage.setItem('duel.tip', '1'); note('Drag on the battlefield to aim: direction sets the angle, distance the power.'); } } catch {} }
-  cv.style.touchAction = mine && !busy ? 'none' : 'manipulation';   // dragging aims on your turn instead of scrolling
-  cv.style.cursor = mine && !busy ? 'crosshair' : '';
+  cv.style.touchAction = canAim() ? 'none' : 'manipulation';   // dragging aims on your turn instead of scrolling
+  cv.style.cursor = canAim() ? 'crosshair' : '';
   $('pack').innerHTML = over ? '' : backpackBarHTML(pack, 'duel', !busy);
   $('pack').querySelectorAll('[data-loot]').forEach((b) => {
     const item = b.dataset.item;
@@ -251,18 +263,24 @@ async function load(id) {
 async function decide() {
   if (busy) return;
   const g = G.game, last = G.shots[G.shots.length - 1];
+  // Live: shells were already flown as they were fired; just show what they did.
+  if (liveOn && last) {
+    if (last.shooter !== me.id && seenHp && g.hp.some((h, k) => h < seenHp[k])) hitDrama(seenHp, g.hp);
+    markSeen(last.move);
+  }
+  seenHp = [...g.hp];
   // Watch the last shot if it's new to you.
   if (last && last.shooter !== me.id && last.move > seenMove()) {
     busy = true; render();
     const before = g.craters.slice(0, g.craters.length - (last.crater ? 1 : 0));
     const lp = g.players.indexOf(last.shooter), LX = [...baseXs()]; if (last.from_x != null) LX[lp] = last.from_x; if (last.target_x != null) LX[1 - lp] = last.target_x;
-    await flyShell(lp, last.angle, last.power, before, last.move - 1, last.crater, last.wind_x || 1, LX);
+    await flyShell(lp, last.angle, last.power, before, last.wind_move ?? last.move - 1, last.crater, last.wind_x || 1, LX);
     markSeen(last.move); top = buildTop(g.seed, g.craters); busy = false;
     hitDrama(G.shots[G.shots.length - 2]?.hp_after || [100, 100], last.hp_after);
   }
   top = buildTop(g.seed, g.craters);
   render();
-  if (g.status === 'over') { endDrama(g); return; }
+  if (g.status === 'over') { if (liveOn) setLive(false); endDrama(g); return; }
   const cur = turnId();
   if (isBot(cur)) {
     const stale = Date.now() - new Date(g.updated_at).getTime() > 15000;
@@ -294,7 +312,8 @@ async function fire() {
 
 // The other player just pulled the trigger: fly their shell here right away, the same way
 // their page does, instead of waiting for the database to catch up.
-async function watchLiveShot({ move, angle, power, x, tx }, refresh) {
+async function watchLiveShot({ move, angle, power, x, tx, live: isLive, wx }, refresh) {
+  if (isLive) return watchShellLive({ angle, power, x, move, wx });
   const g = G?.game;
   if (!g || busy || g.status !== 'playing' || move !== g.move || turnId() === me.id) return;
   const p = g.turn, shooter = g.players[p], big = g.bertha.includes(shooter), mi = myIdx(), hpBefore = g.hp[mi];
@@ -312,6 +331,63 @@ async function watchLiveShot({ move, angle, power, x, tx }, refresh) {
   hitDrama(g.hp, G.game.hp);
   pack = await backpack(); announceChaos({ gameId: g.id });
   decide();
+}
+
+// ---------------------------------------------------------------- live battle
+async function fireLive() {
+  const g = G?.game, p = G ? myIdx() : -1;
+  if (!g || p < 0 || !liveOn || g.status !== 'playing' || Date.now() < reloadAt) return;
+  reloadAt = Date.now() + RELOAD; showReload();
+  const angle = +$('angle').value, power = +$('power').value, move = g.move, windX = g.gust === move ? 3 : 1, X = xs();
+  navigator.vibrate?.(40); drag = null;
+  live?.send('shot', { live: true, move, angle, power, x: X[p], wx: windX });
+  const big = g.bertha.includes(me.id);
+  const sim = await flyShell(p, angle, power, g.craters, move, null, windX, X);
+  // Damage is worked out where the tanks stand when it lands (they may have driven meanwhile).
+  const now = G.game, Xi = xs(), crater = sim.impact ? [Math.round(sim.impact.x), Math.round(sim.impact.y), big ? BERTHA_R : CRATER_R] : null;
+  const hp = damage(top, sim.impact, now.hp, big, now.players.map((x) => now.shields.includes(x) && x !== me.id), Xi);
+  if (crater) { boom(crater[0], crater[1], big ? 2 : 1); applyCrater(top, crater); }
+  const { error } = await sb.rpc('duel_fire_live', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater,
+    p_dmg: [0, 1].map((k) => now.hp[k] - hp[k]), p_x: X[p] !== baseXs()[p] ? X[p] : null, p_target_x: Xi[1 - p], p_wind_move: move, p_wind_x: windX });
+  if (error) { note(friendly(error), 'error'); if (/live battle is over/i.test(error.message || '')) setLive(false); }
+  else { hitDrama(now.hp, hp); seenHp = hp; nudge(); announceChaos({ gameId: g.id }); pack = await backpack(); }
+  await load(g.id); decide();
+}
+// Their live shell: fly it here as it's fired. The damage arrives with the next refresh.
+async function watchShellLive({ angle, power, x, move, wx }) {
+  const g = G?.game, mi = G ? myIdx() : -1;
+  if (!g || !liveOn || mi < 0 || g.status !== 'playing') return;
+  const p = 1 - mi, big = g.bertha.includes(g.players[p]), X = xs(); if (x != null) X[p] = x;
+  oppAim = { ...(oppAim || {}), angle, power, x };
+  const sim = await flyShell(p, angle, power, g.craters, move ?? g.move, null, wx || 1, X);
+  if (sim.impact) { const c = [Math.round(sim.impact.x), Math.round(sim.impact.y), big ? BERTHA_R : CRATER_R]; boom(c[0], c[1], big ? 2 : 1); applyCrater(top, c); }
+}
+function showReload() {
+  const b = $('fire'), left = reloadAt - Date.now();
+  if (liveOn && left > 0) { b.disabled = true; b.textContent = `Reloading… ${(left / 1000).toFixed(1)}`; setTimeout(showReload, 100); }
+  else { b.disabled = false; b.textContent = 'Fire!'; }
+}
+// Check in with the server; it says whether you're both here.
+async function here(on = true) {
+  const g = G?.game;
+  if (!g || myIdx() < 0) return;
+  if (g.status !== 'playing' || g.players.some(isBot)) { if (liveOn) setLive(false); return; }
+  const { data, error } = await sb.rpc('duel_here', { p_game: g.id, p_on: on });
+  if (on && !error) setLive(!!data);
+}
+function setLive(v) {
+  if (v === liveOn) return;
+  liveOn = v; liveMyX = oppLiveX = null; oppAim = null; myX = null; dodgeX = null; drag = null;
+  hintCache.clear();
+  if (v) {
+    live?.send('here', {});
+    stopShotClock();
+    splash(['⚔️ LIVE BATTLE', "You're both here", 'No turns. Fire at will!'], { tone: 'red', ms: 2200 });
+  } else {
+    reloadAt = 0; showReload();
+    if (G?.game.status === 'playing') note('Live battle over: back to taking turns.');
+  }
+  if (G) { top = buildTop(G.game.seed, G.game.craters); render(); }
 }
 
 // The robot tries every angle and power, keeps the one that lands closest, then wobbles it by skill.
@@ -376,7 +452,7 @@ async function robotShot() {
 // ---------------------------------------------------------------- controls
 let aimT = 0, aimQueued = false;
 const sendAim = () => {
-  if (!G || busy) return;
+  if (!G || (busy && !liveOn)) return;
   const now = Date.now();
   if (now - aimT < 90) { if (!aimQueued) { aimQueued = true; setTimeout(() => { aimQueued = false; sendAim(); }, 90); } return; }
   aimT = now; live?.send('aim', { move: G.game.move, angle: +$('angle').value, power: +$('power').value, x: xs()[myIdx()] });
@@ -398,6 +474,14 @@ function setAim(angle, power) {
 // Driving: ◀ ▶ move the tank 2 px a step (hold to keep going), up to 40 px of fuel a turn,
 // never past your side of the hill. The other player sees it live; the move goes with the shot.
 function driveBy(d) {
+  if (liveOn && G && myIdx() >= 0 && G.game.status === 'playing') {
+    const p = myIdx(), [lo, hi] = SIDE[p], cur = liveMyX ?? baseXs()[p], nx = Math.max(lo, Math.min(hi, cur + d * 2));
+    if (nx === cur) return;
+    liveMyX = nx; sendAim();
+    if (nx % 8 === 0) sfx('tick');
+    clearTimeout(liveSave); liveSave = setTimeout(saveLiveX, 400);
+    return;
+  }
   const g = G?.game; if (!g || busy || shot || g.status !== 'playing' || turnId() !== me.id) return;
   const p = myIdx(), start = baseXs()[p], [lo, hi] = SIDE[p];
   if (myXMove !== g.move || myX == null) { myXMove = g.move; myX = start; }
@@ -406,8 +490,14 @@ function driveBy(d) {
   myX = nx; showFuel(); sendAim();
   if (Math.abs(myX - start) % 8 === 0) sfx('tick');
 }
+async function saveLiveX() {
+  const g = G?.game; if (!g || !liveOn || liveMyX == null) return;
+  const { error } = await sb.rpc('duel_dodge', { p_game: g.id, p_move: g.move, p_x: liveMyX });
+  if (error) note(friendly(error), 'error');
+}
 function showFuel() {
   const g = G?.game; if (!g || !$('fuelOut')) return;
+  if (liveOn) { $('fuelOut').textContent = '∞'; $('fuelBar').style.width = '100%'; return; }
   const used = myXMove === g.move && myX != null ? Math.abs(myX - baseXs()[myIdx()]) : 0;
   $('fuelOut').textContent = FUEL - used; $('fuelBar').style.width = `${((FUEL - used) / FUEL) * 100}%`;
 }
@@ -467,7 +557,7 @@ document.querySelectorAll('[data-step]').forEach((b) => {
 // Drag on the battlefield to aim: the direction from your tank sets the angle and the
 // distance sets the power. The aim hint follows your finger.
 let drag = null;
-const canAim = () => G && !busy && !shot && G.game.status === 'playing' && turnId() === me.id;
+const canAim = () => G && G.game.status === 'playing' && myIdx() >= 0 && (liveOn || (!busy && !shot && turnId() === me.id));
 function aimFromPointer(e) {
   const r = cv.getBoundingClientRect(), gx = ((e.clientX - r.left) / r.width) * W, gy = ((e.clientY - r.top) / r.height) * H;
   const p = myIdx(), t = tankPos(p, top, xs()), dir = p === 0 ? 1 : -1;
@@ -479,7 +569,7 @@ function aimFromPointer(e) {
 cv.addEventListener('pointerdown', (e) => { if (!canAim()) return; e.preventDefault(); cv.setPointerCapture?.(e.pointerId); aimFromPointer(e); });
 cv.addEventListener('pointermove', (e) => { if (drag && canAim()) aimFromPointer(e); });
 ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => cv.addEventListener(ev, () => { drag = null; }));
-$('fire').onclick = () => { if (!busy) fire(); };
+$('fire').onclick = () => { if (liveOn) fireLive(); else if (!busy) fire(); };
 $('del').onclick = async () => {
   const b = $('del');
   if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Tap again to delete the duel for everyone'; return; }
@@ -508,7 +598,8 @@ $('del').onclick = async () => {
     if (data && data.updated_at !== G.game.updated_at) refresh();
   }, {
     dodge: (a) => { if (G && a.move === G.game.move && turnId() === me.id) oppDodge = a; },
-    aim: (a) => { if (G && a.move === G.game.move && turnId() !== me.id) { oppAim = a; $('status').textContent = 'Aiming…'; } },
+    here: () => here(),
+    aim: (a) => { if (G && liveOn) { oppAim = a; if (a.x != null) oppLiveX = a.x; return; } if (G && a.move === G.game.move && turnId() !== me.id) { oppAim = a; $('status').textContent = 'Aiming…'; } },
     shot: (s) => watchLiveShot(s, refresh),
   });
   navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.url) location.href = e.data.url; });
@@ -516,4 +607,10 @@ $('del').onclick = async () => {
   upNext(); setInterval(() => { if (!document.hidden) upNext(); }, 20000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) upNext(); });
   decide();
+  // Live battle: check in every 3 s while the page is showing; leave when it's hidden or closed.
+  here(); setInterval(() => { if (!document.hidden) here(); }, 3000);
+  document.addEventListener('visibilitychange', async () => {
+    if (document.hidden) { setLive(false); await here(false); live?.send('here', {}); } else here();
+  });
+  addEventListener('pagehide', () => { here(false); live?.send('here', {}); });
 })();
