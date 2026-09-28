@@ -1,5 +1,5 @@
 import { USERNAME_DOMAIN } from './config.js';
-import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence, jumpToNext, startOnline, online, agoText, setGameTools } from './common.js';
+import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence, jumpToNext, startOnline, online, agoText, setGameTools, themeTiles, forgetThemes } from './common.js';
 import { HOLES, holeWithAttack, drawHole, LW, LH } from './golf-engine.js';
 import { THEMES, themeOf, vesselSVG } from './bs-themes.js';
 import { W as DW, H as DH, startXs, buildTop } from './duel-engine.js';
@@ -1219,6 +1219,8 @@ function renderGame() {
       <p class="muted">${shared ? 'Everyone hides their ships on the same ocean. Shuffle until you like your spot: nobody else can see it, and it never overlaps anyone.' : 'Shuffle until you like where your ships are. Nobody else can see them.'}</p>
       ${G.draft ? boardHTML({ owner: me.id, ships: G.draft }) : '<p class="muted">Finding a clear patch of sea…</p>'}
       <div class="fleet-list">${MODES[game.mode].ships.map((L, i) => `<span>${shipName(game.mode, i)} · ${L}</span>`).join('')}</div>
+      <div class="themepick"><div class="row between"><strong>⚓ Your fleet's look</strong><span class="muted small">Everyone sees your ships this way</span></div>
+        <div class="themes" id="themeTiles" role="radiogroup" aria-label="Battleship theme"></div></div>
       <p class="error" id="err" hidden></p>
       <div class="row"><button id="shuffle">Shuffle ships</button><button class="primary" id="ready">Ready</button></div>
     </section>`;
@@ -1342,6 +1344,7 @@ function renderGame() {
     location.hash = '';
   } });
 
+  themeTiles(document.getElementById('themeTiles'));   // placing your ships: pick how they look
   const shuffle = document.getElementById('shuffle');
   if (shuffle) {
     shuffle.onclick = () => { if (shared) oceanShuffle(); else { G.draft = randomFleet(game.mode); renderGame(); } };
@@ -1434,6 +1437,7 @@ document.addEventListener('click', async (e) => {
   eggTaps = [];
   const { data } = await sb.rpc('unlock_bs_theme', { p_word: 'take me to your leader' });
   if (data !== 'ufo') return;
+  forgetThemes();
   splash(['👽 ABDUCTED!', 'You found', 'THE UFO FLEET'], { tone: 'gold', ms: 2600 }); sfx('fanfare');
   if (G?.game) { await loadGame(G.game.id); renderGame(); }
 });

@@ -875,11 +875,15 @@ function sw(key, on, label, hint) {
     <button type="button" class="switch" role="switch" aria-checked="${on}" data-sw="${key}" aria-label="${label}"><i></i></button></div>`;
 }
 // ⚓ Battleship themes (027): a tile per theme; the locked ones say how to get them (the UFO doesn't).
-async function themeTiles(wrap) {
-  const box = wrap.querySelector('#themeTiles'); if (!box) return;
+// Picked on the ship placement screen (box: an empty .themes element). What you have is fetched
+// once a page and kept, so the placement screen can redraw as often as it likes.
+let themeData = null;
+export const forgetThemes = () => { themeData = null; };   // after an unlock
+export async function themeTiles(box) {
+  if (!box) return;
   if (!document.getElementById('themeTileCss')) {
     const st = document.createElement('style'); st.id = 'themeTileCss';
-    st.textContent = `.themes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:0 12px 12px}
+    st.textContent = `.themes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 .themes button{display:flex;flex-direction:column;align-items:stretch;gap:4px;padding:0;border:2px solid transparent;border-radius:12px;background:none;color:inherit;cursor:pointer;font:inherit;min-width:0}
 .themes button .thsea{display:block;height:44px;border-radius:9px;overflow:hidden;padding:9px 6px;box-sizing:border-box}
 .themes button .thsea svg{display:block;width:100%;height:100%}
@@ -890,8 +894,9 @@ async function themeTiles(wrap) {
 .themes button.locked{cursor:default}`;
     document.head.appendChild(st);
   }
-  const { data, error } = await sb.rpc('bs_themes');
-  if (error || !data) { box.innerHTML = ''; return; }
+  themeData ??= sb.rpc('bs_themes').then(({ data, error }) => (error ? null : data));
+  const data = await themeData;
+  if (!data) { themeData = null; box.innerHTML = ''; return; }
   const draw = (cur) => {
     box.innerHTML = Object.entries(THEMES).map(([k, t]) => {
       const open = data.unlocked.includes(k), hidden = !open && t.lock?.secret;
@@ -904,7 +909,7 @@ async function themeTiles(wrap) {
     box.querySelectorAll('[data-theme]:not(.locked)').forEach((b) => { b.onclick = async () => {
       const { error: e } = await sb.rpc('set_bs_theme', { p_theme: b.dataset.theme });
       if (e) { note(friendly(e), 'error'); return; }
-      draw(b.dataset.theme); sfx('pop');
+      data.current = b.dataset.theme; draw(b.dataset.theme); sfx('pop');
       dispatchEvent(new Event('bstheme'));   // a Battleship page redraws its boards
     }; });
   };
@@ -928,8 +933,6 @@ export async function openSettings() {
       ${uid ? `<div class="setgroup">
         <div class="setrow"><div><strong>🏆 Gauntlet length</strong><span>Picked for you when you start one</span></div>
           <div class="setseg" role="radiogroup" aria-label="Gauntlet length">${[3, 5, 7].map((r) => `<button type="button" role="radio" aria-checked="${gauntletRounds() === r}" data-rounds="${r}">${r}</button>`).join('')}</div></div>
-        <div class="setrow themerow"><div><strong>⚓ Battleship fleet</strong><span id="themeHint">Everyone sees your ships in your theme</span></div></div>
-        <div class="themes" id="themeTiles" role="radiogroup" aria-label="Battleship theme"></div>
         <div class="setrow" id="alertRow"><div><strong>🔔 Turn alerts</strong><span id="alertHint">Checking…</span></div><span id="alertCtl"></span></div>
         <a class="setrow link" href="./#player=${uid}"><div><strong>🏅 My trophies</strong><span>Your trophy case and badges</span></div><span class="setgo">›</span></a>
       </div>
@@ -955,7 +958,6 @@ export async function openSettings() {
     if (k === 'sound') { setMuted(!on); if (on) setTimeout(() => sfx('click'), 30); }
     else { setPref(k, on); if (k === 'haptics' && on) navigator.vibrate?.(20); if (k === 'drama' && !on) danger(false); }
   }; });
-  if (uid) themeTiles(wrap);
   wrap.querySelectorAll('[data-rounds]').forEach((b) => { b.onclick = () => {
     setPref('gtRounds', +b.dataset.rounds);
     wrap.querySelectorAll('[data-rounds]').forEach((o) => o.setAttribute('aria-checked', String(o === b)));

@@ -96,6 +96,9 @@ button.cell:hover { background: var(--water-2); }
 .fleet-list { display: flex; flex-wrap: wrap; gap: 6px; font-size: 13px; }
 .fleet-list span { border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; }
 .fleet-list span.gone { text-decoration: line-through; color: var(--muted); }
+/* Battleship: the fleet theme picker on the placement screen */
+.themepick { display: grid; gap: 8px; margin-top: 4px; }
+.themepick .row { flex-wrap: wrap; gap: 4px 10px; }
 /* Shared Ocean: who's still afloat, under the one big board */
 .oceanroll { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .oceanroll li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
