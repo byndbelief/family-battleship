@@ -740,7 +740,7 @@ async function loadChaos() {
   if (cn) { cn.textContent = fresh ? `${fresh} new` : ''; cn.closest('button').hidden = !feed.length; }
   const more = feed.length - 3;
   feedCard.innerHTML = `<div class="row between"><h2>🌀 Chaos feed</h2>${more > 0 ? `<button type="button" class="link" id="feedMore" aria-expanded="${feedOpen}">${feedOpen ? 'Show less' : `Show ${more} more`}</button>` : ''}</div>
-    <ul class="chaosfeed">${feed.map((e, i) => `<li class="${e.seen_at ? '' : 'new'}" ${i >= 3 && !feedOpen ? 'hidden' : ''}><span class="big">${e.icon}</span><span>${esc(e.message)}<br><span class="muted small">${new Date(e.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span></span></li>`).join('')}</ul>`;
+    <ul class="chaosfeed">${feed.map((e, i) => `<li class="${e.seen_at ? '' : 'new'}" ${i >= 3 && !feedOpen ? 'hidden' : ''}><span class="big chaosic">${e.icon}${e.actor && !bots.has(e.actor) && names[e.actor] ? avatar({ username: names[e.actor] }, 'mini') : ''}</span><span>${esc(e.message)}<br><span class="muted small">${new Date(e.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span></span></li>`).join('')}</ul>`;
   const btn = document.getElementById('feedMore');
   if (btn) btn.onclick = () => {
     feedOpen = !feedOpen;
