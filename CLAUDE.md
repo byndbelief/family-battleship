@@ -42,6 +42,10 @@ takes a bare username.
   server hits you once per turn (one shot fewer / a hurricane / +1 stroke). Chaos clock for a
   waiting turn (`turn_at`): 2 h a hit, 8 h a harder hit, 24 h the slow player forfeits a
   Gauntlet round. Pages call `chaos_clock()` (throttled) and the lobby shows "⏰ chaos in …".
+- **Family scoreboard** (`#stats`, `009_scoreboard.sql`): every finished game and Gauntlet
+  writes one row to `results` (trigger on status → over) with per-player numbers taken at that
+  moment, so deleting games never erases history. Players can't read `results`; the page calls
+  `family_stats()`, which returns totals, streaks and head-to-head only.
 - Sound effects are synthesized (`web/sfx.js`, no audio files) with a remembered mute.
 
 ## Layout
@@ -71,7 +75,7 @@ takes a bare username.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks and 009_scoreboard applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.

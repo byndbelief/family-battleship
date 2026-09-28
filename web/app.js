@@ -226,7 +226,7 @@ async function loadMe(uid) {
 function route() {
   if (!me) return loginView();
   const m = location.hash.match(/game=([0-9a-f-]{36})/);
-  if (m) openGame(m[1]); else lobby();
+  if (m) openGame(m[1]); else if (location.hash === '#stats') statsView(); else lobby();
 }
 window.addEventListener('hashchange', route);
 
@@ -397,6 +397,7 @@ async function lobby() {
           <div><button class="primary" type="submit" id="start" disabled>Start game</button></div>
         </form>
       </section>
+      <a class="quickentry" href="#stats"><span class="qicons" aria-hidden="true">🏅</span><span><strong>Family scoreboard</strong><span class="muted small">All-time titles, wins, streaks and bragging rights</span></span><span class="qgo" aria-hidden="true">›</span></a>
       <a class="quickentry" href="#quick"><span class="qicons" aria-hidden="true">⚓⛳💥</span><span><strong>Quick play</strong><span class="muted small">Battleship, Putt Post or Hilltop Duel on its own</span></span><span class="qgo" aria-hidden="true">›</span></a>
       <section class="stack">
         <div class="row between"><h2>Your games</h2><span class="row" style="gap:14px"><button type="button" class="link" id="gamesMore" hidden></button><span class="live" id="live">Live</span></span></div>
@@ -673,7 +674,7 @@ function renderUpStrip(mine, cards, myFleets, atMe) {
   const step = (d) => { const w = strip.querySelector('.upcard')?.getBoundingClientRect().width || 240; strip.scrollBy({ left: d * (w + 12), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); };
   document.getElementById('upPrev').onclick = () => step(-1);
   document.getElementById('upNext').onclick = () => step(1);
-  const navs = () => { const more = strip.scrollWidth > strip.clientWidth + 4; document.getElementById('upPrev').hidden = document.getElementById('upNext').hidden = !more; };
+  const navs = () => { const pv = document.getElementById('upPrev'), nx = document.getElementById('upNext'); if (!pv || !nx) return; pv.hidden = nx.hidden = !(strip.scrollWidth > strip.clientWidth + 4); };
   navs(); addEventListener('resize', navs, { once: true });
 }
 let gamesOpen = false;   // Your games shows its first 3 rows until expanded
@@ -810,6 +811,70 @@ async function loadChaos() {
     btn.setAttribute('aria-expanded', feedOpen); btn.textContent = feedOpen ? 'Show less' : `Show ${more} more`;
   };
   announceChaos();
+}
+
+// ---------------------------------------------------------------- family scoreboard (#stats)
+// All-time totals from the results log (family_stats), which outlives deleted games.
+async function statsView() {
+  G = null; setChannel(null); stopShotClock(); danger(false);
+  document.getElementById('nextUp')?.remove(); document.body.classList.remove('has-firebar');
+  view(`<div class="lobby statsview">
+      <div class="statshead"><a href="#">← Game Room</a><h1>🏅 Family scoreboard</h1><p class="muted" id="since">All-time</p></div>
+      <div id="statsBody" class="stack" style="gap:18px"><p class="muted">Counting…</p></div>
+    </div>`);
+  const { data, error } = await sb.rpc('family_stats');
+  const body = document.getElementById('statsBody');
+  if (!body) return;
+  if (error) { body.innerHTML = `<p class="error">Couldn't load the scoreboard: ${esc(friendly(error))}</p>`; return; }
+  const ps = data.players || [];
+  const who = (p) => `${p.bot ? '🤖 ' : ''}${p.id === me.id ? 'You' : esc(p.username)}`;
+  if (data.since) document.getElementById('since').textContent = `All-time, since ${new Date(data.since).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })}`;
+  if (!ps.some((p) => p.played || p.gauntlets || p.holes)) { body.innerHTML = '<p class="muted">No finished games yet. The board fills up as you play.</p>'; return; }
+  const pct = (w, n) => (n ? `${Math.round((w / n) * 100)}%` : '–');
+  const medal = ['🥇', '🥈', '🥉'];
+  const ranked = ps.filter((p) => p.played || p.gauntlets);
+  const cards = ranked.map((p, i) => `
+    <div class="scard ${p.id === me.id ? 'me' : ''}">
+      <div class="row between"><strong class="sname">${medal[i] || ''} ${who(p)}</strong>${p.streak >= 2 ? `<span class="streak">🔥 ${p.streak} in a row</span>` : ''}</div>
+      <div class="sbig"><span><b>${p.titles}</b> 👑 Gauntlet${p.titles === 1 ? '' : 's'}</span><span><b>${p.won}</b>–${p.played - p.won} <small>${pct(p.won, p.played)}</small></span></div>
+      <div class="skinds">${['battleship', 'golf', 'duel'].map((k) => `<span>${KIND_ICON[k]} ${p.by_kind[k].won}/${p.by_kind[k].played}</span>`).join('')}<span>🏁 ${p.rounds_won} round${p.rounds_won === 1 ? '' : 's'}</span></div>
+    </div>`).join('');
+  const award = (icon, label, key, fmt = (v) => v) => {
+    const top = Math.max(0, ...ps.map((p) => p[key] || 0));
+    if (!top) return '';
+    return `<li><span class="big">${icon}</span><span><strong>${label}</strong><br><span class="muted small">${ps.filter((p) => (p[key] || 0) === top).map(who).join(' & ')} · ${fmt(top)}</span></span></li>`;
+  };
+  const awards = [
+    award('👑', 'Gauntlet champion', 'titles', (v) => `${v} title${v === 1 ? '' : 's'}`),
+    award('🎯', 'Sharpshooter', 'sunk', (v) => `${v} ship${v === 1 ? '' : 's'} sunk`),
+    award('⛳', 'Ace', 'hio', (v) => `${v} hole${v === 1 ? '' : 's'} in one`),
+    award('🐦', 'Birdie machine', 'under_par', (v) => `${v} under par`),
+    award('🥊', 'Knockout king', 'kos', (v) => `${v} K.O.${v === 1 ? '' : 's'}`),
+    award('💥', 'Heavy hitter', 'direct_hits', (v) => `${v} direct hit${v === 1 ? '' : 's'}`),
+    award('🦊', 'Sneakiest', 'sneaky', (v) => `${v} cheat${v === 1 ? '' : 's'} got away with`),
+    award('🔍', 'Sharpest eye', 'catches', (v) => `${v} cheater${v === 1 ? '' : 's'} caught`),
+    award('🚨', 'Most busted', 'busted', (v) => `caught ${v} time${v === 1 ? '' : 's'}`),
+    award('🔥', 'Hottest streak', 'streak', (v) => `${v} win${v === 1 ? '' : 's'} in a row`),
+  ].join('');
+  const byId = Object.fromEntries(ps.map((p) => [p.id, p]));
+  const h2h = (data.h2h || []).filter((h) => h.a_wins + h.b_wins).map((h) => {
+    const a = byId[h.a], b = byId[h.b];
+    return `<li><span>${who(a)}</span><b class="${h.a_wins > h.b_wins ? 'lead' : ''}">${h.a_wins}</b><span class="dash">–</span><b class="${h.b_wins > h.a_wins ? 'lead' : ''}">${h.b_wins}</b><span>${who(b)}</span></li>`;
+  }).join('');
+  const rows = [
+    ['👑 Gauntlet titles', 'titles'], ['🏁 Gauntlet rounds won', 'rounds_won'], ['🏆 Games won', 'won'], ['🎮 Games played', 'played'],
+    ['⚓ Ships sunk', 'sunk'], ['⚓ Hit rate', (p) => pct(p.hits, p.bs_shots)], ['⛳ Holes in one', 'hio'], ['⛳ Holes under par', 'under_par'],
+    ['⛳ Strokes vs par', (p) => (p.holes ? (p.to_par > 0 ? `+${p.to_par}` : p.to_par === 0 ? 'E' : p.to_par) : '–')],
+    ['💥 K.O.s', 'kos'], ['💥 Direct hits', 'direct_hits'], ['🦊 Cheats got away with', 'sneaky'], ['🔍 Cheaters caught', 'catches'], ['🚨 Times busted', 'busted'],
+  ];
+  const cols = ps.filter((p) => p.played || p.gauntlets || p.holes);
+  const table = `<div class="stable-wrap"><table class="stable"><thead><tr><th></th>${cols.map((p) => `<th>${who(p)}</th>`).join('')}</tr></thead><tbody>
+    ${rows.map(([label, k]) => `<tr><th>${label}</th>${cols.map((p) => `<td>${typeof k === 'function' ? k(p) : p[k]}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  body.innerHTML = `
+    <section class="stack" style="gap:10px"><h2>Standings</h2><div class="scards">${cards}</div></section>
+    ${awards ? `<section class="card"><h2>🏛️ Hall of fame</h2><ul class="pack">${awards}</ul></section>` : ''}
+    ${h2h ? `<section class="card"><h2>⚔️ Head to head</h2><ul class="h2h">${h2h}</ul><p class="muted small">One-on-one games, Gauntlet rounds included.</p></section>` : ''}
+    <section class="card"><h2>📊 Every stat</h2>${table}</section>`;
 }
 
 // ---------------------------------------------------------------- game
