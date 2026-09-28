@@ -31,7 +31,8 @@ const WORDS = { '-3': 'albatross', '-2': 'eagle', '-1': 'birdie', 0: 'par', 1: '
 const scoreWord = (s, par) => (s === 1 ? 'hole in one!' : WORDS[s - par] ? `${WORDS[s - par]} (${s})` : `${s} strokes`);
 const fmtPar = (v) => (v === 0 ? 'even par' : `${v > 0 ? '+' : ''}${v} to par`);
 const CHEAT_NAMES = { 1: '🦶 Foot Wedge', 2: '🔄 Mulligan', 4: '✏️ Pencil Whip' };
-const BOT_SKILL = [{ aim: 7, power: 0.18, cheat: 0.3 }, { aim: 3, power: 0.08, cheat: 0.22 }, { aim: 1.2, power: 0.03, cheat: 0.15 }];
+// Rookie is easy on purpose; Pro and Ace putt tighter (aim in degrees of wobble, power as a fraction).
+const BOT_SKILL = [{ aim: 7, power: 0.18, cheat: 0.3 }, { aim: 1.8, power: 0.05, cheat: 0.22 }, { aim: 0.6, power: 0.018, cheat: 0.15 }];
 const botSkill = () => BOT_SKILL[G.game.bot_level ?? 1];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

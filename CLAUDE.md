@@ -43,6 +43,11 @@ takes a bare username.
   more at random) and fires from there via `duel_fire_bot(…, p_x)`. The aim
   hint is deliberately a rough guide — a hidden per-turn error, a wobble, 65% of the flight —
   because the family found an accurate one made every shot a hit. Don't make it exact again.
+- **The robot is meant to be hard at Pro and Ace, easy at Rookie.** Battleship (`012`): hunts by
+  probability (every way each unsunk ship could still fit) — ~45 shots to clear a 10×10 fleet vs
+  ~52 before. Duel: tight aim that steadies with every shot it takes (Pro hits ~52% → ~75% by its
+  4th shot), dodges away from your last impact. Putt Post: `BOT_SKILL` tightened for Pro/Ace.
+  Gauntlet rounds use Pro.
 - **Clocks push play along** (`008_clocks.sql`, `shotClock` / `chaosClock` / `chaosIn` in
   `common.js`). Shot clock on your turn while on the page (Battleship 45 s, duel 30 s, Putt Post
   30 s per putt; never solo or vs the robot; pauses when the page is hidden) — at zero the
@@ -90,7 +95,7 @@ takes a bare username.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.

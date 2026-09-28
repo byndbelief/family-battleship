@@ -318,7 +318,10 @@ async function robotShot() {
       const sim = simulate(g.seed, g.move, top, p, a, pw, windX, X);
       if (sim.impact) b = Math.min(b, Math.hypot(sim.impact.x - tg.x, sim.impact.y - tg.y));
     } return b; };
-  const scored = spots.map((x) => { const X = [...baseXs()]; X[p] = x; return { x, d: coarse(X) + Math.random() * (g.bot_level === 0 ? 60 : 12) }; }).sort((u, v) => u.d - v.d);
+  // Pro and Ace also dodge: they'd rather not stand where your last shell landed.
+  const theirs = [...G.shots].reverse().find((s) => s.shooter !== g.players[p] && s.crater);
+  const dodge = (x) => (g.bot_level > 0 && theirs ? 0.35 * Math.min(90, Math.abs(x - theirs.crater[0])) : 0);
+  const scored = spots.map((x) => { const X = [...baseXs()]; X[p] = x; return { x, d: coarse(X) - dodge(x) + Math.random() * (g.bot_level === 0 ? 60 : 8) }; }).sort((u, v) => u.d - v.d);
   let goal = scored[0].x;
   if (goal === start) goal = Math.max(lo, Math.min(hi, start + (Math.random() < 0.5 ? -1 : 1) * (6 + Math.round(Math.random() * 10))));
   $('status').textContent = `${nm(g.players[p]).replace(/<[^>]+>/g, '')} is on the move…`;
@@ -333,7 +336,12 @@ async function robotShot() {
     const d = sim.impact ? Math.hypot(sim.impact.x - target.x, sim.impact.y - target.y) : 999;
     if (!best || d < best.d) best = { d, a, pw };
   }
-  const skill = [{ a: 6, p: 8 }, { a: 2.5, p: 3.5 }, { a: 0.9, p: 1.2 }][g.bot_level ?? 1];
+  // Rookie stays wobbly. Pro and Ace are tighter, and they learn: every shot they've already
+  // taken this duel steadies the next one (down to about a third of the wobble).
+  const lvl = g.bot_level ?? 1, taken = G.shots.filter((s) => s.shooter === g.players[p]).length;
+  const learn = lvl === 0 ? 1 : Math.max(0.35, 0.82 ** taken);
+  const base = [{ a: 6, p: 8 }, { a: 1.7, p: 2.4 }, { a: 0.6, p: 0.8 }][lvl];
+  const skill = { a: base.a * learn, p: base.p * learn };
   const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
   const angle = Math.max(5, Math.min(85, Math.round(best.a + gauss() * skill.a)));
   const power = Math.max(20, Math.min(100, Math.round(best.pw + gauss() * skill.p)));
