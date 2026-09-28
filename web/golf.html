@@ -118,7 +118,8 @@ table.score{border-collapse:collapse;width:100%;font-variant-numeric:tabular-num
 .badge{font-size:12px}
 [hidden]{display:none!important}
 #holeName,.hudbar .pill{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
-.course-wrap .fsslot{position:absolute;right:8px;bottom:8px;z-index:3}
+/* Top-left: the ⚙️ Settings button owns the bottom-right corner (and the top-right in full screen). */
+.course-wrap .fsslot{position:absolute;left:8px;top:8px;z-index:3}
 #play.fs-on{gap:8px!important}
 #play.fs-on > .panel{display:none}
 /* Phones: the course first; cheats and backpack shrink to one scrollable row each. */
