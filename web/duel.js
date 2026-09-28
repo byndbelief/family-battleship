@@ -194,6 +194,14 @@ function blast(c) {
   }
   boom(c[0], c[1], c[2] >= 40 ? 2 : c[2] <= 14 ? 0.7 : 1);
 }
+// The moment a shell lands: the ground caves in, the damage shows and the HP bars drop, all on
+// that frame (the save to the server follows behind). Damage is worked out before the crater is
+// dug, as it always was, so the numbers don't change.
+function impactNow(craters, hpBefore, hpAfter) {
+  craters.forEach((c) => { blast(c); applyCrater(top, c); });
+  if (hpAfter) { G.game = { ...G.game, hp: hpAfter }; hitDrama(hpBefore, hpAfter); }
+  render();
+}
 // A hit: small ones get a number, big ones a flash and DIRECT HIT!; a knockout waits for the K.O. screen.
 function hitDrama(before, after) {
   // A knockout waits for the K.O. screen (two players), or gets its own stamp (3-4: the fight goes on).
@@ -252,7 +260,7 @@ function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1, X = x
       setTimeout(() => { shells = shells.filter((x) => !mine.includes(x)); }, linger);
       if (shot && mine.includes(shot)) shot = null;
       const list = craterList(crater);
-      if (list.length) { list.forEach(blast); if (!list[0][3] && !reduceMotion && cv.animate) cv.animate([{ transform: 'translate(-6px,3px)' }, { transform: 'translate(5px,-3px)' }, { transform: 'none' }], { duration: 350 }); }
+      if (list.length) { list.forEach((c) => { blast(c); applyCrater(top, c); }); if (!list[0][3] && !reduceMotion && cv.animate) cv.animate([{ transform: 'translate(-6px,3px)' }, { transform: 'translate(5px,-3px)' }, { transform: 'none' }], { duration: 350 }); }
       done({ impact: sims[0].impact, impacts: sims.map((x) => x.impact) });
     };
     requestAnimationFrame(step);
@@ -400,17 +408,15 @@ async function fire() {
   live?.send('shot', { from: p, move, angle, power, x: X[p], tx: multi() ? null : X[1 - p], X, w: wpn });
   const sim = await flyShell(p, angle, power, g.craters, move, null, g.gust === move ? 3 : 1, X, wpn);
   const cr = weaponCraters(sim.impacts, wpn, big), crater = wpn === 'cluster' ? (cr.length ? cr : null) : cr[0] || null;
-  cr.forEach(blast);
   const hp = weaponDamage(top, sim.impacts, g.hp, wpn, big, g.players.map((x) => g.shields.includes(x) && x !== me.id), standing(X, g.hp, p));
+  impactNow(cr, g.hp, hp);
   const { error } = await sb.rpc('duel_fire', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_hp: hp, p_xs: X,
     ...(multi() ? {} : { p_target_x: X[1 - p] }), ...(moved != null ? { p_x: moved } : {}) });
   busy = false; myX = null;
-  if (error) { $('err').textContent = friendly(error); render(); return; }
-  announceChaos({ gameId: g.id }); pack = await backpack();
-  hitDrama(g.hp, hp);
+  if (error) { $('err').textContent = friendly(error); await load(g.id); top = buildTop(G.game.seed, G.game.craters); render(); return; }   // not saved: put things back
   markSeen(move + 1);
   notify('duel', g.id);
-  await sleep(600);
+  announceChaos({ gameId: g.id }); pack = await backpack();
   await load(g.id); decide();
 }
 
@@ -426,14 +432,16 @@ async function watchLiveShot(msg, refresh) {
   const WX = sentX ? [...sentX] : [...baseXs()]; if (!sentX) { if (x != null) WX[p] = x; if (tx != null) WX[1 - p] = tx; }
   dodgeX = null;   // their shell is already in the air
   const sim = await flyShell(p, angle, power, g.craters, move, null, g.gust === move ? 3 : 1, WX, w || null);
-  weaponCraters(sim.impacts, w || null, big && !w).forEach(blast);
+  // Same flight, same numbers as their page: show the hit now; their saved shot confirms it.
+  const hpNow = weaponDamage(top, sim.impacts, g.hp, w || null, big && !w, g.players.map((q) => g.shields.includes(q) && q !== shooter), standing(WX, g.hp, p));
+  impactNow(weaponCraters(sim.impacts, w || null, big && !w), g.hp, hpNow);
   markSeen(move + 1); delete aims[p];
   // Wait for their shot to land in the database, then show where things stand.
   for (let i = 0; i < 8 && G.game.move === move; i++) { await sleep(500); await load(g.id); }
   busy = false;
   if (G.game.move === move) return refresh();   // still not saved; the regular checks will pick it up
   top = buildTop(G.game.seed, G.game.craters);
-  hitDrama(g.hp, G.game.hp);
+  if (G.game.hp.join() !== hpNow.join()) hitDrama(hpNow, G.game.hp);   // only if the saved shot says otherwise
   pack = await backpack(); announceChaos({ gameId: g.id });
   decide();
 }
@@ -604,16 +612,14 @@ async function robotShot() {
   await sleep(reduceMotion ? 0 : 900);
   const sim = await flyShell(p, angle, power, g.craters, g.move, null, g.gust === g.move ? 3 : 1, X);
   const crater = sim.impact ? [Math.round(sim.impact.x), Math.round(sim.impact.y), CRATER_R] : null;
-  if (crater) boom(crater[0], crater[1]);
   const hp = damage(top, sim.impact, g.hp, false, g.players.map((x) => g.shields.includes(x) && x !== g.players[p]), SX);
+  impactNow(crater ? [crater] : [], g.hp, hp);
   const { error } = await sb.rpc('duel_fire_bot', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_hp: hp, p_xs: X, ...(goal !== start ? { p_x: goal } : {}) });
   botDrive = null;
   markSeen(g.move + 1);
   busy = false;
-  if (error) { $('err').textContent = friendly(error); return render(); }
+  if (error) { $('err').textContent = friendly(error); await load(g.id); top = buildTop(G.game.seed, G.game.craters); return render(); }
   nudge();
-  hitDrama(g.hp, hp);
-  await sleep(600);
   await load(g.id); decide();
 }
 
