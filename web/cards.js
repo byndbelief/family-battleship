@@ -1,7 +1,7 @@
 // Chaos Cards: a shedding card game (plays like Uno) with chaos cards and chaos events.
 // Everything is decided on the server (card_play, card_draw…); this page shows the table, your
 // own hand (the only one you can read) and what just happened, and asks the robot to play.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, sfx, liveGame, nextUpChip, names, gauntletBar, note, splash, chaosClock, face, livePresence, jumpToNext, announceChaos, isPhone } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, sfx, liveGame, nextUpChip, names, gauntletBar, note, splash, chaosClock, face, avatar, livePresence, jumpToNext, announceChaos, isPhone } from './common.js';
 
 const $ = (id) => document.getElementById(id);
 let G = null;                 // { game, hand }
@@ -69,7 +69,7 @@ function announce(g) {
   else if (lp.event === 'rain') splash(['🌧️ CARD RAIN', 'Everyone draws', 'one card'], { tone: 'gold', ms: 1800 });
   else if (lp.event === 'reverse') splash(['🔄 CHAOS REVERSE', 'The table', 'turns around'], { tone: 'gold', ms: 1800 });
   if (lp.event) line += ` · chaos: ${{ storm: `colour storm (${COLORS[lp.color]})`, rain: 'card rain', reverse: 'reverse' }[lp.event]}`;
-  if (line) { log.unshift(line); log.length = Math.min(log.length, 30); }
+  if (line) { log.unshift({ p, line }); log.length = Math.min(log.length, 30); }
   if (g.status === 'playing' && g.players[g.turn] === me.id && p !== me.id) sfx('chime');
 }
 
@@ -77,14 +77,16 @@ function announce(g) {
 function render() {
   const g = G.game, mi = g.players.indexOf(me.id), over = g.status === 'over', mine = !over && g.players[g.turn] === me.id;
   announce(g);
-  $('title').innerHTML = over ? (g.winner === me.id ? 'You win!' : `${nm(g.winner)} wins!`) : mine ? 'Your turn' : `${nm(g.players[g.turn])}'s turn`;
+  $('title').innerHTML = over ? (g.winner === me.id ? `${face(me.id)}You win!` : `${face(g.winner)}${nm(g.winner)} wins!`)
+    : mine ? `${face(me.id)}Your turn` : `${face(g.players[g.turn])}${nm(g.players[g.turn])}'s turn`;
   $('status').textContent = over ? '' : liveOn ? '⚡ Live: 10 s a turn' : '';
   // Opponents, in the order play reaches them from you.
   const seatOrder = g.players.map((_, k) => g.players[(mi + 1 + k) % g.players.length]).filter((p) => p !== me.id);
   $('seats').innerHTML = seatOrder.map((p) => {
     const k = g.players.indexOf(p), n = g.counts[k] ?? 0;
     return `<div class="seat ${!over && g.turn === k ? 'turn' : ''}">
-      <span class="who">${face(p)}${nm(p)}</span>
+      ${avatar({ username: names[p], bot: isBot(p) }, 'sav')}
+      <span class="who">${esc(names[p] ?? 'someone')}</span>
       <span class="fan" aria-hidden="true">${'<i></i>'.repeat(Math.min(n, 10))}</span>
       <span class="count">${n} card${n === 1 ? '' : 's'}</span>
       ${g.called.includes(p) && n === 1 ? '<span class="tag">☝️ Last card</span>' : ''}
@@ -110,12 +112,12 @@ function render() {
   $('passBtn').hidden = !(mine && g.drew);
   $('botLiveRow').hidden = !(!over && g.players.some(isBot));
   $('del').hidden = g.created_by !== me.id;
-  $('feed').innerHTML = log.map((l) => `<li>${esc(l)}</li>`).join('') || '<li class="muted">Moves show up here.</li>';
+  $('feed').innerHTML = log.map((l) => `<li>${isBot(l.p) ? '' : face(l.p)}${esc(l.line)}</li>`).join('') || '<li class="muted">Moves show up here.</li>';
   // The end.
   if (over) {
     $('endPanel').hidden = false;
-    $('endPanel').innerHTML = `<h2>${g.winner === me.id ? '🏆 You emptied your hand!' : `${nm(g.winner)} emptied their hand`}</h2>
-      <p class="muted">${g.players.filter((p) => p !== g.winner).map((p) => `${who(p)}: ${g.counts[g.players.indexOf(p)]} left`).join(' · ')}</p>`;
+    $('endPanel').innerHTML = `<h2>${g.winner === me.id ? '🏆 You emptied your hand!' : `${face(g.winner)}${nm(g.winner)} emptied their hand`}</h2>
+      <p class="muted">${g.players.filter((p) => p !== g.winner).map((p) => `${face(p)}${who(p)}: ${g.counts[g.players.indexOf(p)]} left`).join(' · ')}</p>`;
     endDrama(g);
   } else $('endPanel').hidden = true;
   $('timer').hidden = !(liveOn && !over);
