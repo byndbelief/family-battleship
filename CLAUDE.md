@@ -208,6 +208,12 @@ username. A new account only becomes a robot once it's in `public.bots`.
   was just that). The service worker re-fetches the site's own pages/JS/CSS with `cache:
   'no-cache'` (a cheap 304 when unchanged). The e2e harness blocks service workers
   (`serviceWorkers: 'block'`) because Playwright's `page.route` can't see a worker's requests.
+- **Hilltop camera** (4+ tanks, `cam` in duel.js): zoom 1–3× around a battlefield point. Pinch
+  (two fingers) zooms and pans; one finger aims on your shot and pans otherwise when zoomed; the
+  wheel zooms on desktop; ＋ － 🎯 ⤢ buttons (`#camBar`). A flying shell pulls the view along unless
+  the person moved it in the last 4 s (`camHeld`). Every screen→battlefield conversion must go
+  through `toWorld()`. On phones with 4+ tanks the HP chips, wind and zoom buttons sit above the
+  battlefield (`.stage.bighud`) instead of covering it; in full screen they overlay as before.
 - **Battleship and the Gauntlet for 6** (`034_six_gauntlet_battleship.sql`): 1–5 opponents.
   Per-opponent boards need nothing new (phones get a scrolling tab row, `.boardtabs.many`). The
   shared ocean becomes **mode 3** (16×16, same ships) when 4+ play — `create_game` switches it, so

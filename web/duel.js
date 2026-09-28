@@ -63,6 +63,26 @@ const standing = (X, hp, shooter) => X.map((x, i) => (i === shooter || (hp?.[i] 
 // The default barrel for a tank nobody is aiming: toward the middle.
 const restAngle = (p, X) => (multi() ? (X[p] < W / 2 ? 45 : 135) : 45);
 const cv = $('cv'), ctx = cv.getContext('2d');
+// The camera (4+ tanks, where the field is wide and the tanks small): zoom 1-3× around a point of
+// the battlefield (x, y). Pinch or the wheel to zoom, one finger pans when you're not aiming, and a
+// shell in the air pulls the view along with it. At 1× it's the whole field, exactly as before.
+let cam = { z: 1, x: 400, y: 220 }, camHeld = 0;   // camHeld: until when the person, not the shell, steers
+const camOn = () => !!G && N() >= 4;
+const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+function camClamp() {
+  cam.z = clampN(cam.z, 1, 3);
+  const vw = W / cam.z, vh = H / cam.z;
+  cam.x = clampN(cam.x, vw / 2, W - vw / 2); cam.y = clampN(cam.y, vh / 2, H - vh / 2);
+}
+const camReset = () => { cam = { z: 1, x: W / 2, y: H / 2 }; showCam(); };
+// A point on the page → the battlefield under it.
+function toWorld(clientX, clientY) {
+  const r = cv.getBoundingClientRect(), fx = (clientX - r.left) / r.width, fy = (clientY - r.top) / r.height;
+  return { x: cam.x + (fx - 0.5) * (W / cam.z), y: cam.y + (fy - 0.5) * (H / cam.z), fx, fy };
+}
+// Zoom to z keeping the battlefield point under (fx, fy) of the screen where it is.
+function zoomAt(z, fx, fy, wx, wy) { cam.z = clampN(z, 1, 3); cam.x = wx - (fx - 0.5) * (W / cam.z); cam.y = wy - (fy - 0.5) * (H / cam.z); camClamp(); showCam(); }
+function camLook(x, y, z = cam.z) { cam.z = z; cam.x = x; cam.y = y; camClamp(); showCam(); }
 const stars = Array.from({ length: 90 }, (_, i) => { const r = rng(i * 7919 + 3); return { x: r(), y: r() * 240, s: r() * 1.4 + 0.3, t: r() * 6 }; });
 const myIdx = () => G.game.players.indexOf(me.id);
 const turnId = () => G.game.players[G.game.turn];
@@ -104,7 +124,13 @@ const markSeen = (m) => { try { if (m > seenMove()) localStorage.setItem(seenKey
 
 function draw(t) {
   if (!G || !top) return;
-  const g = G.game, k = cv.width / W, dy = H - 440; ctx.setTransform(k, 0, 0, k, 0, 0);   // dy: the extra sky a bigger battlefield has
+  const g = G.game, dy = H - 440;   // dy: the extra sky a bigger battlefield has
+  // A shell in the air, zoomed in: the view follows it (unless you've just moved it yourself).
+  if (cam.z > 1 && shells.length && Date.now() > camHeld) {
+    const s = shells[shells.length - 1], q = s.path[Math.min(s.i, s.path.length - 1)];
+    if (q) { cam.x += (q.x - cam.x) * 0.12; cam.y += (q.y - cam.y) * 0.12; camClamp(); }
+  }
+  const k = (cv.width / W) * cam.z; ctx.setTransform(k, 0, 0, k, -(cam.x - W / cam.z / 2) * k, -(cam.y - H / cam.z / 2) * k);
   const sky = ctx.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#1B1646'); sky.addColorStop(0.6, '#3B2A6E'); sky.addColorStop(1, '#7A3E72');
   ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
   stars.forEach((s) => { ctx.globalAlpha = 0.5 + 0.5 * Math.sin(t / 900 + s.t); ctx.fillStyle = '#fff'; ctx.fillRect(s.x * W, s.y * (H / 440), s.s, s.s); }); ctx.globalAlpha = 1;
@@ -324,6 +350,12 @@ function render() {
   const label = (p) => `${face(g.players[p])}<span class="nm">${who(g.players[p])}</span><span>&nbsp;· ${g.hp[p]}${tag(g.players[p])}</span>`;
   const many = multi();
   document.querySelector('.hud').classList.toggle('multi', many);
+  // 4+ tanks on a phone: the HP chips and wind sit above the battlefield instead of covering half of it.
+  const bigHud = g.players.length >= 4 && isPhone();
+  document.querySelector('.stage').classList.toggle('bighud', bigHud);
+  // ...and the zoom buttons ride along in that bar, beside the wind (not over the tanks in the corner).
+  const cb = $('camBar'), home = bigHud && !$('play').classList.contains('fs-on') ? document.querySelector('.hud') : document.querySelector('.stage');
+  if (cb.parentElement !== home) home.appendChild(cb);
   $('hpRow').hidden = !many;
   if (many) {
     // One chip per tank: its colour, face, name and HP (the one whose turn it is outlined).
@@ -368,7 +400,11 @@ function render() {
   else stopShotClock();
   danger(g.status === 'playing' && mi >= 0 && g.hp[mi] > 0 && g.hp[mi] <= 25);   // nearly out: red pulse and a heartbeat
   if (mine && !busy && isPhone()) { try { if (!sessionStorage.getItem('duel.tip')) { sessionStorage.setItem('duel.tip', '1'); note('Drag on the battlefield to aim: direction sets the angle, distance the power.'); } } catch {} }
-  cv.style.touchAction = canAim() ? 'none' : 'manipulation';   // dragging aims on your turn instead of scrolling
+  // Dragging aims on your turn instead of scrolling; with the camera (4+ tanks) the battlefield keeps
+  // its fingers too, for pinching and panning, except a plain vertical swipe that scrolls the page.
+  cv.style.touchAction = canAim() || (camOn() && cam.z > 1) ? 'none' : camOn() ? 'pan-y' : 'manipulation';
+  showCam();
+  if (camOn() && isPhone()) { try { if (!localStorage.getItem('duel.camtip')) { localStorage.setItem('duel.camtip', '1'); note('🔍 A big battlefield: pinch it to zoom in, and drag to look around.'); } } catch {} }
   cv.style.cursor = canAim() ? 'crosshair' : '';
   // Phones, on your shot: the backpack as a row of icons right above Fire!; otherwise its own panel below.
   const mini = compactPack() && !$('controls').hidden;
@@ -418,7 +454,9 @@ async function load(id) {
   ]);
   if (!g.data) return false;
   const { data: prof } = await sb.from('profiles').select('id, username').in('id', g.data.players);
+  const fresh = G?.game.id !== g.data.id;
   setWorld(g.data.world);   // 3-4 tanks: a wider battlefield, drawn zoomed out (031)
+  if (fresh) camReset();   // a new duel starts on the whole field
   G = { game: g.data, shots: s.data ?? [], names: Object.fromEntries((prof ?? []).map((p) => [p.id, p.username])) };
   if (G.game.gauntlet_id) gauntletBar(G.game.gauntlet_id, G.game.id, me.id, (p) => G.names[p] ?? names[p] ?? 'someone');
   return true;
@@ -838,7 +876,7 @@ document.querySelectorAll('[data-step]').forEach((b) => {
 let drag = null;
 const canAim = () => G && G.game.status === 'playing' && myIdx() >= 0 && G.game.hp[myIdx()] > 0 && (liveOn || (!busy && !shot && turnId() === me.id));
 function aimFromPointer(e) {
-  const r = cv.getBoundingClientRect(), gx = ((e.clientX - r.left) / r.width) * W, gy = ((e.clientY - r.top) / r.height) * H;
+  const { x: gx, y: gy } = toWorld(e.clientX, e.clientY);
   const p = myIdx(), t = tankPos(p, top, xs()), rail = armedOf(me.id) === 'railgun';   // the railgun aims -40° to +40°, straight at where you point
   drag = { x: gx, y: gy };
   if (multi()) {
@@ -852,9 +890,72 @@ function aimFromPointer(e) {
   const ang = rail ? (Math.atan2(dy, Math.max(1, dx)) * 180) / Math.PI + 45 : dx <= 0 ? 85 : (Math.atan2(dy, dx) * 180) / Math.PI;
   setAim(ang, Math.hypot(dx, dy) / 3.4);
 }
-cv.addEventListener('pointerdown', (e) => { if (!canAim()) return; e.preventDefault(); cv.setPointerCapture?.(e.pointerId); aimFromPointer(e); });
-cv.addEventListener('pointermove', (e) => { if (drag && canAim()) aimFromPointer(e); });
-['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => cv.addEventListener(ev, () => { drag = null; }));
+// Fingers on the battlefield: one aims (your shot) or pans (zoomed in, not aiming); two pinch to
+// zoom and pan together. A second finger undoes what the first one's aim did.
+const touches = new Map();
+let pinch = null, pan = null, aimBefore = null;
+cv.addEventListener('pointerdown', (e) => {
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (camOn() && touches.size === 2) {
+    e.preventDefault();
+    if (aimBefore) setAim(aimBefore.angle, aimBefore.power);   // that first finger was the start of a pinch, not an aim
+    drag = null; pan = null;
+    const [a, b] = [...touches.values()], mid = toWorld((a.x + b.x) / 2, (a.y + b.y) / 2);
+    pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, z: cam.z, wx: mid.x, wy: mid.y };
+    camHeld = Date.now() + 4000;
+    return;
+  }
+  if (touches.size > 1) return;
+  if (canAim()) { e.preventDefault(); cv.setPointerCapture?.(e.pointerId); aimBefore = { angle: +$('angle').value, power: +$('power').value }; aimFromPointer(e); return; }
+  if (camOn() && cam.z > 1) { e.preventDefault(); cv.setPointerCapture?.(e.pointerId); pan = { sx: e.clientX, sy: e.clientY, cx: cam.x, cy: cam.y }; camHeld = Date.now() + 4000; }
+});
+cv.addEventListener('pointermove', (e) => {
+  if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && touches.size >= 2) {
+    const [a, b] = [...touches.values()], r = cv.getBoundingClientRect();
+    const fx = ((a.x + b.x) / 2 - r.left) / r.width, fy = ((a.y + b.y) / 2 - r.top) / r.height;
+    zoomAt(pinch.z * (Math.hypot(a.x - b.x, a.y - b.y) / pinch.d), fx, fy, pinch.wx, pinch.wy);
+    camHeld = Date.now() + 4000;
+    return;
+  }
+  if (pan) {
+    const r = cv.getBoundingClientRect();
+    cam.x = pan.cx - ((e.clientX - pan.sx) / r.width) * (W / cam.z); cam.y = pan.cy - ((e.clientY - pan.sy) / r.height) * (H / cam.z);
+    camClamp(); camHeld = Date.now() + 4000;
+    return;
+  }
+  if (drag && canAim()) aimFromPointer(e);
+});
+['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => cv.addEventListener(ev, (e) => {
+  touches.delete(e.pointerId);
+  if (touches.size < 2) pinch = null;
+  if (!touches.size) { pan = null; drag = null; aimBefore = null; }
+}));
+// Desktop: the wheel zooms around the pointer.
+cv.addEventListener('wheel', (e) => {
+  if (!camOn()) return;
+  e.preventDefault();
+  const w = toWorld(e.clientX, e.clientY);
+  zoomAt(cam.z * Math.exp(-e.deltaY * 0.0015), w.fx, w.fy, w.x, w.y);
+  camHeld = Date.now() + 4000;
+}, { passive: false });
+// The zoom buttons: in, out, your tank, the whole field.
+function showCam() {
+  const box = $('camBar'); if (!box) return;
+  box.hidden = !camOn();
+  box.querySelector('[data-cam="out"]').disabled = cam.z <= 1.001;
+  box.querySelector('[data-cam="fit"]').disabled = cam.z <= 1.001;
+  box.querySelector('[data-cam="in"]').disabled = cam.z >= 2.999;
+  box.querySelector('[data-cam="me"]').hidden = !G || myIdx() < 0 || G.game.hp[myIdx()] <= 0;
+}
+document.querySelectorAll('[data-cam]').forEach((b) => b.addEventListener('click', () => {
+  const k = b.dataset.cam; camHeld = Date.now() + 4000;
+  if (k === 'fit') return camReset();
+  if (k === 'me') { const t = tankPos(myIdx(), top, xs()); if (t) camLook(t.x, t.y - 40, Math.max(cam.z, 2)); return; }
+  // From the whole field, zoom in on the hills in the middle of the view rather than the sky.
+  const gy = cam.z <= 1.001 && top ? top[Math.max(0, Math.min(W - 1, Math.round(cam.x)))] - 60 : cam.y;
+  if (k === 'in') camLook(cam.x, gy, cam.z * 1.5); else zoomAt(cam.z / 1.5, 0.5, 0.5, cam.x, cam.y);
+}));
 $('fire').onclick = () => { if (liveOn) fireLive(); else if (!busy && G && turnId() === me.id) fire(); };
 // The toolbar's 🤖 switch.
 async function toggleBotLive() {

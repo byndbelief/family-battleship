@@ -72,6 +72,11 @@
   .hpc .bar i{display:block;height:100%;border-radius:99px;background:var(--c);transition:width .6s}
   .wind{align-self:flex-start;background:#0008;border-radius:999px;padding:3px 10px;white-space:nowrap}
   @media (max-width:520px){.hud{font-size:11px;inset:8px 8px auto 8px}}
+  #play:not(.fs-on) .stage.bighud{display:flex;flex-direction:column}
+  #play:not(.fs-on) .stage.bighud .hud{position:static;order:-1;padding:8px 8px 6px;background:#0E0C22}
+  .stage .hud .cambar{position:static;order:3;pointer-events:auto;opacity:1;margin-top:4px;gap:4px}
+  .stage .hud .cambar button{width:34px;height:30px;font-size:15px;border-radius:8px}
+  #play:not(.fs-on) .stage.bighud .hud .wind{width:auto;flex:1;align-self:center}
   .sliders{display:flex;flex-direction:column;gap:10px}
   .slider{display:grid;grid-template-columns:52px 44px minmax(0,1fr) 44px 44px;align-items:center;gap:8px;font-weight:700;font-size:14px;width:100%}
   .slider output{font-variant-numeric:tabular-nums;text-align:right;color:var(--gold);font-size:17px}
@@ -120,7 +125,13 @@
   @media (prefers-reduced-motion:reduce){.stamp span{animation:none}}
   #play{display:flex;flex-direction:column;gap:16px}
   .stage .fsslot{position:absolute;right:8px;bottom:8px;opacity:.55;transition:opacity .2s}
-  .stage .fsslot:hover,.stage .fsslot:focus-within,.stage .fsslot:active{opacity:1}   /* see-through, so a tank at the far right still shows */
+  .stage .fsslot:hover,.stage .fsslot:focus-within,.stage .fsslot:active{opacity:1}
+  /* Zoom (4+ tanks): see-through buttons in the bottom-left corner of the battlefield */
+  .stage .cambar{position:absolute;left:8px;bottom:8px;display:flex;gap:6px;opacity:.6;transition:opacity .2s;z-index:3}
+  .stage .cambar:hover,.stage .cambar:focus-within,.stage .cambar:active{opacity:1}
+  .stage .cambar button{width:38px;height:38px;min-height:0;padding:0;border-radius:10px;font-size:18px;line-height:1;background:#0E0C22cc;border:1px solid #ffffff33;color:#fff;touch-action:manipulation}
+  .stage .cambar button[disabled]{opacity:.35}
+  .stage .cambar[hidden]{display:none}   /* see-through, so a tank at the far right still shows */
   /* Full screen: the battlefield takes all the room the controls leave. */
   #play.fs-on{gap:8px}
   #play.fs-on .stage{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;border:0;background:#0E0C22}
@@ -177,6 +188,9 @@
   <div id="play">
   <div class="stage">
     <canvas id="cv" width="1600" height="880" aria-label="Artillery battlefield"></canvas>
+    <div class="cambar" id="camBar" hidden role="group" aria-label="Zoom">
+      <button type="button" data-cam="in" aria-label="Zoom in">＋</button><button type="button" data-cam="out" aria-label="Zoom out">－</button><button type="button" data-cam="me" aria-label="Look at your tank">🎯</button><button type="button" data-cam="fit" aria-label="Show the whole battlefield">⤢</button>
+    </div>
     <div class="hud">
       <div class="hprow" id="hpRow" hidden></div>
       <div class="hp"><span id="n0"></span><div class="bar"><i id="hp0" style="background:var(--coral);width:100%"></i></div></div>
