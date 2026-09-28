@@ -260,6 +260,7 @@ function boom(x, y, big = 1) {
 }
 // Where a shell lands: a boom sized to its crater, or a dust cloud and a thud for a Dirt Bomb.
 function blast(c) {
+  if (c[3] === 4) { boom(c[0], c[1], 1.3); navigator.vibrate?.([30, 30, 90]); return; }   // a Bunker Buster going off underground
   if (c[3]) {
     sfx('thud'); sfx('thud', { delay: 0.12 }); navigator.vibrate?.(50);
     const cols = ['#8A5A2B', '#B08355', '#6B4423', '#D6B28A'];
@@ -334,7 +335,7 @@ function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1, X = x
       setTimeout(() => { shells = shells.filter((x) => !mine.includes(x)); }, linger);
       if (shot && mine.includes(shot)) shot = null;
       const list = craterList(crater);
-      if (list.length) { list.forEach((c) => { blast(c); applyCrater(top, c); }); if (!list[0][3] && !reduceMotion && cv.animate) cv.animate([{ transform: 'translate(-6px,3px)' }, { transform: 'translate(5px,-3px)' }, { transform: 'none' }], { duration: 350 }); }
+      if (list.length) { list.forEach((c) => { blast(c); applyCrater(top, c); }); if (list[0][3] !== 1 && !reduceMotion && cv.animate) cv.animate([{ transform: 'translate(-6px,3px)' }, { transform: 'translate(5px,-3px)' }, { transform: 'none' }], { duration: 350 }); }
       done({ impact: sims[0].impact, impacts: sims.map((x) => x.impact) });
     };
     requestAnimationFrame(step);

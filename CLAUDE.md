@@ -181,9 +181,14 @@ username. A new account only becomes a robot once it's in `public.bots`.
   **Tunnels**: a dig slopes down 0.8 px/px from the tank's footing; where there's ≥ 6 px of hill
   above the 22 px hollow it becomes a tunnel (`top.under[x]` = its floor; `top[x]` stays the
   surface), else an open trench. A tank in a tunnel stands on the floor (`standY`) and is covered
-  (`coveredAt`, ⛰️ in the HP chip): shells hit the roof, blasts are measured along the ground and
-  halved (so a thick hill never makes you immune), the railgun ignores cover, and its own shells
-  leave from the surface above it (`muzzleY`). A crater that bites into the hollow opens it.
+  (`coveredAt`, ⛰️ in the HP chip). A hollow is air (`solidAt`): shells fly inside it, so a tank in a
+  tunnel fires out of its mouth or into its own roof (`hitAt`: a roof hit from inside explodes
+  there). A blast with more than ~8 px of solid hill between it and a covered tank does nothing to
+  it (`blocked`, 035); the railgun ignores hills. A crater that bites into the hollow opens it.
+  **🔻 Bunker Buster** (`buster`, 035): flies like a shell, bores up to 80 px down from where it
+  lands, goes off at the end or on breaking into a hollow, and saves a shaft `[x, y, r, 4]` (dug
+  from the surface down through its blast) — the one weapon that reaches a dug-in tank. The server
+  accepts a 4-element crater only from a loaded Dirt Bomb (…, 1) or Bunker Buster (…, 4).
 - **Battlefield size** (`031_duel_world.sql`): `duel_games.world` is the width — 800 for 2 tanks,
   1000 for 3, 1200 for 4 (`_duel_world`); height is 440 × world / 800, so the same canvas shows
   more ground: zoomed out. The engine's `W`/`H` are live `let` exports set by `setWorld()` (the duel
@@ -299,7 +304,7 @@ username. A new account only becomes a robot once it's in `public.bots`.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.

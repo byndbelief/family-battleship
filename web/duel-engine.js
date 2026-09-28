@@ -34,12 +34,15 @@ function baseTerrain(seed, n = 2) {
 // Digging (029) is relative to the ground as it stands, so every page gets the same result.
 // Tunnels: top.under[x] is the floor of a hollow TUN px tall under a roof of hill (top[x] is still
 // the surface). A tank there stands on the floor, covered: shells hit the roof above it instead,
-// and blasts do half (railgun beams go through hills, so they don't care). A crater that bites
+// and a blast with solid hill between it and the tank does nothing (railgun beams go through hills,
+// so they don't care; a Bunker Buster bores down into the hollow). Shells fly inside a hollow, so
+// a tank in a tunnel fires out of its mouth, or into its own roof. A crater that bites
 // down into the hollow opens it up.
 //   a cut [a, b, from, 2]  (⛏️ Dig mode): from the tank's footing at x=from the tunnel slopes down
 //                          0.8 px a px toward the stop, flat for the last 12 px (the tank's length).
 //                          Where there's hill enough above, it's a covered tunnel; else a trench.
 //   a pit [x, depth, r, 3] (🕳️ Foxhole): x±r comes down to depth below the footing at x.
+//   a shaft [x, y, r, 4] (🔻 Bunker Buster): x±r dug from the surface down to its blast at depth.
 const TUN = 22, ROOF = 6;
 const clampX = (x) => Math.max(0, Math.min(W - 1, Math.round(x)));
 const standY = (top, x) => top.under?.[x] ?? top[x];
@@ -59,6 +62,13 @@ function applyCrater(top, [cx, cy, r, mound]) {
     return;
   }
   if (mound === 3) { const y = Math.min(H - 8, standY(top, clampX(cx)) + cy); for (let x = clampX(cx - r); x <= clampX(cx + r); x++) lowerAt(top, x, y); return; }
+  if (mound === 4) {   // a Bunker Buster [x, y, r, 4]: a shaft from the surface down through its blast underground
+    for (let x = Math.max(0, cx - r); x <= Math.min(W - 1, cx + r); x++) {
+      top[x] = Math.min(H - 8, Math.max(top[x], cy + Math.sqrt(r * r - (x - cx) ** 2)));
+      if (top.under?.[x] != null && top[x] > top.under[x] - TUN) { top[x] = Math.max(top[x], top.under[x]); delete top.under[x]; }
+    }
+    return;
+  }
   for (let x = Math.max(0, cx - r); x <= Math.min(W - 1, cx + r); x++) {
     const dy = Math.sqrt(r * r - (x - cx) ** 2);
     if (mound) top[x] = Math.max(24, Math.min(top[x], cy - dy));
@@ -78,20 +88,36 @@ const tankPos = (p, top, xs = TANK_X) => (xs[p] == null ? null : { x: xs[p], y: 
 const hitTank = (x, y, shooter, top, xs, r = 13) => xs.some((tx, p) => { if (p === shooter || tx == null) return false; return Math.hypot(x - tx, y - (standY(top, tx) - 8)) < r; });
 // How far a blast is from a tank. Under a roof it's measured along the ground, however thick the
 // hill: a hit on the roof right above always hurts (halved, in the damage below), never nothing.
-const blastD = (top, im, t) => (coveredAt(top, t.x) ? Math.abs(im.x - t.x) : Math.hypot(im.x - t.x, im.y - (t.y - 8)));
-// Where a shell leaves the barrel: from a tunnel it comes up through the roof above the tank.
-const muzzleY = (top, t, x) => (coveredAt(top, t.x) ? top[clampX(x)] - 4 : t.y - 18);
+// Solid ground at (x, y)? Below the surface, except inside a tunnel's hollow (see applyCrater).
+function solidAt(top, x, y) {
+  const i = Math.floor(x); if (i < 0 || i >= W) return false;
+  if (y < top[i]) return false;
+  const u = top.under?.[i];
+  return !(u != null && y > u - TUN && y < u);
+}
+// Where a shell stops when it runs into the ground: the surface, or a tunnel's roof from inside.
+const hitAt = (top, x, y) => { const i = Math.floor(x); return y > top[i] + 2 ? { x, y } : { x, y: top[i] }; };
+// Is there solid ground between a blast and a tank (more than a crust at the blast's own spot)?
+// A tank under a roof of hill is shielded by it from a blast on the far side: the roof takes it.
+function blocked(top, im, t) {
+  const tx = t.x, ty = t.y - 8, len = Math.hypot(tx - im.x, ty - im.y), n = Math.ceil(len / 2);
+  let solid = 0;
+  for (let k = 0; k <= n; k++) { const f = k / Math.max(1, n), d = f * len; if (d < 6) continue; if (solidAt(top, im.x + (tx - im.x) * f, im.y + (ty - im.y) * f)) solid += 2; }
+  return solid > 8;
+}
+const blastD = (top, im, t) => (coveredAt(top, t.x) && blocked(top, im, t) ? Infinity : Math.hypot(im.x - t.x, im.y - (t.y - 8)));
+
 // The tank a homing missile chases: the nearest one that isn't the shooter's.
 const nearestFoe = (x, shooter, top, xs) => { let best = null; xs.forEach((tx, p) => { if (p !== shooter && tx != null && (!best || Math.abs(tx - x) < Math.abs(best.x - x))) best = tankPos(p, top, xs); }); return best; };
 function simulate(seed, move, top, shooter, angle, power, windX = 1, xs = TANK_X) {
   const { dir, a } = aimDir(shooter, angle, xs), t = tankPos(shooter, top, xs), wind = windFor(seed, move, windX) * 0.004;
-  let x = t.x + dir * 14, y = muzzleY(top, t, t.x + dir * 14); const v = power * PV();
+  let x = t.x + dir * 14, y = t.y - 18; const v = power * PV();   // from a tunnel, it has to get out of the tunnel
   let vx = Math.cos((a * Math.PI) / 180) * v * dir, vy = -Math.sin((a * Math.PI) / 180) * v;
   const path = [];
   for (let i = 0; i < 3000; i++) {
     vx += wind; vy += GRAV; x += vx; y += vy; path.push({ x, y });
     if (x < 0 || x >= W) return { path, impact: null };
-    if (y >= top[Math.floor(x)]) return { path, impact: { x, y: top[Math.floor(x)] } };
+    if (solidAt(top, x, y)) return { path, impact: hitAt(top, x, y) };
     if (hitTank(x, y, shooter, top, xs)) return { path, impact: { x, y } };
     if (y > H + 50) return { path, impact: null };
   }
@@ -108,6 +134,7 @@ const WEAPONS = {
   homing: { icon: '🚀', name: 'Homing Missile', r: 22 },
   railgun: { icon: '⚡', name: 'Railgun', r: 12 },
   dirt: { icon: '🪨', name: 'Dirt Bomb', r: 34 },
+  buster: { icon: '🔻', name: 'Bunker Buster', r: 26 },
 };
 const railAngle = (angle) => angle - 45;
 // Flies a shell from a given state; returns its path and where it hit (null = off the map).
@@ -119,7 +146,7 @@ function flyFrom(state, seed, move, top, shooter, windX, xs, steer) {
     if (e) { vx += Math.max(-0.16, Math.min(0.16, (e.x - x) * 0.004)); vx *= 0.99; }
     vx += wind; vy += GRAV; x += vx; y += vy; path.push({ x, y });
     if (x < 0 || x >= W) return { path, impact: null };
-    if (y >= top[Math.floor(x)]) return { path, impact: { x, y: top[Math.floor(x)] } };
+    if (solidAt(top, x, y)) return { path, impact: hitAt(top, x, y) };
     if (hitTank(x, y, shooter, top, xs)) return { path, impact: { x, y } };
     if (y > H + 50) return { path, impact: null };
   }
@@ -128,8 +155,25 @@ function flyFrom(state, seed, move, top, shooter, windX, xs, steer) {
 // Every shell a shot makes: [{ path, impact }] (three for a cluster bomb, one otherwise).
 function simulateWeapon(seed, move, top, shooter, angle, power, windX = 1, xs = TANK_X, weapon = null) {
   if (!weapon || weapon === 'dirt') { const s = simulate(seed, move, top, shooter, angle, power, windX, xs); return [s]; }
+  if (weapon === 'buster') {
+    // Flies like a shell; where it hits the ground it keeps boring on (up to 80 px) and goes off at
+    // the end, or the moment it breaks into a tunnel's hollow.
+    const s = simulate(seed, move, top, shooter, angle, power, windX, xs);
+    if (!s.impact) return [s];
+    const last = s.path[s.path.length - 2] || s.impact, dx = s.impact.x - last.x, dy = s.impact.y - last.y, l = Math.hypot(dx, dy) || 1;
+    const ux = dx / l * 0.35, uy = Math.max(0.94, dy / l);   // mostly straight down, a little along its flight
+    let x = s.impact.x, y = s.impact.y; const path = [...s.path];
+    for (let d = 0; d < 80; d += 2) {
+      const nx = x + ux * 2, ny = y + uy * 2;
+      if (nx < 0 || nx >= W || ny > H - 4) break;
+      x = nx; y = ny; path.push({ x, y });
+      const u = top.under?.[Math.floor(x)];
+      if (u != null && y > u - TUN && y < u) break;   // into the tunnel: bang
+    }
+    return [{ path, impact: { x, y } }];
+  }
   const { dir, a: deg } = aimDir(shooter, angle, xs), t = tankPos(shooter, top, xs), a = (deg * Math.PI) / 180;
-  const start = { x: t.x + dir * 14, y: muzzleY(top, t, t.x + dir * 14), vx: Math.cos(a) * power * PV() * dir, vy: -Math.sin(a) * power * PV() };
+  const start = { x: t.x + dir * 14, y: t.y - 18, vx: Math.cos(a) * power * PV() * dir, vy: -Math.sin(a) * power * PV() };
   if (weapon === 'railgun') {
     // The railgun aims level-ish: the angle setting (5-85) maps to -40° to +40°.
     const path = [], ra = railAngle(deg) * Math.PI / 180;
@@ -149,7 +193,7 @@ function simulateWeapon(seed, move, top, shooter, angle, power, windX = 1, xs = 
   for (let i = 0; i < 3000; i++) {
     vx += wind; vy += GRAV; x += vx; y += vy; pre.push({ x, y });
     if (x < 0 || x >= W) return [{ path: pre, impact: null }];
-    if (y >= top[Math.floor(x)]) return [{ path: pre, impact: { x, y: top[Math.floor(x)] } }];
+    if (solidAt(top, x, y)) return [{ path: pre, impact: hitAt(top, x, y) }];
     if (hitTank(x, y, shooter, top, xs)) return [{ path: pre, impact: { x, y } }];
     if (vy >= 0) break;
   }
@@ -158,7 +202,7 @@ function simulateWeapon(seed, move, top, shooter, angle, power, windX = 1, xs = 
 // The craters a shot leaves: [x, y, r] each (a mound gets a 4th element, 1).
 function weaponCraters(impacts, weapon, big = false) {
   const r = weapon ? WEAPONS[weapon].r : big ? BERTHA_R : CRATER_R;
-  return impacts.filter(Boolean).map((i) => (weapon === 'dirt' ? [Math.round(i.x), Math.round(i.y), r, 1] : [Math.round(i.x), Math.round(i.y), r]));
+  return impacts.filter(Boolean).map((i) => (weapon === 'dirt' ? [Math.round(i.x), Math.round(i.y), r, 1] : weapon === 'buster' ? [Math.round(i.x), Math.round(i.y), r, 4] : [Math.round(i.x), Math.round(i.y), r]));
 }
 // How many craters a saved shot added (a cluster bomb saves a list of them).
 const craterCount = (c) => (!c ? 0 : Array.isArray(c[0]) ? c.length : 1);
@@ -175,8 +219,9 @@ function weaponDamage(top, impacts, hp, weapon, big = false, shielded = [], xs =
       if (weapon === 'cluster') dmg += d < 30 ? Math.round(30 - d) : 0;
       else if (weapon === 'homing') dmg += d < 32 ? Math.round(38 - d * 1.1) : 0;
       else if (weapon === 'railgun') dmg += d < 16 ? 45 : 0;
+      else if (weapon === 'buster') dmg += d < 40 ? Math.round(50 - d * 1.1) : 0;
     });
-    dmg = Math.round(Math.min(60, dmg) * guardOf(shielded[p]) * (weapon !== 'railgun' && coveredAt(top, t.x) ? 0.5 : 1));
+    dmg = Math.round(Math.min(60, dmg) * guardOf(shielded[p]));
     out[p] = Math.max(0, out[p] - dmg);
   });
   return out;
@@ -192,7 +237,7 @@ function damage(top, impact, hp, big = false, shielded = [], xs = TANK_X) {
     if (!t) return;
     const d = blastD(top, impact, t);
     let dmg = big ? (d < 62 ? Math.round(60 - d * 0.9) : 0) : (d < 40 ? Math.round(46 - d * 1.1) : 0);
-    dmg = Math.round(dmg * guardOf(shielded[p]) * (coveredAt(top, t.x) ? 0.5 : 1));
+    dmg = Math.round(dmg * guardOf(shielded[p]));
     out[p] = Math.max(0, out[p] - dmg);
   });
   return out;
