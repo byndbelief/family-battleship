@@ -1,10 +1,12 @@
 // Chaos Cards: a shedding card game (plays like Uno) with chaos cards and chaos events.
 // Everything is decided on the server (card_play, card_draw…); this page shows the table, your
 // own hand (the only one you can read) and what just happened, and asks the robot to play.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, sfx, liveGame, nextUpChip, names, gauntletBar, note, splash, chaosClock, face, avatar, livePresence, jumpToNext, announceChaos, isPhone } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, sfx, liveGame, nextUpChip, names, gauntletBar, note, splash, chaosClock, face, avatar, livePresence, jumpToNext, announceChaos, isPhone, ITEMS, backpack, backpackBarHTML } from './common.js';
 
 const $ = (id) => document.getElementById(id);
 let G = null;                 // { game, hand }
+// Backpack (024): pack is your loot; aiming is a Trash Chute or Gift Box waiting for you to tap a card.
+let pack = [], aiming = null;
 let liveOn = false, callLast = false, busy = false, seenMove = null, askedTimeout = -1, botAsked = '';
 const log = [];               // what happened while this page was open, newest first
 const COLORS = { R: 'Red', G: 'Green', B: 'Blue', Y: 'Yellow' };
@@ -49,7 +51,17 @@ function announce(g) {
   seenMove = key;
   const p = lp.player, name = plain(who(p));
   let line = '';
-  if (lp.caught) { line = `🚨 ${name} caught ${plain(who(lp.caught))} not calling their last card: +2`; if (lp.caught === me.id) { note('🚨 Caught! You forgot to call it: +2 cards.', 'error'); sfx('buzz'); } else sfx('sneaky'); }
+  if (lp.loot) {
+    const tn = lp.target === me.id ? 'you' : lp.target ? plain(who(lp.target)) : '', tns = lp.target === me.id ? 'your' : `${tn}'s`;
+    line = { xray: `👀 ${name} put on X-Ray Specs and looked at ${tns} hand`, paint: `🎨 ${name} threw a Paint Bomb: the colour is now ${COLORS[lp.color] || '?'}`,
+      trash: `🗑️ ${name} sent a card down the Trash Chute`, gift: `🎁 ${name} gave ${tn} a Gift Box (one more card)` }[lp.loot] || '';
+    if (p !== me.id) {
+      if (lp.loot === 'paint') splash(['🎨 PAINT BOMB', `${name} made it`, (COLORS[lp.color] || '').toUpperCase()], { tone: 'gold', ms: 1600 });
+      else if (lp.loot === 'xray' && lp.target === me.id) note(`👀 ${name} just looked at your hand!`, 'error');
+      else if (lp.loot === 'gift' && lp.target === me.id) { note(`🎁 ${name} gave you one of their cards. How kind.`, 'error'); sfx('buzz'); }
+      else sfx('pop');
+    }
+  } else if (lp.caught) { line = `🚨 ${name} caught ${plain(who(lp.caught))} not calling their last card: +2`; if (lp.caught === me.id) { note('🚨 Caught! You forgot to call it: +2 cards.', 'error'); sfx('buzz'); } else sfx('sneaky'); }
   else if (lp.timeout) { line = `⏱️ ${name} ran out of time and drew a card`; if (p === me.id) note('⏱️ Too slow! You drew a card.', 'error'); }
   else if (lp.passed) line = `${name} passed`;
   else if (lp.drew && !lp.card) line = `${name} drew a card`;
@@ -115,6 +127,7 @@ function render() {
   lb.setAttribute('aria-pressed', String(exposedMe ? false : callLast));
   lb.textContent = exposedMe ? '☝️ Say it now!' : callLast ? '☝️ Last card: on' : '☝️ Last card!';
   $('passBtn').disabled = !(mine && g.drew && !busy);
+  renderPack(g, mine && !busy, over);
   $('botLiveRow').hidden = !(!over && g.players.some(isBot));
   $('del').hidden = g.created_by !== me.id;
   $('feed').innerHTML = log.map((l) => `<li>${isBot(l.p) ? '' : face(l.p)}${esc(l.line)}</li>`).join('') || '<li class="muted">Moves show up here.</li>';
@@ -174,7 +187,64 @@ async function play(c) {
   notify('cards', g.id);
   await refreshNow();
 }
-$('hand').addEventListener('click', (e) => { const b = e.target.closest('[data-card]'); if (b) play(b.dataset.card); });
+$('hand').addEventListener('click', (e) => { const b = e.target.closest('[data-card]'); if (!b) return; if (aiming) useOnCard(b.dataset.card); else play(b.dataset.card); });
+
+// ---------------------------------------------------------------- backpack (024)
+function renderPack(g, can, over) {
+  const el = $('packMini');
+  el.innerHTML = over || !g.players.includes(me.id) ? '' : backpackBarHTML(pack, 'cards', can, { compact: isPhone() });
+  el.querySelectorAll('[data-loot]').forEach((b) => {
+    const item = b.dataset.item;
+    if ((item === 'trash' || item === 'gift') && G.hand.length < 3) b.disabled = true;
+    b.classList.toggle('on', aiming?.item === item);
+    b.onclick = () => useLootItem(+b.dataset.loot, item);
+  });
+  $('hand').classList.toggle('aiming', !!aiming);
+}
+async function useLootItem(id, item) {
+  const g = G.game;
+  if (aiming) { const same = aiming.item === item; aiming = null; render(); if (same) return; }   // tap again to put it away
+  if (item === 'trash' || item === 'gift') {
+    let target = null;
+    if (item === 'gift') { target = await pickFoe('🎁 Gift Box', 'Who gets one of your cards?'); if (!target) return; }
+    aiming = { id, item, target }; render();
+    note(item === 'trash' ? '🗑️ Tap the card to throw away (or the icon again to cancel).' : `🎁 Tap the card to give ${plain(who(target))}.`);
+    return;
+  }
+  let target = null, color = null;
+  if (item === 'xray') { target = await pickFoe('👀 X-Ray Specs', 'Whose hand do you want to see?'); if (!target) return; }
+  if (item === 'paint') { color = await pickColor(); if (!color) return; }
+  await spend(id, item, { p_target: target, p_color: color });
+}
+async function useOnCard(c) {
+  const a = aiming; aiming = null;
+  await spend(a.id, a.item, { p_target: a.target, p_card: c });
+}
+async function spend(id, item, args) {
+  const g = G.game;
+  busy = true; render();
+  const { data, error } = await sb.rpc('card_use_loot', { p_loot: id, p_game: g.id, p_target: null, p_card: null, p_color: null, ...args });
+  busy = false;
+  if (error) { note(friendly(error), 'error'); await refreshNow(); return; }
+  sfx('pop'); navigator.vibrate?.(20);
+  pack = await backpack();
+  if (item === 'xray') {
+    const cards = (data?.hand || []).slice().sort((a, b) => order(a) - order(b));
+    modal(`<h2>👀 ${esc(plain(who(args.p_target)))}'s hand</h2><p class="muted small">${cards.length} card${cards.length === 1 ? '' : 's'}. This closes in a few seconds.</p>
+      <div class="hand xray">${cards.map((c) => cardHTML(c)).join('')}</div><button type="button" class="link" id="xrayOk">Got it</button>`);
+    const t = setTimeout(closeModal, 6000); $('xrayOk').onclick = () => { clearTimeout(t); closeModal(); };
+  } else if (item === 'paint') splash(['🎨 PAINT BOMB', 'The colour is now', COLORS[args.p_color].toUpperCase()], { tone: 'gold', ms: 1500 });
+  await refreshNow();
+}
+function pickFoe(title, ask) {
+  return new Promise((done) => {
+    const g = G.game;
+    modal(`<h2>${title}</h2><p class="muted small">${ask}</p>
+      <div class="pick">${g.players.filter((p) => p !== me.id).map((p) => `<button type="button" data-p="${p}">${face(p)}${nm(p)} · ${g.counts[g.players.indexOf(p)]} cards</button>`).join('')}</div>
+      <button type="button" class="link" data-p="">Cancel</button>`);
+    $('gateBox').querySelectorAll('[data-p]').forEach((b) => { b.onclick = () => { closeModal(); done(b.dataset.p || null); }; });
+  });
+}
 $('drawBtn').onclick = async () => {
   const g = G.game; if (busy) return;
   busy = true; render();
@@ -250,10 +320,11 @@ let refreshNow = async () => {};
   if (!id || !(await load(id))) { $('title').textContent = 'Game not found'; return; }
   $('logFold').open = !isPhone();
   announceChaos({ gameId: id });
+  pack = await backpack();
   refreshNow = async () => { if (await load(id)) render(); };
   render();
   let pending = false;
-  const refresh = () => { if (pending) return; pending = true; setTimeout(async () => { pending = false; await refreshNow(); announceChaos({ gameId: id }); }, 150); };
+  const refresh = () => { if (pending) return; pending = true; setTimeout(async () => { pending = false; pack = await backpack(); await refreshNow(); announceChaos({ gameId: id }); }, 150); };
   liveGame(`cards-${id}`, [{ event: '*', table: 'card_games', filter: `id=eq.${id}` }], refresh, async () => {
     if (!G) return;
     if (await chaosClock()) return refresh();   // anything overdue on a stalled turn lands now

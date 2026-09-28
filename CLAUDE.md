@@ -98,6 +98,12 @@ takes a bare username.
   page calls `card_timeout` (slow player draws 1). The robot plays via `card_bot_play` from a
   watching page and counts as always present. Gauntlet deals it for any player count; the chaos
   clock makes a staller draw 2/4, and a 24 h Gauntlet forfeit goes to the fewest cards.
+- **Chaos Cards loot** (`024_card_loot.sql`): 👀 `xray` (see a hand; the cards come back only to
+  the user's page), 🎨 `paint` (set the colour), 🗑️ `trash` (discard a card), 🎁 `gift` (hand a card
+  to an opponent), all through `card_use_loot` on your own turn, none ending it. Trash and Gift
+  need 3+ cards in hand so they can never take you out. Uses write `last_play.loot` (with `at`, so
+  every use is a new event) for the other pages' log. Card games drop card items; action and chaos
+  cards drop one 1 in 8 (`card_play`).
 - **Hilltop Duel for 3-4 players** (`023_duel_multi.sql`): free-for-all, last tank standing.
   Everything is sized by `n = players.length`, and **a 2-player duel must play exactly as before**
   (keep the `n = 2` branches). Tanks start at `startXs(n)` / `_duel_start_x(n)` and drive within
@@ -210,7 +216,7 @@ takes a bare username.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.

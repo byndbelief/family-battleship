@@ -96,8 +96,12 @@
   .hand .card.can{transform:translateY(-10px);box-shadow:0 0 0 3px var(--gold),0 12px 18px #0006}
   .hand .card:not(.can){filter:saturate(.55) brightness(.8)}
   .hand.off .card{cursor:default;transform:none;filter:none;box-shadow:0 4px 0 #0004,0 8px 14px #0005}
-  .cardbar{display:grid;grid-template-columns:minmax(0,1.3fr) auto auto;gap:8px;margin-top:6px}
+  .cardbar{display:grid;grid-template-columns:minmax(92px,1fr) auto auto;gap:8px;margin-top:6px}
+  .cardbar button{padding-left:12px;padding-right:12px}
   .cardbar[hidden]{display:none}
+  #packMini .backpack{margin-top:6px}
+  .hand.aiming .card{outline:2px dashed var(--gold);outline-offset:2px}
+  .hand.xray{flex-wrap:wrap;justify-content:center;overflow:visible;padding:8px 0}
   .cardbar button{min-height:46px;border-radius:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
   .cardbar button:disabled{opacity:.38}
   .cardbar .drawact{font-family:var(--display);letter-spacing:.03em;background:#ffffff14}
@@ -155,6 +159,7 @@
         <div class="timer" id="timer" hidden><i id="timerBar"></i></div>
         <div class="hand" id="hand"></div>
         <!-- Always up during a game: what you can't do right now is greyed out -->
+        <div id="packMini"></div>
         <div class="cardbar" id="cardbar" hidden>
           <button type="button" class="drawact" id="drawAct">🂠 Draw</button>
           <button type="button" class="lastbtn" id="lastBtn" aria-pressed="false">☝️ Last card!</button>

@@ -214,6 +214,10 @@ export const ITEMS = {
   homing: { icon: '🚀', name: 'Homing Missile', game: 'duel', desc: 'Curves toward their tank on the way down. Smaller blast.' },
   railgun: { icon: '⚡', name: 'Railgun', game: 'duel', desc: 'A straight beam through hills: aim only, no power. 45 on a direct hit.' },
   dirt: { icon: '🪨', name: 'Dirt Bomb', game: 'duel', desc: 'Piles up a hill where it lands: build a wall, or block their shot.' },
+  xray: { icon: '👀', name: 'X-Ray Specs', game: 'cards', desc: "Peek at one opponent's hand." },
+  paint: { icon: '🎨', name: 'Paint Bomb', game: 'cards', desc: 'Set the colour in play to any colour you like.' },
+  trash: { icon: '🗑️', name: 'Trash Chute', game: 'cards', desc: 'Throw away one card from your hand (3 or more in hand).' },
+  gift: { icon: '🎁', name: 'Gift Box', game: 'cards', desc: 'Hand one of your cards to an opponent (3 or more in hand).' },
   scroll: { icon: '📜', name: 'Curse Scroll', game: 'any', desc: 'Hex any player in a random game of theirs.' },
 };
 
