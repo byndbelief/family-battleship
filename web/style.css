@@ -538,3 +538,21 @@ body.has-firebar { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)
 @media (prefers-color-scheme: dark) { .badge.got { background: linear-gradient(180deg, #3A2E10, var(--paper) 70%); } }
 @media (max-width: 440px) { .badges { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 #profBody { display: flex; flex-direction: column; gap: 20px; }
+
+/* Who's here (lobby header): the family's avatars, live ones first, with a green ring (common.js paints it) */
+.lobby > header { flex-wrap: wrap; gap: 10px; }
+.herenow { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.hnlabel { align-self: center; font-size: 12px; font-weight: 800; color: var(--muted); white-space: nowrap; }
+.hndot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #3DDC84; margin-right: 6px; box-shadow: 0 0 0 3px #3DDC8433; vertical-align: 1px; }
+@media (prefers-reduced-motion: no-preference) { .hndot { animation: hnPulse 1.8s ease-in-out infinite; } }
+@keyframes hnPulse { 50% { box-shadow: 0 0 0 6px #3DDC8400; } }
+.hn { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 46px; }
+.hn small { font-size: 11px; line-height: 1.1; color: var(--muted); white-space: nowrap; }
+.hn.on small { color: #1E9E5A; font-weight: 800; }
+@media (prefers-color-scheme: dark) { .hn.on small { color: #3DDC84; } }
+.hnav { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; overflow: hidden; font-family: var(--display); font-size: 16px;
+  background: linear-gradient(160deg, #F2C230, #E0892F); color: #2A2100; transition: filter .3s, opacity .3s; }
+.hnav.emo { font-family: inherit; font-size: 20px; background: var(--paper); box-shadow: 0 0 0 1px var(--line); }
+img.hnav { object-fit: cover; background: #000; }
+.hn:not(.on) .hnav { filter: grayscale(.8); opacity: .55; }
+@media (max-width: 560px) { .herenow { width: 100%; justify-content: flex-start; } .hnav { width: 30px; height: 30px; } }

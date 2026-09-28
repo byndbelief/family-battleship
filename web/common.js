@@ -84,10 +84,10 @@ const AVATARS = { phoenix_lord: 'avatars/phoenix_lord.jpg', dad_commander: '😎
 export const avatarOf = (username) => AVATARS[username] || null;   // a picture path, an emoji, or null
 export function avatar(p, cls = 'avatar') {
   if (p?.bot) return `<span class="${cls}" aria-hidden="true">🤖</span>`;
-  const a = AVATARS[p?.username];
-  if (a && a.includes('/')) return `<img class="${cls} pic" src="${a}" alt="">`;
-  if (a) return `<span class="${cls} emo" aria-hidden="true">${a}</span>`;
-  return `<span class="${cls}" aria-hidden="true">${esc(String(p?.username || '?')[0].toUpperCase())}</span>`;
+  const a = AVATARS[p?.username], u = p?.username ? ` data-u="${esc(p.username)}"` : '';   // data-u: painted live/away (paintOnline)
+  if (a && a.includes('/')) return `<img class="${cls} pic"${u} src="${a}" alt="">`;
+  if (a) return `<span class="${cls} emo"${u} aria-hidden="true">${a}</span>`;
+  return `<span class="${cls}"${u} aria-hidden="true">${esc(String(p?.username || '?')[0].toUpperCase())}</span>`;
 }
 // A small round face beside a player's name in the games (sized to the text around it). Nothing
 // for the robot, whose name already says 🤖. Styles itself, so every page gets it.
@@ -105,6 +105,61 @@ img.face{object-fit:cover;background:#000;box-shadow:0 0 0 1.5px #E8B84A}`;
 export const nm = (id) => (bots.has(id) ? '🤖 ' : '') + esc(names[id] ?? 'someone');
 export const friendly = (err) => (err?.message || String(err)).replace(/^.*?ERROR:\s*/, '');
 
+// ---------------------------------------------------------------- who's live
+// Every page checks in every 15 s with where it is (here_now, 021). Anyone whose avatar is on
+// screen gets a green ring while they're live, and a glowing one while they're at your table;
+// pages that list people (the lobby's Who's here) listen for the 'online' event.
+export const online = {};   // username -> { id, u, live, page, game, seen_at }
+let onlineMe = null, onlineTimer = null, paintQueued = false;
+export function wherePage() {
+  const file = location.pathname.split('/').pop() || 'index.html';
+  const game = (location.hash.match(/game=([0-9a-f-]{36})/) || [])[1] || null;
+  const kind = { 'golf.html': 'golf', 'duel.html': 'duel', 'cards.html': 'cards' }[file];
+  return kind ? { page: kind, game } : game ? { page: 'battleship', game } : { page: 'lobby', game: null };
+}
+async function checkIn(away = false) {
+  const w = wherePage();
+  const { data, error } = await sb.rpc('here_now', { p_page: w.page, p_game: w.game, p_away: away });
+  if (error || !Array.isArray(data)) return;
+  Object.keys(online).forEach((k) => delete online[k]);
+  data.forEach((r) => { online[r.u] = r; });
+  paintOnline();
+  dispatchEvent(new Event('online'));
+}
+export function paintOnline() {
+  paintQueued = false;
+  const here = wherePage().game;
+  document.querySelectorAll('[data-u]').forEach((el) => {
+    const r = online[el.dataset.u], mine = el.dataset.u === onlineMe;
+    const on = !mine && !!r?.live, at = on && !!here && r.game === here;
+    el.classList.toggle('is-on', on); el.classList.toggle('is-here', at);
+    if (!mine) el.title = at ? `${el.dataset.u} is here now` : on ? `${el.dataset.u} is live` : '';
+  });
+}
+export function startOnline(username) {
+  onlineMe = username;
+  if (onlineTimer) return;
+  const st = document.createElement('style');
+  st.textContent = `[data-u].is-on{outline:2.5px solid #3DDC84;outline-offset:1.5px}
+[data-u].is-here{outline:3px solid #3DDC84;outline-offset:2px}
+@media (prefers-reduced-motion:no-preference){[data-u].is-here{animation:hereGlow 1.8s ease-in-out infinite}}
+@keyframes hereGlow{50%{outline-color:#3DDC8466;outline-offset:3.5px}}`;
+  document.head.appendChild(st);
+  checkIn();
+  onlineTimer = setInterval(() => { if (!document.hidden) checkIn(); }, 15000);
+  document.addEventListener('visibilitychange', () => checkIn(document.hidden));
+  addEventListener('pagehide', () => checkIn(true));
+  addEventListener('hashchange', () => checkIn());
+  // Pages re-render all the time; paint new avatars as they appear.
+  new MutationObserver(() => { if (!paintQueued) { paintQueued = true; requestAnimationFrame(paintOnline); } })
+    .observe(document.body, { childList: true, subtree: true });
+}
+// "5m ago" / "3h ago" / "2d ago".
+export function agoText(t) {
+  const s = Math.max(0, (Date.now() - new Date(t).getTime()) / 1000);
+  return s < 90 ? 'just now' : s < 3600 ? `${Math.round(s / 60)}m ago` : s < 86400 ? `${Math.round(s / 3600)}h ago` : `${Math.round(s / 86400)}d ago`;
+}
+
 // Loads the signed-in player, or sends them to the sign-in page.
 export async function signedIn() {
   const { data: { session } } = await sb.auth.getSession();
@@ -116,6 +171,7 @@ export async function signedIn() {
   (profiles ?? []).forEach((p) => { names[p.id] = p.username; });
   (botRows ?? []).forEach((b) => bots.add(b.profile_id));
   me.id = session.user.id; me.username = names[me.id];
+  startOnline(me.username);
   // Join realtime as this player (not anonymously), or row-level security hides every change.
   try { await sb.realtime.setAuth(session.access_token); } catch {}
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});

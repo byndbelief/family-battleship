@@ -1,5 +1,5 @@
 import { USERNAME_DOMAIN } from './config.js';
-import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence, jumpToNext } from './common.js';
+import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence, jumpToNext, startOnline, online, agoText } from './common.js';
 import { HOLES, holeWithAttack, drawHole, LW, LH } from './golf-engine.js';
 import { W as DW, H as DH, TANK_X, buildTop } from './duel-engine.js';
 const app = document.getElementById('app');
@@ -227,6 +227,7 @@ async function loadMe(uid) {
   const { data: botRows } = await sb.from('bots').select('profile_id');   // missing table = no robot yet
   bots = new Set((botRows ?? []).map((b) => b.profile_id));
   me = { id: uid, username: names[uid] };
+  startOnline(me.username);
 }
 function route() {
   if (!me) return loginView();
@@ -288,11 +289,13 @@ async function lobby() {
   const others = Object.entries(names).filter(([id]) => id !== me.id).sort((a, b) => a[1].localeCompare(b[1]));
   // Quick play (a single game on its own) is one layer down, at #quick; the lobby leads with the Gauntlet.
   const quick = location.hash === '#quick';
+  queueMicrotask(renderHere);
   view(`
     <div class="lobby${quick ? ' quickmode' : ' lobhome'}">
       <div class="quickhead"><a href="#">← Game Room</a><h1>Quick play</h1><p class="muted">One game on its own, outside the Gauntlet. One of each kind per group of players at a time.</p></div>
       <header class="row between">
         <div class="stack lobhead"><span class="eyebrow">Family Game Room</span><h1>Ahoy, ${esc(me.username)}</h1></div>
+        <div class="herenow" id="hereNow" aria-label="Who's here"></div>
       </header>
       <div class="lobmain">
       <section class="gthero" id="gtSec">
@@ -636,6 +639,21 @@ function wireDeletes(list) {
   const clr = document.getElementById('finClear');
   if (clr) arm(clr, 'clear-all', 'Tap again to clear all', () => sb.rpc('hide_all_finished'));
 }
+
+// Who's here: everyone else in the family, live ones first, with where they are or when they were
+// last seen. Robots are always around, so they're left out.
+function renderHere() {
+  const box = document.getElementById('hereNow');
+  if (!box || !me) return;
+  const people = Object.entries(names).filter(([id]) => id !== me.id && !bots.has(id)).map(([id, u]) => ({ id, u, r: online[u] }))
+    .sort((a, b) => (b.r?.live ? 1 : 0) - (a.r?.live ? 1 : 0) || String(b.r?.seen_at ?? '').localeCompare(String(a.r?.seen_at ?? '')) || a.u.localeCompare(b.u));
+  const where = (r) => (!r ? 'not yet' : !r.live ? agoText(r.seen_at) : r.page === 'lobby' ? 'Lobby' : `${KIND_ICON[r.page]} Playing`);
+  const live = people.filter((p) => p.r?.live).length;
+  box.innerHTML = `<span class="hnlabel">${live ? `<i class="hndot"></i>${live} live` : 'Nobody else here'}</span>` + people.map(({ u, r }) =>
+    `<span class="hn ${r?.live ? 'on' : ''}" title="${esc(u)}: ${r?.live ? (r.page === 'lobby' ? 'live in the lobby' : `live, playing ${KIND_NAME[r.page]}`) : r ? `last seen ${agoText(r.seen_at)}` : 'not seen yet'}">
+      ${avatar({ username: u }, 'hnav')}<small>${where(r)}</small></span>`).join('');
+}
+addEventListener('online', renderHere);
 
 // One card per rival (a group of players): their running Gauntlet, which one it is, and
 // how many Gauntlets each of them has won.
