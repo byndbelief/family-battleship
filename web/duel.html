@@ -110,8 +110,9 @@
   input.mover:disabled{opacity:.45}
   #play.fs-on .aimtip{display:none}
   @media (max-width:640px){h1{font-size:22px} .wrap{gap:12px} #play{gap:10px} #controls{padding:12px}}
-  .controls{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center}
-  @media (max-width:520px){.controls{grid-template-columns:1fr} button.go#fire{width:100%}}
+  .controls{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center}
+  .controls > *{min-width:0}
+  @media (max-width:520px){.controls{grid-template-columns:minmax(0,1fr)} button.go#fire{width:100%}}
   .status{font-weight:700}
   .botlive{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
   .botlive button{border-radius:99px;padding:8px 14px}

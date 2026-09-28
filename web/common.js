@@ -73,6 +73,15 @@ toolsCss.textContent = `
   #gameTools .gtb.bot b{position:absolute;right:-6px;bottom:-7px;padding:1px 4px;border-radius:6px;font-size:9px;font-weight:900;letter-spacing:.04em;background:#141026;color:#fff;border:1px solid #ffffff55}
   #gameTools .gtb.bot[aria-pressed=true] b{background:#FFC857;color:#2A2100;border-color:#FFC857}
   #gameTools .gtb:disabled{opacity:.6}
+  #gameTools .gtb.news b{position:absolute;right:-6px;top:-7px;min-width:17px;height:17px;padding:0 4px;border-radius:99px;font-size:10.5px;font-weight:900;background:#F2C230;color:#2A2100;display:grid;place-items:center}
+  #gameTools .gtb.news.ping{animation:newsPing .9s ease-out 2}
+  @keyframes newsPing{0%{box-shadow:0 0 0 0 #F2C230aa}100%{box-shadow:0 0 0 12px #F2C23000}}
+  #newsBox{position:fixed;top:calc(58px + env(safe-area-inset-top,0px));right:calc(10px + env(safe-area-inset-right,0px));z-index:86;width:min(360px,calc(100vw - 20px));max-height:min(60vh,420px);overflow:auto;background:#141026f5;color:#fff;border:1px solid #ffffff33;border-radius:14px;box-shadow:0 14px 34px #0009;padding:6px}
+  #newsBox h3{margin:6px 8px 4px;font:800 13px/1.2 system-ui,sans-serif;opacity:.75;text-transform:uppercase;letter-spacing:.06em}
+  #newsBox li{list-style:none;display:flex;gap:10px;align-items:flex-start;padding:8px;border-radius:10px;font:600 14px/1.35 system-ui,sans-serif}
+  #newsBox li+li{border-top:1px solid #ffffff14}
+  #newsBox li span:first-child{font-size:22px;line-height:1}
+  #newsBox ul{margin:0;padding:0}
   .gtop{padding-right:var(--gtw,56px)}
   body.fs-lock .fs-on{padding-top:calc(58px + env(safe-area-inset-top,0px))}
   @media (pointer:fine){#gameTools .fsbtn{display:none!important}}
@@ -93,12 +102,14 @@ document.head.appendChild(toolsCss);
 function settingsButton() {
   if (tools) return;
   tools = document.createElement('div'); tools.id = 'gameTools'; tools.setAttribute('role', 'toolbar'); tools.setAttribute('aria-label', 'Tools');
-  tools.innerHTML = `<button type="button" class="gtb bot" hidden aria-pressed="false">🤖<b>OFF</b></button>`
+  tools.innerHTML = `<button type="button" class="gtb news" hidden aria-label="News" title="News">🔔<b></b></button>`
+    + `<button type="button" class="gtb bot" hidden aria-pressed="false">🤖<b>OFF</b></button>`
     + `<button type="button" class="gtb fsbtn" data-fs="" hidden aria-label="Full screen">⛶</button>`
     + `<button type="button" class="gtb del" hidden aria-label="Delete this game" title="Delete this game">🗑</button>`
     + `<button type="button" class="gtb" id="setBtn" aria-label="Settings" title="Settings">⚙️</button>`;
   (document.body || document.documentElement).appendChild(tools);
   tools.querySelector('#setBtn').onclick = openSettings;
+  tools.querySelector('.news').onclick = toggleNews;
   const del = tools.querySelector('.del');
   let t = null;
   const disarm = () => { clearTimeout(t); delete del.dataset.armed; del.classList.remove('armed'); del.textContent = '🗑'; del.setAttribute('aria-label', 'Delete this game'); fit(); };
@@ -144,7 +155,7 @@ export function setGameTools(opts) {
     bot.querySelector('b').textContent = opts.bot.on ? 'LIVE' : 'OFF';
     bot.setAttribute('aria-label', `${opts.bot.label}: ${opts.bot.on ? 'on' : 'off'}`); bot.title = `${opts.bot.label}: ${opts.bot.on ? 'on' : 'off'}`;
   }
-  fsLabels(); fit();
+  showNews(); fsLabels(); fit();
 }
 function fit() {
   if (!tools) return;
@@ -351,8 +362,33 @@ export async function announceChaos(filter = {}) {
   const { data } = await q;
   if (!data?.length) return [];
   await sb.rpc('chaos_seen', { p_ids: data.map((e) => e.id) });
+  // In a game, news doesn't pop up over the board (unless Settings says so): it waits in the 🔔.
+  if (onGamePage() && !pref('gamePopups', false)) { data.forEach((e) => news.unshift(e)); newsUnread += data.length; showNews(true); return data; }
   data.forEach((e) => { toastQueue = toastQueue.then(() => toast(e.icon, e.message, e.kind)); });
   return data;
+}
+// The game-page news (🔔): what came in during play, newest first, for this visit to the page.
+const news = []; let newsUnread = 0;
+const onGamePage = () => !!toolsOpts?.fs || /(duel|golf|cards)\.html$/.test(location.pathname) || /game=/.test(location.hash);
+function showNews(fresh = false) {
+  const b = tools?.querySelector('.news'); if (!b) return;
+  b.hidden = !onGamePage() || !news.length;
+  b.querySelector('b').textContent = newsUnread ? String(Math.min(99, newsUnread)) : '';
+  b.querySelector('b').hidden = !newsUnread;
+  b.setAttribute('aria-label', newsUnread ? `News: ${newsUnread} new` : 'News');
+  if (fresh && newsUnread) { b.classList.remove('ping'); void b.offsetWidth; b.classList.add('ping'); sfx('tick'); }
+  fit();
+}
+function toggleNews() {
+  const open = document.getElementById('newsBox');
+  if (open) { open.remove(); return; }
+  const box = document.createElement('div'); box.id = 'newsBox'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', 'News');
+  box.innerHTML = `<h3>News</h3><ul>${news.slice(0, 30).map((e) => `<li><span aria-hidden="true">${e.icon || '🌀'}</span><span></span></li>`).join('')}</ul>`;
+  box.querySelectorAll('li span:last-child').forEach((el, i) => { el.textContent = news[i].message; });
+  (document.querySelector('.fs-on') || document.body).appendChild(box);
+  newsUnread = 0; showNews();
+  const close = (ev) => { if (!box.contains(ev.target) && !ev.target.closest?.('.news')) { box.remove(); document.removeEventListener('pointerdown', close, true); } };
+  setTimeout(() => document.addEventListener('pointerdown', close, true), 0);
 }
 function toast(icon, message, kind) {
   return new Promise((done) => {
@@ -487,7 +523,10 @@ export function note(text, tone = '') {
   n.textContent = text; n.onclick = () => n.remove();
   box.appendChild(n);
   requestAnimationFrame(() => { n.style.opacity = '1'; n.style.transform = 'none'; });
-  setTimeout(() => { n.style.opacity = '0'; setTimeout(() => n.remove(), 250); }, Math.min(5000, 1800 + text.length * 35));
+  // In a game, tips get out of the way faster (errors still stay long enough to read).
+  const inGame = onGamePage() && tone !== 'error';
+  if (inGame) { n.style.fontSize = '13px'; n.style.padding = '7px 12px'; }
+  setTimeout(() => { n.style.opacity = '0'; setTimeout(() => n.remove(), 250); }, inGame ? Math.min(3200, 1300 + text.length * 22) : Math.min(5000, 1800 + text.length * 35));
 }
 // Turns a line of page text (like a tip or an error) into quick notes on phones and in full screen:
 // the line is hidden there, and each new message it shows pops up instead.
@@ -930,6 +969,7 @@ export async function openSettings() {
         ${sw('sound', !isMuted(), '🔊 Sound', 'Game sounds and music stings')}
         ${navigator.vibrate ? sw('haptics', hapticsOn(), '📳 Vibration', 'A buzz on hits, taps and secrets') : ''}
         ${sw('drama', pref('drama', true), '🎬 Big moments', 'Splash screens, slow motion and the danger pulse. Off: quick notes instead')}
+        ${sw('gamePopups', pref('gamePopups', false), '📰 News pop-ups in games', 'Loot, curses and twists pop up over the game. Off: they wait in the 🔔 up top')}
       </div>
       ${uid ? `<div class="setgroup">
         <div class="setrow"><div><strong>🏆 Gauntlet length</strong><span>Picked for you when you start one</span></div>

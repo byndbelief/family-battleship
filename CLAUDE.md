@@ -102,7 +102,12 @@ username. A new account only becomes a robot once it's in `public.bots`.
 - **Toolbar** (`setGameTools` in common.js): one fixed cluster at the top-right of *every* page —
   ⚙️ Settings always, and in games 🤖 live-vs-robot (`bot: { on, label, onToggle }`), ⛶ full screen
   and 🗑 delete. Notes (toasts) start below it; don't put per-page full-screen or delete buttons
-  back. Pages call `setGameTools({ fs, canDelete, onDelete })` on render (onDelete returns an error
+  back. In a game (`onGamePage()`) chaos news (loot, curses, twists) does *not* toast: it collects
+  in the toolbar's 🔔 (badge + one tick sound; tap for the list), unless the `gamePopups` Setting
+  (default off) asks for pop-ups. In-game `note()`s are smaller and shorter; errors keep full size.
+  Grid children holding the scrolling backpack row need `min-width:0`, or the row widens the page
+  past a phone's width (duel.html `.controls`).
+  Pages call `setGameTools({ fs, canDelete, onDelete })` on render (onDelete returns an error
   message or navigates away); app.js's `view()` hides it so only the Battleship game view shows it.
   The page's top row carries class `gtop` to leave room. While full screen is on, the toolbar and
   ⚙️ Settings move *inside* the `.fs-on` element (`fsHost`): native full screen puts that element
