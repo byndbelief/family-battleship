@@ -1,5 +1,5 @@
 import { USERNAME_DOMAIN } from './config.js';
-import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings } from './common.js';
+import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar } from './common.js';
 import { HOLES, holeWithAttack, drawHole, LW, LH } from './golf-engine.js';
 import { W as DW, H as DH, TANK_X, buildTop } from './duel-engine.js';
 const app = document.getElementById('app');
@@ -771,7 +771,7 @@ async function statsView() {
   const ranked = ps.filter((p) => p.played || p.gauntlets);
   const cards = ranked.map((p, i) => `
     <a class="scard ${p.id === me.id ? 'me' : ''}" href="#player=${p.id}">
-      <div class="row between"><strong class="sname">${medal[i] || ''} ${who(p)}</strong>${p.streak >= 2 ? `<span class="streak">🔥 ${p.streak} in a row</span>` : ''}</div>
+      <div class="row between"><strong class="sname">${medal[i] || ''} ${p.bot ? '' : avatar(p, 'mini')} ${who(p)}</strong>${p.streak >= 2 ? `<span class="streak">🔥 ${p.streak} in a row</span>` : ''}</div>
       <div class="sbig"><span><b>${p.titles}</b> 👑 Gauntlet${p.titles === 1 ? '' : 's'}</span><span><b>${p.won}</b>–${p.played - p.won} <small>${pct(p.won, p.played)}</small></span></div>
       <div class="skinds">${['battleship', 'golf', 'duel'].map((k) => `<span>${KIND_ICON[k]} ${p.by_kind[k].won}/${p.by_kind[k].played}</span>`).join('')}<span>🏁 ${p.rounds_won} round${p.rounds_won === 1 ? '' : 's'}</span><span class="sgo">🏆 Trophies ›</span></div>
     </a>`).join('');
@@ -858,7 +858,7 @@ async function profileView(id) {
   });
   const earned = badges.filter((b) => b.got).length;
   body.innerHTML = `
-    <header class="phead"><span class="avatar" aria-hidden="true">${d.bot ? '🤖' : esc(d.username[0].toUpperCase())}</span>
+    <header class="phead">${avatar(d)}
       <div><h1>${name}</h1><p class="muted">👑 ${c.titles} title${c.titles === 1 ? '' : 's'} · ${c.won}–${c.played - c.won} in games · best streak ${c.best_streak}${c.streak >= 2 ? ` · 🔥 ${c.streak} now` : ''}</p></div></header>
     <section class="stack" style="gap:8px"><h2>🏆 Trophy case</h2><div class="shelf">${shelf}</div></section>
     <section class="stack" style="gap:8px"><div class="row between"><h2>🎖️ Badges</h2><span class="muted small">${earned} of ${badges.length}</span></div>
