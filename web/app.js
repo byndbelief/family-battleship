@@ -565,9 +565,10 @@ function renderGauntlets(all, cards) {
     const whoseMove = round ? (myMove ? 'Your move' : round.pill.replace(/<[^>]+>/g, '')) : '';
     const dots = Array.from({ length: g.rounds }, (_, i) => { const h = done[i], cur = !h && i === g.round - 1;
       return `<i class="${h ? 'done' : cur ? 'cur' : ''}">${h ? KIND_ICON[h.kind] : cur ? KIND_ICON[g.current_kind] : i + 1}</i>`; }).join('');
-    const others = g.players.filter((p) => p !== me.id).map(nm).join(' & ');
+    const rivals = g.players.filter((p) => p !== me.id), others = rivals.map((p) => esc(names[p] ?? 'someone')).join(' & ');
+    const faces = rivals.map((p) => avatar({ username: names[p], bot: bots.has(p) }, 'gtav')).join('');
     return `<div class="gtwrap"><a class="gtcard ${myMove ? 'mine' : ''}" href="${href}">
-      <span class="gtrival"><strong>vs ${others}</strong><span>Gauntlet #${past.length + 1}${past.length ? ` · 🏆 ${g.players.map((p, i) => `${p === me.id ? 'You' : nm(p)} ${titles[i]}`).join(' · ')}` : ''}</span></span>
+      <span class="gtwho"><span class="gtfaces">${faces}</span><span class="gtrival"><strong>vs ${others}</strong><span>Gauntlet #${past.length + 1}${past.length ? ` · 🏆 ${g.players.map((p, i) => `${p === me.id ? 'You' : nm(p)} ${titles[i]}`).join(' · ')}` : ''}</span></span></span>
       <span class="gtscore">${g.players.map((p, i) => `<span class="${g.scores[i] === lead && lead > 0 ? 'lead' : ''}">${g.scores[i] === lead && lead > 0 ? '👑 ' : ''}${p === me.id ? 'You' : nm(p)} <b>${g.scores[i]}</b></span>`).join('')}</span>
       <span class="gttrack">${dots}</span>
       <span class="gtnow">Round ${g.round} of ${g.rounds}: ${KIND_ICON[g.current_kind]} ${KIND_NAME[g.current_kind]}${whoseMove ? ` · <strong>${whoseMove}</strong>` : ''}${round && chaosIn(round.g.turn_at, g.id) ? ` · <span class="gtclk">${chaosIn(round.g.turn_at, g.id)}</span>` : ''}</span>

@@ -370,7 +370,14 @@ body.has-firebar { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)
 .gtoff { position: absolute; top: 10px; right: 10px; min-height: 32px; padding: 4px 12px; border-radius: 99px; font-size: 13px; font-weight: 700;
   background: #00000055; color: #F3D9A6; border: 1.5px solid #FFC85755; }
 .gtoff.armed { background: #C0392B; color: #fff; border-color: #C0392B; }
-.gtwrap .gtrival { padding-right: 96px; }
+.gtwrap .gtwho { padding-right: 96px; }
+.gtwho { display: flex; align-items: center; gap: 10px; }
+.gtfaces { display: flex; flex: none; }
+.gtav { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-family: var(--display); font-size: 19px; flex: none;
+  background: linear-gradient(160deg, var(--flag), #E0892F); color: var(--flag-ink); box-shadow: 0 0 0 2px #FFC85799; }
+.gtav + .gtav { margin-left: -12px; }
+.gtav.emo { font-family: inherit; font-size: 24px; }
+.gtav.pic { object-fit: cover; background: #000; box-shadow: 0 0 0 2px #E8B84A; }
 
 /* ---------------------------------------------------------------- Quick play: one layer down (#quick) */
 .lobby:not(.quickmode) #newSec, .lobby:not(.quickmode) .quickhead { display: none; }
