@@ -128,7 +128,7 @@ function camIntro(key, force) {
   if (zPlay() === 1) return;
   const left = liveOn ? liveGo - Date.now() : 0, synced = left > 1600;
   cam.intro = { t0: performance.now(), hold: synced ? left - 1500 : 1100, dur: synced ? 1400 : 1600 };
-  cam.x = LW / 2; cam.y = LH / 2; cam.z = 1; cam.over = false; mapBtn();
+  cam.x = LW / 2; cam.y = LH / 2; cam.z = 1; cam.over = false; cam.uz = null; cam.hold = false; mapBtn();
 }
 const camFocus = () => (scene.ball && !scene.ball.hidden ? [scene.ball.x, scene.ball.y] : scene.hole.tee);
 // 🌀 The fractal cup (059): down in every cup is the next hole in miniature (the last hole's holds the
@@ -168,7 +168,7 @@ function camStep(now) {
       return;
     }
   }
-  const zp = cam.over || mode === 'idle' || mode === 'over' ? 1 : zPlay(), [fx, fy] = camFocus();
+  const zp = cam.over ? 1 : cam.uz ?? (mode === 'idle' || mode === 'over' ? 1 : zPlay()), [fx, fy] = camFocus();
   if (cam.intro) {
     const e0 = (now - cam.intro.t0 - cam.intro.hold) / cam.intro.dur;
     if (e0 < 1) {
@@ -179,9 +179,11 @@ function camStep(now) {
     }
     cam.intro = null;
   }
+  if (view) return;   // a finger's on it
   const k = reduceMotion ? 1 : 0.14;
   cam.z += (zp - cam.z) * k; if (Math.abs(zp - cam.z) < 0.003) cam.z = zp;
-  const [tx, ty] = camClamp(fx, fy, cam.z);
+  const follow = !cam.hold || cam.over || ['rolling', 'replay', 'bot'].includes(mode);   // a view you set holds, but a rolling ball is followed
+  const [tx, ty] = follow ? camClamp(fx, fy, cam.z) : [cam.x, cam.y];
   cam.x += (tx - cam.x) * (reduceMotion ? 1 : 0.2); cam.y += (ty - cam.y) * (reduceMotion ? 1 : 0.2);
   [cam.x, cam.y] = camClamp(cam.x, cam.y, cam.z);
 }
@@ -202,7 +204,7 @@ function mapBtn() {
   const b = $('mapBtn'); b.hidden = zPlay() === 1 || !G || G.game.status !== 'playing';
   b.classList.toggle('on', cam.over); b.setAttribute('aria-pressed', String(cam.over));
 }
-$('mapBtn').onclick = () => { cam.over = !cam.over; cam.intro = null; mapBtn(); sfx('click'); };
+$('mapBtn').onclick = () => { cam.over = !cam.over; cam.intro = null; cam.uz = null; cam.hold = false; mapBtn(); sfx('click'); };
 function loop(t) {
   clockCheck();
   if (locked && mode !== 'aim') { setLocked(false); showAim(null); }
@@ -594,11 +596,55 @@ document.querySelectorAll('#putbar [data-turn], #putbar [data-pow]').forEach((b)
 $('puttX').onclick = () => { setLocked(false); scene.aim = null; showAim(null); $('tip').textContent = 'Putt cancelled. Drag back from anywhere to aim again.'; };
 $('puttGo').onclick = () => { const a = scene.aim; setLocked(false); scene.aim = null; showAim(null); if (a && mode === 'aim') putt(a); };
 
-function toLogical(e) {
-  const r = cv.getBoundingClientRect(), u = (e.clientX - r.left) / r.width, v = (e.clientY - r.top) / r.height;
-  const L = rot ? { x: v * LW, y: LH - u * LH } : { x: u * LW, y: v * LH };
-  return { x: (L.x - LW / 2) / cam.z + cam.x, y: (L.y - LH / 2) / cam.z + cam.y };   // through the camera (055)
+// A point on screen in the canvas's own units (before the camera), and the course point under it.
+function toL(cx, cy) {
+  const r = cv.getBoundingClientRect(), u = (cx - r.left) / r.width, v = (cy - r.top) / r.height;
+  return rot ? { x: v * LW, y: LH - u * LH } : { x: u * LW, y: v * LH };
 }
+const worldOf = (L) => ({ x: (L.x - LW / 2) / cam.z + cam.x, y: (L.y - LH / 2) / cam.z + cam.y });   // through the camera (055)
+const toLogical = (e) => worldOf(toL(e.clientX, e.clientY));
+// ---------------------------------------------------------------- zoom and pan (059)
+// Pinch to zoom, two fingers to pan; one finger pans too whenever you're not aiming (waiting, watching
+// a putt or a replay). Mouse: the wheel zooms round the pointer, right-drag pans (left-drag too when
+// not aiming). Your view holds until you putt; then the camera follows the ball at your zoom.
+// 🗺️ and a new hole go back to the usual camera.
+const touches = new Map(); let view = null;
+const zMax = () => Math.max(3, zPlay() * 2.5);
+function viewAt(z, w, L) {   // zoom z, with course point w under canvas point L
+  z = Math.min(zMax(), Math.max(1, z));
+  cam.z = z; [cam.x, cam.y] = camClamp(w.x - (L.x - LW / 2) / z, w.y - (L.y - LH / 2) / z, z);
+  cam.uz = z; cam.hold = true; cam.intro = null; cam.dive = null;
+  if (cam.over) { cam.over = false; mapBtn(); }
+}
+function startView() {
+  const pts = [...touches.values()], mid = pts.reduce((a, q) => ({ x: a.x + q.x / pts.length, y: a.y + q.y / pts.length }), { x: 0, y: 0 });
+  view = { w: worldOf(toL(mid.x, mid.y)), z0: cam.z, d0: pts.length > 1 ? Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) : 0 };
+}
+cv.addEventListener('pointerdown', (e) => {
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  const pan = touches.size >= 2 || (e.pointerType === 'mouse' && e.button === 2) || (mode !== 'aim' && mode !== 'wedge');
+  if (!pan) return;   // one finger while aiming: that's a putt (below)
+  e.stopImmediatePropagation(); cv.setPointerCapture?.(e.pointerId);
+  drag = null; scene.aim = null; showAim(null); clearTimeout(wedgeHold); if (locked) setLocked(false);
+  startView();
+}, true);
+cv.addEventListener('pointermove', (e) => {
+  if (!touches.has(e.pointerId)) return;
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (!view) return;
+  e.stopImmediatePropagation();
+  const pts = [...touches.values()], mid = pts.reduce((a, q) => ({ x: a.x + q.x / pts.length, y: a.y + q.y / pts.length }), { x: 0, y: 0 });
+  const z = view.d0 && pts.length > 1 ? (view.z0 * Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)) / view.d0 : cam.z;
+  viewAt(z, view.w, toL(mid.x, mid.y));
+}, true);
+const lift = (e) => { touches.delete(e.pointerId); if (!view) return; e.stopImmediatePropagation(); if (touches.size) startView(); else view = null; };
+cv.addEventListener('pointerup', lift, true); cv.addEventListener('pointercancel', lift, true);
+cv.addEventListener('contextmenu', (e) => e.preventDefault());
+cv.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const L = toL(e.clientX, e.clientY);
+  viewAt(cam.z * Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)), worldOf(L), L);   // ctrl: a trackpad pinch
+}, { passive: false });
 cv.addEventListener('pointerdown', (e) => {
   if (mode === 'wedge') return wedgeTo(toLogical(e));
   if (mode !== 'aim') return;
@@ -639,6 +685,7 @@ cv.addEventListener('pointerup', async (e) => {
 async function putt(a) {
   if (liveOn && Date.now() < liveGo) { bigText('<span class="small-pop">Wait for GO!</span>', 900); sfx('buzz'); return; }
   const sp = (0.6 + a.p * 10.4) * POWER * (curAttack === 5 ? 0.67 : 1);
+  cam.hold = false;   // follow this putt (at the zoom you chose)
   const s = { x: q20(scene.ball.x), y: q20(scene.ball.y), vx: q100(a.dx * sp), vy: q100(a.dy * sp), chip: chipNext };
   if (chipNext) { chipNext = false; sfx('whistle', { dur: 0.35 }); }
   current.push(s); mode = 'rolling'; $('tip').textContent = ''; renderCheats(); renderCard();

@@ -663,3 +663,13 @@ uses two slow swells plus `fractalLine` (midpoint displacement, level ends, amp 
 rising quake heave `[x, dh, r, 6]` gets its own seeded crag-line. Server never builds terrain, so no SQL
 change beyond the column.
 
+### Putt Post: zoom and pan (page only)
+A capture-phase gesture layer on the canvas (golf.js, before the aim handlers) takes any pointer that
+isn't a one-finger aim: two fingers pinch/pan, one finger pans when `mode` isn't aim/wedge, mouse
+right-drag pans, the wheel zooms round the pointer (ctrl-wheel, a trackpad pinch, faster). It stops the
+event so the aim never sees it, and cancels an aim in progress. `viewAt(z, w, L)` keeps course point w
+under canvas point L (z from 1 to `max(3, 2.5·zPlay)`), sets `cam.uz` (your zoom) and `cam.hold` (stay
+put). camStep then targets `uz` and only follows the ball when not held, or while it rolls; `putt()`
+drops the hold, so the next putt is followed at your zoom. 🗺️ and `camIntro` clear both.
+`toL()` is a screen point in canvas units, `worldOf()` puts it through the camera.
+
