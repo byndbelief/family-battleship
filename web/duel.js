@@ -62,7 +62,8 @@ function xs() {
 const standing = (X, hp, shooter) => X.map((x, i) => (i === shooter || (hp?.[i] ?? 100) > 0 ? x : null));
 // The default barrel for a tank nobody is aiming: toward the middle.
 const restAngle = (p, X) => (multi() ? (X[p] < W / 2 ? 45 : 135) : 45);
-const cv = $('cv'), ctx = cv.getContext('2d');
+const cv = $('cv');
+let ctx = cv.getContext('2d');   // swapped for the tank cam's while it draws (drawTankCam)
 // The camera (4+ tanks, where the field is wide and the tanks small): zoom 1-3× around a point of
 // the battlefield (x, y). Pinch or the wheel to zoom, one finger pans when you're not aiming, and a
 // shell in the air pulls the view along with it. At 1× it's the whole field, exactly as before.
@@ -133,11 +134,11 @@ function draw(t) {
   if (!G || !top) return;
   const g = G.game, dy = H - 440;   // dy: the extra sky a bigger battlefield has
   // A shell in the air, zoomed in: the view follows it (unless you've just moved it yourself).
-  if (cam.z > 1 && shells.length && Date.now() > camHeld) {
+  if (!camPass && cam.z > 1 && shells.length && Date.now() > camHeld) {
     const s = shells[shells.length - 1], q = s.path[Math.min(s.i, s.path.length - 1)];
     if (q) { cam.x += (q.x - cam.x) * 0.12; cam.y += (q.y - cam.y) * 0.12; camClamp(); }
   }
-  const k = (cv.width / W) * cam.z; ctx.setTransform(k, 0, 0, k, -(cam.x - W / cam.z / 2) * k, -(cam.y - H / cam.z / 2) * k);
+  const k = (ctx.canvas.width / W) * cam.z; ctx.setTransform(k, 0, 0, k, -(cam.x - W / cam.z / 2) * k, -(cam.y - H / cam.z / 2) * k);
   const sky = ctx.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#1B1646'); sky.addColorStop(0.6, '#3B2A6E'); sky.addColorStop(1, '#7A3E72');
   ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
   stars.forEach((s) => { ctx.globalAlpha = 0.5 + 0.5 * Math.sin(t / 900 + s.t); ctx.fillStyle = '#fff'; ctx.fillRect(s.x * W, s.y * (H / 440), s.s, s.s); }); ctx.globalAlpha = 1;
@@ -280,7 +281,34 @@ function drawHint(t) {
   }
   ctx.globalAlpha = 1; ctx.shadowBlur = 0;
 }
-function loop(t) { particles.forEach((q) => { q.x += q.vx; q.y += q.vy; q.vy += 0.12; q.life -= 0.018; }); particles = particles.filter((q) => q.life > 0); draw(t); requestAnimationFrame(loop); }
+function loop(t) { particles.forEach((q) => { q.x += q.vx; q.y += q.vy; q.vy += 0.12; q.life -= 0.018; }); particles = particles.filter((q) => q.life > 0); draw(t); drawTankCam(t); requestAnimationFrame(loop); }
+// 🎥 The tank cam: zoomed in with your own tank off screen, a small window in the corner keeps it in
+// view: the same scene drawn again with a camera on your tank (so its barrel, the aim guide, shells
+// and blasts all show), your HP under it, and a red flash with the damage when you're hit. Tap it
+// to jump the view back to your tank.
+let camPass = false, tcHp = null;
+const tcCv = $('tankCamCv'), tcCtx = tcCv.getContext('2d');
+function drawTankCam(t) {
+  const box = $('tankCam'), mi = G && top ? myIdx() : -1;
+  const tp = mi >= 0 ? tankPos(mi, top, shot?.xs || xs()) : null;
+  const vw = W / cam.z, vh = H / cam.z;
+  const off = tp && camOn() && cam.z > 1.001 && G.game.hp[mi] > 0
+    && (tp.x < cam.x - vw / 2 + 12 || tp.x > cam.x + vw / 2 - 12 || tp.y - 20 < cam.y - vh / 2 || tp.y > cam.y + vh / 2 - 6);
+  if (box.hidden === !!off) { box.hidden = !off; if (off) box.style.setProperty('--c', COLS[mi]); }
+  if (!G || mi < 0) return;
+  const hp = Math.max(0, G.game.hp[mi]);
+  if (tcHp !== null && hp < tcHp && off) {   // hit while it's showing: a red flash and the damage
+    const d = document.createElement('b'); d.className = 'tcdmg'; d.textContent = `−${tcHp - hp}`; box.appendChild(d); setTimeout(() => d.remove(), 1400);
+    box.classList.remove('hit'); void box.offsetWidth; box.classList.add('hit');
+  }
+  if (hp !== tcHp) { tcHp = hp; $('tankCamHp').style.setProperty('--hp', `${hp}%`); $('tankCamHp').querySelector('b').textContent = hp; }
+  if (!off) return;
+  const z = W / 200, cw = W / z, ch = H / z, saved = cam, savedCtx = ctx;
+  cam = { z, x: clampN(tp.x, cw / 2, W - cw / 2), y: clampN(tp.y - 20, ch / 2, H - ch / 2) };
+  ctx = tcCtx; camPass = true;
+  try { draw(t); } finally { cam = saved; ctx = savedCtx; camPass = false; }
+}
+$('tankCam').addEventListener('click', () => { const mi = myIdx(), tp = mi >= 0 && tankPos(mi, top, xs()); camHeld = Date.now() + 4000; if (tp) camLook(tp.x, tp.y - 40); });
 function boom(x, y, big = 1) {
   sfx('boom', { size: big });
   navigator.vibrate?.(Math.round(60 * big));

@@ -288,6 +288,11 @@ username. A new account only becomes a robot once it's in `public.bots`.
   wind multiplier goes through `windXOf(g, move)`. Hilltop 🎁 supply drop (loot for every person);
   Putt Post 🌫️ fog (drawing: a clearing round the ball) and 🌊 flood (a pond vetted by
   `reachable()`) as `twists` kinds; Battleship crates are a supply drop for all half the time.
+- **Tank cam** (`drawTankCam` in duel.js, `#tankCam` in duel.html): zoomed in (4+ tanks) with your
+  tank off screen, a corner window re-runs `draw()` with `ctx`/`cam` swapped for its own canvas and a
+  camera on your tank (`camPass` stops the shell-follow from steering the real camera). It shows your
+  HP, flashes with the damage when you're hit, and a tap looks back at your tank. `draw()` sizes from
+  `ctx.canvas.width`, never `cv.width`, so it can draw into either.
 - **Chaos extras** (`047_chaos_extras.sql`): twists on 33% of moves. Hilltop 🌀 tornado is wind
   multiplier **5** (`duel_games.tornado`, beats a hurricane; `windFor` never lets it be calm), so
   `wind_x` ∈ {1,3,5,11,13,15}; 🌧️ healing rain (+12 all) and 🔄 HP swap (up-next tank ↔ a random rival).
