@@ -99,6 +99,7 @@ css.textContent = `
   .board.seaview .cell.sunk{background:#D8403A38!important;animation:none}
   .board.seaview .cell.sunk::after{content:'';width:62%;height:62%;border-radius:50%;background:radial-gradient(circle,#FFB347,#FF5A1F 50%,#5A141000 75%);animation:burn .9s ease-in-out infinite alternate}
   .board.seaview .cell.new{box-shadow:inset 0 0 0 2px #F2C230}
+  .board.seaview .cell.fog{background:radial-gradient(circle at 50% 55%,#F4F7FAE6 30%,#DCE4EB80 70%,#DCE4EB00)!important}
   @keyframes ripple{0%{transform:scale(.7);opacity:1}70%{transform:scale(1.15);opacity:.7}100%{transform:scale(.7);opacity:1}}
   .sea{background-size:cover}
   .sea-sea{background:

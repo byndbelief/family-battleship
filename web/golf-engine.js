@@ -169,8 +169,8 @@ function tick(b, h){
     for(const c of h.bumpers) if(collideBumper(b,c)) ev='bump';
   }
   b.clock++;
-  const sand=h.sand.some(r=>inRect(b.x,b.y,r));
-  const f=sand?0.93:(h.friction||0.984); b.vx*=f; b.vy*=f;
+  const sand=h.sand.some(r=>inRect(b.x,b.y,r)), mud=h.mud&&h.mud.some(r=>inRect(b.x,b.y,r));
+  const f=mud?0.86:sand?0.93:(h.friction||0.984); b.vx*=f; b.vy*=f;
   if(h.wind && b.vx*b.vx+b.vy*b.vy>0.16){ b.vx+=h.wind[0]; b.vy+=h.wind[1]; }
   let sloped=false;
   for(const s of h.slopes) if(inRect(b.x,b.y,s.r)){ b.vx+=s.a[0]; b.vy+=s.a[1]; sloped=true; }
@@ -206,7 +206,7 @@ function scaleHole(h, s){
   return {...h, outline:h.outline.map(P), tee:P(h.tee), cup:P(h.cup), segs:h.segs.map(([a,b,c,d])=>[a*s,b*s,c*s,d*s]),
     blocks:h.blocks.map(Rc), sand:h.sand.map(Rc), water:h.water.map(Rc), bumpers:h.bumpers.map(([x,y,r])=>[x*s,y*s,r*s]),
     slopes:h.slopes.map(sl=>({...sl, r:Rc(sl.r), a:[sl.a[0]*s, sl.a[1]*s]})), spinners:h.spinners.map(([x,y,len,n,turn])=>[x*s,y*s,len*s,n,turn]),
-    wind:h.wind?[h.wind[0]*s,h.wind[1]*s]:h.wind, cupSpeed:(h.cupSpeed||5.5)*s, scale:s, gophers:h.gophers?.map(P)};
+    wind:h.wind?[h.wind[0]*s,h.wind[1]*s]:h.wind, cupSpeed:(h.cupSpeed||5.5)*s, scale:s, gophers:h.gophers?.map(P), mud:h.mud?.map(Rc)};
 }
 // ================================================================= chaos twists on a hole (043)
 // golf_games.twists = { "<hole>": [{ k: 'cup' | 'gopher', s: seed, t: from turn }] }. The ones with
@@ -216,13 +216,16 @@ function scaleHole(h, s){
 //   gopher: a pair of holes on the fairway, linked underground (see tick)
 //   fog:    (044) the course is hidden but for a clearing round the ball (drawing only)
 //   flood:  (044) a new pond on the fairway, placed so the cup can still be reached
+//   windmill: (047) a spinning windmill on the fairway, clear of the rails, tee and cup
+//   mud:    (047) a sticky patch that soaks up the ball's speed
+//   gust:   (047) a steady breeze across the whole hole that nudges every rolling ball
 const twistsFor=(all, hi, t)=>((all||{})[hi]||[]).filter(tw=>tw.t<=t);
 function spotFor(h, r, avoid){
   const xs=h.outline.map(p=>p[0]), ys=h.outline.map(p=>p[1]), x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys), y1=Math.max(...ys);
   for(let k=0;k<80;k++){
     const x=Math.round(x0+20+r()*(x1-x0-40)), y=Math.round(y0+20+r()*(y1-y0-40));
     if(!inPoly(x,y,h.outline) || h.segs.some(sg=>segDist(x,y,sg)<18)) continue;
-    if([...h.water,...h.sand,...h.slopes.map(sl=>sl.r)].some(q=>inRect(x,y,[q[0]-12,q[1]-12,q[2]+24,q[3]+24]))) continue;
+    if([...h.water,...h.sand,...(h.mud||[]),...h.slopes.map(sl=>sl.r)].some(q=>inRect(x,y,[q[0]-12,q[1]-12,q[2]+24,q[3]+24]))) continue;
     if(h.bumpers.some(([bx,by,br])=>Math.hypot(x-bx,y-by)<br+18) || h.spinners.some(([sx,sy,len])=>Math.hypot(x-sx,y-sy)<len+14)) continue;
     if(avoid.some(([ax,ay,d])=>Math.hypot(x-ax,y-ay)<d)) continue;
     return [x,y];
@@ -246,6 +249,19 @@ function twistHole(base, list){
       for(let i=0;i<8;i++){ const p=spotFor(h,r,[[h.tee[0],h.tee[1],90],[h.cup[0],h.cup[1],75],...dug]); if(!p) break;
         const w=[p[0]-35,p[1]-22,70,44]; if(h.gophers.some(([gx,gy])=>inRect(gx,gy,[w[0]-10,w[1]-10,90,64]))) continue;
         const trial={...h, water:[...h.water, w]}; if(reachable(trial)){ h=trial; break; } }
+    } else if(tw.k==='windmill'){
+      const len=34+Math.floor(r()*16), speed=(r()<.5?-1:1)*(0.02+r()*0.02);
+      for(let i=0;i<10;i++){ const p=spotFor(h,r,[[h.tee[0],h.tee[1],len+34],[h.cup[0],h.cup[1],len+26],...dug]); if(!p) break;
+        if(h.segs.some(sg=>segDist(p[0],p[1],sg)<len+8) || h.spinners.some(([sx,sy,sl])=>Math.hypot(p[0]-sx,p[1]-sy)<sl+len+10)) continue;
+        h={...h, spinners:[...h.spinners, [p[0],p[1],len,2+Math.floor(r()*2),speed]], bumpers:[...h.bumpers, [p[0],p[1],8]]}; break; }
+    } else if(tw.k==='mud'){
+      for(let i=0;i<10;i++){ const p=spotFor(h,r,[[h.tee[0],h.tee[1],60],[h.cup[0],h.cup[1],45],...dug]); if(!p) break;
+        const m=[p[0]-32,p[1]-22,64,44];   // all of it on the fairway, clear of the rails
+        if(h.segs.some(sg=>segDist(p[0],p[1],sg)<36) || h.blocks.some(q=>!(m[0]>q[0]+q[2]||q[0]>m[0]+m[2]||m[1]>q[1]+q[3]||q[1]>m[1]+m[3]))) continue;
+        h={...h, mud:[...(h.mud||[]), m]}; break; }
+    } else if(tw.k==='gust'){
+      const w=h.wind||[0,0];
+      h={...h, wind:[w[0]+(r()<.5?-1:1)*(0.014+r()*0.008), w[1]+(r()*2-1)*0.006]};
     }
   }
   return h;
@@ -367,6 +383,13 @@ function drawHole(c, h, t, scene={}){
     c.save(); c.beginPath(); c.roundRect(x,y,w,hh,Math.min(22,hh/2)); c.fillStyle='#E8D39A'; c.fill(); c.clip();
     c.fillStyle='#D4BC7E'; for(let i=0;i<w*hh/60;i++){ const px=x+((i*37)%w), py=y+((i*53)%hh); c.fillRect(px,py,1.5,1.5); }
     c.restore(); c.strokeStyle='#C9AE6B'; c.lineWidth=2; c.beginPath(); c.roundRect(x,y,w,hh,Math.min(22,hh/2)); c.stroke();
+  });
+  // 🟤 mud (047): a sticky brown patch
+  (h.mud||[]).forEach(([x,y,w,hh])=>{
+    c.save(); c.beginPath(); c.ellipse(x+w/2,y+hh/2,w/2,hh/2,0,0,7); c.fillStyle='#6B4A2B'; c.fill(); c.clip();
+    c.fillStyle='#4E3420'; for(let i=0;i<14;i++){ c.beginPath(); c.ellipse(x+((i*37)%w),y+((i*23)%hh),4,2.5,0,0,7); c.fill(); }
+    c.fillStyle='#8A6A45'; for(let i=0;i<8;i++){ c.beginPath(); c.arc(x+((i*53+11)%w),y+((i*29+7)%hh),1.6,0,7); c.fill(); }
+    c.restore();
   });
   // water
   h.water.forEach(([x,y,w,hh])=>{

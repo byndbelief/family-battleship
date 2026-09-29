@@ -1113,6 +1113,11 @@ async function loadGame(id) {
   return true;
 }
 
+// 🌫️ Fog (047): a chaos twist hides the results of your last few shots from you until your turn ends.
+function fogIds() {
+  const g = G.game;
+  return g.fog_player === me.id && g.status === 'playing' && g.move <= g.fog_move ? new Set((g.fog_shots || []).map(Number)) : new Set();
+}
 function boardHTML({ owner, ships, clickable, fresh }) {
   const { game, shots } = G;
   const { n } = MODES[game.mode];
@@ -1123,7 +1128,7 @@ function boardHTML({ owner, ships, clickable, fresh }) {
   const peeks = (G.cheats || []).filter((c) => c.kind === 'peek' && c.player_id === me.id && c.detail?.target === owner)
     .concat((G.sonars || []).filter((l) => l.detail?.target === owner));
   const peekShip = new Set(peeks.flatMap((c) => c.detail.ships)), peekArea = new Set(peeks.flatMap((c) => c.detail.area));
-  const sunk = new Set(at.flatMap((s) => s.sunk_cells ?? []));
+  const sunk = new Set(at.flatMap((s) => s.sunk_cells ?? [])), fog = fogIds();
   const shipAt = new Set(ships ? fleetCells(game.mode, ships).flat() : []);
   // On the ocean: your own fleet, and every fleet once the battle is over.
   const fleetsHere = ocean ? Object.entries(G.fleets).filter(([p]) => p === me.id || over) : [];
@@ -1154,11 +1159,12 @@ function boardHTML({ owner, ships, clickable, fresh }) {
       const i = r * n + c, cls = ['cell'], s = shotAt.get(i);
       if (shipAt.has(i)) cls.push('ship');
       if (sunk.has(i)) cls.push('sunk');
+      else if (s && fog.has(s.id) && !shipAt.has(i)) cls.push('fog');
       else if (s) cls.push(s.hit ? 'hit' : 'miss');
       if (aiming?.has(i)) cls.push('aim');
       if (s && fresh && s.move === game.move) cls.push('new');
       if (!s && peekShip.has(i)) cls.push('peek-ship'); else if (!s && peekArea.has(i)) cls.push('peek-empty');
-      const label = cellName(game.mode, i), pc = s?.hit && s.target ? `;--pc:${pcol(s.target)}` : '';
+      const label = cellName(game.mode, i), pc = s?.hit && s.target && !cls.includes('fog') ? `;--pc:${pcol(s.target)}` : '';
       if (pc) cls.push('owned');
       h += clickable && !s && !mine.has(i)
         ? `<button class="${cls.join(' ')}" style="${at2(r, c)}" data-o="${owner}" data-i="${i}" data-target="${owner}" data-cell="${i}" aria-label="Aim at ${label}"></button>`
@@ -1178,18 +1184,19 @@ function feedHTML() {
   const { game, shots } = G;
   const moves = [...new Set(shots.map((s) => s.move))].sort((a, b) => b - a).slice(0, 4);
   if (!moves.length) return '';
+  const fog = fogIds();
   const items = moves.map((m) => {
-    const ss = shots.filter((s) => s.move === m);
+    const ss = shots.filter((s) => s.move === m).map((s) => (fog.has(s.id) ? { ...s, hit: false, fogged: true } : s));
     const hits = ss.filter((s) => s.hit).length;
     const who = ss[0].shooter === me.id ? 'You' : nm(ss[0].shooter);
     const whose = (p) => (p === me.id ? 'your' : `${nm(p)}'s`);
     if (MODES[game.mode].shared) {   // one ocean: say whose ship each hit found
-      const cells = ss.map((s) => `${cellName(game.mode, s.cell)} ${s.hit ? `hit ${s.target === me.id ? 'you' : nm(s.target)}` : 'miss'}`).join(', ');
+      const cells = ss.map((s) => `${cellName(game.mode, s.cell)} ${s.fogged ? '🌫️' : s.hit ? `hit ${s.target === me.id ? 'you' : nm(s.target)}` : 'miss'}`).join(', ');
       const sank = ss.filter((s) => s.sunk_ship != null).map((s) => `${whose(s.target)} ${shipName(game.mode, s.sunk_ship)}`);
       return `<li class="${hits ? 'hit' : ''}"><strong>${who}</strong> fired: ${cells}.${sank.length ? ` Sank ${sank.join(' and ')}.` : ''}</li>`;
     }
     const tgt = ss[0].target === me.id ? 'you' : nm(ss[0].target);
-    const cells = ss.map((s) => `${cellName(game.mode, s.cell)} ${s.hit ? 'hit' : 'miss'}`).join(', ');
+    const cells = ss.map((s) => `${cellName(game.mode, s.cell)} ${s.fogged ? '🌫️' : s.hit ? 'hit' : 'miss'}`).join(', ');
     const sank = ss.filter((s) => s.sunk_ship != null).map((s) => shipName(game.mode, s.sunk_ship));
     const acc = (G.accusations || []).find((a) => a.move === m);
     const accLine = acc ? `<li class="accuse">🚨 <strong>${acc.accuser === me.id ? 'You' : nm(acc.accuser)}</strong> called cheater on <strong>${acc.accused === me.id ? 'you' : nm(acc.accused)}</strong>: ${acc.busted ? `busted! (${acc.kinds.map(cheatLabel).join(', ')})` : 'false alarm.'}</li>` : '';

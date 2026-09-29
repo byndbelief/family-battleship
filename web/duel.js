@@ -87,8 +87,8 @@ const stars = Array.from({ length: 90 }, (_, i) => { const r = rng(i * 7919 + 3)
 const myIdx = () => G.game.players.indexOf(me.id);
 const turnId = () => G.game.players[G.game.turn];
 // The special shell a player has loaded (🎆 cluster, 🚀 homing, ⚡ railgun, 🪨 dirt), or null.
-// A shot's wind multiplier: 3 in a 🌪️ hurricane, plus 10 in 🌙 low gravity (044; see gravOf).
-const windXOf = (g, move) => (g.gust === move ? 3 : 1) + (g.lowgrav === move ? 10 : 0);
+// A shot's wind multiplier: 3 in a 🌪️ hurricane, 5 in a 🌀 tornado (047), plus 10 in 🌙 low gravity (044; see gravOf).
+const windXOf = (g, move) => (g.tornado === move ? 5 : g.gust === move ? 3 : 1) + (g.lowgrav === move ? 10 : 0);
 const armedOf = (id) => G?.game.armed?.[id] || null;
 // 🚁 Drone Strike: you pick a spot along the map (dropX) instead of an angle and a power; it goes to
 // the server as the angle and power droneAim() makes of it. The sliders keep your usual aim.
@@ -265,7 +265,7 @@ function drawHint(t) {
     ctx.font = `${Math.round(34 * W / 800)}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.globalAlpha = 0.8; ctx.fillText('🚁', x, droneY()); ctx.restore();
     return;
   }
-  const g = G.game, base = g.gust === g.move ? 3 : 1, lg = g.lowgrav === g.move ? 10 : 0, windy = windFor(g.seed, g.move, base) !== 0;
+  const g = G.game, base = windXOf(g, g.move) % 10, lg = g.lowgrav === g.move ? 10 : 0, windy = windFor(g.seed, g.move, base) !== 0;
   const r = rng(g.seed * 7919 + g.move * 131 + 17), aBias = (r() * 2 - 1) * 3.5, pBias = (r() * 2 - 1) * 6;   // this turn's hidden error
   const q = (v, s) => Math.round(v / s) * s;
   // The hint never swings across straight up (with 3+ players past 90° is the other way).
@@ -276,7 +276,7 @@ function drawHint(t) {
     drawDots(hintPath(A(1.5), P(2), (windy ? base * 1.4 : base) + lg), 0.55, t, true);
   } else {
     const gust = windy ? 1 + 0.3 * Math.sin(t / 700) + 0.15 * Math.sin(t / 260 + 1.3) : 1;
-    drawDots(hintPath(A(1.4 * Math.sin(t / 900)), P(2 * Math.sin(t / 640 + 1)), Math.round(base * gust * 50) / 50 + lg), 1, t, false);
+    drawDots(hintPath(A(1.4 * Math.sin(t / 900)), P(2 * Math.sin(t / 640 + 1)), (base === 5 ? 5 : Math.round(base * gust * 50) / 50) + lg), 1, t, false);
   }
   ctx.globalAlpha = 1; ctx.shadowBlur = 0;
 }
@@ -392,8 +392,8 @@ function render() {
   $('hpRow').hidden = false; $('hpRow').classList.toggle('tight', g.players.length >= 5 && isPhone());   // 5-6 on a phone: colour dots, no faces
   $('hpRow').innerHTML = g.players.map((id, p) => `<div class="hpc ${g.hp[p] <= 0 ? 'out' : ''} ${g.status === 'playing' && !liveOn && g.turn === p ? 'turn' : ''}" style="--c:${COLS[p]};--hp:${Math.max(0, g.hp[p])}%" title="${esc(who(id).replace(/<[^>]+>/g, ''))}: ${g.hp[p]} HP">
     <i class="dot"></i>${face(id)}<span class="nm">${who(id)}</span><b>${g.hp[p] <= 0 ? '💀' : g.hp[p]}</b><span class="tg">${tag(id)}</span></div>`).join('');
-  const gusty = g.gust === g.move, w = windFor(g.seed, g.move, gusty ? 3 : 1);
-  $('wind').textContent = (g.lowgrav === g.move ? '🌙 ' : '') + (gusty ? '🌪️ ' : '') + (w === 0 ? 'No wind' : `Wind ${w < 0 ? '←' : '→'} ${Math.abs(w)}${gusty ? ' (hurricane!)' : ''}`);
+  const wx = windXOf(g, g.move) % 10, gusty = wx === 3, w = windFor(g.seed, g.move, wx);
+  $('wind').textContent = (g.lowgrav === g.move ? '🌙 ' : '') + (gusty ? '🌪️ ' : wx === 5 ? '🌀 ' : '') + (w === 0 ? 'No wind' : `Wind ${w < 0 ? '←' : '→'} ${Math.abs(w)}${gusty ? ' (hurricane!)' : wx === 5 ? ' (tornado!)' : ''}`);
   const over = g.status === 'over', out = !over && mi >= 0 && g.hp[mi] <= 0;   // knocked out, still watching (3-4 players)
   const liveNow = liveOn && !over && mi >= 0 && !out, mine = !over && !out && (liveNow || turnId() === me.id);
   $('title').innerHTML = over ? (g.winner === me.id ? 'You win!' : `${nm(g.winner)} wins!`) : out ? "💀 You're out" : liveNow ? '⚔️ Live battle' : mine ? 'Your shot' : `${nm(turnId())}'s shot`;

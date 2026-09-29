@@ -288,6 +288,15 @@ username. A new account only becomes a robot once it's in `public.bots`.
   wind multiplier goes through `windXOf(g, move)`. Hilltop 🎁 supply drop (loot for every person);
   Putt Post 🌫️ fog (drawing: a clearing round the ball) and 🌊 flood (a pond vetted by
   `reachable()`) as `twists` kinds; Battleship crates are a supply drop for all half the time.
+- **Chaos extras** (`047_chaos_extras.sql`): twists on 33% of moves. Hilltop 🌀 tornado is wind
+  multiplier **5** (`duel_games.tornado`, beats a hurricane; `windFor` never lets it be calm), so
+  `wind_x` ∈ {1,3,5,11,13,15}; 🌧️ healing rain (+12 all) and 🔄 HP swap (up-next tank ↔ a random rival).
+  Putt Post `twists` kinds 🌀 `windmill` (spinner + hub bumper, clear of rails by its blade length),
+  🟤 `mud` (`h.mud` rects, friction 0.86, scaled by `scaleHole`) and 🍃 `gust` (adds to `h.wind`).
+  Battleship `_chaos_twist_bs(game, 'whirlpool'|'fog')`: a whirlpool moves a rival's unhit ship clear
+  of every ship and fired square; fog is `games.fog_player/fog_move/fog_shots` (their last 6 non-sinking
+  shots draw as `.cell.fog` and 🌫️ in the feed while `move <= fog_move`, i.e. until their turn ends).
+  047 also fixed the scoreboard glitch, whose `hole = h1` had been ambiguous (and failing putts) since 043.
 - **Gauntlet Battleship at 4+** (`046_gauntlet_big_ocean.sql`): `_gauntlet_next` deals the 16×16 shared
   ocean (mode 3, robot fleets via `_random_fleet_avoid`) like `create_game` does; below 4 it's classic
   boards. Hilltop/Putt Post rounds were already sized by `_duel_new` / the course trigger.
@@ -413,7 +422,7 @@ username. A new account only becomes a robot once it's in `public.bots`.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size, 037_bs_burst applied 2026-09-28; 038_drone_strike, 039_more_loot, 040_golf_live_attacks, 041_golf_attack_loot, 042_more_chaos_hilltop, 043_more_chaos_golf, 044_even_more_chaos, 045_live_countdown, 046_gauntlet_big_ocean 2026-09-29), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size, 037_bs_burst applied 2026-09-28; 038_drone_strike, 039_more_loot, 040_golf_live_attacks, 041_golf_attack_loot, 042_more_chaos_hilltop, 043_more_chaos_golf, 044_even_more_chaos, 045_live_countdown, 046_gauntlet_big_ocean, 047_chaos_extras 2026-09-29), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.

@@ -108,7 +108,10 @@ function applyCrater(top, [cx, cy, r, mound]) {
 function buildTop(seed, craters, n = 2) { const t = baseTerrain(seed, n); craters.forEach((c) => applyCrater(t, c)); return t; }
 // windX is the shot's wind multiplier (1, or 3 in a hurricane), plus 10 in 🌙 low gravity (044):
 // the flag rides along with it through shots, replays, the live channel and the robot.
-const windFor = (seed, move, x = 1) => { const r = rng(seed * 31 + move * 977 + 7); return Math.round((r() * 2 - 1) * 10) * (x % 10); };
+// x % 10 is the multiplier: 1, 3 in a 🌪️ hurricane, 5 in a 🌀 tornado (047), which always blows
+// hard (at least 4 before multiplying) so a calm move still gets one.
+const windFor = (seed, move, x = 1) => { const r = rng(seed * 31 + move * 977 + 7), w = Math.round((r() * 2 - 1) * 10), m = x % 10;
+  return m === 5 ? (w < 0 ? -1 : 1) * Math.max(4, Math.abs(w)) * 5 : w * m; };
 const gravOf = (windX) => (windX >= 10 ? GRAV * 0.55 : GRAV);
 // xs: where each tank stands (they can drive a little each turn); the starting spots by default.
 // A null in xs is a tank that's out: shells fly straight through where it was, and it takes no damage.

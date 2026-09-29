@@ -419,7 +419,9 @@ function startTurn() {
   const tw = twistsFor(G.game.twists, curHole(), myT());
   $('tip').textContent = 'Drag back from anywhere on the course, then let go to putt.' + (h.extra ? ' This hole has random obstacles.' : '')
     + (tw.some((x) => x.k === 'cup') ? ' 🚩 Chaos moved the cup!' : '') + (tw.some((x) => x.k === 'gopher') ? ' 🐹 Gophers dug up the fairway: in one hole, out the other.' : '')
-    + (tw.some((x) => x.k === 'fog') ? ' 🌫️ Fog rolled in: you only see round your ball.' : '') + (tw.some((x) => x.k === 'flood') ? ' 🌊 A flood left a new pond.' : '');
+    + (tw.some((x) => x.k === 'fog') ? ' 🌫️ Fog rolled in: you only see round your ball.' : '') + (tw.some((x) => x.k === 'flood') ? ' 🌊 A flood left a new pond.' : '')
+    + (tw.some((x) => x.k === 'windmill') ? ' 🌀 A windmill sprang up.' : '') + (tw.some((x) => x.k === 'mud') ? ' 🟤 Watch the mud: it swallows speed.' : '')
+    + (tw.some((x) => x.k === 'gust') ? ' 🍃 A gust is blowing across the hole.' : '');
   $('send').hidden = true;
   renderCard();
   if (curAttack && liveOn) { attackFrom = 0; landLiveAttack(); }   // live: no box to tap while everyone else races

@@ -84,6 +84,8 @@ button.cell:hover { background: var(--water-2); }
 .cell.ship { background: var(--ship); }
 .cell.miss::after { content: ""; width: 28%; height: 28%; border-radius: 50%; background: var(--miss); box-shadow: 0 0 0 1.5px var(--line); }
 .cell.hit { background: var(--hit-soft); }
+.board .cell.fog { background: radial-gradient(circle at 50% 55%, #F4F7FAEE 35%, #DCE4EBAA 75%) !important; }
+.cell.fog::after { content: "?"; font-weight: 800; font-size: 11px; color: #5A6B7B; }
 .cell.ship.hit { background: var(--ship); }
 .cell.hit::after { content: ""; width: 60%; height: 60%; border-radius: 50%; background: var(--hit); }
 .cell.sunk { background: var(--hit) !important; }
