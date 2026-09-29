@@ -1150,9 +1150,10 @@ async function loadGame(id) {
     draft: same ? G.draft : null, // keep an unsaved ship layout across live refreshes
     fleets: Object.fromEntries((fleets ?? []).map((f) => [f.player_id, f.ships])),
   };
-  // A new move clears your aim, turn by turn. Live, moves fly by: only drop staged squares someone
-  // has fired at since (053).
-  if (liveBS && aims.target) { const gone = new Set((shots ?? []).filter((x) => aims.target === OCEAN || x.target === aims.target).map((x) => x.cell)); aims.cells = new Set([...aims.cells].filter((c) => !gone.has(c))); }
+  // A new move clears your aim, turn by turn. Live, moves fly by: staged squares stay (053).
+  // Only squares now taken for you: hit by anyone, or fired at by you. Someone else's miss there
+  // doesn't count (054: you can still miss there too, and you can't see it anyway).
+  if (liveBS && aims.target) { const gone = new Set((shots ?? []).filter((x) => (aims.target === OCEAN || x.target === aims.target) && (x.hit || x.shooter === me.id)).map((x) => x.cell)); aims.cells = new Set([...aims.cells].filter((c) => !gone.has(c))); }
   else if (prevMove != null && game.move !== prevMove) aims = { target: null, cells: new Set() };
   // Live fog (053) lifts on a clock, not a move: redraw the board when it does.
   if (game.fog_player === me.id && game.fog_until) { const ms = Date.parse(game.fog_until) - Date.now(); if (ms > 0 && ms < 60000) setTimeout(() => { if (G?.game.id === id) renderGame(); }, ms + 100); }
