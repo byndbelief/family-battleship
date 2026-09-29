@@ -68,6 +68,42 @@ let ctx = cv.getContext('2d');   // swapped for the tank cam's while it draws (d
 // the battlefield (x, y). Pinch or the wheel to zoom, one finger pans when you're not aiming, and a
 // shell in the air pulls the view along with it. At 1× it's the whole field, exactly as before.
 let cam = { z: 1, x: 400, y: 220 }, camHeld = 0;   // camHeld: until when the person, not the shell, steers
+// 🎬 The shot camera: zoomed in, the view stays where you put it until someone fires. Then it glides
+// to the shooter's tank, follows the shell, holds on the impact, and glides back to your spot at
+// your zoom. Touch the battlefield (or a zoom button) and it lets go at once, leaving the view there.
+let ride = null, rideLast = 0;
+function rideStart(p) {
+  if (!camOn() || cam.z <= 1.001 || reduceMotion || Date.now() < camHeld) return 0;
+  const tp = tankPos(p, top, xs());
+  const far = tp && Math.hypot(tp.x - cam.x, tp.y - 30 - cam.y) > 40;
+  if (!ride) ride = { home: { x: cam.x, y: cam.y }, p, t0: performance.now(), end: 0, aim: null, vx: 0, vy: 0 };
+  else Object.assign(ride, { p, t0: performance.now(), end: 0 });
+  return far && !liveOn ? 650 : 0;   // turn by turn: the shell leaves once the camera has got there
+}
+window.__duelCam = () => ({ x: cam.x, y: cam.y, z: cam.z, ride: !!ride });   // for tests: read-only
+function rideStep(t) {
+  const dt = rideLast ? Math.min(0.1, (t - rideLast) / 1000) : 0; rideLast = t;
+  if (!ride) return;
+  if (Date.now() < camHeld || !camOn() || cam.z <= 1.001) { ride = null; return; }   // you took over
+  const now = performance.now(), flying = shells.filter((s) => s.i < s.path.length && s.p === ride.p);
+  let T, w = 7;   // spring stiffness: higher follows tighter
+  if (flying.length && now - ride.t0 > 300) {   // the shell (the middle of a cluster's)
+    const qs = flying.map((s) => s.path[Math.max(0, Math.min(s.i, s.path.length - 1))]);
+    T = { x: qs.reduce((a, q) => a + q.x, 0) / qs.length, y: qs.reduce((a, q) => a + q.y, 0) / qs.length }; ride.aim = T; w = 9;
+  } else if (!ride.end || now - ride.end < 900) {   // the shooter, then the impact a moment
+    const tp = !ride.aim && tankPos(ride.p, top, xs()); T = tp ? { x: tp.x, y: tp.y - 30 } : ride.aim || ride.home;
+  } else { T = ride.home; w = 5; }
+  // A critically damped spring: it eases in and out, never overshoots, and is capped at about two
+  // screens a second, so a long pan glides instead of whipping.
+  const cap = (2.2 * W) / cam.z;
+  for (let n = 0, h = dt / 2; n < 2; n++) {
+    ride.vx += (w * w * (T.x - cam.x) - 2 * w * ride.vx) * h; ride.vy += (w * w * (T.y - cam.y) - 2 * w * ride.vy) * h;
+    const sp = Math.hypot(ride.vx, ride.vy); if (sp > cap) { ride.vx *= cap / sp; ride.vy *= cap / sp; }
+    cam.x += ride.vx * h; cam.y += ride.vy * h;
+  }
+  const bx = cam.x, by = cam.y; camClamp(); if (cam.x !== bx) ride.vx = 0; if (cam.y !== by) ride.vy = 0;   // stopped by the edge
+  if (T === ride.home && Math.hypot(cam.x - T.x, cam.y - T.y) < 0.5 && Math.hypot(ride.vx, ride.vy) < 5) { cam.x = T.x; cam.y = T.y; camClamp(); ride = null; }
+}
 const camOn = () => !!G && N() >= 4;
 const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 // How much of the battlefield's height the canvas shows at 1×: all of it (H), except in landscape
@@ -158,10 +194,7 @@ function draw(t) {
   if (!G || !top) return;
   const g = G.game, dy = H - 440;   // dy: the extra sky a bigger battlefield has
   // A shell in the air, zoomed in: the view follows it (unless you've just moved it yourself).
-  if (!camPass && cam.z > 1 && shells.length && Date.now() > camHeld) {
-    const s = shells[shells.length - 1], q = s.path[Math.min(s.i, s.path.length - 1)];
-    if (q) { cam.x += (q.x - cam.x) * 0.12; cam.y += (q.y - cam.y) * 0.12; camClamp(); }
-  }
+  if (!camPass) rideStep(t);
   if (!camPass) camClamp();   // keeps 1× on the ground whatever shape the canvas is
   const k = (ctx.canvas.width / W) * cam.z; ctx.setTransform(k, 0, 0, k, -(cam.x - W / cam.z / 2) * k, -(cam.y - ctx.canvas.height / k / 2) * k);
   // ☀️ Day or 🌙 night by your own clock (dawn 6-7, dusk 19-20), the moon morphing into the sun when
@@ -420,12 +453,13 @@ function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1, X = x
     X = standing(X, hpBefore, p);
     const sims = simulateWeapon(G.game.seed, move, top, p, angle, power, windX, X, weapon);
     const mine = sims.map((sim) => ({ p, angle, weapon, path: sim.path, lead: sim.lead, xs: X, i: reduceMotion ? sim.path.length : 0 }));
+    const wait = rideStart(p);
     shells.push(...mine); if (!liveOn) shot = mine[0];
     const longest = Math.max(...sims.map((x) => x.path.length));
-    if (weapon === 'railgun') { sfx('flash'); sfx('cannon', { delay: 0.02 }); }
-    else if (weapon === 'drone') { const lead = sims[0].lead || 0; sfx('drone', { dur: Math.max(0.4, lead / 3 / 60) }); if (!reduceMotion) sfx('whistle', { delay: lead / 3 / 60, dur: Math.max(0.3, (longest - lead) / 3 / 60) }); }
-    else { sfx('cannon'); if (!reduceMotion) sfx('whistle', { delay: 0.15, dur: Math.max(0.3, longest / 3 / 60 - 0.15) }); }
-    if (weapon === 'cluster' && !reduceMotion) { const split = sims[0].path.findIndex((q, j) => j > 0 && q.y > sims[0].path[j - 1].y); if (split > 0) sfx('pop', { delay: split / 3 / 60 }); }
+    if (weapon === 'railgun') { sfx('flash', { delay: wait / 1000 }); sfx('cannon', { delay: wait / 1000 + 0.02 }); }
+    else if (weapon === 'drone') { const lead = sims[0].lead || 0; sfx('drone', { delay: wait / 1000, dur: Math.max(0.4, lead / 3 / 60) }); if (!reduceMotion) sfx('whistle', { delay: wait / 1000 + lead / 3 / 60, dur: Math.max(0.3, (longest - lead) / 3 / 60) }); }
+    else { sfx('cannon', { delay: wait / 1000 }); if (!reduceMotion) sfx('whistle', { delay: wait / 1000 + 0.15, dur: Math.max(0.3, longest / 3 / 60 - 0.15) }); }
+    if (weapon === 'cluster' && !reduceMotion) { const split = sims[0].path.findIndex((q, j) => j > 0 && q.y > sims[0].path[j - 1].y); if (split > 0) sfx('pop', { delay: wait / 1000 + split / 3 / 60 }); }
     const speed = weapon === 'railgun' ? 6 : 3;
     const step = () => {
       // Slow motion as a shell closes in on a tank.
@@ -436,11 +470,12 @@ function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1, X = x
       const linger = weapon === 'railgun' && !reduceMotion ? 350 : 0;
       setTimeout(() => { shells = shells.filter((x) => !mine.includes(x)); }, linger);
       if (shot && mine.includes(shot)) shot = null;
+      if (ride && ride.p === p && !shells.some((x) => !mine.includes(x) && x.i < x.path.length)) ride.end = performance.now();
       const list = craterList(crater);
       if (list.length) { list.forEach((c) => { blast(c); applyCrater(top, c); }); if (list[0][3] !== 1 && !reduceMotion && cv.animate) cv.animate([{ transform: 'translate(-6px,3px)' }, { transform: 'translate(5px,-3px)' }, { transform: 'none' }], { duration: 350 }); }
       done({ impact: sims[0].impact, impacts: sims.map((x) => x.impact) });
     };
-    requestAnimationFrame(step);
+    if (wait) setTimeout(() => requestAnimationFrame(step), wait); else requestAnimationFrame(step);
   });
 }
 
@@ -628,7 +663,8 @@ async function decide() {
     const stale = Date.now() - new Date(g.updated_at).getTime() > 15000;
     // Whoever fired last plays the robot's turn; after another robot, the first person still standing does.
     const host = botHost(g);
-    if ((last && (last.shooter === me.id || (isBot(last.shooter) && host))) || stale) return robotShot();
+    // No shot yet (048 can deal a robot the first turn): the first person standing opens for it.
+    if ((last && (last.shooter === me.id || (isBot(last.shooter) && host))) || (!last && host) || stale) return robotShot();
   }
 }
 
