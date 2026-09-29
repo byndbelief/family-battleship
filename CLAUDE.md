@@ -294,6 +294,10 @@ username. A new account only becomes a robot once it's in `public.bots`.
   screen trims the top of the sky. Everything that maps screen↔world uses `viewH()`, never `H`. The
   controls float in the corners (`#controls` is `display:contents`; aim bottom right beside a round
   FIRE, backpack up the right edge, drive bottom left, zoom down the left edge, tank cam top left).
+- **Hilltop day and night** (`dayTarget`/`dayStep`/`dayNow` in duel.js): the sky follows the
+  viewer's local clock (night before 6 and from 20, dawn 6-7, dusk 19-20). `draw()` blends every sky
+  colour by `dayNow` (`mixHex`): stars fade, clouds drift in, the moon's glow warms into a sun with
+  turning rays. On opening in daylight it morphs from moon to sun over 2.5 s (reduced motion: no morph).
 - **Tank cam** (`drawTankCam` in duel.js, `#tankCam` in duel.html): zoomed in (4+ tanks) with your
   tank off screen, a corner window re-runs `draw()` with `ctx`/`cam` swapped for its own canvas and a
   camera on your tank (`camPass` stops the shell-follow from steering the real camera). It shows your

@@ -97,6 +97,17 @@ function toWorld(clientX, clientY) {
 // Zoom to z keeping the battlefield point under (fx, fy) of the screen where it is.
 function zoomAt(z, fx, fy, wx, wy) { cam.z = clampN(z, 1, 3); cam.x = wx - (fx - 0.5) * (W / cam.z); cam.y = wy - (fy - 0.5) * (viewH() / cam.z); camClamp(); showCam(); }
 function camLook(x, y, z = cam.z) { cam.z = z; cam.x = x; cam.y = y; camClamp(); showCam(); }
+const clouds = Array.from({ length: 5 }, (_, i) => { const r = rng(i * 104729 + 11); return { x: r(), y: 0.25 + r() * 0.5, r: 18 + r() * 16, v: 0.004 + r() * 0.006 }; });
+// Daylight: 0 at night, 1 by day, eased across dawn (6-7) and dusk (19-20) by the local clock.
+const dayTarget = () => { const n = new Date(), h = n.getHours() + n.getMinutes() / 60; return h < 6 || h >= 20 ? 0 : h < 7 ? h - 6 : h < 19 ? 1 : 20 - h; };
+let dayNow = reduceMotion ? dayTarget() : 0, dayLast = 0;
+function dayStep(t) {   // a 2.5 s morph from wherever the sky is to where the clock says it should be
+  const goal = dayTarget(), dt = dayLast ? Math.min(0.1, (t - dayLast) / 1000) : 0; dayLast = t;
+  if (t < 600) return;   // let the battlefield appear first, then the moon turns into the sun
+  dayNow = goal > dayNow ? Math.min(goal, dayNow + dt / 2.5) : Math.max(goal, dayNow - dt / 2.5);
+}
+const mixHex = (a, b, k) => { const p = (h, i) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16), n = Math.max(a.length, b.length) === 9 ? 4 : 3;
+  return '#' + Array.from({ length: n }, (_, i) => Math.round(p(a.length === 9 || i < 3 ? a : a + 'ff', i) * (1 - k) + p(b.length === 9 || i < 3 ? b : b + 'ff', i) * k).toString(16).padStart(2, '0')).join(''); };
 const stars = Array.from({ length: 90 }, (_, i) => { const r = rng(i * 7919 + 3); return { x: r(), y: r() * 240, s: r() * 1.4 + 0.3, t: r() * 6 }; });
 const myIdx = () => G.game.players.indexOf(me.id);
 const turnId = () => G.game.players[G.game.turn];
@@ -153,13 +164,32 @@ function draw(t) {
   }
   if (!camPass) camClamp();   // keeps 1× on the ground whatever shape the canvas is
   const k = (ctx.canvas.width / W) * cam.z; ctx.setTransform(k, 0, 0, k, -(cam.x - W / cam.z / 2) * k, -(cam.y - ctx.canvas.height / k / 2) * k);
-  const sky = ctx.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#1B1646'); sky.addColorStop(0.6, '#3B2A6E'); sky.addColorStop(1, '#7A3E72');
+  // ☀️ Day or 🌙 night by your own clock (dawn 6-7, dusk 19-20), the moon morphing into the sun when
+  // a game opens in daylight (dayNow eases toward dayTarget).
+  if (!camPass) dayStep(t);
+  const d = dayNow, mix = (a, b) => mixHex(a, b, d);
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, mix('#1B1646', '#3E8EDB')); sky.addColorStop(0.6, mix('#3B2A6E', '#86C6F0')); sky.addColorStop(1, mix('#7A3E72', '#E4F3FB'));
   ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
-  stars.forEach((s) => { ctx.globalAlpha = 0.5 + 0.5 * Math.sin(t / 900 + s.t); ctx.fillStyle = '#fff'; ctx.fillRect(s.x * W, s.y * (H / 440), s.s, s.s); }); ctx.globalAlpha = 1;
+  if (d < 1) { stars.forEach((s) => { ctx.globalAlpha = (1 - d) * (0.5 + 0.5 * Math.sin(t / 900 + s.t)); ctx.fillStyle = '#fff'; ctx.fillRect(s.x * W, s.y * (H / 440), s.s, s.s); }); ctx.globalAlpha = 1; }
   const mx = W * 0.7625, my = 90 + dy * 0.5;
-  const mg = ctx.createRadialGradient(mx, my, 10, mx, my, 120); mg.addColorStop(0, '#FFF4D6'); mg.addColorStop(0.28, '#FFE3A3'); mg.addColorStop(0.3, '#FFC85733'); mg.addColorStop(1, '#FFC85700');
-  ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(mx, my, 120, 0, 7); ctx.fill();
-  ctx.fillStyle = '#2A2158'; ctx.beginPath(); ctx.moveTo(0, H);
+  // The glow warms and widens from moonlight to sunshine; the disc grows and turns gold.
+  const gr = 120 + 50 * d, mg = ctx.createRadialGradient(mx, my, 10, mx, my, gr);
+  mg.addColorStop(0, mix('#FFF4D6', '#FFFFFF')); mg.addColorStop(0.28, mix('#FFE3A3', '#FFE680')); mg.addColorStop(0.3, mix('#FFC85733', '#FFD24A66')); mg.addColorStop(1, mix('#FFC85700', '#FFD24A00'));
+  ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(mx, my, gr, 0, 7); ctx.fill();
+  if (d > 0.35) {   // the sun's rays, turning slowly
+    const a = Math.min(1, (d - 0.35) / 0.5), spin = reduceMotion ? 0 : t / 9000, r0 = gr * 0.36, r1 = gr * (0.62 + 0.04 * Math.sin(t / 700));
+    ctx.save(); ctx.globalAlpha = a * 0.75; ctx.strokeStyle = '#FFD24A'; ctx.lineCap = 'round'; ctx.lineWidth = 5;
+    for (let i = 0; i < 12; i++) { const an = spin + (i * Math.PI) / 6; ctx.beginPath(); ctx.moveTo(mx + Math.cos(an) * r0, my + Math.sin(an) * r0); ctx.lineTo(mx + Math.cos(an) * r1, my + Math.sin(an) * r1); ctx.stroke(); }
+    ctx.restore();
+  }
+  if (d > 0) {   // clouds drift in with the day
+    ctx.save(); ctx.globalAlpha = d * 0.85; ctx.fillStyle = '#FFFFFF';
+    clouds.forEach((c) => { const x = ((c.x * (W + 300) + (reduceMotion ? 0 : t * c.v)) % (W + 300)) - 150, y = c.y * (170 + dy);
+      [[0, 0, 1], [-0.9, 0.25, 0.7], [0.9, 0.25, 0.75], [0.35, -0.35, 0.7]].forEach(([ox, oy, k]) => { ctx.beginPath(); ctx.ellipse(x + ox * c.r, y + oy * c.r, c.r * k, c.r * k * 0.72, 0, 0, 7); ctx.fill(); }); });
+    ctx.restore();
+  }
+  ctx.fillStyle = mix('#2A2158', '#6FA7C4'); ctx.beginPath(); ctx.moveTo(0, H);
   for (let x = 0; x <= W; x += 10) ctx.lineTo(x, 250 + dy + Math.sin(x * 0.011 + g.seed) * 30 + Math.sin(x * 0.027) * 14);
   ctx.lineTo(W, H); ctx.fill();
   const tg = ctx.createLinearGradient(0, 170 + dy, 0, H); tg.addColorStop(0, '#3DD6C6'); tg.addColorStop(0.08, '#1F8C8A'); tg.addColorStop(1, '#0F2E3F');
