@@ -442,15 +442,28 @@ export async function useLoot(id, gameId = null, target = null, cell = null) {
 
 // Pops up chaos news (loot, curses, twists, Gauntlet rounds) one after another, then marks it seen.
 let toastQueue = Promise.resolve();
-export async function announceChaos(filter = {}) {
+// Two calls at once (the lobby makes them) share one fetch, and no event is shown twice.
+let chaosBusy = null; const chaosShown = new Set();
+export function announceChaos(filter = {}) {
+  if (chaosBusy) return chaosBusy;
+  chaosBusy = announceChaosNow(filter).finally(() => { chaosBusy = null; });
+  return chaosBusy;
+}
+async function announceChaosNow(filter) {
   let q = sb.from('chaos_events').select('*').is('seen_at', null).order('id').limit(8);
   if (filter.gameId) q = q.eq('game_id', filter.gameId);
-  const { data } = await q;
-  if (!data?.length) return [];
+  let { data } = await q;
+  data = (data || []).filter((e) => !chaosShown.has(e.id)); data.forEach((e) => chaosShown.add(e.id));
+  if (!data.length) return [];
   await sb.rpc('chaos_seen', { p_ids: data.map((e) => e.id) });
   // In a game, news doesn't pop up over the board (unless Settings says so): it waits in the 🔔.
   if (onGamePage() && !pref('gamePopups', false)) { data.forEach((e) => news.unshift(e)); newsUnread += data.length; showNews(true); return data; }
-  data.forEach((e) => { toastQueue = toastQueue.then(() => toast(e.icon, e.message, e.kind)); });
+  // Quietly: the same news once (×n), two toasts at most, the rest as one "+n more" line.
+  const groups = [];
+  data.forEach((e) => { const g = groups.find((x) => x.message === e.message && x.icon === e.icon); if (g) g.n += 1; else groups.push({ ...e, n: 1 }); });
+  groups.slice(0, 2).forEach((e) => { toastQueue = toastQueue.then(() => toast(e.icon, e.n > 1 ? `${e.message} ×${e.n}` : e.message, e.kind)); });
+  const rest = groups.slice(2).reduce((a, e) => a + e.n, 0);
+  if (rest) toastQueue = toastQueue.then(() => toast('🌀', `+${rest} more chaos news`, 'twist', true));
   return data;
 }
 // The game-page news (🔔): what came in during play, newest first, for this visit to the page.
@@ -554,25 +567,26 @@ function toggleNews() {
   const close = (ev) => { if (!box.contains(ev.target) && !ev.target.closest?.('.news')) { box.remove(); document.removeEventListener('pointerdown', close, true); } };
   setTimeout(() => document.addEventListener('pointerdown', close, true), 0);
 }
-function toast(icon, message, kind) {
+function toast(icon, message, kind, quiet = false) {
   return new Promise((done) => {
     let box = document.getElementById('chaosToasts');
     if (!box) {
       box = document.createElement('div'); box.id = 'chaosToasts';
-      box.style.cssText = 'position:fixed;left:50%;top:calc(12px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:80;display:flex;flex-direction:column;gap:8px;width:min(440px,calc(100vw - 32px));pointer-events:none';
+      box.style.cssText = 'position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:80;display:flex;flex-direction:column;gap:6px;width:min(380px,calc(100vw - 32px));pointer-events:none';
       document.body.appendChild(box);
     }
     const colors = { loot: '#F2C230', curse: '#B37BFF', twist: '#3DD6C6', gauntlet: '#FF8A3D' };
     const t = document.createElement('div');
-    t.style.cssText = `pointer-events:auto;display:flex;gap:10px;align-items:center;padding:12px 14px;border-radius:14px;background:#141026f2;color:#fff;font:600 15px/1.35 system-ui,sans-serif;box-shadow:0 12px 30px #0008;border:2px solid ${colors[kind] || '#fff'};transform:translateY(-20px) scale(.9);opacity:0;transition:transform .35s cubic-bezier(.2,1.6,.4,1),opacity .25s`;
-    t.innerHTML = `<span style="font-size:28px;line-height:1">${icon}</span><span></span>`;
+    t.style.cssText = `pointer-events:auto;display:flex;gap:8px;align-items:center;padding:7px 11px;border-radius:12px;background:#141026e0;color:#fff;font:600 13px/1.3 system-ui,sans-serif;box-shadow:0 6px 16px #0006;border:1px solid #ffffff22;border-left:4px solid ${colors[kind] || '#fff'};transform:translateY(12px);opacity:0;transition:transform .3s ease-out,opacity .25s;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)`;
+    t.innerHTML = `<span style="font-size:18px;line-height:1">${icon}</span><span style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden"></span>`;
     t.lastChild.textContent = message;
+    while (box.children.length >= 2) box.firstChild.remove();   // never more than two on screen
     box.appendChild(t);
-    sfx({ loot: 'chime', curse: 'curse', twist: 'twist', gauntlet: 'birdie' }[kind] || 'pop');
+    if (!quiet) sfx({ loot: 'chime', curse: 'curse', twist: 'twist', gauntlet: 'birdie' }[kind] || 'pop');
     requestAnimationFrame(() => { t.style.transform = 'none'; t.style.opacity = '1'; });
     setTimeout(done, 900);
     const bye = () => { t.style.opacity = '0'; t.style.transform = 'translateY(-10px)'; setTimeout(() => t.remove(), 300); };
-    t.onclick = bye; setTimeout(bye, 5200);
+    t.onclick = bye; setTimeout(bye, 3500);
   });
 }
 

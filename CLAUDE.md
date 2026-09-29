@@ -701,3 +701,10 @@ and everyone else's. Hilltop: `drawShell` trails and glows in `COLS[sh.p]` (the 
 weapon's look; the railgun beam's glow too), and your aim (hint dots, drag line, drone marker) is in your
 tank's colour with a dark outline, so it reads on sky and hill.
 
+### Chaos news toasts (lobby)
+Quiet by design: `announceChaos` shares one fetch between overlapping calls (`chaosBusy`) and never
+shows an event id twice (`chaosShown`); identical messages merge (`×n`); at most two toasts per batch,
+the rest one "+n more chaos news" line (no sound). Toasts are compact (13px, 2-line clamp, colour on
+the left edge), sit at the bottom of the screen, never more than two at once, and go after 3.5 s.
+In a game they still wait in the 🔔 (unless Settings says pop-ups).
+
