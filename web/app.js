@@ -228,6 +228,8 @@ function animateShots(newShots) {
   const { game } = G;
   // 🐙🌪️ Chaos hits (053): no shell. The kraken rises / the tornado spins over each square, then the hit.
   let delay = 0;
+  newShots.filter(hiddenMiss).forEach((s) => pending.delete(s.id));   // their misses: nothing to watch
+  newShots = newShots.filter((s) => !hiddenMiss(s));
   const wild = newShots.filter((s) => s.chaos);
   wild.forEach((s, k) => {
     setTimeout(() => {
@@ -1164,12 +1166,16 @@ function fogIds() {
   const on = g.move <= g.fog_move || (g.fog_until && Date.now() < Date.parse(g.fog_until));   // live: 20 s (053)
   return g.fog_player === me.id && g.status === 'playing' && on ? new Set((g.fog_shots || []).map(Number)) : new Set();
 }
+// Other players' misses stay off the boards you fire at (and out of the feed) until the game is over:
+// what they found is theirs. Your own board still shows every shot at you. Everyone may miss on the
+// same square (054): a square a rival missed is still yours to try.
+const hiddenMiss = (s) => !s.hit && !s.chaos && s.shooter !== me.id && s.target !== me.id && G.game.status !== 'over';
 function boardHTML({ owner, ships, clickable, fresh }) {
   const { game, shots } = G;
   const { n } = MODES[game.mode];
   const ocean = owner === OCEAN, over = game.status === 'over';
   // The shared ocean shows every shot in the game (a miss there has no target).
-  const at = shots.filter((s) => (ocean || s.target === owner) && !pending.has(s.id));
+  const at = shots.filter((s) => (ocean || s.target === owner) && !pending.has(s.id) && !hiddenMiss(s));
   const shotAt = new Map(at.map((s) => [s.cell, s]));
   const peeks = (G.cheats || []).filter((c) => c.kind === 'peek' && c.player_id === me.id && c.detail?.target === owner)
     .concat((G.sonars || []).filter((l) => l.detail?.target === owner));
@@ -1249,12 +1255,12 @@ function feedHTML() {
     const who = ss[0].shooter === me.id ? 'You' : nm(ss[0].shooter);
     const whose = (p) => (p === me.id ? 'your' : `${nm(p)}'s`);
     if (MODES[game.mode].shared) {   // one ocean: say whose ship each hit found
-      const cells = ss.map((s) => `${cellName(game.mode, s.cell)} ${s.fogged ? '🌫️' : s.hit ? `hit ${s.target === me.id ? 'you' : nm(s.target)}` : 'miss'}`).join(', ');
+      const cells = ss.map((s) => (hiddenMiss(s) ? 'a miss' : `${cellName(game.mode, s.cell)} ${s.fogged ? '🌫️' : s.hit ? `hit ${s.target === me.id ? 'you' : nm(s.target)}` : 'miss'}`)).join(', ');
       const sank = ss.filter((s) => s.sunk_ship != null).map((s) => `${whose(s.target)} ${shipName(game.mode, s.sunk_ship)}`);
       return `${wildLines}<li class="${hits ? 'hit' : ''}"><strong>${who}</strong> fired: ${cells}.${sank.length ? ` Sank ${sank.join(' and ')}.` : ''}</li>`;
     }
     const tgt = ss[0].target === me.id ? 'you' : nm(ss[0].target);
-    const cells = ss.map((s) => `${cellName(game.mode, s.cell)} ${s.fogged ? '🌫️' : s.hit ? 'hit' : 'miss'}`).join(', ');
+    const cells = ss.map((s) => (hiddenMiss(s) ? 'a miss' : `${cellName(game.mode, s.cell)} ${s.fogged ? '🌫️' : s.hit ? 'hit' : 'miss'}`)).join(', ');
     const sank = ss.filter((s) => s.sunk_ship != null).map((s) => shipName(game.mode, s.sunk_ship));
     const acc = (G.accusations || []).find((a) => a.move === m);
     const accLine = acc ? `<li class="accuse">🚨 <strong>${acc.accuser === me.id ? 'You' : nm(acc.accuser)}</strong> called cheater on <strong>${acc.accused === me.id ? 'you' : nm(acc.accused)}</strong>: ${acc.busted ? `busted! (${acc.kinds.map(cheatLabel).join(', ')})` : 'false alarm.'}</li>` : '';
@@ -1490,8 +1496,10 @@ function renderGame() {
 // ocean, those less your own ships.
 function openSquares(target) {
   const { game, shots } = G, n = MODES[game.mode].n;
-  if (target !== OCEAN) return n ** 2 - shots.filter((s) => s.target === target).length;
-  const gone = new Set(shots.map((s) => s.cell));
+  // Taken for you: anything hit, and whatever you fired at yourself (054).
+  const taken = (s) => s.hit || s.shooter === me.id;
+  if (target !== OCEAN) return n ** 2 - new Set(shots.filter((s) => s.target === target && taken(s)).map((s) => s.cell)).size;
+  const gone = new Set(shots.filter(taken).map((s) => s.cell));
   if (G.fleets[me.id]) fleetCells(game.mode, G.fleets[me.id]).flat().forEach((x) => gone.add(x));
   return n ** 2 - gone.size;
 }
