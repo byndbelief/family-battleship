@@ -343,6 +343,26 @@ const KIND_BLURB = {
   gauntlet: 'A best-of series of random games. Winner takes the crown.',
 };
 const KIND_SHORT = { battleship: 'Battleship', golf: 'Putt Post', duel: 'Duel', cards: 'Cards', gauntlet: 'Chaos' };
+// The robots in a new-game form (and Route to Chaos): one − N + counter instead of a chip each. The
+// robot chips are still there (hidden, data-bot), so the rest of the form works as before: the counter
+// just presses the first N of them.
+function syncBotStep(key, chips) {
+  const el = app.querySelector(`[data-botstep="${key}"]`); if (!el) return;
+  const n = chips.filter((c) => c.hasAttribute('data-bot') && c.getAttribute('aria-pressed') === 'true').length;
+  el.querySelector('b').textContent = n; el.classList.toggle('on', n > 0);
+}
+function wireBotStep(key, chips, room, onChange) {
+  const el = app.querySelector(`[data-botstep="${key}"]`); if (!el) return;
+  const botChips = chips.filter((c) => c.hasAttribute('data-bot'));
+  if (!botChips.length) { el.hidden = true; return; }
+  el.querySelectorAll('[data-bs]').forEach((b) => b.addEventListener('click', () => {
+    const now = botChips.filter((c) => c.getAttribute('aria-pressed') === 'true').length;
+    const want = Math.max(0, Math.min(now + +b.dataset.bs, botChips.length, room()));   // room(): how many robots the table takes
+    if (+b.dataset.bs > 0 && want === now) { note('That table is full.'); return; }
+    botChips.forEach((c, i) => c.setAttribute('aria-pressed', String(i < want)));
+    onChange(); syncBotStep(key, chips);
+  }));
+}
 const KIND_WHO = { battleship: '2–3 players', golf: 'Solo or up to 4', duel: '2–4 players', cards: '2–4 players', gauntlet: '2–4 players · 3, 5 or 7 rounds' };
 
 async function lobby() {
@@ -369,7 +389,7 @@ async function lobby() {
         <div class="gtlive" id="gtLive"></div>
         <details class="gtfold" id="gtFold"><summary class="gtlabel" id="gtLabel">➕ New rival</summary>
         <form class="gtstart" id="gtStart">
-          <div class="choice">${others.map(([id, u]) => `<button type="button" class="chip" data-gopp="${esc(u)}" data-gid="${id}" aria-pressed="false">${bots.has(id) ? '🤖 ' : ''}${esc(u)}</button>`).join('')}</div>
+          <div class="choice">${others.map(([id, u]) => `<button type="button" class="chip" data-gopp="${esc(u)}" data-gid="${id}" aria-pressed="false" ${bots.has(id) ? 'data-bot hidden' : ''}>${esc(u)}</button>`).join('')}<span class="botstep" data-botstep="g" role="group" aria-label="How many robots"><span>🤖 Robots</span><button type="button" data-bs="-1" aria-label="One robot fewer">−</button><b aria-live="polite">0</b><button type="button" data-bs="1" aria-label="One more robot">+</button></span></div>
           <div class="row gtrow">
             <div class="seg" role="radiogroup" aria-label="Rounds">${[3, 5, 7].map((r) => `<label><input type="radio" name="gtRounds" value="${r}" ${r === gauntletRounds() ? 'checked' : ''}>${r} rounds</label>`).join('')}</div>
             <button class="gtbtn" type="submit" id="gtGo" disabled>Start 🏆</button>
@@ -395,7 +415,7 @@ async function lobby() {
         <form id="newgame" class="card" style="gap:14px" hidden>
           <h2 id="setupTitle"></h2>
           <div class="stack"><span class="eyebrow" id="oppHint">Opponents</span>
-            <div class="choice">${others.map(([id, u]) => `<button type="button" class="chip" data-opp="${esc(u)}" data-id="${id}" aria-pressed="false">${bots.has(id) ? '🤖 ' : ''}${esc(u)}${bots.has(id) ? ' (robot)' : ''}</button>`).join('')}</div></div>
+            <div class="choice">${others.map(([id, u]) => `<button type="button" class="chip" data-opp="${esc(u)}" data-id="${id}" aria-pressed="false" ${bots.has(id) ? 'data-bot hidden' : ''}>${esc(u)}</button>`).join('')}<span class="botstep" data-botstep="n" role="group" aria-label="How many robots"><span>🤖 Robots</span><button type="button" data-bs="-1" aria-label="One robot fewer">−</button><b aria-live="polite">0</b><button type="button" data-bs="1" aria-label="One more robot">+</button></span></div></div>
           <div class="stack" data-for="battleship"><span class="eyebrow">Board</span>
             <p class="small muted" style="margin:0">🌊 Shared ocean: every fleet on one grid (12×12, 16×16 for 4 or more).</p></div>
           <div class="stack" data-for="battleship"><span class="eyebrow">Shots per turn</span>
@@ -433,6 +453,12 @@ async function lobby() {
   // Start a Gauntlet: pick 1-5 opponents and a length, go.
   const gchips = [...app.querySelectorAll('[data-gopp]')], gtGo = document.getElementById('gtGo');
   const gPicked = () => gchips.filter((c) => c.getAttribute('aria-pressed') === 'true');
+  const gUpdate = () => { gtGo.disabled = !gPicked().length; syncBotStep('g', gchips);
+    const ids = gchips.filter((x) => x.getAttribute('aria-pressed') === 'true').map((x) => x.dataset.gid);
+    const exists = ids.length && rivalGroups.has([me.id, ...ids].sort().join(','));
+    gtGo.textContent = exists ? 'Go to your Chaos ›' : 'Start Chaos 🌀';
+    app.querySelector('.gtrow .seg').hidden = !!exists; };
+  wireBotStep('g', gchips, () => 5 - gPicked().filter((c) => !c.hasAttribute('data-bot')).length, gUpdate);
   gchips.forEach((c) => c.addEventListener('click', () => {
     const on = c.getAttribute('aria-pressed') !== 'true';
     if (on && gPicked().length >= 5) return note('Up to five opponents.');
@@ -463,7 +489,8 @@ async function lobby() {
     if (!chosen) return;
     const k = kind(), [lo, hi, hint] = LIMITS[k];
     let sel = picked();
-    while (sel.length > hi) { sel[0].setAttribute('aria-pressed', 'false'); sel = picked(); }
+    while (sel.length > hi) { (sel.filter((c) => c.hasAttribute('data-bot')).pop() || sel[0]).setAttribute('aria-pressed', 'false'); sel = picked(); }   // robots go first
+    syncBotStep('n', chips);
     document.getElementById('oppHint').textContent = hint;
     app.querySelectorAll('[data-for]').forEach((el) => {
       el.hidden = el.dataset.for === 'botlevel' ? !((k === 'golf' || k === 'duel' || k === 'cards') && sel.some((c) => bots.has(c.dataset.id))) : el.dataset.for !== k;
@@ -475,6 +502,7 @@ async function lobby() {
     c.setAttribute('aria-pressed', c.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
     refreshForm();
   }));
+  wireBotStep('n', chips, () => (chosen ? LIMITS[chosen][1] : 5) - picked().filter((c) => !c.hasAttribute('data-bot')).length, refreshForm);
   const form = document.getElementById('newgame');
   app.querySelectorAll('.ncard').forEach((card) => card.addEventListener('click', () => {
     chosen = card.dataset.kind;

@@ -732,3 +732,10 @@ opens in chaos. The server's messages (round news, champion, call-off, chaos-clo
 other players' shots, robots' and chaos (meteors, quakes, the sun) leave your view where it is (the tank
 cam still shows your tank when it's hit off screen). t_ride checks both (robot table: others' max move 0).
 
+### Picking robots: one counter (lobby)
+The new-game form and Route to Chaos list people as chips and every robot as one "🤖 Robots − N +"
+counter (`data-botstep` n / g). The robot chips are still in the form, `hidden` with `data-bot`, so
+picking, limits, "already running" and create calls are unchanged: `wireBotStep` presses the first N
+(by name) up to the table's room (`LIMITS[kind][1]` or 5, less the people picked), and `refreshForm`
+drops robots first when a table overflows. Tests pick robots with the counter, not `[data-opp="bot1"]`.
+

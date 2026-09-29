@@ -661,4 +661,10 @@ img.hnav { object-fit: cover; background: #000; }
 .krakenarms path { stroke-dasharray: 60; stroke-dashoffset: 60; animation: armGrow .45s ease-out forwards; }
 @keyframes armGrow { to { stroke-dashoffset: 0; } }
 @keyframes armsSink { 0%, 70% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(.6); } }
+/* 🤖 how many robots (new game, Route to Chaos): one counter instead of a chip each */
+.botstep { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 12px; border-radius: 999px; border: 1.5px dashed #ffffff44; font-weight: 800; }
+.botstep.on { border-style: solid; border-color: var(--gold, #F2C14E); background: #F2C14E22; }
+.botstep button { width: 32px; height: 32px; min-height: 0; padding: 0; border-radius: 50%; font: 800 18px/1 system-ui, sans-serif; }
+.botstep b { min-width: 20px; text-align: center; font-variant-numeric: tabular-nums; }
+.botstep[hidden] { display: none; }
 
