@@ -281,6 +281,24 @@ username. A new account only becomes a robot once it's in `public.bots`.
   speed (`tick`, event `'gopher'`). ⛳ **Chip Shot** loot (`chip`): the next putt is saved with a 5th
   number `1`; it flies `CHIP_AIR` ticks over everything, lands at 55% speed, and landing off the
   course, in water or in a hedge counts as water.
+- **Even more chaos** (`044_even_more_chaos.sql`): twists on 25% of moves. Hilltop 🌙 low gravity
+  rides on the shot's wind multiplier: `wind_x` = 1 or 3 (hurricane) **+10** in low gravity
+  (`duel_games.lowgrav` = the move, like `gust`); `windFor` uses `x % 10` and `gravOf(windX)` halves
+  gravity at ≥ 10, so shots, replays, the live channel and robots need nothing new. Every page-side
+  wind multiplier goes through `windXOf(g, move)`. Hilltop 🎁 supply drop (loot for every person);
+  Putt Post 🌫️ fog (drawing: a clearing round the ball) and 🌊 flood (a pond vetted by
+  `reachable()`) as `twists` kinds; Battleship crates are a supply drop for all half the time.
+- **Live countdown** (`045_live_countdown.sql`): presence rows keep `since` (arrival; a heartbeat
+  after 8 s away is a new arrival) and `live_go(kind, game)` returns GO = last arrival + 5 s plus the
+  server clock. `liveCountdown()` in common.js shows 3-2-1-GO to that moment on every screen (they
+  land within a few ms), pass-through; Putt Post, Hilltop and Battleship hold putts/fire and robots
+  until GO (`liveGo` / `bsGo`). A robot-only game gets a local 3 s. Cards has no countdown (turns).
+- **Hilltop aiming is a slingshot** (like Putt Post): pull back from anywhere on the battlefield or
+  the controls panel's empty space (`slingStart`/`slingMove`); the shell goes the other way, the pull
+  length is power (`SLING_FULL`). The Angle/Power sliders are gone for an aim bar (`#aimbar`: ⤴ ⤵,
+  readout, − +); the hidden `#angle`/`#power` ranges still hold the aim. The railgun's pull aims its
+  beam; a 🚁 drone still points at its spot (`aimFromPointer`). The panel is `touch-action:none`
+  while you can aim.
 - **Putt Post looks**: `setGolfTheme('classic' | 'natural')` in golf-engine switches `drawHole` only
   (the physics is identical, so players in one game can each pick their own). Natural: rough with
   trees (`treesFor`, placed once per hole clear of the course), a cross-mown fairway, a green round
@@ -381,7 +399,7 @@ username. A new account only becomes a robot once it's in `public.bots`.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size, 037_bs_burst applied 2026-09-28; 038_drone_strike, 039_more_loot, 040_golf_live_attacks, 041_golf_attack_loot, 042_more_chaos_hilltop, 043_more_chaos_golf 2026-09-29), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size, 037_bs_burst applied 2026-09-28; 038_drone_strike, 039_more_loot, 040_golf_live_attacks, 041_golf_attack_loot, 042_more_chaos_hilltop, 043_more_chaos_golf, 044_even_more_chaos, 045_live_countdown 2026-09-29), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.

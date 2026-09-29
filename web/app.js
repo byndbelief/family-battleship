@@ -1,5 +1,5 @@
 import { USERNAME_DOMAIN } from './config.js';
-import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence, jumpToNext, startOnline, online, agoText, setGameTools, themeTiles, forgetThemes, golfTheme } from './common.js';
+import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence, jumpToNext, startOnline, online, agoText, setGameTools, themeTiles, forgetThemes, golfTheme, liveCountdown } from './common.js';
 import { HOLES, holeWithAttack, holeWithTwists, drawHole, LW, LH, setCourse, setGolfTheme } from './golf-engine.js';
 import { THEMES, themeOf, vesselSVG } from './bs-themes.js';
 import { W as DW, H as DH, startXs, buildTop, setWorld } from './duel-engine.js';
@@ -1067,7 +1067,7 @@ async function openGame(id) {
   bsPresence = livePresence('battleship', id, (v) => {
     liveBS = v; aims = { target: null, cells: new Set() }; peekMode = false; if (v) bsLiveSince = Date.now();
     if (G?.game.status !== 'playing') return renderGame();
-    if (v) { stopShotClock(); splash(['⚔️ LIVE BATTLE', G.game.players.some((p) => bots.has(p)) ? 'You vs the robot' : "Everyone's here", 'No turns. Fire at will!'], { tone: 'red', ms: 1400, passThrough: true }); }
+    if (v) { stopShotClock(); bsGo = Date.now() + 3000; liveCountdown('battleship', G.game.id, ['⚔️ LIVE BATTLE', G.game.players.some((p) => bots.has(p)) ? 'You vs the robot' : "Everyone's here"], { solo: G.game.players.filter((p) => !bots.has(p)).length < 2 }).then((t) => { bsGo = t; }); }
     else { bsShots = []; note('Live battle over: back to taking turns.'); }
     renderGame();
   });
@@ -1440,9 +1440,9 @@ async function oceanShuffle() {
 const deskBar = () => matchMedia('(min-width:1000px) and (min-height:560px)').matches && !app.classList.contains('fs-on') && !matchMedia('(pointer: coarse)').matches;
 // The robot in a live battle: ask the server to fire for it (it keeps the robot to one shot every
 // 1.2 s however many pages ask, and picks the target and square itself).
-let botAsk = false, bsLiveSince = 0;
+let botAsk = false, bsLiveSince = 0, bsGo = 0;   // bsGo: live fire waits for the countdown's GO (045)
 setInterval(async () => {
-  if (!liveBS || botAsk || Date.now() - bsLiveSince < 3000 || !G || G.game.status !== 'playing' || !G.game.players.some((p) => bots.has(p))) return;
+  if (!liveBS || botAsk || Date.now() - bsLiveSince < 3000 || Date.now() < bsGo + 1200 || !G || G.game.status !== 'playing' || !G.game.players.some((p) => bots.has(p))) return;
   botAsk = true;
   try {
     const { data } = await sb.rpc('fire_live_bot', { p_game: G.game.id });
@@ -1467,6 +1467,7 @@ document.addEventListener('click', async (e) => {
 // A live shot: one square, straight away. Three in a burst, then the guns reload.
 async function liveFire(target, cell, el) {
   const bar = document.getElementById('aimtext');
+  if (Date.now() < bsGo) { note('Wait for GO!'); sfx('buzz'); return; }
   if (bsAmmo() <= 0) { if (bar) bar.innerHTML = bsGunsText(); navigator.vibrate?.(15); return; }
   bsShots.push(Date.now());
   el.classList.add('aim'); navigator.vibrate?.(30);

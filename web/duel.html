@@ -91,6 +91,10 @@
   input[type=range]:focus-visible{outline:3px solid var(--gold);outline-offset:2px;border-radius:8px}
   button.go#fire{min-height:64px;min-width:120px;font-size:20px}
   .aimtip{margin:0}
+  .aimbar{display:grid;grid-template-columns:44px 44px minmax(0,1fr) 44px 44px;gap:8px;align-items:center}
+  .aimread{display:flex;justify-content:center;gap:14px;font-weight:800;white-space:nowrap}
+  .aimread output{color:var(--gold);font-size:18px;font-variant-numeric:tabular-nums}
+  @media (max-width:520px){.aimbar{grid-template-columns:40px 40px minmax(0,1fr) 40px 40px;gap:6px}.aimread{gap:8px}.aimread output{font-size:16px}}
   #dodge{padding:10px 12px;gap:6px;border-color:#3DD6C666}
   .dodgetip{margin:0}
   #play.fs-on .dodgetip{display:none}
@@ -200,11 +204,18 @@
     </div>
   </div>
   <section class="panel" id="controls" hidden>
-    <p class="small muted aimtip noteline">Drag on the battlefield to aim: which way sets the angle, how far sets the power. Fine-tune below.</p>
+    <p class="small muted aimtip noteline">Drag back from anywhere, like a slingshot: the shell flies the other way, and a longer pull is more power. Fine-tune below.</p>
     <div class="controls">
       <div class="sliders">
-        <div class="slider"><label for="angle">Angle</label><button type="button" class="step" data-step="angle" data-d="-1" aria-label="Lower the angle">−</button><input type="range" id="angle" min="5" max="85" value="45"><button type="button" class="step" data-step="angle" data-d="1" aria-label="Raise the angle">+</button><output id="angleOut">45°</output></div>
-        <div class="slider"><label for="power">Power</label><button type="button" class="step" data-step="power" data-d="-1" aria-label="Less power">−</button><input type="range" id="power" min="20" max="100" value="62"><button type="button" class="step" data-step="power" data-d="1" aria-label="More power">+</button><output id="powerOut">62</output></div>
+        <!-- Aim like Putt Post (046): a slingshot gesture anywhere, fine-tuned here. The hidden ranges hold the aim. -->
+        <div class="aimbar" id="aimbar">
+          <input type="range" id="angle" min="5" max="85" value="45" hidden><input type="range" id="power" min="20" max="100" value="62" hidden>
+          <button type="button" class="step" data-step="angle" data-d="1" aria-label="Aim higher">⤴</button>
+          <button type="button" class="step" data-step="angle" data-d="-1" aria-label="Aim lower">⤵</button>
+          <span class="aimread"><span title="Angle">🎯 <output id="angleOut">45°</output></span><span title="Power">⚡ <output id="powerOut">62</output></span></span>
+          <button type="button" class="step" data-step="power" data-d="-1" aria-label="Less power">−</button>
+          <button type="button" class="step" data-step="power" data-d="1" aria-label="More power">+</button>
+        </div>
         <div class="slider" id="dropRow" hidden><label for="drop">Drop</label><button type="button" class="step" data-step="drop" data-d="-1" aria-label="Drop further left">−</button><input type="range" id="drop" min="0" max="799" value="400"><button type="button" class="step" data-step="drop" data-d="1" aria-label="Drop further right">+</button><output id="dropOut">🚁</output></div>
         <div class="slider moverow"><button type="button" id="digBtn" class="modebtn" aria-pressed="false" title="Drive over the hills, or dig straight through them"><span class="mi" aria-hidden="true">🚜</span><span class="ml">Move</span></button><button type="button" class="step" data-mv="-1" aria-label="Drive left">◀</button><input type="range" id="moveRange" class="mover" min="0" max="800" step="1" value="90" aria-label="Where your tank is: drag to drive"><button type="button" class="step" data-mv="1" aria-label="Drive right">▶</button><output id="fuelOut" aria-label="Fuel left">40</output></div>
       </div>

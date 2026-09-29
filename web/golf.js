@@ -1,5 +1,5 @@
 // Putt Post, live: turns and scores are saved on the server; putts replay for everyone.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, compactPack, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, dramaOn, face, livePresence, avatarOf, splash, jumpToNext, setGameTools, condenseTop, golfTheme, setGolfThemePref } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, compactPack, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, dramaOn, face, livePresence, avatarOf, splash, jumpToNext, setGameTools, condenseTop, golfTheme, setGolfThemePref, liveCountdown } from './common.js';
 import {
   LW, LH, COURSE, setCourse, HOLES, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, holeWithTwists, twistsFor, CHIP_AIR, drawHole,
   inPoly, inRect, segDist, reduceMotion, setGolfTheme,
@@ -30,6 +30,7 @@ let pack = [], magnetOn = false;   // backpack items; Magnet Cup active this hol
 // Live race: while everyone has the game open, all play the current hole at once (no turn order,
 // no cheating), and rivals' balls roll across your screen as ghosts streamed over the live channel.
 let liveOn = false, live = null, ghosts = {}, ballSentAt = 0;
+let liveGo = 0;   // live: putts wait for the countdown's GO (045)
 
 const n = () => G.game.players.length;
 // Live: have I already played the hole everyone is on?
@@ -311,7 +312,8 @@ function setLive(v) {
   if (G.game.status !== 'playing') return;
   if (v) {
     stopShotClock();
-    splash(['⛳ LIVE RACE', "Everyone's here", 'Same hole, same time. Go!'], { tone: 'gold', ms: 1400, passThrough: true });
+    liveGo = Date.now() + 3000;
+    liveCountdown('golf', G.game.id, ['⛳ LIVE RACE', 'Same hole, same time'], { solo: G.game.players.filter((p) => !isBot(p)).length < 2 }).then((t) => { liveGo = t; });
     if (mode === 'idle' && !flowing) decide();
     else if (mode === 'aim') $('tip').textContent = `⚔️ Live race! Everyone's on hole ${curHole() + 1} at once. Drag back and let go.`;
     if (mode === 'reveal' && curAttack) { closeModal(); mode = 'aim'; attackFrom = 0; landLiveAttack(); renderCheats(); }   // its box would block the race
@@ -401,7 +403,8 @@ function startTurn() {
   chipNext = false;
   const tw = twistsFor(G.game.twists, curHole(), myT());
   $('tip').textContent = 'Drag back from anywhere on the course, then let go to putt.' + (h.extra ? ' This hole has random obstacles.' : '')
-    + (tw.some((x) => x.k === 'cup') ? ' 🚩 Chaos moved the cup!' : '') + (tw.some((x) => x.k === 'gopher') ? ' 🐹 Gophers dug up the fairway: in one hole, out the other.' : '');
+    + (tw.some((x) => x.k === 'cup') ? ' 🚩 Chaos moved the cup!' : '') + (tw.some((x) => x.k === 'gopher') ? ' 🐹 Gophers dug up the fairway: in one hole, out the other.' : '')
+    + (tw.some((x) => x.k === 'fog') ? ' 🌫️ Fog rolled in: you only see round your ball.' : '') + (tw.some((x) => x.k === 'flood') ? ' 🌊 A flood left a new pond.' : '');
   $('send').hidden = true;
   renderCard();
   if (curAttack && liveOn) { attackFrom = 0; landLiveAttack(); }   // live: no box to tap while everyone else races
@@ -496,6 +499,7 @@ cv.addEventListener('pointerup', async (e) => {
   putt(a);
 });
 async function putt(a) {
+  if (liveOn && Date.now() < liveGo) { bigText('<span class="small-pop">Wait for GO!</span>', 900); sfx('buzz'); return; }
   const sp = (0.6 + a.p * 10.4) * COURSE * (curAttack === 5 ? 0.67 : 1);
   const s = { x: q20(scene.ball.x), y: q20(scene.ball.y), vx: q100(a.dx * sp), vy: q100(a.dy * sp), chip: chipNext };
   if (chipNext) { chipNext = false; sfx('whistle', { dur: 0.35 }); }
@@ -723,7 +727,7 @@ async function botLiveHole(bot) {
   let ball = { x: h.tee[0], y: h.tee[1] }, clock = 0, count = 0, holed = false;
   const strokes = [], still = () => liveOn && G.game.status === 'playing' && Math.floor(G.game.t / n()) === row;
   ghosts[bot] = { hole, x: ball.x, y: ball.y, at: Date.now() };
-  await sleep(1200 + Math.random() * 1200);
+  await sleep(Math.max(0, liveGo - Date.now()) + 1200 + Math.random() * 1200);   // the robot waits for GO too
   while (still() && count < MAX_STROKES && !holed) {
     await sleep(think * (0.7 + Math.random() * 0.6));
     if (!still()) break;

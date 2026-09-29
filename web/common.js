@@ -752,6 +752,36 @@ export function splash(lines, { tone = 'gold', ms = 2200, sound = 'stinger', pas
   if (sound) sfx(sound);
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 350); }, ms);
 }
+// A live game's 3-2-1-GO, the same moment on every screen (045): counts down to live_go's start
+// (5 s after the last player arrived, corrected for this device's clock). Touches go through, so
+// you can line up while you wait. Resolves at once with GO in this device's Date.now() terms; the
+// page holds fire until then. solo (only robots to race): a quick local 3 s, nothing to sync.
+export async function liveCountdown(kind, gameId, lines, { solo = false } = {}) {
+  let go = Date.now() + 3000;
+  if (!solo) { try { const { data } = await sb.rpc('live_go', { p_kind: kind, p_game: gameId }); if (data?.go) go = data.go - (data.now - Date.now()); } catch {} }
+  if (go < Date.now() + 400) { splash([...lines, 'GO!'], { ms: 1000, passThrough: true, sound: 'birdie' }); return Date.now(); }   // everyone else is already off
+  go = Math.min(go, Date.now() + 6000);
+  document.getElementById('dramaSplash')?.remove();
+  const el = document.createElement('div'); el.id = 'dramaSplash'; el.className = 'drama drama-gold pass'; el.setAttribute('role', 'status');
+  el.innerHTML = lines.map((l, i) => `<span class="dl dl${i}" style="animation-delay:${i * 150}ms">${l}</span>`).join('') + '<span class="dl dlcd">…</span>';
+  document.body.appendChild(el); sfx('stinger');
+  let last = null;
+  const step = () => {
+    if (!el.isConnected) return;
+    const left = go - Date.now(), n = Math.ceil(left / 1000), cd = el.querySelector('.dlcd');
+    if (left <= 0) {
+      cd.replaceWith(Object.assign(document.createElement('span'), { className: 'dl dlcd', textContent: 'GO!' }));
+      sfx('birdie'); navigator.vibrate?.(90);
+      setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 350); }, 650);
+      return;
+    }
+    if (n !== last && n <= 3) { last = n; cd.replaceWith(Object.assign(document.createElement('span'), { className: 'dl dlcd', textContent: String(n) })); sfx('tick', { hi: true }); navigator.vibrate?.(20); }
+    else if (n > 3 && last == null) { last = 99; cd.textContent = 'Get ready…'; }
+    requestAnimationFrame(step);
+  };
+  step();
+  return go;
+}
 // A red pulse around the screen with a heartbeat while you're nearly out.
 let dangerTimer = null;
 export function danger(on) {
@@ -780,6 +810,7 @@ dramaCss.textContent = `
   .drama{position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:16px;text-align:center;
     background:radial-gradient(circle at 50% 50%,#000a,#000e 70%);cursor:pointer;overflow:hidden;animation:dramaIn .2s ease-out both}
   .drama.out{opacity:0;transition:opacity .3s}
+  .drama .dlcd{font-size:clamp(64px,22vw,150px)!important}
   .drama.pass{pointer-events:none;background:radial-gradient(circle at 50% 50%,#0006,#0000 75%)}
   .drama .dl{display:block;font-family:"Bungee","Rubik Mono One","Arial Black",Impact,sans-serif;line-height:1;color:#FFE08A;-webkit-text-stroke:2px #3A1D00;paint-order:stroke fill;
     text-shadow:0 5px 0 #3A1D00,0 0 36px #F2C230;animation:dramaSlam .5s cubic-bezier(.2,1.6,.4,1) both}

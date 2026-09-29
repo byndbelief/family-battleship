@@ -214,6 +214,8 @@ function scaleHole(h, s){
 // them) by the same seeded search on every device, then scaled like the rest of the hole.
 //   cup:    the cup moves to a clear spot at least 140 from the tee that can still be reached
 //   gopher: a pair of holes on the fairway, linked underground (see tick)
+//   fog:    (044) the course is hidden but for a clearing round the ball (drawing only)
+//   flood:  (044) a new pond on the fairway, placed so the cup can still be reached
 const twistsFor=(all, hi, t)=>((all||{})[hi]||[]).filter(tw=>tw.t<=t);
 function spotFor(h, r, avoid){
   const xs=h.outline.map(p=>p[0]), ys=h.outline.map(p=>p[1]), x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys), y1=Math.max(...ys);
@@ -238,6 +240,12 @@ function twistHole(base, list){
       const avoid=[[h.tee[0],h.tee[1],50],[h.cup[0],h.cup[1],50],...dug];
       const a=spotFor(h,r,avoid), b=a&&spotFor(h,r,[...avoid,[a[0],a[1],120]]);
       if(a&&b) h.gophers=[...h.gophers,a,b];
+    } else if(tw.k==='fog'){
+      h={...h, fog:true};
+    } else if(tw.k==='flood'){
+      for(let i=0;i<8;i++){ const p=spotFor(h,r,[[h.tee[0],h.tee[1],90],[h.cup[0],h.cup[1],75],...dug]); if(!p) break;
+        const w=[p[0]-35,p[1]-22,70,44]; if(h.gophers.some(([gx,gy])=>inRect(gx,gy,[w[0]-10,w[1]-10,90,64]))) continue;
+        const trial={...h, water:[...h.water, w]}; if(reachable(trial)){ h=trial; break; } }
     }
   }
   return h;
@@ -440,6 +448,11 @@ function drawHole(c, h, t, scene={}){
     const wave=reduceMotion?0:Math.sin(t/300)*3;
     c.fillStyle=nat?'#F2D13B':'#E4572E'; c.beginPath(); c.moveTo(cx,cy-42); c.quadraticCurveTo(cx+14,cy-40+wave,cx+26,cy-35+wave); c.lineTo(cx,cy-28); c.fill();
   }
+  // 🌫️ fog (044): only a clearing round the ball shows
+  if(h.fog){ const b=scene.ball&&!scene.ball.hidden?scene.ball:{x:h.tee[0],y:h.tee[1]}, S=COURSE;
+    const g=c.createRadialGradient(b.x,b.y,70*S,b.x,b.y,140*S); g.addColorStop(0,'#E8EEF200'); g.addColorStop(1,'#E8EEF2F2');
+    c.fillStyle=g; c.fillRect(0,0,LW,LH);
+    if(!reduceMotion){ c.fillStyle='#ffffff22'; for(let i=0;i<6;i++){ const x=((t/40+i*97)%(LW+200))-100, y=(i*131)%LH; c.beginPath(); c.ellipse(x,y,90*S,26*S,0,0,7); c.fill(); } } }
   // aim guide
   if(scene.aim){
     const {bx,by,dx,dy,p}=scene.aim, len=30+p*120;

@@ -48,6 +48,7 @@ module.exports=async function open(browser, userId, username, url, opts={}){
     if(u.includes('fonts.g')) return route.abort();
     return route.continue(); });
   await p.addInitScript(([t,uid])=>{ localStorage.setItem('sb-sb-auth-token', JSON.stringify({access_token:t,token_type:'bearer',expires_in:999999,expires_at:4102444800,refresh_token:'r',user:{id:uid,aud:'authenticated',role:'authenticated'}})); }, [token,userId]);
+  if(opts.init) await opts.init(p);   // a test's own page-start script (e.g. a watcher)
   await p.goto('http://app.test/'+url);
   return p;
 };
