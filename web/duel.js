@@ -1,7 +1,7 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
 import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, shotClock, stopShotClock, chaosClock, dramaOn, face, jumpToNext, setGameTools, condenseTop, compactPack } from './common.js';
-import { W, H, CRATER_R, BERTHA_R, rng, buildTop as buildTopN, applyCrater, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, startXs, zones, aimDir, digCut, coveredAt, ceilAt, TUN, setWorld } from './duel-engine.js';
+import { W, H, CRATER_R, BERTHA_R, rng, buildTop as buildTopN, applyCrater, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, startXs, zones, aimDir, digCut, coveredAt, ceilAt, TUN, setWorld, droneX, droneAim, droneY, DRONE_STEP } from './duel-engine.js';
 
 const $ = (id) => document.getElementById(id);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -88,6 +88,11 @@ const myIdx = () => G.game.players.indexOf(me.id);
 const turnId = () => G.game.players[G.game.turn];
 // The special shell a player has loaded (🎆 cluster, 🚀 homing, ⚡ railgun, 🪨 dirt), or null.
 const armedOf = (id) => G?.game.armed?.[id] || null;
+// 🚁 Drone Strike: you pick a spot along the map (dropX) instead of an angle and a power; it goes to
+// the server as the angle and power droneAim() makes of it. The sliders keep your usual aim.
+let dropX = null;
+const droneOn = () => armedOf(me.id) === 'drone';
+const myAim = () => (droneOn() ? droneAim(dropX ?? W / 2) : { angle: +$('angle').value, power: +$('power').value });
 // A saved shot's crater(s) as a list (a cluster bomb saves several).
 const craterList = (c) => (!c ? [] : Array.isArray(c[0]) ? c : [c]);
 // The ground before a saved shot: every edit but that shot's own craters (found from the end, as
@@ -166,6 +171,8 @@ function draw(t) {
     const aiming = g.status === 'playing' && g.hp[p] > 0 && (liveOn || (!shot && g.turn === p));
     const a = aims[p];
     let ang = aiming && p === myIdx() ? +$('angle').value : aiming && a && (liveOn || a.move === g.move) ? a.angle : (shot && shot.p === p ? shot.angle : restAngle(p, X));
+    // A Drone Strike's angle is a map spot, not the barrel's: theirs rests (yours keeps your usual aim).
+    if (p !== myIdx() && (armedOf(g.players[p]) === 'drone' || (shot && shot.p === p && shot.weapon === 'drone'))) ang = restAngle(p, X);
     const aim = aimDir(p, ang, X), dir = aim.dir;
     ang = aim.a;
     if (armedOf(g.players[p]) === 'railgun' || (shot && shot.p === p && shot.weapon === 'railgun')) ang = railAngle(ang);
@@ -179,7 +186,7 @@ function draw(t) {
     if (aiming && !liveOn) { ctx.fillStyle = col; const bob = Math.sin(t / 250) * 3; ctx.beginPath(); ctx.moveTo(x - 6, y - 44 + bob); ctx.lineTo(x + 6, y - 44 + bob); ctx.lineTo(x, y - 36 + bob); ctx.fill(); }
   });
   if (canAim()) {
-    if (drag) {
+    if (drag && !droneOn()) {
       const tp = tankPos(myIdx(), top, X);
       ctx.strokeStyle = '#FFF4D688'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
       ctx.beginPath(); ctx.moveTo(tp.x, tp.y - 14); ctx.lineTo(drag.x, drag.y); ctx.stroke(); ctx.setLineDash([]);
@@ -200,6 +207,17 @@ const SHELL_LOOK = {
 };
 function drawShell(sh, t) {
   const n = Math.min(sh.i, sh.path.length), pts = sh.path;
+  if (sh.weapon === 'drone') {   // the drone flies over, then its bomb falls
+    const lead = sh.lead || 1, d = pts.length > 1 ? Math.sign(pts[1].x - pts[0].x) || 1 : 1;
+    const dx = n < lead ? pts[n].x : pts[lead - 1].x + d * (n - lead + 1) * DRONE_STEP;
+    ctx.save(); ctx.font = `${Math.round(40 * W / 800)}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.translate(dx, droneY()); if (d > 0) ctx.scale(-1, 1); ctx.fillText('🚁', 0, Math.sin(t / 90) * 1.5); ctx.restore();
+    if (n >= lead && n < pts.length) {
+      ctx.fillStyle = '#FFF4D6'; for (let j = Math.max(lead, n - 24); j < n; j += 3) { ctx.globalAlpha = (j - (n - 24)) / 40; ctx.beginPath(); ctx.arc(pts[j].x, pts[j].y, 1.5, 0, 7); ctx.fill(); }
+      ctx.globalAlpha = 1; ctx.font = `${Math.round(26 * W / 800)}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('💣', pts[n].x, pts[n].y);
+    }
+    return;
+  }
   if (sh.weapon === 'railgun') {   // a beam: a white-hot core in a cyan glow, fading once it's done
     const fade = sh.i >= pts.length ? Math.max(0, 1 - (sh.i - pts.length) / 20) : 1;
     ctx.save(); ctx.globalAlpha = fade; ctx.lineCap = 'round';
@@ -236,6 +254,14 @@ function drawDots(pts, alpha, t, still) {
   }
 }
 function drawHint(t) {
+  if (droneOn()) {   // where the drone will drop: a dashed line down from the sky (the wind still drifts the bomb)
+    const x = dropX ?? W / 2, gy = top.under?.[Math.round(x)] ?? top[Math.max(0, Math.min(W - 1, Math.round(x)))];
+    ctx.save(); ctx.strokeStyle = '#FFC857AA'; ctx.lineWidth = 2; ctx.setLineDash([6, 8]); ctx.lineDashOffset = -t / 40;
+    ctx.beginPath(); ctx.moveTo(x, droneY() + 14); ctx.lineTo(x, gy); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = '#FFC857'; ctx.beginPath(); ctx.arc(x, gy - 2, 10, 0, 7); ctx.moveTo(x - 15, gy - 2); ctx.lineTo(x + 15, gy - 2); ctx.stroke();
+    ctx.font = `${Math.round(34 * W / 800)}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.globalAlpha = 0.8; ctx.fillText('🚁', x, droneY()); ctx.restore();
+    return;
+  }
   const g = G.game, base = g.gust === g.move ? 3 : 1, windy = windFor(g.seed, g.move, base) !== 0;
   const r = rng(g.seed * 7919 + g.move * 131 + 17), aBias = (r() * 2 - 1) * 3.5, pBias = (r() * 2 - 1) * 6;   // this turn's hidden error
   const q = (v, s) => Math.round(v / s) * s;
@@ -318,10 +344,11 @@ function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1, X = x
     if (!liveOn) top = buildTop(G.game.seed, beforeCraters);   // live: the ground is already current
     X = standing(X, hpBefore, p);
     const sims = simulateWeapon(G.game.seed, move, top, p, angle, power, windX, X, weapon);
-    const mine = sims.map((sim) => ({ p, angle, weapon, path: sim.path, xs: X, i: reduceMotion ? sim.path.length : 0 }));
+    const mine = sims.map((sim) => ({ p, angle, weapon, path: sim.path, lead: sim.lead, xs: X, i: reduceMotion ? sim.path.length : 0 }));
     shells.push(...mine); if (!liveOn) shot = mine[0];
     const longest = Math.max(...sims.map((x) => x.path.length));
     if (weapon === 'railgun') { sfx('flash'); sfx('cannon', { delay: 0.02 }); }
+    else if (weapon === 'drone') { const lead = sims[0].lead || 0; sfx('drone', { dur: Math.max(0.4, lead / 3 / 60) }); if (!reduceMotion) sfx('whistle', { delay: lead / 3 / 60, dur: Math.max(0.3, (longest - lead) / 3 / 60) }); }
     else { sfx('cannon'); if (!reduceMotion) sfx('whistle', { delay: 0.15, dur: Math.max(0.3, longest / 3 / 60 - 0.15) }); }
     if (weapon === 'cluster' && !reduceMotion) { const split = sims[0].path.findIndex((q, j) => j > 0 && q.y > sims[0].path[j - 1].y); if (split > 0) sfx('pop', { delay: split / 3 / 60 }); }
     const speed = weapon === 'railgun' ? 6 : 3;
@@ -439,6 +466,7 @@ function render() {
     const hurt = s.hp_after.map((h, p) => before[p] - h).map((d, p) => (d > 0 ? `${who(g.players[p])} −${d}${s.hp_after[p] <= 0 ? ' 💀' : ''}` : '')).filter(Boolean).join(', ');
     const wl = s.weapon ? `${WEAPONS[s.weapon].icon} ${WEAPONS[s.weapon].name.toLowerCase()} ` : '';
     const sa = aimDir(g.players.indexOf(s.shooter), s.angle, g.players), shown = s.weapon === 'railgun' ? railAngle(sa.a) : sa.a;
+    if (s.weapon === 'drone') return `<li><strong>${who(s.shooter)}</strong> called in a 🚁 drone strike: ${s.crater ? hurt || 'it missed, but left a crater' : 'the bomb drifted off the map'}.</li>`;
     return `<li><strong>${who(s.shooter)}</strong> fired ${wl}${multi() ? (sa.dir > 0 ? '→ ' : '← ') : ''}at ${shown}°${s.weapon === 'railgun' ? '' : `, power ${s.power}`}: ${s.weapon === 'dirt' && s.crater ? hurt || 'a brand-new hill' : s.crater ? hurt || 'a miss, but a nice crater' : s.weapon === 'railgun' ? 'the beam missed' : 'the shell flew off the map'}.</li>`;
   }).join('') || '<li class="muted">No shots yet.</li>';
   if (over) {
@@ -496,7 +524,7 @@ async function decide() {
 }
 
 async function fire() {
-  const g = G.game, p = myIdx(), angle = +$('angle').value, power = +$('power').value, move = g.move, X = xs();
+  const g = G.game, p = myIdx(), { angle, power } = myAim(), move = g.move, X = xs();
   const moved = X[p] !== baseXs()[p] ? X[p] : null, cut = digOn && moved != null ? digCut(baseXs()[p], moved) : null;
   busy = true; drag = null; render();
   navigator.vibrate?.(40);
@@ -549,7 +577,7 @@ async function fireLive() {
   if (!g || p < 0 || !liveOn || g.status !== 'playing' || Date.now() < reloadAt) return;
   reloadAt = Date.now() + RELOAD; showReload();
   if (digOn && liveMyX != null && liveMyX !== baseXs()[p]) { clearTimeout(liveSave); await saveLiveX(); }   // the dig is saved before the shot
-  const angle = +$('angle').value, power = +$('power').value, move = g.move, windX = g.gust === move ? 3 : 1, X = xs();
+  const { angle, power } = myAim(), move = g.move, windX = g.gust === move ? 3 : 1, X = xs();
   navigator.vibrate?.(40); drag = null;
   const wpn = armedOf(me.id), big = !wpn && g.bertha.includes(me.id);
   live?.send('shot', { live: true, from: p, move, angle, power, x: X[p], wx: windX, w: wpn });
@@ -751,10 +779,18 @@ const sendAim = () => {
   if (!G || (busy && !liveOn)) return;
   const now = Date.now();
   if (now - aimT < 90) { if (!aimQueued) { aimQueued = true; setTimeout(() => { aimQueued = false; sendAim(); }, 90); } return; }
-  aimT = now; live?.send('aim', { from: myIdx(), move: G.game.move, angle: +$('angle').value, power: +$('power').value, x: xs()[myIdx()], dig: digOn });
+  aimT = now; live?.send('aim', { from: myIdx(), move: G.game.move, ...myAim(), x: xs()[myIdx()], dig: digOn });
 };
 // Sets the aim from anywhere (sliders, − / + buttons, dragging on the battlefield).
 function showAim() {
+  // 🚁 loaded: a Drop slider along the map in place of Angle and Power.
+  const drone = G && droneOn();
+  $('angle').closest('.slider').hidden = $('power').closest('.slider').hidden = !!drone; $('dropRow').hidden = !drone;
+  if (drone) {
+    const X = xs(), x = dropX ?? W / 2, over = G.game.players.map((id, p) => (p !== myIdx() && G.game.hp[p] > 0 && X[p] != null && Math.abs(X[p] - x) < 22 ? who(id).replace(/<[^>]+>/g, '') : null)).find(Boolean);
+    $('drop').max = W - 1; $('drop').value = Math.round(x); $('dropOut').textContent = over ? `🎯` : '🚁'; $('dropOut').title = over ? `Right over ${over}` : '';
+    $('drop').style.setProperty('--fill', `${(x / (W - 1)) * 100}%`);
+  }
   const rail = G && armedOf(me.id) === 'railgun', v = +$('angle').value;
   // 3-4 players: the angle is shown as a direction and a steepness (→ 40°, ← 40°).
   const many = G && multi(), elev = many ? (v <= 90 ? v : 180 - v) : v;
@@ -762,6 +798,8 @@ function showAim() {
   ['angle', 'power'].forEach((id) => { const el = $(id); el.style.setProperty('--fill', `${((el.value - el.min) / (el.max - el.min)) * 100}%`); });
 }
 const aimKey = () => `duel.aim.${G.game.id}`;
+function setDrop(x) { dropX = Math.max(0, Math.min(W - 1, Math.round(x))); showAim(); sendAim(); }
+$('drop').addEventListener('input', () => setDrop(+$('drop').value));
 function setAim(angle, power) {
   $('angle').value = Math.max(5, Math.min(G && multi() ? 175 : 85, Math.round(angle)));
   $('power').value = Math.max(20, Math.min(100, Math.round(power)));
@@ -883,7 +921,7 @@ document.querySelectorAll('[data-mv]').forEach((b) => {
 // − / + buttons: one step per tap, and they keep going while held.
 document.querySelectorAll('[data-step]').forEach((b) => {
   let hold = null, rep = null;
-  const bump = () => { const id = b.dataset.step, d = +b.dataset.d; setAim(id === 'angle' ? +$('angle').value + d : +$('angle').value, id === 'power' ? +$('power').value + d : +$('power').value); };
+  const bump = () => { const id = b.dataset.step, d = +b.dataset.d; if (id === 'drop') return setDrop((dropX ?? W / 2) + d * 4); setAim(id === 'angle' ? +$('angle').value + d : +$('angle').value, id === 'power' ? +$('power').value + d : +$('power').value); };
   const stop = () => { clearTimeout(hold); clearInterval(rep); hold = rep = null; };
   b.addEventListener('pointerdown', (e) => { e.preventDefault(); b.setPointerCapture?.(e.pointerId); bump(); stop(); hold = setTimeout(() => { rep = setInterval(bump, 70); }, 380); });
   ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => b.addEventListener(ev, stop));
@@ -899,6 +937,7 @@ function aimFromPointer(e) {
   const { x: gx, y: gy } = toWorld(e.clientX, e.clientY);
   const p = myIdx(), t = tankPos(p, top, xs()), rail = armedOf(me.id) === 'railgun';   // the railgun aims -40° to +40°, straight at where you point
   drag = { x: gx, y: gy };
+  if (droneOn()) return setDrop(gx);   // 🚁: point at the spot to bomb
   if (multi()) {
     // 3-4 players: point either way; the side you drag to is the side you fire.
     const right = gx >= t.x, dx = Math.abs(gx - t.x), dy = t.y - 14 - gy;

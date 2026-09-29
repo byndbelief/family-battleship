@@ -143,14 +143,27 @@ function simulate(seed, move, top, shooter, angle, power, windX = 1, xs = TANK_X
 //   homing:  after the top of its arc it steers toward the enemy tank
 //   railgun: a straight beam through hills, no gravity, no wind (power doesn't matter)
 //   dirt:    flies like a shell, but piles up a hill where it lands
+//   drone:   no shell from the tank: a drone flies in from the shooter's side and drops a bomb at a
+//            spot along the map, which falls straight down, drifting with the wind
 const WEAPONS = {
   cluster: { icon: '🎆', name: 'Cluster Bomb', r: 18 },
   homing: { icon: '🚀', name: 'Homing Missile', r: 22 },
   railgun: { icon: '⚡', name: 'Railgun', r: 12 },
   dirt: { icon: '🪨', name: 'Dirt Bomb', r: 34 },
   buster: { icon: '🔻', name: 'Bunker Buster', r: 26 },
+  drone: { icon: '🚁', name: 'Drone Strike', r: 26 },
 };
 const railAngle = (angle) => angle - 45;
+// A Drone Strike is saved like any shot, as an angle and a power: together they're the drop spot
+// (power the coarse part, angle the fine: 81 × 81 steps across the map). Angle stays 5-85.
+const DRONE_STEPS = 81 * 81 - 1, DRONE_STEP = 7;
+// The drone flies a fifth of the way down: below the score bar, above every hill (they top out near 40%).
+const droneY = () => Math.round(H * 0.2);
+const droneX = (angle, power) => Math.round((((power - 20) * 81 + (angle - 5)) / DRONE_STEPS) * (W - 1));
+function droneAim(x) {
+  const c = Math.round((Math.max(0, Math.min(W - 1, x)) / (W - 1)) * DRONE_STEPS);
+  return { angle: 5 + (c % 81), power: 20 + Math.floor(c / 81) };
+}
 // Flies a shell from a given state; returns its path and where it hit (null = off the map).
 function flyFrom(state, seed, move, top, shooter, windX, xs, steer) {
   const wind = windFor(seed, move, windX) * 0.004, path = [];
@@ -169,6 +182,22 @@ function flyFrom(state, seed, move, top, shooter, windX, xs, steer) {
 // Every shell a shot makes: [{ path, impact }] (three for a cluster bomb, one otherwise).
 function simulateWeapon(seed, move, top, shooter, angle, power, windX = 1, xs = TANK_X, weapon = null) {
   if (!weapon || weapon === 'dirt') { const s = simulate(seed, move, top, shooter, angle, power, windX, xs); return [s]; }
+  if (weapon === 'drone') {
+    // The drone's flight (lead points, drawn as the drone), then the bomb's fall. It can hit anyone,
+    // the shooter too.
+    const tx = droneX(angle, power), me = tankPos(shooter, top, xs), from = me && me.x > W / 2 ? W + 30 : -30, d = Math.sign(tx - from) || 1;
+    const path = [];
+    for (let x = from; (tx - x) * d > 0; x += d * DRONE_STEP) path.push({ x, y: droneY() });
+    const lead = path.length, wind = windFor(seed, move, windX) * 0.002;   // a heavy bomb: half a shell's drift
+    let x = tx, y = droneY() + 6, vx = 0, vy = 0;
+    for (let i = 0; i < 3000; i++) {
+      vx += wind; vy += GRAV; x += vx; y += vy; path.push({ x, y });
+      if (x < 0 || x >= W || y > H + 50) return [{ path, lead, impact: null }];
+      if (solidAt(top, x, y)) return [{ path, lead, impact: hitAt(top, x, y) }];
+      if (hitTank(x, y, -1, top, xs)) return [{ path, lead, impact: { x, y } }];
+    }
+    return [{ path, lead, impact: null }];
+  }
   if (weapon === 'buster') {
     // Flies like a shell; where it hits the ground it keeps boring on (up to 80 px) and goes off at
     // the end, or the moment it breaks into a tunnel's hollow.
@@ -234,6 +263,7 @@ function weaponDamage(top, impacts, hp, weapon, big = false, shielded = [], xs =
       else if (weapon === 'homing') dmg += d < 32 ? Math.round(38 - d * 1.1) : 0;
       else if (weapon === 'railgun') dmg += d < 16 ? 45 : 0;
       else if (weapon === 'buster') dmg += d < 40 ? Math.round(50 - d * 1.1) : 0;
+      else if (weapon === 'drone') dmg += d < 44 ? Math.round(52 - d * 1.1) : 0;
     });
     dmg = Math.round(Math.min(60, dmg) * guardOf(shielded[p]));
     out[p] = Math.max(0, out[p] - dmg);
@@ -262,4 +292,4 @@ const guardOf = (v) => (v === true ? 0.5 : typeof v === 'number' ? v : 1);
 // tank's stop so the whole tank fits.
 const digCut = (x0, x1) => (x0 == null || x1 == null || x1 === x0 ? null : x1 > x0 ? [x0, x1 + 12, x0, 2] : [x1 - 12, x0, x0, 2]);
 
-export { startXs, zones, aimDir, hitTank, rng, baseTerrain, applyCrater, buildTop, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, digCut, coveredAt, ceilAt, TUN };
+export { startXs, zones, aimDir, hitTank, rng, baseTerrain, applyCrater, buildTop, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, digCut, coveredAt, ceilAt, TUN, droneX, droneAim, droneY, DRONE_STEP };

@@ -339,6 +339,7 @@ export const ITEMS = {
   dirt: { icon: '🪨', name: 'Dirt Bomb', game: 'duel', desc: 'Piles up a hill where it lands: build a wall, or block their shot.' },
   foxhole: { icon: '🕳️', name: 'Foxhole', game: 'duel', desc: 'Dig in where you stand: blasts do 40% less to you until you drive out.' },
   buster: { icon: '🔻', name: 'Bunker Buster', game: 'duel', desc: 'Drills down where it lands and goes off underground: breaks into tunnels.' },
+  drone: { icon: '🚁', name: 'Drone Strike', game: 'duel', desc: 'Pick a spot on the map (tap it, or slide Drop): a drone flies over and drops a bomb straight down. Mind the wind.' },
   xray: { icon: '👀', name: 'X-Ray Specs', game: 'cards', desc: "Peek at one opponent's hand." },
   paint: { icon: '🎨', name: 'Paint Bomb', game: 'cards', desc: 'Set the colour in play to any colour you like.' },
   trash: { icon: '🗑️', name: 'Trash Chute', game: 'cards', desc: 'Throw away one card from your hand (3 or more in hand).' },

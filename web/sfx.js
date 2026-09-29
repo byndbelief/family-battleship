@@ -60,6 +60,7 @@ const SOUNDS = {
   curse(t) { [0, 7].forEach((d) => { const o = tone('sawtooth', 110 + d, 70, t, 0.9, 0.1, 0.05); o.detune.value = d * 4; }); noise(t, 0.9, 0.1, 'bandpass', 300, 120, 4, 0.1); },
   twist(t) { noise(t, 0.6, 0.35, 'bandpass', 300, 3000, 3, 0.15); tone('sine', 300, 900, t, 0.6, 0.08, 0.1); },
   sneaky(t) { notes('triangle', [440, 523, 440, 392], t, 0.09, 0.08, 0.12); },
+  drone(t, o = {}) { const d = o.dur || 1; [0, 9].forEach((k) => { const x = tone('sawtooth', 190 + k, 205 + k, t, d, 0.04, 0.15); x.detune.value = k * 3; }); noise(t, d, 0.05, 'bandpass', 1800, 2000, 3, 0.15); },
   buzz(t) { tone('square', 140, 120, t, 0.4, 0.12); },
   ping(t) { tone('sine', 1250, 1250, t, 0.9, 0.25); tone('sine', 1250, 1250, t + 0.45, 0.6, 0.08); },
   click(t) { tone('triangle', 1200, 1200, t, 0.03, 0.08); },

@@ -200,6 +200,14 @@ username. A new account only becomes a robot once it's in `public.bots`.
   lands, goes off at the end or on breaking into a hollow, and saves a shaft `[x, y, r, 4]` (dug
   from the surface down through its blast) — the one weapon that reaches a dug-in tank. The server
   accepts a 4-element crater only from a loaded Dirt Bomb (…, 1) or Bunker Buster (…, 4).
+  **🚁 Drone Strike** (`drone`, 038): no shell from the tank. You pick a spot along the map
+  (`dropX`: tap the battlefield or the Drop slider, which replaces Angle/Power while it's loaded);
+  a drone flies in from your side at `droneY()` (a fifth of the way down, below the score bar and
+  above every hill) and drops a bomb that falls straight down, drifting with half a shell's wind.
+  The spot is **saved as the shot's angle and power** (`droneAim(x)` → angle 5-85 fine, power
+  coarse, 81×81 steps; `droneX(angle, power)` reads it back, exact on every map width), so shots,
+  replays, the live channel and the server's shot check need nothing new. `myAim()` is what every
+  fire path and `sendAim` send. Plain crater `[x, y, 26]`; it can hit the shooter.
 - **Battlefield size** (`031_duel_world.sql`): `duel_games.world` is the width — 800 for 2 tanks,
   1000 for 3, 1200 for 4 (`_duel_world`); height is 440 × world / 800, so the same canvas shows
   more ground: zoomed out. The engine's `W`/`H` are live `let` exports set by `setWorld()` (the duel
@@ -329,7 +337,7 @@ username. A new account only becomes a robot once it's in `public.bots`.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size, 037_bs_burst applied 2026-09-28), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size, 037_bs_burst applied 2026-09-28; 038_drone_strike 2026-09-29), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.
