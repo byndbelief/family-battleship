@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Game Room">
+  <title>Squirrel Chaos</title>
+  <meta name="theme-color" content="#1B2B12">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Nunito:wght@600;800;900&display=swap">
+  <style>
+  /* One look: an autumn forest at dusk. */
+  :root{color-scheme:dark;--bg:#14200E;--panel:#1E2E15;--line:#3C5A26;--ink:#F6F2E4;--muted:#BFCBA8;--gold:#F5C542;--rust:#E07A3A;
+    --display:"Bungee","Arial Black",Impact,sans-serif;--body:"Nunito",system-ui,-apple-system,"Segoe UI",sans-serif}
+  *{box-sizing:border-box}
+  html,body{background:var(--bg);margin:0;height:100%}
+  body{color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.4;padding:calc(10px + env(safe-area-inset-top,0px)) 12px 0;overscroll-behavior:none}
+  [hidden]{display:none!important}
+  .wrap{max-width:620px;margin:0 auto;display:flex;flex-direction:column;gap:8px}
+  .topnav{display:flex;align-items:center;gap:10px;min-height:40px}
+  .topnav a{color:var(--gold);font-weight:800;text-decoration:none}
+  h1,h2{font-family:var(--display);font-weight:400;margin:0;line-height:1.05}
+  h1{font-size:clamp(20px,5.5vw,30px)}
+  button{font:inherit;font-weight:800;cursor:pointer;border-radius:12px;border:1.5px solid var(--line);background:var(--panel);color:var(--ink);padding:10px 16px}
+  button.go{background:var(--gold);border-color:var(--gold);color:#2A2100;font-size:18px;padding:12px 22px}
+  #play{position:relative}
+  .stage{position:relative;border-radius:16px;overflow:hidden;box-shadow:0 14px 34px #0009;touch-action:none;user-select:none;-webkit-user-select:none}
+  #sq{display:block;width:100%;cursor:crosshair}
+  #play.fs-on{position:fixed;inset:0;z-index:60;background:var(--bg);padding:0}
+  #play.fs-on .stage{border-radius:0;height:100%}
+  .hud{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:flex-start;padding:8px 10px;pointer-events:none;font-weight:900;text-shadow:0 2px 4px #000c}
+  .hud .score{font-family:var(--display);font-size:24px;line-height:1}
+  .hud .combo{color:var(--gold);font-size:14px}
+  .hud .lvl{font-size:13px;color:var(--muted)}
+  .chaosm{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+  .chaosm canvas{width:92px;height:34px;background:#0008;border-radius:8px}
+  .over{position:absolute;inset:0;display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,#0008,#000d);padding:16px;text-align:center}
+  .over .card{max-width:360px;display:flex;flex-direction:column;gap:12px;align-items:center}
+  .over p{margin:0}
+  .muted{color:var(--muted)} .small{font-size:13px}
+  .board{list-style:none;margin:0;padding:0;width:100%;max-width:280px;display:flex;flex-direction:column;gap:4px;text-align:left}
+  .board li{display:flex;justify-content:space-between;padding:6px 10px;border-radius:10px;background:#0006}
+  .board li.me{outline:2px solid var(--gold)}
+  .banner{position:absolute;left:50%;top:22%;transform:translateX(-50%);pointer-events:none;font-family:var(--display);font-size:clamp(22px,7vw,40px);color:#FFE08A;-webkit-text-stroke:1.5px #3A1D00;paint-order:stroke fill;text-shadow:0 4px 0 #3A1D00,0 0 30px #F2C230;white-space:nowrap;animation:bpop .45s cubic-bezier(.2,1.6,.4,1) both}
+  .banner small{display:block;font-family:var(--body);font-weight:900;font-size:15px;-webkit-text-stroke:0;color:#fff;text-shadow:0 2px 4px #000;text-align:center}
+  @keyframes bpop{from{transform:translateX(-50%) scale(.3);opacity:0}}
+  @media (prefers-reduced-motion:reduce){.banner{animation:none}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="topnav gtop"><a href="./">← All games</a><h1 class="intop">🐿️ Squirrel Chaos</h1></nav>
+  <section id="play">
+    <div class="stage" id="stage">
+      <canvas id="sq" aria-label="A forest full of squirrels: tap one to staple it"></canvas>
+      <div class="hud" aria-live="off">
+        <div><div class="score" id="score">0</div><div class="combo" id="combo"></div><div class="lvl" id="lvl"></div></div>
+        <div class="chaosm"><canvas id="meter" width="184" height="68" aria-hidden="true"></canvas><span id="phase">calm</span></div>
+      </div>
+      <div class="banner" id="banner" hidden></div>
+      <div class="over" id="over">
+        <div class="card" id="overCard"></div>
+      </div>
+    </div>
+  </section>
+</div>
+<script type="module" src="squirrel.js"></script>
+</body>
+</html>

@@ -492,7 +492,7 @@ username. A new account only becomes a robot once it's in `public.bots`.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size, 037_bs_burst applied 2026-09-28; 038_drone_strike, 039_more_loot, 040_golf_live_attacks, 041_golf_attack_loot, 042_more_chaos_hilltop, 043_more_chaos_golf, 044_even_more_chaos, 045_live_countdown, 046_gauntlet_big_ocean, 047_chaos_extras, 048_duel_rotate_start, 049_shoot_the_moon, 050_orogeny, 051_regrowth, 052_fill_holes, 053_bs_volleys_kraken, 054_bs_shared_misses, 055_golf_big_course, 056_bs_always_shared, 057_golf_long_course, 058_chaos_curve, 059_hilltop_fractals, 060_bs_fractals, 061_cards_butterfly_recursion, 062_route_to_chaos 2026-09-29), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size, 037_bs_burst applied 2026-09-28; 038_drone_strike, 039_more_loot, 040_golf_live_attacks, 041_golf_attack_loot, 042_more_chaos_hilltop, 043_more_chaos_golf, 044_even_more_chaos, 045_live_countdown, 046_gauntlet_big_ocean, 047_chaos_extras, 048_duel_rotate_start, 049_shoot_the_moon, 050_orogeny, 051_regrowth, 052_fill_holes, 053_bs_volleys_kraken, 054_bs_shared_misses, 055_golf_big_course, 056_bs_always_shared, 057_golf_long_course, 058_chaos_curve, 059_hilltop_fractals, 060_bs_fractals, 061_cards_butterfly_recursion, 062_route_to_chaos, 063_solo_scores 2026-09-29), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.
@@ -746,4 +746,18 @@ Ships carry no colour dot any more: each fleet is told apart by a thick outline 
 Fired squares stay marked (`inFlight`, keyed like `shotKey`) as staged, then landing, until each one's
 result is revealed (`revealShot` clears it; `unlaunch` on an error; 6 s at most), and they can't be tapped
 meanwhile. t_bsflight: staged/landed counts go 3/0 → 2/1 → 1/2 → 0/3 as the results come in.
+
+### 🐿️ Squirrel Chaos (solo, squirrel.html / squirrel.js, 063)
+A solo arcade game, linked from the lobby beside Quick play. Played entirely on the page (no turns, no
+realtime): three 30 s levels in a fractal forest (`grow`: three trees forking 2-3 ways, 0.72 as long,
+5-7 deep; each branch is a segment with parent/kids, the graph the squirrels run on, hopping between
+nearby branches now and then). Tap fires the stapler (bottom centre; tap it or R to reload, 12 staples);
+a staple lands after its flight (1500 u/s), so you lead a running squirrel. Size-3 and size-2 squirrels
+split in two when stapled (20·size points); size-1 ones are pinned and score 100 × combo (1000 for a
+✨ golden one). Spawns follow the chaos curve: every 1.2 s x → r·x·(1−x) with r from 2.85 (+0.03 a step,
+to 4); x decides 0-3 new squirrels, x > 0.93 a twist (gust, stampede, frenzy, leaf storm), x > 0.97 a golden
+squirrel; the HUD meter shows x's last 24 values. Each level ends by zooming into the middle trunk's
+knothole; the next forest grows out of a dot, 15% faster. The score goes to `solo_submit(game, score,
+level)` (`solo_scores`, readable by everyone; one run per 20 s), which answers with your best and the
+family's top five. `window.__sq()` is a read-only test hook (t_squirrel plays a full run).
 
