@@ -353,7 +353,7 @@ body.has-firebar.fb-mini { padding-bottom: calc(210px + env(safe-area-inset-bott
   .cheatbar button, #app .backpack button { flex: none; white-space: nowrap; padding: 6px 10px; font-size: 14px; }
   #app .backpack > span:first-child { font-size: 0 !important; } #app .backpack > span:first-child::before { content: '🎒'; font-size: 18px; }
 }
-#app.fs-on header h1, #app.fs-on .gsub, #app.fs-on .players, #app.fs-on .legend, #app.fs-on #feedFold, #app.fs-on #del,
+#app.fs-on header .gtop, #app.fs-on header h1, #app.fs-on .gsub, #app.fs-on .players, #app.fs-on .legend, #app.fs-on #feedFold, #app.fs-on #del,
 #app.fs-on .fleet-list, #app.fs-on .bsec > p.muted.small, #app.fs-on .cheatlog { display: none !important; }
 /* Full screen puts ⚙️ Settings top-right: keep the header's Live dot and ✕ clear of it. */
 #app.fs-on > header > .row:first-child { padding-right: 56px; }

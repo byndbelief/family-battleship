@@ -83,7 +83,21 @@ toolsCss.textContent = `
   #newsBox li span:first-child{font-size:22px;line-height:1}
   #newsBox ul{margin:0;padding:0}
   .gtop{padding-right:var(--gtw,56px)}
-  body.fs-lock .fs-on{padding-top:calc(58px + env(safe-area-inset-top,0px))}
+  body.fs-lock .fs-on{padding-top:calc(52px + env(safe-area-inset-top,0px))}
+  /* ...and the page's own ← row goes too (✕ leaves full screen); a title moved into it stays */
+  body.fs-lock .fs-on .gtop > a:first-child, body.fs-lock .fs-on .gtop > #back{display:none!important}
+  body.fs-lock .fs-on .gtop:not(:has(.intop)), body.fs-lock .fs-on nav.gtop:not(:has(.intop)){display:none!important}
+  /* Full screen, every game the same: no Settings or Delete (those wait outside full screen, and a
+     game's own settings come later), and what's left (news, next up, robot, leave full screen) sits in
+     one slim see-through strip in the corner. */
+  body.fs-lock #gameTools{top:calc(6px + env(safe-area-inset-top,0px));right:calc(6px + env(safe-area-inset-right,0px));gap:2px;padding:3px;border-radius:14px;background:#0E0C2270;border:1px solid #ffffff26;box-shadow:0 4px 14px #0005;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+  body.fs-lock #gameTools #setBtn, body.fs-lock #gameTools .del{display:none!important}
+  body.fs-lock #gameTools .gtb{width:34px;height:34px;border-radius:10px;font-size:16px;background:transparent;border-color:transparent;box-shadow:none}
+  body.fs-lock #gameTools .gtb:hover{background:#ffffff1a}
+  body.fs-lock #gameTools .gtb.bot[aria-pressed=true]{background:#C0392Bcc;border-color:transparent}
+  body.fs-lock #gameTools .gtb.bot b{right:-3px;bottom:-4px;font-size:8px}
+  body.fs-lock #gameTools .gtb.news b{right:-3px;top:-4px;min-width:15px;height:15px;font-size:9.5px}
+  body.fs-lock #gameTools #nextUp.intools{height:34px!important;font-size:13px!important;border-radius:10px!important;box-shadow:none!important}
   @media (pointer:fine){#gameTools .fsbtn{display:none!important}}
   /* Phones: the top row is ← · title · toolbar (condenseTop moves the title in) */
   @media (max-width:640px){
