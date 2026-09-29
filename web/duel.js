@@ -669,8 +669,23 @@ function drawMeteor(m) {
   ctx.strokeStyle = g; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(x - (m.x1 - m.x0) * 0.25, y - (m.y1 - m.y0) * 0.25); ctx.lineTo(x, y); ctx.stroke();
   ctx.shadowColor = '#FF6B3D'; ctx.shadowBlur = 20; ctx.fillStyle = '#FFF4D6'; ctx.beginPath(); ctx.arc(x, y, 6, 0, 7); ctx.fill(); ctx.restore();
 }
+// Grows heaves out of the ground over dur ms (eased), re-applying them scaled to a copy of the ground
+// each frame so the tanks ride up with it; decide() rebuilds the ground exactly afterwards.
+async function riseGround(list, dur, rate, cols) {
+  const before = top, copy = () => { const c = before.slice(); if (before.under) c.under = before.under.slice(); if (before.ceil) c.ceil = before.ceil.slice(); return c; };
+  const t0 = performance.now();
+  for (;;) {
+    const k = dur ? Math.min(1, (performance.now() - t0) / dur) : 1, e = k * k * (3 - 2 * k), c = copy();
+    list.forEach((q) => applyCrater(c, [q[0], q[1] * e, q[2], 6]));
+    top = c;
+    if (!reduceMotion) list.forEach((q) => { if (Math.random() < rate(q)) { const x = q[0] + (Math.random() * 2 - 1) * q[2] * 0.8; particles.push({ x, y: top[Math.max(0, Math.min(W - 1, Math.round(x)))], vx: (Math.random() - 0.5) * 2.4, vy: -Math.random() * 3.2, life: 1, s: Math.random() * 3 + 1.5, c: cols[Math.floor(Math.random() * cols.length)] }); } });
+    if (k >= 1) break;
+    await sleep(16);
+  }
+}
 async function twistFx(list) {
-  const quakes = list.filter((c) => c[3] === 6), rocks = list.filter((c) => c[3] === 5);
+  // A heave with a 5th number 1 is regrowth (051), not a quake: the hills grow back, no shaking.
+  const quakes = list.filter((c) => c[3] === 6 && !c[4]), fills = list.filter((c) => c[3] === 6 && c[4] === 1), rocks = list.filter((c) => c[3] === 5);
   if (quakes.length) {
     sfx('boom', { size: 1.6 }); sfx('thud', { delay: 0.3 }); navigator.vibrate?.([90, 40, 90, 40, 140]);
     const mountains = quakes.some((c) => c[1] >= 50), dur = reduceMotion ? 0 : mountains ? 1800 : 900;
@@ -679,16 +694,12 @@ async function twistFx(list) {
     const cols = ['#8A5A2B', '#B08355', '#6B4423', '#D6B28A'];
     // ⛰️ The ground heaves and the mountains grind up out of it (orogeny, 050) over the shaking, eased,
     // so the tanks on top ride up with it; afterwards decide() rebuilds the ground exactly.
-    const before = top, copy = () => { const c = before.slice(); if (before.under) c.under = before.under.slice(); if (before.ceil) c.ceil = before.ceil.slice(); return c; };
-    const t0 = performance.now();
-    for (;;) {
-      const k = dur ? Math.min(1, (performance.now() - t0) / dur) : 1, e = k * k * (3 - 2 * k), c = copy();
-      quakes.forEach((q) => applyCrater(c, [q[0], q[1] * e, q[2], 6]));
-      top = c;
-      if (!reduceMotion) quakes.forEach((q) => { if (Math.random() < (q[1] >= 50 ? 0.9 : 0.25)) { const x = q[0] + (Math.random() * 2 - 1) * q[2] * 0.8; particles.push({ x, y: top[Math.max(0, Math.min(W - 1, Math.round(x)))], vx: (Math.random() - 0.5) * 2.4, vy: -Math.random() * 3.2, life: 1, s: Math.random() * 3 + 1.5, c: cols[Math.floor(Math.random() * 4)] }); } });
-      if (k >= 1) break;
-      await sleep(16);
-    }
+    await riseGround(quakes, dur, (q) => (q[1] >= 50 ? 0.9 : 0.25), cols);
+    render();
+  }
+  if (fills.length) {   // 🌱 the hills grow back: a gentle swell, a scatter of grass and earth
+    sfx('thud', { size: 0.5 });
+    await riseGround(fills, reduceMotion ? 0 : 1400, () => 0.35, ['#3DD6C6', '#6BE3A0', '#8A5A2B', '#B08355']);
     render();
   }
   if (rocks.length) {
