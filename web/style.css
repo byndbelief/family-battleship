@@ -644,3 +644,12 @@ img.hnav { object-fit: cover; background: #000; }
 .bzbar button { width: 30px; height: 30px; min-height: 0; padding: 0; border-radius: 50%; font-size: 17px; line-height: 1; }
 .bzbar button:disabled { opacity: .35; }
 .bzbar b { min-width: 34px; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* Full screen, upright: the board tabs sit up top beside the toolbar */
+/* ...the tabs keep their width: the 🔍 zoom moves up into the strip left of the toolbar, and on the shared
+   ocean the board's heading row leaves room for the toolbar. */
+@media (orientation: portrait) {
+  body.fs-lock #app.fs-on > .bzbar, body.fs-lock #app.fs-on .boards ~ .bzbar, body.fs-lock #app.fs-on .bzbar:not(.bsec .bzbar) { position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); left: 10px; margin: 0; z-index: 5; }
+  body.fs-lock #app.fs-on .boardtabs { margin-top: 26px; }
+  body.fs-lock #app.fs-on .bsec[data-owner="ocean"] > .row.between:first-child { padding-right: var(--gtw, 56px); }
+}

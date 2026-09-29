@@ -177,7 +177,15 @@ table.score{border-collapse:collapse;width:100%;font-variant-numeric:tabular-num
   .botlive button{border-radius:99px;padding:7px 14px;font-size:14px}
   .botlive button[aria-pressed=true]{background:var(--flag);border-color:var(--flag);color:#fff}
   .topnav a{color:var(--gold);font-weight:800}
-  </style>
+    /* Full screen, upright: the chips row sits up top beside the toolbar */
+  @media (orientation:portrait){
+    body.fs-lock #play.fs-on .hudbar{padding-right:var(--gtw,56px);flex-wrap:nowrap;min-height:40px}
+    body.fs-lock #play.fs-on .hudbar > .stack{display:none}
+    body.fs-lock #play.fs-on .hudbar .row{flex:1;flex-wrap:nowrap;gap:5px;min-width:0;overflow:hidden}
+    body.fs-lock #play.fs-on .hudbar .pill{font-size:13px;padding:4px 9px;white-space:nowrap}
+    body.fs-lock #play.fs-on #whoPill{min-width:0;overflow:hidden;text-overflow:ellipsis}
+  }
+</style>
 </head>
 <body>
 <div class="wrap">

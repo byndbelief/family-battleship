@@ -32,7 +32,7 @@ function fsHost() {
   const host = document.querySelector('.fs-on') || document.body;
   ['gameTools'].forEach((id) => { const el = document.getElementById(id); if (el && el.parentElement !== host) host.appendChild(el); });
 }
-function fsSync() { fsHost(); fsLabels(); dispatchEvent(new Event('resize')); }
+function fsSync() { fsHost(); fsLabels(); fit(); dispatchEvent(new Event('resize')); }   // fit: the toolbar is slimmer in full screen
 export function fsExit() {
   document.querySelectorAll('.fs-on').forEach((el) => el.classList.remove('fs-on'));
   if (fsNative()) (document.exitFullscreen || document.webkitExitFullscreen)?.call(document)?.catch?.(() => {});
@@ -83,7 +83,9 @@ toolsCss.textContent = `
   #newsBox li span:first-child{font-size:22px;line-height:1}
   #newsBox ul{margin:0;padding:0}
   .gtop{padding-right:var(--gtw,56px)}
-  body.fs-lock .fs-on{padding-top:calc(52px + env(safe-area-inset-top,0px))}
+  /* No strip kept empty for the toolbar: the game starts at the top, and its top row leaves room on
+     the right for the toolbar (--gtw is its width; each game's page says which row that is). */
+  body.fs-lock .fs-on{padding-top:calc(8px + env(safe-area-inset-top,0px))}
   /* ...and the page's own ← row goes too (✕ leaves full screen); a title moved into it stays */
   body.fs-lock .fs-on .gtop > a:first-child, body.fs-lock .fs-on .gtop > #back{display:none!important}
   body.fs-lock .fs-on .gtop:not(:has(.intop)), body.fs-lock .fs-on nav.gtop:not(:has(.intop)){display:none!important}

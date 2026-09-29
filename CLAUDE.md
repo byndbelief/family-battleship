@@ -580,3 +580,11 @@ and no shell flies to one. Everyone may miss on the same square: rows are unique
 (`shots_one_hit`) and per player per square (`shots_one_each`, `shots_ocean_each`), and `fire` /
 `_fire_ocean` count a square taken for you only if anyone hit it or you fired at it (`openSquares`
 matches). Robots still steer clear of every shot fired.
+
+### Full-screen toolbar (common.js)
+In full screen the toolbar drops ⚙️ Settings and 🗑 Delete and becomes one slim see-through strip
+(`body.fs-lock #gameTools`). No strip is kept empty for it: `.fs-on` has an 8 px top pad, and each game's
+top row leaves `--gtw` (the toolbar's width, re-measured by `fit()` on every full-screen change in
+`fsSync`) on the right in portrait: golf's `.hudbar` (one line, title hidden), duel's `.hud`, Battleship's
+tabs (its 🔍 zoom moves into the strip on the left; the shared ocean's heading row pads instead). The
+page's own ← row is hidden in full screen (✕ leaves it).
