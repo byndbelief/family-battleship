@@ -5,6 +5,20 @@ export const TANK_X = [90, 710], GRAV = 0.12, CRATER_R = 28, BERTHA_R = 44;
 // it shows; the numbers everywhere else follow (these are live bindings for importers too).
 export let W = 800, H = 440;
 export function setWorld(w = 800) { W = w || 800; H = Math.round((440 * W) / 800); }   // 5 tanks: 1400, 6: 1600 (032)
+// Fractal hills (059, duel_games.terrain 1): the same ground at every zoom. Games made before keep
+// their smooth waves (terrain 0). The page sets it with the world, before building any ground.
+let FRACTAL = 0;
+export function setTerrain(v = 0) { FRACTAL = v || 0; }
+// Midpoint displacement: a line split in half again and again, each midpoint nudged by a random
+// amount that shrinks by rough each level. amp is the first nudge's range.
+function fractalLine(seed, n, amp, rough = 0.55) {
+  let size = 1; while (size < n - 1) size <<= 1;
+  const a = new Float64Array(size + 1), r = rng(seed);
+  a[0] = 0; a[size] = 0; r(); r();   // level ends: no side of the field starts higher by chance
+  for (let step = size, h = amp; step > 1; step >>= 1, h *= rough)
+    for (let i = 0; i < size; i += step) a[i + step / 2] = (a[i] + a[i + step]) / 2 + (r() - 0.5) * h;
+  return a;
+}
 function rng(seed) { let x = seed >>> 0 || 1; return () => { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; }; }
 // 3-4 player duels (023): tanks start spread along the ridge and each drives within its own
 // stretch. Two players keep the old spots and halves (and aim facing each other, 5-85°); with more,
@@ -26,7 +40,13 @@ function baseTerrain(seed, n = 2) {
   const r = rng(seed * 2654435761), a = [], waves = [];
   for (let i = 0; i < 4; i++) waves.push({ amp: 18 + r() * 42, f: (0.004 + r() * 0.012) * (i + 1) * 0.6, ph: r() * 6.28 });
   // The hills sit the same way on any width: the ground 140 up from the bottom, hills up to 270.
-  for (let x = 0; x < W; x++) { let y = H - 140; waves.forEach((w) => { y += Math.sin(x * w.f + w.ph) * w.amp; }); a.push(Math.max(H - 270, Math.min(H - 40, y))); }
+  const fr = FRACTAL ? fractalLine((seed * 40503 + 17) >>> 0, W, 200) : null;
+  for (let x = 0; x < W; x++) {
+    let y = H - 140;
+    if (fr) { waves.slice(0, 2).forEach((w) => { y += Math.sin(x * w.f * 0.6 + w.ph) * w.amp * 0.7; }); y += fr[x]; }   // two slow swells, fractal crags on them
+    else waves.forEach((w) => { y += Math.sin(x * w.f + w.ph) * w.amp; });
+    a.push(Math.max(H - 270, Math.min(H - 40, y)));
+  }
   startXs(n).forEach((tx) => { const py = a[tx]; for (let x = tx - 22; x <= tx + 22; x++) a[x] = py; });
   return a;
 }
@@ -93,9 +113,11 @@ function applyCrater(top, [cx, cy, r, mound, fill]) {
     // Heaves ease off above a ceiling 15 px over the tallest hill a field starts with (052): what would
     // rise past it rises a quarter as far (25 px at most), so quakes can't stack mountains into the
     // sky; ground already higher (a Dirt Bomb pile) isn't pulled down.
-    const ceil = H - 285;
-    for (let x = Math.max(0, Math.round(cx - r)); x <= Math.min(W - 1, Math.round(cx + r)); x++) {
-      const k = (1 + Math.cos((Math.PI * (x - cx)) / r)) / 2;
+    const ceil = H - 285, x0 = Math.round(cx - r);
+    // On fractal ground (059) a rising mountain gets a crag-line of its own, seeded by where it stands.
+    const crag = FRACTAL && cy > 0 ? fractalLine((Math.round(cx) * 131 + Math.round(r) * 7 + 1) >>> 0, Math.round(2 * r) + 2, 0.7) : null;
+    for (let x = Math.max(0, x0); x <= Math.min(W - 1, Math.round(cx + r)); x++) {
+      const k = ((1 + Math.cos((Math.PI * (x - cx)) / r)) / 2) * (crag ? 1 + crag[x - x0] : 1);
       let y = top[x] - cy * k;
       if (cy > 0 && y < ceil) y = Math.min(top[x], Math.max(ceil - 25, ceil - (ceil - y) * 0.25));   // above the ceiling: squashed to a quarter, rounded off
       top[x] = Math.max(24, Math.min(H - 8, y));
@@ -185,6 +207,8 @@ function simulate(seed, move, top, shooter, angle, power, windX = 1, xs = TANK_X
 // ---------------------------------------------------------------- special shells (loot)
 // Each flies differently; all are deterministic, so every device replays them the same.
 //   cluster: bursts at the top of its arc into three bomblets
+//   fractal: (059) at the top of its arc it forks in two, and each half forks again every 24 ticks,
+//            three times: up to 8 small bomblets, branching like a tree (or a lightning bolt)
 //   homing:  after the top of its arc it steers toward the enemy tank
 //   railgun: a straight beam through hills, no gravity, no wind (power doesn't matter)
 //   dirt:    flies like a shell, but piles up a hill where it lands
@@ -192,6 +216,7 @@ function simulate(seed, move, top, shooter, angle, power, windX = 1, xs = TANK_X
 //            spot along the map, which falls straight down, drifting with the wind
 const WEAPONS = {
   cluster: { icon: '🎆', name: 'Cluster Bomb', r: 18 },
+  fractal: { icon: '❄️', name: 'Fractal Shell', r: 11 },
   homing: { icon: '🚀', name: 'Homing Missile', r: 22 },
   railgun: { icon: '⚡', name: 'Railgun', r: 12 },
   dirt: { icon: '🪨', name: 'Dirt Bomb', r: 34 },
@@ -288,6 +313,25 @@ function simulateWeapon(seed, move, top, shooter, angle, power, windX = 1, xs = 
     if (hitTank(x, y, shooter, top, xs)) return [{ path: pre, impact: { x, y } }];
     if (vy >= 0) break;
   }
+  if (weapon === 'fractal') {
+    // Fork: fly each branch 24 ticks (unless it hits first), then split it in two, each half's
+    // kick 0.65 of the last; after the third fork the bomblets fly on until they land.
+    const G2 = gravOf(windX), out = [];
+    const branch = (st, path, depth, kick) => {
+      let { x: bx, y: by, vx: bvx, vy: bvy } = st; const p2 = [...path];
+      for (let i = 0; i < (depth ? 24 : 3000); i++) {
+        bvx += wind; bvy += G2; bx += bvx; by += bvy; p2.push({ x: bx, y: by });
+        if (bx < 0 || bx >= W || by > H + 50) return out.push({ path: p2, impact: null });
+        if (hitMoon(bx, by)) return out.push({ path: p2, impact: null, moon: true });
+        if (solidAt(top, bx, by)) return out.push({ path: p2, impact: hitAt(top, bx, by) });
+        if (hitTank(bx, by, shooter, top, xs)) return out.push({ path: p2, impact: { x: bx, y: by } });
+      }
+      if (!depth) return out.push({ path: p2, impact: null });
+      [-1, 1].forEach((d) => branch({ x: bx, y: by, vx: bvx + d * kick, vy: bvy - kick * 0.35 }, p2, depth - 1, kick * 0.65));
+    };
+    branch({ x, y, vx, vy }, pre, 3, 1.1);
+    return out;
+  }
   return [-1.3, 0, 1.3].map((d) => { const s = flyFrom({ x, y, vx: vx + d, vy: vy - Math.abs(d) * 0.4 }, seed, move, top, shooter, windX, xs, false); return { path: pre.concat(s.path), impact: s.impact, moon: s.moon }; });
 }
 // The craters a shot leaves: [x, y, r] each (a mound gets a 4th element, 1).
@@ -296,6 +340,7 @@ function weaponCraters(impacts, weapon, big = false) {
   return impacts.filter(Boolean).map((i) => (weapon === 'dirt' ? [Math.round(i.x), Math.round(i.y), r, 1] : weapon === 'buster' ? [Math.round(i.x), Math.round(i.y), r, 4] : [Math.round(i.x), Math.round(i.y), r]));
 }
 // How many craters a saved shot added (a cluster bomb saves a list of them).
+const MULTI = new Set(['cluster', 'fractal']);   // shots that save a list of craters
 const craterCount = (c) => (!c ? 0 : Array.isArray(c[0]) ? c.length : 1);
 // Damage from every shell of a shot (capped at 60 a tank per shot).
 function weaponDamage(top, impacts, hp, weapon, big = false, shielded = [], xs = TANK_X) {
@@ -308,6 +353,7 @@ function weaponDamage(top, impacts, hp, weapon, big = false, shielded = [], xs =
     impacts.filter(Boolean).forEach((im) => {
       const d = weapon === 'railgun' ? Math.hypot(im.x - t.x, im.y - (t.y - 8)) : blastD(top, im, t);
       if (weapon === 'cluster') dmg += d < 30 ? Math.round(30 - d) : 0;
+      else if (weapon === 'fractal') dmg += d < 22 ? Math.round(22 - d) : 0;
       else if (weapon === 'homing') dmg += d < 32 ? Math.round(38 - d * 1.1) : 0;
       else if (weapon === 'railgun') dmg += d < 16 ? 45 : 0;
       else if (weapon === 'buster') dmg += d < 40 ? Math.round(50 - d * 1.1) : 0;
@@ -340,4 +386,4 @@ const guardOf = (v) => (v === true ? 0.5 : typeof v === 'number' ? v : 1);
 // tank's stop so the whole tank fits.
 const digCut = (x0, x1) => (x0 == null || x1 == null || x1 === x0 ? null : x1 > x0 ? [x0, x1 + 12, x0, 2] : [x1 - 12, x0, x0, 2]);
 
-export { setMoon, moonAt, startXs, zones, aimDir, hitTank, rng, baseTerrain, applyCrater, buildTop, windFor, gravOf, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, digCut, coveredAt, ceilAt, TUN, droneX, droneAim, droneY, DRONE_STEP };
+export { MULTI, setMoon, moonAt, startXs, zones, aimDir, hitTank, rng, baseTerrain, applyCrater, buildTop, windFor, gravOf, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, digCut, coveredAt, ceilAt, TUN, droneX, droneAim, droneY, DRONE_STEP };

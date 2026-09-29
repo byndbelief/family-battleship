@@ -1,7 +1,7 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
 import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, liveCountdown, shotClock, stopShotClock, chaosClock, dramaOn, face, jumpToNext, setGameTools, condenseTop, compactPack } from './common.js';
-import { W, H, CRATER_R, BERTHA_R, rng, buildTop as buildTopN, applyCrater, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, startXs, zones, aimDir, digCut, coveredAt, ceilAt, TUN, setWorld, droneX, droneAim, droneY, DRONE_STEP, setMoon, moonAt } from './duel-engine.js';
+import { MULTI, W, H, CRATER_R, BERTHA_R, rng, buildTop as buildTopN, applyCrater, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, startXs, zones, aimDir, digCut, coveredAt, ceilAt, TUN, setWorld, setTerrain, droneX, droneAim, droneY, DRONE_STEP, setMoon, moonAt } from './duel-engine.js';
 
 const $ = (id) => document.getElementById(id);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -368,6 +368,7 @@ function draw(t) {
 const SHELL_LOOK = {
   null: { trail: '#FFC857', head: '#FFF4D6', glow: '#FFC857', r: 4 },
   cluster: { trail: '#FF8AD8', head: '#FFE3F6', glow: '#FF4FC1', r: 3.5 },
+  fractal: { trail: '#7FE3FF', head: '#E8FBFF', glow: '#3DD6C6', r: 3 },
   homing: { trail: '#FF7A3C', head: '#FFD2B0', glow: '#FF5A1F', r: 4.5 },
   dirt: { trail: '#B08355', head: '#8A5A2B', glow: '#00000000', r: 6 },
 };
@@ -546,7 +547,7 @@ function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1, X = x
     if (weapon === 'railgun') { sfx('flash', { delay: wait / 1000 }); sfx('cannon', { delay: wait / 1000 + 0.02 }); }
     else if (weapon === 'drone') { const lead = sims[0].lead || 0; sfx('drone', { delay: wait / 1000, dur: Math.max(0.4, lead / 3 / 60) }); if (!reduceMotion) sfx('whistle', { delay: wait / 1000 + lead / 3 / 60, dur: Math.max(0.3, (longest - lead) / 3 / 60) }); }
     else { sfx('cannon', { delay: wait / 1000 }); if (!reduceMotion) sfx('whistle', { delay: wait / 1000 + 0.15, dur: Math.max(0.3, longest / 3 / 60 - 0.15) }); }
-    if (weapon === 'cluster' && !reduceMotion) { const split = sims[0].path.findIndex((q, j) => j > 0 && q.y > sims[0].path[j - 1].y); if (split > 0) sfx('pop', { delay: wait / 1000 + split / 3 / 60 }); }
+    if ((weapon === 'cluster' || weapon === 'fractal') && !reduceMotion) { const split = sims[0].path.findIndex((q, j) => j > 0 && q.y > sims[0].path[j - 1].y); if (split > 0) (weapon === 'fractal' ? [0, 24, 48] : [0]).forEach((k) => sfx('pop', { delay: wait / 1000 + (split + k) / 3 / 60 })); }
     const speed = (weapon === 'railgun' ? 6 : 3) * ff();
     const step = () => {
       // Slow motion as a shell closes in on a tank.
@@ -739,6 +740,7 @@ async function load(id) {
   const { data: prof } = await sb.from('profiles').select('id, username').in('id', g.data.players);
   const fresh = G?.game.id !== g.data.id;
   setWorld(g.data.world);   // 3-4 tanks: a wider battlefield, drawn zoomed out (031)
+  setTerrain(g.data.terrain);   // fractal hills (059)
   if (fresh) camReset();   // a new duel starts on the whole field
   if (moonGone?.id === g.data.id && !(g.data.sun >= 0)) g.data.sun = moonGone.move;   // we saw it fall; the server's catching up
   G = { game: g.data, shots: s.data ?? [], names: Object.fromEntries((prof ?? []).map((p) => [p.id, p.username])) };
@@ -791,7 +793,7 @@ async function fire() {
   const wpn = armedOf(me.id), big = !wpn && g.bertha.includes(me.id);
   live?.send('shot', { from: p, move, angle, power, x: X[p], tx: multi() ? null : X[1 - p], X, w: wpn, dig: !!cut });
   const sim = await flyShell(p, angle, power, cut ? [...g.craters, cut] : g.craters, move, null, windXOf(g, move), X, wpn);
-  const cr = weaponCraters(sim.impacts, wpn, big), crater = wpn === 'cluster' ? (cr.length ? cr : null) : cr[0] || null;
+  const cr = weaponCraters(sim.impacts, wpn, big), crater = MULTI.has(wpn) ? (cr.length ? cr : null) : cr[0] || null;
   const hp = weaponDamage(top, sim.impacts, g.hp, wpn, big, guards(g, X, me.id), standing(X, g.hp, p));
   impactNow(cr, g.hp, hp);
   const { error } = await sb.rpc('duel_fire', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater, p_hp: hp, p_xs: X,
@@ -844,7 +846,7 @@ async function fireLive() {
   live?.send('shot', { live: true, from: p, move, angle, power, x: X[p], wx: windX, w: wpn });
   const sim = await flyShell(p, angle, power, g.craters, move, null, windX, X, wpn);
   // Damage is worked out where the tanks stand when it lands (they may have driven meanwhile).
-  const now = G.game, Xi = xs(), cr = weaponCraters(sim.impacts, wpn, big), crater = wpn === 'cluster' ? (cr.length ? cr : null) : cr[0] || null;
+  const now = G.game, Xi = xs(), cr = weaponCraters(sim.impacts, wpn, big), crater = MULTI.has(wpn) ? (cr.length ? cr : null) : cr[0] || null;
   const hp = weaponDamage(top, sim.impacts, now.hp, wpn, big, guards(now, Xi, me.id), standing(Xi, now.hp, p));
   cr.forEach((c) => { blast(c); applyCrater(top, c); });
   const { error } = await sb.rpc('duel_fire_live', { p_game: g.id, p_angle: angle, p_power: power, p_crater: crater,

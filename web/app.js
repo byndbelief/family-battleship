@@ -2,7 +2,7 @@ import { USERNAME_DOMAIN } from './config.js';
 import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence, jumpToNext, startOnline, online, agoText, setGameTools, themeTiles, forgetThemes, golfTheme, liveCountdown } from './common.js';
 import { holeName, holeWithAttack, holeWithTwists, drawHole, LW, LH, setCourse, setGolfTheme } from './golf-engine.js';
 import { THEMES, themeOf, vesselSVG } from './bs-themes.js';
-import { W as DW, H as DH, startXs, buildTop, setWorld } from './duel-engine.js';
+import { W as DW, H as DH, startXs, buildTop, setWorld, setTerrain } from './duel-engine.js';
 const app = document.getElementById('app');
 
 const MODES = [
@@ -890,7 +890,7 @@ function drawPreview(cv, card, myFleets, atMe) {
     drawHole(c, hole, 0, { ball: { x: hole.tee[0], y: hole.tee[1] } });
     c.restore();
   } else if (card.kind === 'duel') {
-    setWorld(card.g.world);   // wider for 3-4 tanks (031)
+    setWorld(card.g.world); setTerrain(card.g.terrain);   // wider for 3-4 tanks (031); fractal hills (059)
     const g = card.g, n = g.hp.length, top = buildTop(g.seed, g.craters, n), sx = w / DW, sy = h / DH;
     const sky = c.createLinearGradient(0, 0, 0, h); sky.addColorStop(0, '#1B1646'); sky.addColorStop(1, '#7A3E72'); c.fillStyle = sky; c.fillRect(0, 0, w, h);
     c.fillStyle = '#FFE3A3'; c.beginPath(); c.arc(w * 0.76, h * 0.2, 14, 0, 7); c.fill();
