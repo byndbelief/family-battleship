@@ -296,6 +296,14 @@ username. A new account only becomes a robot once it's in `public.bots`.
   server clock. `liveCountdown()` in common.js shows 3-2-1-GO to that moment on every screen (they
   land within a few ms), pass-through; Putt Post, Hilltop and Battleship hold putts/fire and robots
   until GO (`liveGo` / `bsGo`). A robot-only game gets a local 3 s. Cards has no countdown (turns).
+- **Landscape full screen on phones** (`orientation:landscape` and `max-height ≤ 520/559px`, 047): the
+  game as big as it goes, its controls in a side column under the toolbar. Putt Post turns the course
+  sideways (`rot` in golf.js: drawn with `setTransform(0,k,−k,0,LH·k,0)`, `toLogical` maps touches
+  back; tee left, cup right; physics untouched; resized on the `#play` class change). Hilltop: the
+  battlefield full height, controls in a 212px column. Battleship: no header, boards as tall as the
+  screen in a sideways-scrolling row, the fire bar a right-hand column.
+- **Next-up chip** on a game page docks in the toolbar as a compact `▶ icon +n` (`.intools`); it used
+  to sit bottom-left on the Putt!/Fire! bars. The lobby keeps the full chip.
 - **Hilltop health** is one slim strip of pills for any number of tanks (`#hpRow`, `.hpc`): dot, face,
   HP, the pill filling with the tank's colour (`--hp`); names only from 700 px; 5-6 tanks on a phone
   drop the faces (`.tight`). The old 2-tank `.hp` labels are hidden (`.hud.multi` always).

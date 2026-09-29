@@ -79,7 +79,18 @@ const ATK_ITEMS = { atk_ice: 1, atk_wind: 2, atk_cup: 3, atk_bumpers: 4, atk_but
 const pl = (id) => G.players.find((x) => x.player === id) || { tokens: 0, away: 0, busted: 0, catches: 0 };
 
 // ---------------------------------------------------------------- drawing loop
+// Full screen on a landscape phone (047): the course turns sideways (tee on the left, cup on the
+// right) so it fills the screen. Only drawing and touches rotate; the physics never knows.
+let rot = false;
+const landFs = () => !!document.querySelector('#play.fs-on') && innerWidth > innerHeight && innerHeight < 560;
 function sizeCanvas() {
+  rot = landFs();
+  if (rot) {
+    const dpr = Math.min(2, devicePixelRatio || 1), maxW = Math.max(300, innerWidth - 250), maxH = innerHeight - 12;
+    const w = Math.min(maxW, (maxH * LH) / LW), h = (w * LW) / LH;   // on screen: LH across, LW down
+    cv.style.width = w + 'px'; cv.style.height = h + 'px'; cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+    return;
+  }
   const fs = !!document.querySelector('#play.fs-on');   // full screen: the hole gets all the room it can
   const desk = !fs && matchMedia('(min-width:1000px) and (min-height:560px)').matches;   // desktop: the course beside its controls
   const maxW = fs ? cv.parentElement.clientWidth : desk ? Math.max(320, innerWidth - 540) : Math.min(cv.parentElement.clientWidth, 520);
@@ -106,7 +117,11 @@ function loop(t) {
   if (locked && mode !== 'aim') { setLocked(false); showAim(null); }
   syncPutbar();
   scene.fx = (scene.fx || []).filter((f) => { f.x += f.vx; f.y += f.vy; f.vy += f.g || 0; f.life -= 0.02; return f.life > 0; });
-  if (scene.hole) { const k = cv.width / LW; ctx.setTransform(k, 0, 0, k, 0, 0); drawHole(ctx, scene.hole, t, scene); if (liveOn) drawGhosts(); }
+  if (scene.hole) {
+    if (rot) { const k = cv.height / LW; ctx.setTransform(0, k, -k, 0, LH * k, 0); }   // sideways: (x, y) → (LH − y, x)
+    else { const k = cv.width / LW; ctx.setTransform(k, 0, 0, k, 0, 0); }
+    drawHole(ctx, scene.hole, t, scene); if (liveOn) drawGhosts();
+  }
   requestAnimationFrame(loop);
 }
 // Rivals' balls in a live race: a ball with their face floating over it.
@@ -462,7 +477,10 @@ document.querySelectorAll('#putbar [data-turn], #putbar [data-pow]').forEach((b)
 $('puttX').onclick = () => { setLocked(false); scene.aim = null; showAim(null); $('tip').textContent = 'Putt cancelled. Drag back from anywhere to aim again.'; };
 $('puttGo').onclick = () => { const a = scene.aim; setLocked(false); scene.aim = null; showAim(null); if (a && mode === 'aim') putt(a); };
 
-function toLogical(e) { const r = cv.getBoundingClientRect(); return { x: ((e.clientX - r.left) / r.width) * LW, y: ((e.clientY - r.top) / r.height) * LH }; }
+function toLogical(e) {
+  const r = cv.getBoundingClientRect(), u = (e.clientX - r.left) / r.width, v = (e.clientY - r.top) / r.height;
+  return rot ? { x: v * LW, y: LH - u * LH } : { x: u * LW, y: v * LH };
+}
 cv.addEventListener('pointerdown', (e) => {
   if (mode === 'wedge') return wedgeTo(toLogical(e));
   if (mode !== 'aim') return;
@@ -482,7 +500,8 @@ cv.addEventListener('pointermove', (e) => {
   // sits near the bottom), so full power comes a little before whichever edge you're dragging toward.
   let full = 150 * COURSE;   // the same drag on screen whatever the course size
   if (drag.mouse) {
-    const k = cv.getBoundingClientRect().width / LW, ux = -dx / d, uy = -dy / d;   // the way the pointer is moving, on screen
+    const k = rot ? cv.getBoundingClientRect().height / LW : cv.getBoundingClientRect().width / LW, lx = -dx / d, ly = -dy / d;
+    const ux = rot ? -ly : lx, uy = rot ? lx : ly;   // the way the pointer is moving, on screen
     const room = Math.min(ux > 0 ? (innerWidth - drag.cx) / ux : ux < 0 ? drag.cx / -ux : Infinity, uy > 0 ? (innerHeight - drag.cy) / uy : uy < 0 ? drag.cy / -uy : Infinity);
     full = Math.min(150 * COURSE, Math.max(50 * COURSE, (room - 8) / k));
   }
@@ -815,6 +834,7 @@ async function deleteGame() {
   const id = (location.hash.match(/game=([0-9a-f-]{36})/) || [])[1];
   if (!id || !(await load(id))) { $('holeName').textContent = 'Game not found'; $('holeNo').textContent = 'It may have been deleted.'; return; }
   sizeCanvas(); addEventListener('resize', sizeCanvas);
+  new MutationObserver(() => requestAnimationFrame(sizeCanvas)).observe($('play'), { attributes: true, attributeFilter: ['class'] });   // in and out of full screen
   $('cardFold').open = !isPhone();
   noteMirror($('tip'), '', () => liveOn && ['aim', 'rolling', 'reveal'].includes(mode));   // live: no pop-ups over the course while you putt
   pack = await backpack();

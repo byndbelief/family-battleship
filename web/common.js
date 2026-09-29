@@ -491,14 +491,23 @@ export async function nextUpChip(meId, currentId, nameOf) {
       if (!document.getElementById('nextUpCss')) {
         const st = document.createElement('style'); st.id = 'nextUpCss';
         // Desktop: top center, out of the way of the game (phones keep it bottom-left, by the thumb).
-        st.textContent = 'body.fs-lock #nextUp{display:none!important} #nextUp:focus-visible{outline:3px solid #fff;outline-offset:2px} @keyframes nudgeIn{from{transform:translateY(20px);opacity:0}to{transform:none;opacity:1}} #nextUp{animation:nudgeIn .35s ease-out}'
-          + ' @media (min-width:1000px) and (min-height:560px){html body #nextUp,html body.has-firebar #nextUp{top:calc(8px + env(safe-area-inset-top,0px))!important;bottom:auto!important;left:0!important;right:0!important;margin:0 auto;width:max-content;max-width:38vw!important;padding:7px 14px!important;font-size:14px!important}}';
+        st.textContent = '#nextUp.intools{position:static!important;height:40px;padding:0 10px!important;gap:5px!important;font-size:15px!important;box-shadow:0 4px 12px #0004!important;max-width:none!important;border-radius:12px!important} body.fs-lock #nextUp{display:none!important} #nextUp:focus-visible{outline:3px solid #fff;outline-offset:2px} @keyframes nudgeIn{from{transform:translateY(20px);opacity:0}to{transform:none;opacity:1}} #nextUp{animation:nudgeIn .35s ease-out}'
+          + ' @media (min-width:1000px) and (min-height:560px){html body #nextUp:not(.intools),html body.has-firebar #nextUp:not(.intools){top:calc(8px + env(safe-area-inset-top,0px))!important;bottom:auto!important;left:0!important;right:0!important;margin:0 auto;width:max-content;max-width:38vw!important;padding:7px 14px!important;font-size:14px!important}}';
         document.head.appendChild(st);
       }
     }
     const n = list[0], vs = n.players.filter((p) => p !== meId).map(nameOf).join(' & ') || 'solo';
     chip.href = n.href;
-    chip.innerHTML = `<span>▶ Next:</span><span style="overflow:hidden;text-overflow:ellipsis">${KIND_ICON[n.kind]} vs ${esc(vs)}</span>${list.length > 1 ? `<span style="background:#2A2100;color:#F2C230;border-radius:99px;padding:1px 8px;font-size:13px">+${list.length - 1}</span>` : ''}`;
+    // In a game (047) it's a compact button in the top toolbar, beside the 🔔: at the bottom-left it
+    // sat on the Putt! bar, Fire! and the backpack. The lobby keeps the full chip by the thumb.
+    const tools = onGamePage() && document.getElementById('gameTools');
+    chip.classList.toggle('intools', !!tools);
+    if (tools && chip.parentElement !== tools) tools.prepend(chip);
+    else if (!tools && chip.parentElement !== document.body) document.body.appendChild(chip);
+    const more = list.length > 1 ? `<span style="background:#2A2100;color:#F2C230;border-radius:99px;padding:1px ${tools ? 6 : 8}px;font-size:${tools ? 12 : 13}px">+${Math.min(99, list.length - 1)}</span>` : '';
+    chip.innerHTML = tools ? `<span>▶ ${KIND_ICON[n.kind]}</span>${more}`
+      : `<span>▶ Next:</span><span style="overflow:hidden;text-overflow:ellipsis">${KIND_ICON[n.kind]} vs ${esc(vs)}</span>${more}`;
+    chip.title = `Next: ${n.kind} vs ${vs}`;
     chip.setAttribute('aria-label', `Next game waiting on you: ${n.kind} versus ${vs}${list.length > 1 ? `, and ${list.length - 1} more` : ''}`);
   } finally { nextBusy = false; }
 }

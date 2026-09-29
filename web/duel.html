@@ -174,8 +174,21 @@
     #play.fs-on .stage{grid-row:1 / -1;height:100%}
     #play.fs-on > :not(.stage){grid-column:2}
   }
+  /* Full screen on a landscape phone (047): the battlefield the full height on the left (no gap
+     above it for the toolbar), the controls in a 212px column whose top the toolbar sits over. */
   @media (orientation:landscape) and (max-height:520px){
-    #play.fs-on{display:grid;grid-template-columns:1fr minmax(250px,34%);grid-template-rows:1fr auto;align-items:stretch}
+    body.fs-lock #play.fs-on{padding:6px 6px 6px calc(6px + env(safe-area-inset-left,0px))!important}
+    #play.fs-on{display:grid;grid-template-columns:minmax(0,1fr) 212px;grid-auto-rows:min-content;align-items:start;column-gap:8px;row-gap:6px}
+    #play.fs-on > :not(.stage){grid-column:2;min-width:0}
+    #play.fs-on #controls{margin-top:48px;padding:8px}
+    #play.fs-on .aimbar{grid-template-columns:repeat(2,38px) minmax(0,1fr) repeat(2,38px);gap:4px}
+    #play.fs-on .aimbar .step{width:38px;height:38px}
+    #play.fs-on .aimread{flex-direction:column;gap:0;font-size:12px;line-height:1.2}
+    #play.fs-on .aimread output{font-size:15px}
+    #play.fs-on .slider.moverow{grid-template-columns:36px 36px minmax(0,1fr) 36px 30px;gap:4px}
+    #play.fs-on .moverow .step,#play.fs-on .modebtn{width:36px;height:36px}
+    #play.fs-on .aimbar{grid-template-columns:repeat(2,34px) minmax(0,1fr) repeat(2,34px)}
+    #play.fs-on .aimbar .step{width:34px;height:34px}
     #play.fs-on .slider{grid-template-columns:40px minmax(0,1fr) 40px 42px;gap:6px}
     #play.fs-on .slider label{display:none}
     #play.fs-on .slider.moverow{grid-template-columns:40px 40px minmax(0,1fr) 40px 42px}
@@ -183,8 +196,8 @@
     #play.fs-on .modebtn .ml{display:none}
     #play.fs-on .step{width:40px;height:40px}
     #play.fs-on button.go#fire{min-height:52px;width:100%}
-    #play.fs-on .stage{grid-row:1 / span 2}
-    #play.fs-on #controls .controls{grid-template-columns:1fr}
+    #play.fs-on .stage{grid-column:1;grid-row:1 / span 12;height:calc(100dvh - 12px)}
+    #play.fs-on #controls .controls{grid-template-columns:1fr;gap:6px}
   }
   </style>
 </head>
