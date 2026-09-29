@@ -307,6 +307,10 @@ username. A new account only becomes a robot once it's in `public.bots`.
   earlier duels between the same people, so spots and first shot rotate. A robot can therefore open:
   the first person standing plays its opening shot (the `!last && host` case in duel.js). Tests that
   need the creator first reorder `players` themselves.
+- **Robots-only fast-forward** (`botsOnly`/`ff`/`pause` in duel.js): once every person in a Hilltop
+  duel is knocked out, turn-based robot turns run 3× faster (pauses, driving, shell flight; no slow
+  motion, no camera wait) and the status says ⏩. Live battles keep their pace (the server times
+  reloads). Battleship needs nothing: `_bot_maybe_play` already plays robot turns back to back.
 - **Tank cam** (`drawTankCam` in duel.js, `#tankCam` in duel.html): zoomed in (4+ tanks) with your
   tank off screen, a corner window re-runs `draw()` with `ctx`/`cam` swapped for its own canvas and a
   camera on your tank (`camPass` stops the shell-follow from steering the real camera). It shows your

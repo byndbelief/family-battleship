@@ -6,6 +6,11 @@ import { W, H, CRATER_R, BERTHA_R, rng, buildTop as buildTopN, applyCrater, wind
 const $ = (id) => document.getElementById(id);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// ⏩ Only robots left standing (every person knocked out): turns play out 3× faster, with no slow
+// motion and no waiting for the camera. Live battles keep their pace (the server times the reloads).
+const botsOnly = () => !!G && G.game.status === 'playing' && G.game.players.every((p, k) => G.game.hp[k] <= 0 || isBot(p));
+const ff = () => (botsOnly() && !liveOn ? 3 : 1);
+const pause = (ms) => sleep(reduceMotion ? 0 : ms / ff());
 
 // ---------------------------------------------------------------- state and drawing
 let G = null;     // { game, shots }
@@ -78,7 +83,7 @@ function rideStart(p) {
   const far = tp && Math.hypot(tp.x - cam.x, tp.y - 30 - cam.y) > 40;
   if (!ride) ride = { home: { x: cam.x, y: cam.y }, p, t0: performance.now(), end: 0, aim: null, vx: 0, vy: 0 };
   else Object.assign(ride, { p, t0: performance.now(), end: 0 });
-  return far && !liveOn ? 650 : 0;   // turn by turn: the shell leaves once the camera has got there
+  return far && !liveOn && ff() === 1 ? 650 : 0;   // turn by turn: the shell leaves once the camera has got there
 }
 window.__duelCam = () => ({ x: cam.x, y: cam.y, z: cam.z, ride: !!ride });   // for tests: read-only
 function rideStep(t) {
@@ -460,10 +465,10 @@ function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1, X = x
     else if (weapon === 'drone') { const lead = sims[0].lead || 0; sfx('drone', { delay: wait / 1000, dur: Math.max(0.4, lead / 3 / 60) }); if (!reduceMotion) sfx('whistle', { delay: wait / 1000 + lead / 3 / 60, dur: Math.max(0.3, (longest - lead) / 3 / 60) }); }
     else { sfx('cannon', { delay: wait / 1000 }); if (!reduceMotion) sfx('whistle', { delay: wait / 1000 + 0.15, dur: Math.max(0.3, longest / 3 / 60 - 0.15) }); }
     if (weapon === 'cluster' && !reduceMotion) { const split = sims[0].path.findIndex((q, j) => j > 0 && q.y > sims[0].path[j - 1].y); if (split > 0) sfx('pop', { delay: wait / 1000 + split / 3 / 60 }); }
-    const speed = weapon === 'railgun' ? 6 : 3;
+    const speed = (weapon === 'railgun' ? 6 : 3) * ff();
     const step = () => {
       // Slow motion as a shell closes in on a tank.
-      const near = !reduceMotion && dramaOn() && weapon !== 'railgun' && mine.some((s) => { const q = s.path[Math.min(s.i, s.path.length - 1)]; return X.some((_, t) => { const k = tankPos(t, top, X); return k && Math.hypot(q.x - k.x, q.y - (k.y - 8)) < 90; }); });
+      const near = !reduceMotion && dramaOn() && ff() === 1 && weapon !== 'railgun' && mine.some((s) => { const q = s.path[Math.min(s.i, s.path.length - 1)]; return X.some((_, t) => { const k = tankPos(t, top, X); return k && Math.hypot(q.x - k.x, q.y - (k.y - 8)) < 90; }); });
       mine.forEach((s) => { s.i += near ? 1 : speed; });
       if (mine.some((s) => s.i < s.path.length)) return requestAnimationFrame(step);
       // A railgun beam lingers a moment before it fades.
@@ -504,7 +509,7 @@ function render() {
   const over = g.status === 'over', out = !over && mi >= 0 && g.hp[mi] <= 0;   // knocked out, still watching (3-4 players)
   const liveNow = liveOn && !over && mi >= 0 && !out, mine = !over && !out && (liveNow || turnId() === me.id);
   $('title').innerHTML = over ? (g.winner === me.id ? 'You win!' : `${nm(g.winner)} wins!`) : out ? "💀 You're out" : liveNow ? '⚔️ Live battle' : mine ? 'Your shot' : `${nm(turnId())}'s shot`;
-  $('status').textContent = over ? '' : out ? 'Watching the rest fight it out' : liveNow ? 'Fire at will!' : mine ? `Move ${g.move + 1}` : busy ? '' : 'Waiting…';
+  $('status').textContent = over ? '' : out ? (botsOnly() && !liveOn ? '⏩ Only robots left: fast-forward' : 'Watching the rest fight it out') : liveNow ? 'Fire at will!' : mine ? `Move ${g.move + 1}` : busy ? '' : 'Waiting…';
   // The controls stay up for the whole game: off your shot Fire! waits (and says whose shot it
   // is), but you can line up your next angle and power.
   $('controls').hidden = over || out || mi < 0 || g.status !== 'playing';
@@ -869,8 +874,9 @@ async function robotShot() {
   const g = G.game, p = g.turn, windX = windXOf(g, g.move);
   // The robot drives too: it scouts spots within its fuel with a quick coarse search, takes the
   // one with the best shot (Rookie drives more at random), and never just sits still.
-  $('status').textContent = `${nm(g.players[p]).replace(/<[^>]+>/g, '')} is sizing you up…`;
-  await sleep(reduceMotion ? 0 : 400);
+  const ffTag = ff() > 1 ? '⏩ ' : '';
+  $('status').textContent = `${ffTag}${nm(g.players[p]).replace(/<[^>]+>/g, '')} is sizing you up…`;
+  await pause(400);
   const start = baseXs()[p], [lo, hi] = SIDE(p), ti = botTarget(p, baseXs());
   const spots = [-40, -30, -20, -10, 0, 10, 20, 30, 40].map((d) => start + d).filter((x) => x >= lo && x <= hi);
   const coarse = (X) => { const tg = tankPos(ti, top, X), SX = standing(X, g.hp, p); let b = 999;
@@ -885,11 +891,11 @@ async function robotShot() {
   const scored = spots.map((x) => { const X = [...baseXs()]; X[p] = x; return { x, d: coarse(X) - dodge(x) + Math.random() * (g.bot_level === 0 ? 60 : 8) }; }).sort((u, v) => u.d - v.d);
   let goal = scored[0].x;
   if (goal === start) goal = Math.max(lo, Math.min(hi, start + (Math.random() < 0.5 ? -1 : 1) * (6 + Math.round(Math.random() * 10))));
-  $('status').textContent = `${nm(g.players[p]).replace(/<[^>]+>/g, '')} is on the move…`;
+  $('status').textContent = `${ffTag}${nm(g.players[p]).replace(/<[^>]+>/g, '')} is on the move…`;
   botDrive = { move: g.move, x: start };
   if (reduceMotion) botDrive.x = goal;
-  else while (botDrive.x !== goal) { botDrive.x += Math.sign(goal - botDrive.x) * Math.min(2, Math.abs(goal - botDrive.x)); if (botDrive.x % 8 === 0) sfx('tick'); await sleep(60); }
-  await sleep(reduceMotion ? 0 : 250);
+  else while (botDrive.x !== goal) { botDrive.x += Math.sign(goal - botDrive.x) * Math.min(2 * ff(), Math.abs(goal - botDrive.x)); if (botDrive.x % 8 === 0) sfx('tick'); await sleep(60); }
+  await pause(250);
   const X = xs(), target = tankPos(ti, top, X), SX = standing(X, g.hp, p);
   let best = null;
   for (const a of botAngles(p, ti, X, 1)) for (let pw = 20; pw <= 100; pw += 2) {
@@ -906,8 +912,8 @@ async function robotShot() {
   const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
   const angle = botClamp(Math.round(best.a + gauss() * skill.a), best.a);
   const power = Math.max(20, Math.min(100, Math.round(best.pw + gauss() * skill.p)));
-  $('status').textContent = `${nm(g.players[p]).replace(/<[^>]+>/g, '')} is aiming…`;
-  await sleep(reduceMotion ? 0 : 900);
+  $('status').textContent = `${ffTag}${nm(g.players[p]).replace(/<[^>]+>/g, '')} is aiming…`;
+  await pause(900);
   const sim = await flyShell(p, angle, power, g.craters, g.move, null, windX, X);
   const crater = sim.impact ? [Math.round(sim.impact.x), Math.round(sim.impact.y), CRATER_R] : null;
   const hp = damage(top, sim.impact, g.hp, false, guards(g, SX, g.players[p]), SX);
