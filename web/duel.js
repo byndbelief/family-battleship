@@ -692,7 +692,7 @@ async function riseGround(list, dur, rate, cols) {
   const t0 = performance.now();
   for (;;) {
     const k = dur ? Math.min(1, (performance.now() - t0) / dur) : 1, e = k * k * (3 - 2 * k), c = copy();
-    list.forEach((q) => applyCrater(c, [q[0], q[1] * e, q[2], 6]));
+    list.forEach((q) => applyCrater(c, [q[0], q[1] * e, q[2], 6, q[4]]));   // q[4]: a regrowth fill (052) grows as a fill
     top = c;
     if (!reduceMotion) list.forEach((q) => { if (Math.random() < rate(q)) { const x = q[0] + (Math.random() * 2 - 1) * q[2] * 0.8; particles.push({ x, y: top[Math.max(0, Math.min(W - 1, Math.round(x)))], vx: (Math.random() - 0.5) * 2.4, vy: -Math.random() * 3.2, life: 1, s: Math.random() * 3 + 1.5, c: cols[Math.floor(Math.random() * cols.length)] }); } });
     if (k >= 1) break;

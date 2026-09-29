@@ -54,7 +54,7 @@ function lowerAt(top, x, y) {   // deepen whatever you'd stand on at x
   if (top.under?.[x] != null) top.under[x] = Math.min(H - 8, Math.max(top.under[x], y));
   else top[x] = Math.max(top[x], y);
 }
-function applyCrater(top, [cx, cy, r, mound]) {
+function applyCrater(top, [cx, cy, r, mound, fill]) {
   if (mound === 2) {
     const from = clampX(r), y0 = standY(top, from), stop = cy > from ? cy - 12 : cx + 12, reach = Math.abs(stop - from);
     for (let x = clampX(cx); x <= clampX(cy); x++) {
@@ -76,10 +76,29 @@ function applyCrater(top, [cx, cy, r, mound]) {
   //   a meteor [x, depth, r, 5]: a crater dug where it strikes the surface at x
   //   a heave  [x, dh, r, 6]:    an earthquake lifts the ground dh px at x (a dip if dh < 0), easing out over ±r
   if (mound === 5) { applyCrater(top, [cx, top[clampX(cx)] + cy, r]); return; }
+  if (mound === 6 && fill === 1) {
+    // 🌱 Regrowth [x, dh, r, 6, 1] (052) fills the hollow, not the hill: the ground within ±r rises
+    // toward the line between its two rims (the ground at x - r and x + r) and a little over it (30% of
+    // dh), by at most dh, and only where it's below that. A hole silts up level with its edges; a
+    // hilltop is left alone.
+    const x0 = Math.max(0, Math.round(cx - r)), x1 = Math.min(W - 1, Math.round(cx + r)), y0 = top[x0], y1 = top[x1];
+    for (let x = x0; x <= x1; x++) {
+      const line = x1 > x0 ? y0 + ((y1 - y0) * (x - x0)) / (x1 - x0) : y0, k = (1 + Math.cos((Math.PI * (x - cx)) / r)) / 2;
+      const lvl = line - cy * 0.3 * k;   // a little over the rims, so a whole dug-out stretch slowly builds back too
+      if (top[x] > lvl) top[x] = Math.max(lvl, top[x] - cy * (0.35 + 0.65 * k));
+    }
+    return;
+  }
   if (mound === 6) {
+    // Heaves ease off above a ceiling 15 px over the tallest hill a field starts with (052): what would
+    // rise past it rises a quarter as far (25 px at most), so quakes can't stack mountains into the
+    // sky; ground already higher (a Dirt Bomb pile) isn't pulled down.
+    const ceil = H - 285;
     for (let x = Math.max(0, Math.round(cx - r)); x <= Math.min(W - 1, Math.round(cx + r)); x++) {
       const k = (1 + Math.cos((Math.PI * (x - cx)) / r)) / 2;
-      top[x] = Math.max(24, Math.min(H - 8, top[x] - cy * k));
+      let y = top[x] - cy * k;
+      if (cy > 0 && y < ceil) y = Math.min(top[x], Math.max(ceil - 25, ceil - (ceil - y) * 0.25));   // above the ceiling: squashed to a quarter, rounded off
+      top[x] = Math.max(24, Math.min(H - 8, y));
       if (top.under?.[x] != null && top[x] > ceilAt(top, x)) openUp(top, x);   // dropped into a tunnel: it's open now
     }
     return;
