@@ -83,21 +83,26 @@ const pl = (id) => G.players.find((x) => x.player === id) || { tokens: 0, away: 
 // right) so it fills the screen. Only drawing and touches rotate; the physics never knows.
 let rot = false;
 const landFs = () => !!document.querySelector('#play.fs-on') && innerWidth > innerHeight && innerHeight < 560;
+// Phones (and full screen): the course takes the whole screen below the hole's name, any shape; the
+// camera frames it (it no longer has to be the hole's own shape). Tablets and desktop: as before.
+const fullCourse = () => !!document.querySelector('#play.fs-on') || (touchUI() && innerWidth < 760);
 function sizeCanvas() {
   rot = landFs();
-  if (rot) {
-    const dpr = Math.min(2, devicePixelRatio || 1), maxW = Math.max(300, innerWidth - 250), maxH = innerHeight - 12;
-    const w = Math.min(maxW, (maxH * LH) / LW), h = (w * LW) / LH;   // on screen: LH across, LW down
-    cv.style.width = w + 'px'; cv.style.height = h + 'px'; cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
-    return;
+  const dpr = Math.min(2, devicePixelRatio || 1), set = (w, h) => { cv.style.width = w + 'px'; cv.style.height = h + 'px'; cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); };
+  if (rot) return set(Math.max(300, innerWidth - 250), innerHeight - 12);   // sideways, down the left; the hole and backpack on the right
+  const wrap = cv.parentElement; wrap.style.margin = '';
+  if (fullCourse()) {
+    if (!document.querySelector('#play.fs-on')) {   // phones: edge to edge, whatever the page's padding
+      const r = wrap.getBoundingClientRect(); wrap.style.margin = `0 ${-(innerWidth - r.right)}px 0 ${-r.left}px`;
+    }
+    const top = cv.parentElement.getBoundingClientRect().top + (document.querySelector('#play.fs-on') ? 0 : scrollY), below = ($('packMini')?.offsetHeight || 0);
+    return set(cv.parentElement.clientWidth, Math.max(300, innerHeight - top - below - 10));
   }
-  const fs = !!document.querySelector('#play.fs-on');   // full screen: the hole gets all the room it can
-  const desk = !fs && matchMedia('(min-width:1000px) and (min-height:560px)').matches;   // desktop: the course beside its controls
-  const maxW = fs ? cv.parentElement.clientWidth : desk ? Math.max(320, innerWidth - 540) : Math.min(cv.parentElement.clientWidth, 520);
-  const maxH = fs ? Math.max(240, innerHeight - 150) : desk ? Math.max(420, innerHeight - (document.getElementById('gtbar')?.offsetHeight || 0) - 90) : Math.max(360, innerHeight - 230);
-  const w = Math.min(maxW, (maxH * LW) / LH), dpr = Math.min(2, devicePixelRatio || 1);
-  cv.style.width = w + 'px'; cv.style.height = (w * LH) / LW + 'px';
-  cv.width = Math.round(w * dpr); cv.height = Math.round(((w * LH) / LW) * dpr);
+  const desk = matchMedia('(min-width:1000px) and (min-height:560px)').matches;   // desktop: the course beside its controls
+  const maxW = desk ? Math.max(320, innerWidth - 540) : Math.min(cv.parentElement.clientWidth, 520);
+  const maxH = desk ? Math.max(420, innerHeight - (document.getElementById('gtbar')?.offsetHeight || 0) - 90) : Math.max(360, innerHeight - 230);
+  const w = Math.min(maxW, (maxH * LW) / LH);
+  set(w, (w * LH) / LW);
 }
 // Shot clock: 30 seconds for each putt on your turn, against other people (not solo, not the
 // robot). The first time it runs out this turn costs a stroke; after that it stops for the turn.
@@ -119,13 +124,22 @@ function clockCheck() {
 // 🗺️ steps back to the whole hole. Waiting on someone else, you see all of it.
 const cam = { x: 0, y: 0, z: 1, intro: null, over: false, key: '' };
 const holeKey = (hole) => `${G.game.id}:${hole}`;
-const zPlay = () => Math.max(1, COURSE);
-const viewW = () => LW / cam.z, viewH = () => LH / cam.z;
-function camClamp(x, y, z) { const hw = LW / (2 * z), hh = LH / (2 * z); return [Math.min(LW - hw, Math.max(hw, x)), Math.min(LH - hh, Math.max(hh, y))]; }
+// The canvas is any shape (a phone's whole screen): lw × lh is it in device pixels before the
+// sideways turn, kFit the course's pixels a unit with the whole hole in view (zoom 1), kNorm a 1-player
+// hole's size on this screen (the ball at its normal size), k = kFit × zoom.
+const lw = () => (rot ? cv.height : cv.width), lh = () => (rot ? cv.width : cv.height);
+const kFit = () => Math.min(lw() / LW, lh() / LH), kNorm = () => Math.min(lw() / BW, lh() / BH), kNow = () => kFit() * cam.z;
+const dprNow = () => cv.width / (cv.getBoundingClientRect().width || cv.width);
+const zPlay = () => Math.max(1, kNorm() / kFit());
+const viewW = () => lw() / kNow(), viewH = () => lh() / kNow();
+function camClamp(x, y, z) {
+  const k = kFit() * z, hw = lw() / (2 * k), hh = lh() / (2 * k);
+  return [2 * hw >= LW ? LW / 2 : Math.min(LW - hw, Math.max(hw, x)), 2 * hh >= LH ? LH / 2 : Math.min(LH - hh, Math.max(hh, y))];
+}
 function camIntro(key, force) {
   if (!force && key === cam.key) return;
   cam.key = key;
-  if (zPlay() === 1) return;
+  if (zPlay() < 1.02) return;
   const left = liveOn ? liveGo - Date.now() : 0, synced = left > 1600;
   cam.intro = { t0: performance.now(), hold: synced ? left - 1500 : 1100, dur: synced ? 1400 : 1600 };
   cam.x = LW / 2; cam.y = LH / 2; cam.z = 1; cam.over = false; cam.uz = null; cam.hold = false; mapBtn();
@@ -141,7 +155,7 @@ function drawHoleTo(h, px, inner) {
   drawHole(c, h, 0, { cupArt: inner, cupDark: 1 }); return oc;
 }
 function cupArtFor(hi) {
-  const g = G.game, after = (i) => (i + 1 < g.start + g.count ? i + 1 : g.start), px = Math.max(240, rot ? cv.height : cv.width);
+  const g = G.game, after = (i) => (i + 1 < g.start + g.count ? i + 1 : g.start), px = Math.max(240, Math.round(kFit() * LW));
   const key = `${g.id}:${hi}:${px}:${golfTheme()}:${JSON.stringify(g.twists || {})}`;
   if (!cupArts.has(key)) {
     const n1 = after(hi), n2 = after(n1), at = (i) => holeWithTwists(g.seed, i, 0, g.twists, g.t);
@@ -188,39 +202,40 @@ function camStep(now) {
   [cam.x, cam.y] = camClamp(cam.x, cam.y, cam.z);
 }
 // Where the cup is when it's off the screen: a flag at the edge, pointing the way.
-function cupPointer(k) {
-  const [cx, cy] = scene.hole.cup, lx = (cx - cam.x) * cam.z + LW / 2, ly = (cy - cam.y) * cam.z + LH / 2, m = 22 * COURSE;
-  if (lx > 0 && ly > 0 && lx < LW && ly < LH) return;
-  const px = Math.min(LW - m, Math.max(m, lx)), py = Math.min(LH - m, Math.max(m, ly)), a = Math.atan2(ly - py, lx - px), r = 13 * COURSE;
+function cupPointer() {
+  const d = dprNow(), k = kNow(), W2 = lw(), H2 = lh(), [cx, cy] = scene.hole.cup, lx = (cx - cam.x) * k + W2 / 2, ly = (cy - cam.y) * k + H2 / 2, m = 24 * d;
+  if (lx > 0 && ly > 0 && lx < W2 && ly < H2) return;
+  const px = Math.min(W2 - m, Math.max(m, lx)), py = Math.min(H2 - m, Math.max(m, ly)), a = Math.atan2(ly - py, lx - px), r = 13 * d;
   ctx.save(); ctx.translate(px, py);
   ctx.fillStyle = '#0B1A12cc'; ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.fill();
-  ctx.fillStyle = '#F2C14E'; ctx.beginPath(); ctx.moveTo(Math.cos(a) * (r + 9 * COURSE), Math.sin(a) * (r + 9 * COURSE));
+  ctx.fillStyle = '#F2C14E'; ctx.beginPath(); ctx.moveTo(Math.cos(a) * (r + 9 * d), Math.sin(a) * (r + 9 * d));
   ctx.lineTo(Math.cos(a + 0.5) * r, Math.sin(a + 0.5) * r); ctx.lineTo(Math.cos(a - 0.5) * r, Math.sin(a - 0.5) * r); ctx.fill();
   if (rot) ctx.rotate(-Math.PI / 2);   // the emoji stays upright on a sideways course
-  ctx.font = `${Math.round(14 * COURSE)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⛳', 0, 1);
+  ctx.font = `${Math.round(15 * d)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⛳', 0, 1);
   ctx.restore();
 }
 function mapBtn() {
-  const b = $('mapBtn'); b.hidden = zPlay() === 1 || !G || G.game.status !== 'playing';
+  const b = $('mapBtn'); b.hidden = zPlay() < 1.02 || !G || G.game.status !== 'playing';
   b.classList.toggle('on', cam.over); b.setAttribute('aria-pressed', String(cam.over));
 }
 $('mapBtn').onclick = () => { cam.over = !cam.over; cam.intro = null; cam.uz = null; cam.hold = false; mapBtn(); sfx('click'); };
 function loop(t) {
   clockCheck();
   if (locked && mode !== 'aim') { setLocked(false); showAim(null); }
+  if (!ph.hidden && (!locked || mode !== 'aim')) ph.hidden = true;
   syncPutbar();
   scene.fx = (scene.fx || []).filter((f) => { f.x += f.vx; f.y += f.vy; f.vy += f.g || 0; f.life -= 0.02; return f.life > 0; });
   if (scene.hole) {
     if (scene.cupArt === undefined && G) scene.cupArt = cupArtFor(scene.hi ?? curHole());
     camStep(t);
-    let k;
-    if (rot) { k = cv.height / LW; ctx.setTransform(0, k, -k, 0, LH * k, 0); }   // sideways: (x, y) → (LH − y, x)
-    else { k = cv.width / LW; ctx.setTransform(k, 0, 0, k, 0, 0); }
-    const base = ctx.getTransform();
-    ctx.transform(cam.z, 0, 0, cam.z, LW / 2 - cam.z * cam.x, LH / 2 - cam.z * cam.y);
+    if (rot) ctx.setTransform(0, 1, -1, 0, cv.width, 0);   // sideways: the canvas's own pixels, turned
+    else ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const base = ctx.getTransform(), k = kNow();
+    ctx.fillStyle = golfTheme() === 'natural' ? '#3F6B2C' : '#1A4F32'; ctx.fillRect(0, 0, lw(), lh());   // past the course's edge
+    ctx.transform(k, 0, 0, k, lw() / 2 - k * cam.x, lh() / 2 - k * cam.y);
     drawHole(ctx, scene.hole, t, scene); if (liveOn) drawGhosts();
     ctx.setTransform(base);
-    if (cam.z > 1.05 && !cam.dive) cupPointer(k);
+    if (cam.z > 1.05 && !cam.dive) cupPointer();
   }
   requestAnimationFrame(loop);
 }
@@ -558,6 +573,7 @@ let locked = false;
 function showAim(a) {
   const m = $('pmeter');
   if (!a) { m.hidden = true; return; }
+  phRead();
   m.hidden = false; $('pfill').style.width = Math.round(a.p * 100) + '%'; $('ptext').textContent = `Power ${Math.round(a.p * 100)}%`;
 }
 function setLocked(on) { locked = on; syncPutbar(); }
@@ -567,7 +583,7 @@ const touchUI = () => isPhone() || matchMedia('(pointer: coarse)').matches;
 let putbarKey = '';
 function syncPutbar() {
   if (!G) return;
-  const playing = G.game.status === 'playing' && !['over', 'done'].includes(mode), show = touchUI() ? playing : locked;
+  const playing = G.game.status === 'playing' && !['over', 'done'].includes(mode), show = !touchUI() && playing && locked;   // touch: the pop-up Putt instead
   const ready = locked && mode === 'aim';
   const label = ready ? 'Putt!' : mode === 'aim' ? '👆 Drag back on the course to aim' : mode === 'rolling' ? 'Rolling…' : mode === 'replay' ? 'Watching…'
     : mode === 'bot' ? '🤖 Robot putting…' : liveOn ? 'Waiting…' : `${who(curPlayer()).replace(/<[^>]+>/g, '')}${curPlayer() === me.id ? 'r turn' : "'s turn"}`;
@@ -584,7 +600,7 @@ function nudgeAim(turn, pow) {
   if (pow) a.p = Math.max(0.04, Math.min(1, Math.round((a.p + pow * 0.01) * 100) / 100));
   showAim(a);
 }
-document.querySelectorAll('#putbar [data-turn], #putbar [data-pow]').forEach((b) => {
+document.querySelectorAll('#putbar [data-turn], #putbar [data-pow], #puttHere [data-turn], #puttHere [data-pow]').forEach((b) => {
   let hold = null, rep = null;
   const step = () => nudgeAim(+(b.dataset.turn || 0), +(b.dataset.pow || 0));
   const stop = () => { clearTimeout(hold); clearInterval(rep); };
@@ -593,15 +609,26 @@ document.querySelectorAll('#putbar [data-turn], #putbar [data-pow]').forEach((b)
   b.addEventListener('contextmenu', (e) => e.preventDefault());
   b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); step(); } });
 });
+// ---------------------------------------------------------------- the slingshot Putt (touch)
+const ph = $('puttHere');
+function phShow(e) {
+  const r = cv.parentElement.getBoundingClientRect();
+  const x = Math.max(82, Math.min(r.width - 82, e.clientX - r.left)), y = Math.max(72, Math.min(r.height - 72, e.clientY - r.top));
+  ph.style.left = `${x}px`; ph.style.top = `${y}px`;
+  ph.hidden = false; ph.classList.remove('pop'); void ph.offsetWidth; ph.classList.add('pop'); phRead();
+}
+const phRead = () => { if (!ph.hidden && scene.aim) $('phRead').textContent = `⚡ ${Math.round(scene.aim.p * 100)}%`; };
+$('phGo').onclick = () => { ph.hidden = true; $('puttGo').onclick(); };
+$('phX').onclick = () => { ph.hidden = true; $('puttX').onclick(); };
 $('puttX').onclick = () => { setLocked(false); scene.aim = null; showAim(null); $('tip').textContent = 'Putt cancelled. Drag back from anywhere to aim again.'; };
 $('puttGo').onclick = () => { const a = scene.aim; setLocked(false); scene.aim = null; showAim(null); if (a && mode === 'aim') putt(a); };
 
 // A point on screen in the canvas's own units (before the camera), and the course point under it.
 function toL(cx, cy) {
   const r = cv.getBoundingClientRect(), u = (cx - r.left) / r.width, v = (cy - r.top) / r.height;
-  return rot ? { x: v * LW, y: LH - u * LH } : { x: u * LW, y: v * LH };
+  return rot ? { x: v * lw(), y: lh() - u * lh() } : { x: u * lw(), y: v * lh() };
 }
-const worldOf = (L) => ({ x: (L.x - LW / 2) / cam.z + cam.x, y: (L.y - LH / 2) / cam.z + cam.y });   // through the camera (055)
+const worldOf = (L) => ({ x: (L.x - lw() / 2) / kNow() + cam.x, y: (L.y - lh() / 2) / kNow() + cam.y });   // through the camera (055)
 const toLogical = (e) => worldOf(toL(e.clientX, e.clientY));
 // ---------------------------------------------------------------- zoom and pan (059)
 // Pinch to zoom, two fingers to pan; one finger pans too whenever you're not aiming (waiting, watching
@@ -612,7 +639,7 @@ const touches = new Map(); let view = null;
 const zMax = () => Math.max(3, zPlay() * 2.5);
 function viewAt(z, w, L) {   // zoom z, with course point w under canvas point L
   z = Math.min(zMax(), Math.max(1, z));
-  cam.z = z; [cam.x, cam.y] = camClamp(w.x - (L.x - LW / 2) / z, w.y - (L.y - LH / 2) / z, z);
+  cam.z = z; [cam.x, cam.y] = camClamp(w.x - (L.x - lw() / 2) / (kFit() * z), w.y - (L.y - lh() / 2) / (kFit() * z), z);
   cam.uz = z; cam.hold = true; cam.intro = null; cam.dive = null;
   if (cam.over) { cam.over = false; mapBtn(); }
 }
@@ -652,7 +679,7 @@ cv.addEventListener('pointerdown', (e) => {
   drag = { ...toLogical(e), cx: e.clientX, cy: e.clientY, mouse: e.pointerType === 'mouse' }; cv.setPointerCapture(e.pointerId); setLocked(false);
   // Holding still on your own ball is the secret foot wedge.
   clearTimeout(wedgeHold);
-  if (canCheat() && scene.ball && Math.hypot(drag.x - scene.ball.x, drag.y - scene.ball.y) < (26 * COURSE) / cam.z) wedgeHold = setTimeout(() => { if (drag && !scene.aim) cheatWedge(); }, 750);
+  if (canCheat() && scene.ball && Math.hypot(drag.x - scene.ball.x, drag.y - scene.ball.y) < (26 * kNorm()) / kNow()) wedgeHold = setTimeout(() => { if (drag && !scene.aim) cheatWedge(); }, 750);
 });
 let wedgeHold = null;
 cv.addEventListener('pointerup', () => clearTimeout(wedgeHold), true);
@@ -663,12 +690,12 @@ cv.addEventListener('pointermove', (e) => {
   if (d < 6) { scene.aim = null; showAim(null); return; }
   // Full power is 150 course units of drag. With a mouse the screen edge can get in the way (the tee
   // sits near the bottom), so full power comes a little before whichever edge you're dragging toward.
-  let full = (150 * COURSE) / cam.z;   // the same drag on screen whatever the course size and zoom
+  let full = (150 * kNorm()) / kNow();   // the same drag on screen whatever the course size and zoom
   if (drag.mouse) {
-    const k = ((rot ? cv.getBoundingClientRect().height : cv.getBoundingClientRect().width) / LW) * cam.z, lx = -dx / d, ly = -dy / d;
+    const k = kNow() / dprNow(), lx = -dx / d, ly = -dy / d;   // screen px a course unit
     const ux = rot ? -ly : lx, uy = rot ? lx : ly;   // the way the pointer is moving, on screen
     const room = Math.min(ux > 0 ? (innerWidth - drag.cx) / ux : ux < 0 ? drag.cx / -ux : Infinity, uy > 0 ? (innerHeight - drag.cy) / uy : uy < 0 ? drag.cy / -uy : Infinity);
-    full = Math.min((150 * COURSE) / cam.z, Math.max((50 * COURSE) / cam.z, (room - 8) / k));
+    full = Math.min((150 * kNorm()) / kNow(), Math.max((50 * kNorm()) / kNow(), (room - 8) / k));
   }
   const pw = Math.min(1, d / full); scene.aim = { bx: scene.ball.x, by: scene.ball.y, dx: dx / d, dy: dy / d, p: pw };
   showAim(scene.aim);
@@ -678,7 +705,7 @@ cv.addEventListener('pointerup', async (e) => {
   if (!drag) return; drag = null;
   const a = scene.aim;
   if (!a || a.p < 0.04 || mode !== 'aim') { scene.aim = null; showAim(null); if (mode === 'aim') $('tip').textContent = 'Drag back further to putt.'; return; }
-  if (e.pointerType !== 'mouse') { setLocked(true); $('tip').textContent = 'Fine-tune with ↺ ↻ − +, then tap Putt!'; return; }
+  if (e.pointerType !== 'mouse') { setLocked(true); phShow(e); $('tip').textContent = 'Fine-tune with ↺ ↻ − +, then tap Putt!'; return; }
   scene.aim = null; showAim(null);
   putt(a);
 });
@@ -1005,6 +1032,7 @@ async function deleteGame() {
   const id = (location.hash.match(/game=([0-9a-f-]{36})/) || [])[1];
   if (!id || !(await load(id))) { $('holeName').textContent = 'Game not found'; $('holeNo').textContent = 'It may have been deleted.'; return; }
   sizeCanvas(); addEventListener('resize', sizeCanvas);
+  if (window.ResizeObserver) { const ro = new ResizeObserver(() => { if (fullCourse()) sizeCanvas(); }); ro.observe($('packMini')); ro.observe(document.querySelector('.hudbar')); }   // the full-screen course fits round them
   new MutationObserver(() => requestAnimationFrame(sizeCanvas)).observe($('play'), { attributes: true, attributeFilter: ['class'] });   // in and out of full screen
   $('cardFold').open = !isPhone();
   noteMirror($('tip'), '', () => liveOn && ['aim', 'rolling', 'reveal'].includes(mode));   // live: no pop-ups over the course while you putt

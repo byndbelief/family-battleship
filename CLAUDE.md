@@ -708,3 +708,15 @@ the rest one "+n more chaos news" line (no sound). Toasts are compact (13px, 2-l
 the left edge), sit at the bottom of the screen, never more than two at once, and go after 3.5 s.
 In a game they still wait in the 🔔 (unless Settings says pop-ups).
 
+### Putt Post on phones: the whole screen, and the slingshot Putt (page only)
+The canvas is any shape now. golf.js works in the canvas's own pixels: `lw()`×`lh()` (before the sideways
+turn), `kFit` (px a course unit with the whole hole in view, zoom 1), `kNorm` (a 1-player hole on this
+screen: the ball's normal size), `kNow = kFit·cam.z`, `zPlay = kNorm/kFit`; `camClamp` centres an axis
+the view is bigger than, and `loop` fills past the course's edge. Drag power is `150·kNorm/kNow` units.
+On touch screens under 760 px wide and in full screen (`fullCourse()`), `sizeCanvas` makes the course
+fill the width (edge to edge, margins measured) and the height down to the backpack row (re-fitted by a
+ResizeObserver on it and the header); tablets/desktop keep the hole's own shape. Touch putting is
+Hilltop's slingshot: let go of a pull and `#puttHere` pops up where the finger lifted (⛳ PUTT, ↺ ↻,
+− +, ✕, the power under it; `phShow`), and the Putt! bar is gone on touch screens (mouse still putts
+on release). Tests tap `#phGo`, not `#puttGo`.
+
