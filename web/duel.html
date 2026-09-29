@@ -44,14 +44,21 @@
   button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
   .stage{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:#0E0C22}
   .stage canvas{display:block;width:100%;height:auto;touch-action:manipulation}
-  /* 🔥 Fire where you let go: pops up under your finger after an aiming pull */
-  .firehere{position:absolute;z-index:8;width:76px;height:76px;margin:-38px 0 0 -38px;padding:0;border-radius:50%;border:3px solid #FFF4D6;background:radial-gradient(circle at 50% 38%,#FF8A6A,#E4572E 60%,#B83A1C);color:#fff;font:900 13px/1 system-ui,sans-serif;letter-spacing:.06em;display:grid;place-items:center;align-content:center;gap:2px;box-shadow:0 6px 20px #000a,0 0 0 6px #E4572E44;touch-action:manipulation;cursor:pointer}
+  /* 🔥 Fire where you let go: a see-through Fire under your finger after an aiming pull, with the
+     fine-tune buttons round it (⤴⤵ angle on the left, −+ power on the right) and the aim under it */
+  .firehere{position:absolute;z-index:8;width:156px;height:132px;transform:translate(-50%,-50%);pointer-events:none}
   .firehere[hidden]{display:none}
-  .firehere{font-size:24px}.firehere b{font-size:12px}
-  .firehere.pop{animation:fhpop .28s cubic-bezier(.2,1.6,.4,1)}
-  .firehere:active{transform:scale(.92)}
+  .firehere > *{pointer-events:auto;touch-action:none!important}   /* a pull may start on it (duel.js): no scrolling away with it */
+  .fhfire{position:absolute;left:40px;top:22px;width:76px;height:76px;padding:0;border-radius:50%;border:2.5px solid #FFF4D6cc;background:radial-gradient(circle at 50% 38%,#FF8A6Aa6,#E4572E99 60%,#B83A1C99);color:#fff;font:900 24px/1 system-ui,sans-serif;display:grid;place-items:center;align-content:center;gap:2px;box-shadow:0 6px 18px #0006;text-shadow:0 1px 3px #0009;touch-action:manipulation;cursor:pointer;backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
+  .fhfire b{font-size:12px;letter-spacing:.06em}
+  .fhfire:active{transform:scale(.92)}
+  .fhn{position:absolute;width:36px;height:36px;min-height:0;padding:0;border-radius:50%;border:1.5px solid #ffffff55;background:#0E0C2266;color:#fff;font:800 19px/1 system-ui,sans-serif;display:grid;place-items:center;touch-action:manipulation;user-select:none;-webkit-user-select:none;backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
+  .fhn:active{background:#FFC85766}
+  .fh-au{left:0;top:10px}.fh-ad{left:0;top:74px}.fh-pu{right:0;top:10px}.fh-pd{right:0;top:74px}
+  .fhread{position:absolute;left:50%;bottom:0;transform:translateX(-50%);white-space:nowrap;padding:2px 8px;border-radius:99px;background:#0E0C2288;color:#FFE08A;font:800 12px/1.3 system-ui,sans-serif;font-variant-numeric:tabular-nums;pointer-events:none}
+  .firehere.pop .fhfire{animation:fhpop .28s cubic-bezier(.2,1.6,.4,1)}
   @keyframes fhpop{from{transform:scale(.3);opacity:0}to{transform:none;opacity:1}}
-  @media (prefers-reduced-motion:reduce){.firehere.pop{animation:none}}
+  @media (prefers-reduced-motion:reduce){.firehere.pop .fhfire{animation:none}}
   /* 🎥 the tank cam: your tank, when zooming in has left it off screen */
   .tankcam{position:absolute;left:8px;bottom:8px;z-index:3;width:min(36%,230px);padding:0;border:2px solid var(--c,#FFC857);border-radius:10px;overflow:hidden;background:#0E0C22;box-shadow:0 4px 14px #0009;cursor:pointer}
   .tankcam[hidden]{display:none}
@@ -232,7 +239,8 @@
     #play.fs-on #dropRow label{display:none}
     #play.fs-on #dropRow .step{width:36px;height:36px}
     #play.fs-on #dropRow[hidden]{display:none}
-    #play.fs-on #packMini{right:calc(8px + env(safe-area-inset-right,0px));bottom:150px;max-height:calc(100dvh - 210px);overflow-y:auto;padding:8px 10px 4px 5px}
+    #play.fs-on .aimbar,#play.fs-on #fire{display:none}   /* the Fire under your finger has them (052) */
+    #play.fs-on #packMini{right:calc(8px + env(safe-area-inset-right,0px));bottom:52px;max-height:calc(100dvh - 112px);overflow-y:auto;padding:8px 10px 4px 5px}
     #play.fs-on #packMini:empty{display:none}
     #play.fs-on #packMini .packmini,#play.fs-on #packMini > *{flex-direction:column!important;flex-wrap:nowrap!important}
     #play.fs-on #dodge{left:calc(8px + env(safe-area-inset-left,0px));bottom:8px;width:min(46%,330px)}
@@ -258,7 +266,14 @@
   <div id="play">
   <div class="stage">
     <canvas id="cv" width="1600" height="880" aria-label="Artillery battlefield"></canvas>
-    <button type="button" class="firehere" id="fireHere" hidden aria-label="Fire">🔥<b>FIRE</b></button>
+    <div class="firehere" id="fireHere" hidden role="group" aria-label="Fire and fine-tune">
+      <button type="button" class="fhfire" id="fireHereBtn" aria-label="Fire">🔥<b>FIRE</b></button>
+      <button type="button" class="fhn fh-au" data-step="angle" data-d="1" aria-label="Aim higher">⤴</button>
+      <button type="button" class="fhn fh-ad" data-step="angle" data-d="-1" aria-label="Aim lower">⤵</button>
+      <button type="button" class="fhn fh-pu" data-step="power" data-d="1" aria-label="More power">+</button>
+      <button type="button" class="fhn fh-pd" data-step="power" data-d="-1" aria-label="Less power">−</button>
+      <span class="fhread" id="fhRead" aria-live="off"></span>
+    </div>
     <button type="button" class="tankcam" id="tankCam" hidden aria-label="Your tank is off screen: tap to look at it"><canvas id="tankCamCv" width="460" height="253"></canvas><span class="tchp" id="tankCamHp"><i></i><span>🎥 You</span><b></b></span></button>
     <div class="cambar" id="camBar" hidden role="group" aria-label="Zoom">
       <button type="button" data-cam="in" aria-label="Zoom in">＋</button><button type="button" data-cam="out" aria-label="Zoom out">－</button><button type="button" data-cam="me" aria-label="Look at your tank">🎯</button><button type="button" data-cam="fit" aria-label="Show the whole battlefield">⤢</button>

@@ -332,6 +332,13 @@ username. A new account only becomes a robot once it's in `public.bots`.
   ends over the battlefield pops a round Fire button under the finger/pointer (clamped inside the
   stage; a pull let go on the portrait panel shows none: its Fire is right there). New pull, firing or
   losing the turn hides it. Tests that click `#fire` still work.
+- **The Fire cluster** (`#fireHere` in duel.html; `fhPlace`/`fhTick` in duel.js): the pop-up Fire is
+  see-through and carries the fine-tune buttons (⤴⤵ left, −+ right, `data-step` so the usual hold-to-
+  repeat binding picks them up) with the aim under it. In landscape full screen it replaces the corner
+  Fire and nudger (both `display:none` there; `#fire` stays in the DOM and `fireHere` calls its
+  onclick): `fhTick` keeps it up on your shot, where the last pull ended (bottom right, left of the
+  backpack, to start). A pull that starts on the cluster turns into a normal pull after 12 px (undoing
+  the nudge the press made); its buttons are `touch-action:none` so the browser doesn't scroll it away.
 - **Tanks stand out**: dark outline, own-colour glow, top highlight, and a name tag ("You" for yours,
   💀 when out) sized by √(W/800). The aiming arrow sits above the tag. In landscape full screen the 1×
   view also shows a strip below the ground's bottom (`camClamp`, up to 60 world px; the ground fill

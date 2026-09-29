@@ -443,7 +443,7 @@ function drawHint(t) {
   }
   ctx.globalAlpha = 1; ctx.shadowBlur = 0;
 }
-function loop(t) { particles.forEach((q) => { q.x += q.vx; q.y += q.vy; q.vy += 0.12; q.life -= 0.018; }); particles = particles.filter((q) => q.life > 0); draw(t); drawTankCam(t); if (!fh.hidden && !canAim()) fireHereHide(); requestAnimationFrame(loop); }
+function loop(t) { particles.forEach((q) => { q.x += q.vx; q.y += q.vy; q.vy += 0.12; q.life -= 0.018; }); particles = particles.filter((q) => q.life > 0); draw(t); drawTankCam(t); fhTick(); requestAnimationFrame(loop); }
 // 🎥 The tank cam: zoomed in with your own tank off screen, a small window in the corner keeps it in
 // view: the same scene drawn again with a camera on your tank (so its barrel, the aim guide, shells
 // and blasts all show), your HP under it, and a red flash with the damage when you're hit. Tap it
@@ -1221,20 +1221,61 @@ ctl.addEventListener('pointerdown', (e) => {
 });
 ctl.addEventListener('pointermove', (e) => { if (sling && canAim()) slingMove(e); });
 ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => ctl.addEventListener(ev, (e) => { if (ev === 'pointerup' && sling?.aimed) fireHereShow(e); sling = null; drag = null; aimBefore = null; }));
-// 🔥 Fire where you let go: after a pull that aimed, a round Fire button pops up right under your
-// finger (or pointer), so the shot is one more tap in the same spot. It goes away on a new pull,
-// when you fire, or when it's no longer your shot.
+// 🔥 Fire where you let go: after a pull that aimed, a see-through Fire pops up right under your
+// finger (or pointer), with the fine-tune buttons round it, so the shot is one more tap in the same
+// spot. A new pull, firing, or the shot passing hides it. In landscape full screen it's the only Fire
+// (the corner Fire and nudger are gone): it stays up on your shot, where your last pull ended (or
+// bottom right to begin with).
 const fh = $('fireHere');
+let fhAt = null;
+const fsOverlay = () => $('play').classList.contains('fs-on') && matchMedia('(orientation: landscape) and (max-height: 520px)').matches;
+function fhPlace(x, y) {   // x, y inside the stage; kept whole on screen
+  const r = document.querySelector('.stage').getBoundingClientRect();
+  x = Math.max(80, Math.min(r.width - 80, x)); y = Math.max(68, Math.min(r.height - 68, y));
+  fh.style.left = `${x}px`; fh.style.top = `${y}px`; fhAt = { x, y };
+  const was = fh.hidden; fh.hidden = false; if (was) { fh.classList.remove('pop'); void fh.offsetWidth; fh.classList.add('pop'); }
+}
 function fireHereShow(e) {
   if (!canAim()) return;
-  const r = document.querySelector('.stage').getBoundingClientRect(), half = 38;
+  const r = document.querySelector('.stage').getBoundingClientRect();
   if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;   // let go on the panel below: its Fire is right there
-  fh.style.left = `${Math.max(half, Math.min(r.width - half, e.clientX - r.left))}px`;
-  fh.style.top = `${Math.max(half, Math.min(r.height - half, e.clientY - r.top))}px`;
-  fh.hidden = false; fh.classList.remove('pop'); void fh.offsetWidth; fh.classList.add('pop');
+  fhPlace(e.clientX - r.left, e.clientY - r.top);
 }
 function fireHereHide() { fh.hidden = true; }
-fh.addEventListener('click', (e) => { e.stopPropagation(); fireHereHide(); $('fire').onclick(); });
+function fhTick() {
+  if (!canAim()) { if (!fh.hidden) fireHereHide(); return; }
+  if (fh.hidden && fsOverlay() && !sling && !pinch && touches.size === 0) {
+    const r = document.querySelector('.stage').getBoundingClientRect();
+    fhPlace(fhAt?.x ?? r.width - 175, fhAt?.y ?? r.height - 100);   // left of the backpack column, clear of the shot clock
+  }
+  if (!fh.hidden) { const t = `🎯 ${$('angleOut').textContent} · ⚡ ${$('powerOut').textContent}`; if ($('fhRead').textContent !== t) $('fhRead').textContent = t; }
+}
+$('fireHereBtn').addEventListener('click', (e) => { e.stopPropagation(); if (Date.now() < fhNoClick) return; fireHereHide(); $('fire').onclick(); });
+// A pull that starts on the cluster is still a pull: once the finger moves 12 px it lets go of the
+// button (undoing a nudge the press made) and aims like a pull anywhere else.
+let fhDrag = null, fhNoClick = 0;
+fh.addEventListener('pointerdown', (e) => {
+  if (!canAim() || droneOn() || e.button > 0) return;
+  fhDrag = { id: e.pointerId, x: e.clientX, y: e.clientY, on: false, aimed: false, target: e.target, angle: +$('angle').value, power: +$('power').value };
+}, true);
+addEventListener('pointermove', (e) => {
+  if (!fhDrag || e.pointerId !== fhDrag.id) return;
+  if (!fhDrag.on) {
+    if (Math.hypot(e.clientX - fhDrag.x, e.clientY - fhDrag.y) < 12 || !canAim()) return;
+    fhDrag.on = true;
+    fhDrag.target.dispatchEvent(new PointerEvent('pointercancel', { pointerId: e.pointerId, bubbles: true }));   // stop a held nudge
+    setAim(fhDrag.angle, fhDrag.power);   // and undo the one the press made
+    aimBefore = { angle: fhDrag.angle, power: fhDrag.power };
+    slingStart({ clientX: fhDrag.x, clientY: fhDrag.y });
+  }
+  if (sling) { slingMove(e); fhDrag.aimed = fhDrag.aimed || !!sling.aimed; }
+});
+['pointerup', 'pointercancel'].forEach((ev) => addEventListener(ev, (e) => {
+  if (!fhDrag || e.pointerId !== fhDrag.id || !e.isTrusted) return;   // (not the cancel we sent the nudge button)
+  if (ev === 'pointerup' && fhDrag.on) { fhNoClick = Date.now() + 80; if (fhDrag.aimed) fireHereShow(e); }
+  if (fhDrag.on) { sling = null; drag = null; aimBefore = null; }
+  fhDrag = null;
+}));
 
 // Drag on the battlefield to aim: the direction from your tank sets the angle and the
 // distance sets the power. The aim hint follows your finger.
