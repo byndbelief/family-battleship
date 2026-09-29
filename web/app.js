@@ -189,12 +189,48 @@ function quake(red) {
 const cellEl = (owner, i) => app.querySelector(`[data-o="${isShared() ? OCEAN : owner}"][data-i="${i}"]`);
 const centerOf = (el) => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
 
+// Your own shells leave the moment you fire (launchShell), before the server has answered; when the
+// shot comes back from it, the result is revealed where that shell landed (or lands), with no second
+// flight. launched: board square → when its shell arrives.
+const launched = new Map();
+const shotKey = (s) => (MODES[G.game.mode].shared ? `o|${s.cell}` : `${s.target}|${s.cell}`);
+function launchShell(owner, cell) {
+  const key = owner === OCEAN ? `o|${cell}` : `${owner}|${cell}`, el = cellEl(owner, cell);
+  sfx('cannon', { dur: 0.5 });
+  if (reduceMotion || !el) { launched.set(key, Date.now()); return; }
+  const [x, y] = centerOf(el);
+  launched.set(key, Date.now() + 520);
+  fx.shell(x + (Math.random() - 0.5) * 120, innerHeight + 20, x, y, () => { const e = cellEl(owner, cell); if (e && launched.has(key)) e.classList.add('landing'); });
+}
+const unlaunch = (owner, cells) => cells.forEach((c) => { launched.delete(owner === OCEAN ? `o|${c}` : `${owner}|${c}`); cellEl(owner, c)?.classList.remove('landing'); });
+// What a shot did, shown where it landed: the splash or the blast, the sinking.
+function revealShot(s) {
+  const { game } = G;
+  pending.delete(s.id);
+  renderGame();
+  const el2 = cellEl(s.target, s.cell);
+  if (!el2) return;
+  const [x, y] = centerOf(el2), incoming = s.target === me.id;
+  el2.classList.add('land');
+  if (s.hit) { fx.explode(x, y, s.sunk_ship != null ? 1.6 : 1); sfx('boom', { size: s.sunk_ship != null ? 1.6 : 0.8 }); if (incoming) quake(true); } else { fx.splash(x, y); sfx('splash'); }
+  if (s.sunk_ship != null) {
+    (s.sunk_cells || []).forEach((c, j) => setTimeout(() => { const e = cellEl(s.target, c); if (e) { const [cx, cy] = centerOf(e); fx.explode(cx, cy, 0.7); } }, 120 * j));
+    const ship = shipName(game.mode, s.sunk_ship);
+    if (incoming) stamp(`Your ${ship}<br>is sunk!`, 'red');
+    else if (s.shooter === me.id) stamp(`Sunk!<br><small style="font-size:.45em">${ship}</small>`);
+    else stamp(`${ship} sunk!`, 'blue', 1800);
+  }
+}
 // Flies a shell at each new shot, then reveals the result where it lands.
 function animateShots(newShots) {
   const { game } = G;
-  if (reduceMotion || !newShots.length) { newShots.forEach((s) => pending.delete(s.id)); if (newShots.length) renderGame(); return; }
-  const byMove = newShots.reduce((m, s) => ((m[s.move] ||= []).push(s), m), {});
+  // Shells you already launched: just the result, as soon as each has arrived.
   let delay = 0;
+  const flown = newShots.filter((s) => launched.has(shotKey(s)));
+  flown.forEach((s) => { const at = launched.get(shotKey(s)), wait = Math.max(0, at - Date.now()); launched.delete(shotKey(s)); delay = Math.max(delay, wait + 150); setTimeout(() => revealShot(s), wait); });
+  newShots = newShots.filter((s) => !flown.includes(s));
+  if (reduceMotion || !newShots.length) { newShots.forEach((s) => pending.delete(s.id)); if (newShots.length) renderGame(); return delay; }
+  const byMove = newShots.reduce((m, s) => ((m[s.move] ||= []).push(s), m), {});
   // Bring the impact into view first.
   const first = cellEl(newShots[0].target, newShots[0].cell);
   if (first) { const r = first.getBoundingClientRect(); if (r.top < 60 || r.bottom > innerHeight - 90) { first.scrollIntoView({ block: 'center', behavior: 'smooth' }); delay = 450; } }
@@ -210,20 +246,7 @@ function animateShots(newShots) {
         const incoming = s.target === me.id;
         const fromX = x + (Math.random() - 0.5) * 120, fromY = incoming ? -20 : innerHeight + 20;
         sfx(incoming ? 'whistle' : 'cannon', { dur: 0.5 });
-        fx.shell(fromX, fromY, x, y, () => {
-          pending.delete(s.id);
-          renderGame();
-          const el2 = cellEl(s.target, s.cell);
-          if (el2) { el2.classList.add('land'); }
-          if (s.hit) { fx.explode(x, y, s.sunk_ship != null ? 1.6 : 1); sfx('boom', { size: s.sunk_ship != null ? 1.6 : 0.8 }); if (incoming) quake(true); } else { fx.splash(x, y); sfx('splash'); }
-          if (s.sunk_ship != null) {
-            (s.sunk_cells || []).forEach((c, j) => setTimeout(() => { const e = cellEl(s.target, c); if (e) { const [cx, cy] = centerOf(e); fx.explode(cx, cy, 0.7); } }, 120 * j));
-            const ship = shipName(game.mode, s.sunk_ship);
-            if (incoming) stamp(`Your ${ship}<br>is sunk!`, 'red');
-            else if (s.shooter === me.id) stamp(`Sunk!<br><small style="font-size:.45em">${ship}</small>`);
-            else stamp(`${ship} sunk!`, 'blue', 1800);
-          }
-        });
+        fx.shell(fromX, fromY, x, y, () => revealShot(s));
       }, delay + k * 260);
     });
     delay += batch.length * 260 + 700;
@@ -1076,17 +1099,19 @@ async function openGame(id) {
 }
 
 async function loadGame(id) {
-  const [{ data: game }, { data: shots }, { data: fleets }, cheatsRes, accRes, modRes] = await Promise.all([
+  // One round trip: everything at once (the players' themes come by the game's id, not its player list).
+  const [{ data: game }, { data: shots }, { data: fleets }, cheatsRes, accRes, modRes, { data: sonars }, pack, themeRes] = await Promise.all([
     sb.from('games').select('*').eq('id', id).maybeSingle(),
     sb.from('shots').select('*').eq('game_id', id).order('id'),
     sb.from('fleets').select('*').eq('game_id', id),
     sb.from('cheats').select('*').eq('game_id', id).order('id'),
     sb.from('accusations').select('*').eq('game_id', id).order('move'),
     sb.from('player_mods').select('*').eq('game_id', id),
+    sb.from('loot').select('*').eq('used_game', id).eq('item', 'sonar'), backpack(),
+    G?.game.id === id && G.themes ? { data: null } : sb.from('games').select('players').eq('id', id).maybeSingle().then(async (r) => r.data ? sb.from('profiles').select('id, bs_theme').in('id', r.data.players) : { data: [] }),
   ]);
   if (!game) return false;
-  const [{ data: sonars }, pack, { data: themeRows }] = await Promise.all([sb.from('loot').select('*').eq('used_game', id).eq('item', 'sonar'), backpack(),
-    sb.from('profiles').select('id, bs_theme').in('id', game.players)]);
+  const themeRows = themeRes.data ?? Object.entries(G.themes).map(([id, bs_theme]) => ({ id, bs_theme }));
   const same = G?.game.id === id;
   const prevMove = same ? G.game.move : null;
   const prevStatus = same ? G.game.status : null, prevTurnMine = same ? G.game.status === 'playing' && G.game.players[G.game.turn] === me.id : null;
@@ -1412,9 +1437,11 @@ function renderGame() {
   const fire = document.getElementById('fire');
   if (fire) fire.onclick = async () => {
     busy = true; fire.disabled = true;
-    const { error } = await sb.rpc('fire', { p_game: game.id, p_target: aims.target === OCEAN ? null : aims.target, p_cells: [...aims.cells] });
+    const owner = aims.target, cells = [...aims.cells];
+    cells.forEach((c, k) => setTimeout(() => launchShell(owner, c), k * 120));   // away now; the server tells us what they hit
+    const { error } = await sb.rpc('fire', { p_game: game.id, p_target: aims.target === OCEAN ? null : aims.target, p_cells: cells });
     busy = false;
-    if (error) { const el = document.getElementById('fireerr'); el.hidden = false; el.textContent = friendly(error); if (isPhone()) note(friendly(error), 'error'); fire.disabled = false; return; }
+    if (error) { unlaunch(owner, cells); const el = document.getElementById('fireerr'); el.hidden = false; el.textContent = friendly(error); if (isPhone()) note(friendly(error), 'error'); fire.disabled = false; return; }
     aims = { target: null, cells: new Set() };
     notify(game.id);
     await loadGame(game.id);
@@ -1458,7 +1485,7 @@ setInterval(async () => {
 }, 600);
 // Themes (027): a new pick in Settings redraws the boards. And somewhere on every board there's a
 // way to meet the UFO fleet (tap the empty corner five times, quickly). Nobody is told.
-addEventListener('bstheme', async () => { if (G?.game) { await loadGame(G.game.id); renderGame(); } });
+addEventListener('bstheme', async () => { if (G?.game) { G.themes = null; await loadGame(G.game.id); renderGame(); } });   // themes are cached between loads
 let eggTaps = [];
 document.addEventListener('click', async (e) => {
   if (!e.target.closest?.('[data-egg]')) return;
@@ -1479,8 +1506,10 @@ async function liveFire(target, cell, el) {
   bsShots.push(Date.now());
   el.classList.add('aim'); navigator.vibrate?.(30);
   if (bar) bar.innerHTML = bsGunsText();
+  launchShell(target, cell);   // away now; the server tells us what it hit
   const { error } = await sb.rpc('fire_live', { p_game: G.game.id, p_target: target === OCEAN ? null : target, p_cell: cell });
   if (error) {
+    unlaunch(target, [cell]);
     note(/nobody has fired at yet/.test(error.message || '') ? 'Too slow! Someone just hit that square.' : friendly(error), 'error'); el.classList.remove('aim');
     if (/Still reloading/.test(error.message || '')) { bsShots.pop(); bsShots = [...bsShots, Date.now() - BS_WINDOW + 500]; }   // the server says not yet: wait a moment
     if (/live battle is over/i.test(error.message || '')) liveBS = false;

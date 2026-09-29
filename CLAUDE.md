@@ -550,3 +550,11 @@ SQL, apply it locally twice (it must be re-runnable).
 - Per-device conveniences (mute, remembered aim, seen replays) use `localStorage` wrapped
   in try/catch; anything shared lives in the database.
 - Write user-facing copy for kids and a busy parent: short, plain, a little playful.
+
+### Battleship: your shells leave at once
+`launchShell(owner, cell)` (app.js) flies your shell the moment you press Fire (or tap in a live
+battle), before the server answers; `launched` remembers each square and when its shell lands. When
+the shot comes back in a load, `animateShots` reveals it (`revealShot`) as soon as that shell has
+arrived, with no second flight; other players' shots fly as before. An error un-launches them.
+`loadGame` is one round trip now (the fleets' themes are cached in `G.themes` between loads of the same
+game; the `bstheme` event clears it). Locally: Fire to first result 3.1 s → 0.55 s.

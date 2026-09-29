@@ -84,6 +84,9 @@ button.cell:hover { background: var(--water-2); }
 .cell.ship { background: var(--ship); }
 .cell.miss::after { content: ""; width: 28%; height: 28%; border-radius: 50%; background: var(--miss); box-shadow: 0 0 0 1.5px var(--line); }
 .cell.hit { background: var(--hit-soft); }
+/* a shell of yours that has landed, while the server says what it hit */
+.board .cell.landing { box-shadow: inset 0 0 0 3px #FFE08A !important; animation: landing .5s ease-in-out infinite alternate !important; }
+@keyframes landing { from { background-color: #FFE08A22; } to { background-color: #FFE08A66; } }
 .board .cell.fog { background: radial-gradient(circle at 50% 55%, #F4F7FAEE 35%, #DCE4EBAA 75%) !important; }
 .cell.fog::after { content: "?"; font-weight: 800; font-size: 11px; color: #5A6B7B; }
 .cell.ship.hit { background: var(--ship); }
