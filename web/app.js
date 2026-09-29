@@ -1067,7 +1067,7 @@ async function openGame(id) {
   bsPresence = livePresence('battleship', id, (v) => {
     liveBS = v; aims = { target: null, cells: new Set() }; peekMode = false; if (v) bsLiveSince = Date.now();
     if (G?.game.status !== 'playing') return renderGame();
-    if (v) { stopShotClock(); splash(['⚔️ LIVE BATTLE', G.game.players.some((p) => bots.has(p)) ? 'You vs the robot' : "Everyone's here", 'No turns. Fire at will!'], { tone: 'red', ms: 2200 }); }
+    if (v) { stopShotClock(); splash(['⚔️ LIVE BATTLE', G.game.players.some((p) => bots.has(p)) ? 'You vs the robot' : "Everyone's here", 'No turns. Fire at will!'], { tone: 'red', ms: 1400, passThrough: true }); }
     else { bsShots = []; note('Live battle over: back to taking turns.'); }
     renderGame();
   });

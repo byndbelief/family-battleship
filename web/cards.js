@@ -333,7 +333,7 @@ let refreshNow = async () => {};
   // Live mode: while everyone at the table has the page open, TURN_S seconds a turn.
   livePresence('cards', id, (v) => {
     liveOn = v;
-    if (v && G.game.status === 'playing') splash(['⚡ LIVE TABLE', G.game.players.filter((p) => !isBot(p)).length > 1 ? "Everyone's here" : 'You vs the robot', `${TURN_S} seconds a turn!`], { tone: 'gold', ms: 1800 });
+    if (v && G.game.status === 'playing') splash(['⚡ LIVE TABLE', G.game.players.filter((p) => !isBot(p)).length > 1 ? "Everyone's here" : 'You vs the robot', `${TURN_S} seconds a turn!`], { tone: 'gold', ms: 1400, passThrough: true });
     else if (!v && G.game.status === 'playing') note('Live table over: take your time again.');
     render();
   });

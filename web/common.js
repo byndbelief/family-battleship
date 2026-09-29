@@ -526,7 +526,7 @@ export function note(text, tone = '') {
   while (box.children.length >= 2) box.firstChild.remove();
   const n = document.createElement('div');
   const bg = tone === 'error' ? '#8E1F1Af2' : '#141026ee';
-  n.style.cssText = `pointer-events:auto;padding:9px 14px;border-radius:12px;background:${bg};color:#fff;font:600 14px/1.35 system-ui,sans-serif;box-shadow:0 8px 20px #0007;text-align:center;opacity:0;transform:translateY(-8px);transition:opacity .2s,transform .2s`;
+  n.style.cssText = `pointer-events:${onGamePage() ? 'none' : 'auto'};padding:9px 14px;border-radius:12px;background:${bg};color:#fff;font:600 14px/1.35 system-ui,sans-serif;box-shadow:0 8px 20px #0007;text-align:center;opacity:0;transform:translateY(-8px);transition:opacity .2s,transform .2s`;
   n.textContent = text; n.onclick = () => n.remove();
   box.appendChild(n);
   requestAnimationFrame(() => { n.style.opacity = '1'; n.style.transform = 'none'; });
@@ -537,10 +537,11 @@ export function note(text, tone = '') {
 }
 // Turns a line of page text (like a tip or an error) into quick notes on phones and in full screen:
 // the line is hidden there, and each new message it shows pops up instead.
-export function noteMirror(el, tone = '') {
+// skip(): true when this change shouldn't pop up (a live race keeps the course clear while you putt).
+export function noteMirror(el, tone = '', skip = null) {
   if (!el) return;
   el.classList.add('noteline');
-  new MutationObserver(() => { if (isPhone() || document.querySelector('.fs-on')) note(el.textContent, tone); })
+  new MutationObserver(() => { if ((isPhone() || document.querySelector('.fs-on')) && !skip?.()) note(el.textContent, tone); })
     .observe(el, { childList: true, characterData: true, subtree: true });
 }
 const foldCss = document.createElement('style');
@@ -739,10 +740,11 @@ document.head.appendChild(gtCss);
 // ---------------------------------------------------------------- drama
 // A full-screen moment: big lines slam in over a dark flash ("ROUND 3", "K.O.!"), then clear.
 // Tap to skip. Reduced motion keeps the words and drops the slam.
-export function splash(lines, { tone = 'gold', ms = 2200, sound = 'stinger' } = {}) {
+// passThrough: touches go through to the game under it (a live race or battle is already on).
+export function splash(lines, { tone = 'gold', ms = 2200, sound = 'stinger', passThrough = false } = {}) {
   if (!dramaOn()) { note(lines.map((l) => String(l).replace(/<[^>]+>/g, '')).join(' · '), tone === 'red' ? 'error' : ''); return; }   // Big moments off: a quick note instead
   document.getElementById('dramaSplash')?.remove();
-  const el = document.createElement('div'); el.id = 'dramaSplash'; el.className = `drama drama-${tone}`;
+  const el = document.createElement('div'); el.id = 'dramaSplash'; el.className = `drama drama-${tone}${passThrough ? ' pass' : ''}`;
   el.setAttribute('role', 'status');
   el.innerHTML = lines.map((l, i) => `<span class="dl dl${i}" style="animation-delay:${i * 180}ms">${l}</span>`).join('');
   el.onclick = () => el.remove();
@@ -778,6 +780,7 @@ dramaCss.textContent = `
   .drama{position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:16px;text-align:center;
     background:radial-gradient(circle at 50% 50%,#000a,#000e 70%);cursor:pointer;overflow:hidden;animation:dramaIn .2s ease-out both}
   .drama.out{opacity:0;transition:opacity .3s}
+  .drama.pass{pointer-events:none;background:radial-gradient(circle at 50% 50%,#0006,#0000 75%)}
   .drama .dl{display:block;font-family:"Bungee","Rubik Mono One","Arial Black",Impact,sans-serif;line-height:1;color:#FFE08A;-webkit-text-stroke:2px #3A1D00;paint-order:stroke fill;
     text-shadow:0 5px 0 #3A1D00,0 0 36px #F2C230;animation:dramaSlam .5s cubic-bezier(.2,1.6,.4,1) both}
   .drama .dl0{font-size:clamp(20px,6vw,34px);letter-spacing:.2em;color:#fff}

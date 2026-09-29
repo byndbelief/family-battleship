@@ -123,6 +123,10 @@ username. A new account only becomes a robot once it's in `public.bots`.
   back. In a game (`onGamePage()`) chaos news (loot, curses, twists) does *not* toast: it collects
   in the toolbar's 🔔 (badge + one tick sound; tap for the list), unless the `gamePopups` Setting
   (default off) asks for pop-ups. In-game `note()`s are smaller and shorter; errors keep full size.
+  **Nothing may block a live game on a phone**: "Live!" splashes use `splash(…, { passThrough: true })`
+  (touches go through, 1.4 s); notes on game pages are `pointer-events:none`; golf's `noteMirror`
+  skips tip changes while you aim or roll in a live race; a sneak attack at tee-off in a live race
+  lands without its "Bring it on" box (and a race starting with that box open closes it).
   Grid children holding the scrolling backpack row need `min-width:0`, or the row widens the page
   past a phone's width (duel.html `.controls`).
   Pages call `setGameTools({ fs, canDelete, onDelete })` on render (onDelete returns an error

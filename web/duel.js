@@ -666,7 +666,7 @@ function setLive(v) {
     stopShotClock();
     const vsBot = G?.game.players.some(isBot);
     if (vsBot) G.game.players.forEach((p, k) => { if (isBot(p)) botReloadAt[k] = Date.now() + 4000 + k * 400; });   // a few seconds' grace before the robots open fire
-    splash(['⚔️ LIVE BATTLE', vsBot && !multi() ? 'You vs the robot' : multi() ? "Everyone's here" : "You're both here", 'No turns. Fire at will!'], { tone: 'red', ms: 2200 });
+    splash(['⚔️ LIVE BATTLE', vsBot && !multi() ? 'You vs the robot' : multi() ? "Everyone's here" : "You're both here", 'No turns. Fire at will!'], { tone: 'red', ms: 1400, passThrough: true });
   } else {
     reloadAt = 0; showReload();
     if (G?.game.status === 'playing') note('Live battle over: back to taking turns.');

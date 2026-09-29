@@ -311,9 +311,10 @@ function setLive(v) {
   if (G.game.status !== 'playing') return;
   if (v) {
     stopShotClock();
-    splash(['⛳ LIVE RACE', "Everyone's here", 'Same hole, same time. Go!'], { tone: 'gold', ms: 2200 });
+    splash(['⛳ LIVE RACE', "Everyone's here", 'Same hole, same time. Go!'], { tone: 'gold', ms: 1400, passThrough: true });
     if (mode === 'idle' && !flowing) decide();
     else if (mode === 'aim') $('tip').textContent = `⚔️ Live race! Everyone's on hole ${curHole() + 1} at once. Drag back and let go.`;
+    if (mode === 'reveal' && curAttack) { closeModal(); mode = 'aim'; attackFrom = 0; landLiveAttack(); renderCheats(); }   // its box would block the race
   } else {
     note('Live race over: back to taking turns.');
     // Mid-hole when it isn't your turn in order: that hole waits for your turn.
@@ -403,7 +404,8 @@ function startTurn() {
     + (tw.some((x) => x.k === 'cup') ? ' 🚩 Chaos moved the cup!' : '') + (tw.some((x) => x.k === 'gopher') ? ' 🐹 Gophers dug up the fairway: in one hole, out the other.' : '');
   $('send').hidden = true;
   renderCard();
-  if (curAttack) {
+  if (curAttack && liveOn) { attackFrom = 0; landLiveAttack(); }   // live: no box to tap while everyone else races
+  else if (curAttack) {
     const a = ATTACKS[curAttack];
     mode = 'reveal';
     modal(`<div style="font-size:54px;line-height:1">${a.icon}</div><h2 style="color:#FF9A7A">Sneak attack!</h2>
@@ -810,7 +812,7 @@ async function deleteGame() {
   if (!id || !(await load(id))) { $('holeName').textContent = 'Game not found'; $('holeNo').textContent = 'It may have been deleted.'; return; }
   sizeCanvas(); addEventListener('resize', sizeCanvas);
   $('cardFold').open = !isPhone();
-  noteMirror($('tip'));
+  noteMirror($('tip'), '', () => liveOn && ['aim', 'rolling', 'reveal'].includes(mode));   // live: no pop-ups over the course while you putt
   pack = await backpack();
   announceChaos({ gameId: id });
   requestAnimationFrame(loop);
