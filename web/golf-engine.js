@@ -149,7 +149,16 @@ function bladeSegs(sp, clock){
   return out;
 }
 // Advances the ball one tick. Returns null, 'bump', 'wall', 'cup', 'water' or 'stop'.
+// A chipped ball (043) flies CHIP_AIR ticks over everything, then lands at half speed and rolls;
+// landing off the course, in water or in a hedge counts as water (back to where it was hit, +1).
+const CHIP_AIR=20, GOPH_R=7;
 function tick(b, h){
+  if(b.air>0){
+    b.x+=b.vx; b.y+=b.vy; b.clock++; b.ticks++;
+    if(--b.air===0){ b.vx*=0.55; b.vy*=0.55;
+      if(!inPoly(b.x,b.y,h.outline) || h.blocks.some(q=>inRect(b.x,b.y,q)) || h.water.some(q=>inRect(b.x,b.y,q))) return 'water'; }
+    return null;
+  }
   let ev=null;
   const blades=h.spinners.flatMap(s=>bladeSegs(s,b.clock));
   const sp=Math.sqrt(b.vx*b.vx+b.vy*b.vy), n=Math.max(1,Math.ceil(sp/2));
@@ -166,6 +175,11 @@ function tick(b, h){
   let sloped=false;
   for(const s of h.slopes) if(inRect(b.x,b.y,s.r)){ b.vx+=s.a[0]; b.vy+=s.a[1]; sloped=true; }
   if(h.water.some(r=>inRect(b.x,b.y,r))) return 'water';
+  // Gopher holes (043) come in pairs: in one, out of the other at 70% speed, heading the same way.
+  if(b.gcool>0) b.gcool--;
+  else if(h.gophers) for(let i=0;i<h.gophers.length;i++){ const [gx,gy]=h.gophers[i];
+    if((b.x-gx)*(b.x-gx)+(b.y-gy)*(b.y-gy)<GOPH_R*GOPH_R){ const [ox,oy]=h.gophers[i^1], sp=Math.sqrt(b.vx*b.vx+b.vy*b.vy)||1;
+      b.vx*=0.7; b.vy*=0.7; b.x=ox+b.vx/sp*(GOPH_R+R+1); b.y=oy+b.vy/sp*(GOPH_R+R+1); b.gcool=12; return 'gopher'; } }
   const cx=b.x-h.cup[0], cy=b.y-h.cup[1], s2=Math.sqrt(b.vx*b.vx+b.vy*b.vy);
   const cr=h.cupR||CUP_R; if(cx*cx+cy*cy<cr*cr && s2<(h.cupSpeed||5.5)) return 'cup';
   if(s2<0.06){ b.still=(b.still||0)+1; if(!sloped || b.still>40) return 'stop'; } else b.still=0;
@@ -192,7 +206,49 @@ function scaleHole(h, s){
   return {...h, outline:h.outline.map(P), tee:P(h.tee), cup:P(h.cup), segs:h.segs.map(([a,b,c,d])=>[a*s,b*s,c*s,d*s]),
     blocks:h.blocks.map(Rc), sand:h.sand.map(Rc), water:h.water.map(Rc), bumpers:h.bumpers.map(([x,y,r])=>[x*s,y*s,r*s]),
     slopes:h.slopes.map(sl=>({...sl, r:Rc(sl.r), a:[sl.a[0]*s, sl.a[1]*s]})), spinners:h.spinners.map(([x,y,len,n,turn])=>[x*s,y*s,len*s,n,turn]),
-    wind:h.wind?[h.wind[0]*s,h.wind[1]*s]:h.wind, cupSpeed:(h.cupSpeed||5.5)*s, scale:s};
+    wind:h.wind?[h.wind[0]*s,h.wind[1]*s]:h.wind, cupSpeed:(h.cupSpeed||5.5)*s, scale:s, gophers:h.gophers?.map(P)};
+}
+// ================================================================= chaos twists on a hole (043)
+// golf_games.twists = { "<hole>": [{ k: 'cup' | 'gopher', s: seed, t: from turn }] }. The ones with
+// t <= the turn being played apply in order, placed in the base course (so reachable() can check
+// them) by the same seeded search on every device, then scaled like the rest of the hole.
+//   cup:    the cup moves to a clear spot at least 140 from the tee that can still be reached
+//   gopher: a pair of holes on the fairway, linked underground (see tick)
+const twistsFor=(all, hi, t)=>((all||{})[hi]||[]).filter(tw=>tw.t<=t);
+function spotFor(h, r, avoid){
+  const xs=h.outline.map(p=>p[0]), ys=h.outline.map(p=>p[1]), x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys), y1=Math.max(...ys);
+  for(let k=0;k<80;k++){
+    const x=Math.round(x0+20+r()*(x1-x0-40)), y=Math.round(y0+20+r()*(y1-y0-40));
+    if(!inPoly(x,y,h.outline) || h.segs.some(sg=>segDist(x,y,sg)<18)) continue;
+    if([...h.water,...h.sand,...h.slopes.map(sl=>sl.r)].some(q=>inRect(x,y,[q[0]-12,q[1]-12,q[2]+24,q[3]+24]))) continue;
+    if(h.bumpers.some(([bx,by,br])=>Math.hypot(x-bx,y-by)<br+18) || h.spinners.some(([sx,sy,len])=>Math.hypot(x-sx,y-sy)<len+14)) continue;
+    if(avoid.some(([ax,ay,d])=>Math.hypot(x-ax,y-ay)<d)) continue;
+    return [x,y];
+  }
+  return null;
+}
+function twistHole(base, list){
+  let h={...base, gophers:[...(base.gophers||[])]};
+  for(const tw of list){
+    const r=rng((tw.s>>>0)||1), dug=h.gophers.map(g=>[g[0],g[1],40]);
+    if(tw.k==='cup'){
+      for(let i=0;i<8;i++){ const p=spotFor(h,r,[[h.tee[0],h.tee[1],140],[h.cup[0],h.cup[1],70],...dug]); if(!p) break;
+        const trial={...h,cup:p}; if(reachable(trial)){ h=trial; break; } }
+    } else if(tw.k==='gopher'){
+      const avoid=[[h.tee[0],h.tee[1],50],[h.cup[0],h.cup[1],50],...dug];
+      const a=spotFor(h,r,avoid), b=a&&spotFor(h,r,[...avoid,[a[0],a[1],120]]);
+      if(a&&b) h.gophers=[...h.gophers,a,b];
+    }
+  }
+  return h;
+}
+const twistCache=new Map();
+function holeWithTwists(seed, hi, type, all, t){
+  const list=twistsFor(all, hi, t);
+  if(!list.length) return holeWithAttack(seed, hi, type);
+  const key=seed+':'+hi+':'+type+':'+COURSE+':'+JSON.stringify(list);
+  if(!twistCache.has(key)){ const h=twistHole(holeAt(seed, hi, type), list); twistCache.set(key, COURSE===1?h:scaleHole(h, COURSE)); }
+  return twistCache.get(key);
 }
 function holeWithAttack(seed, hi, type){
   if(COURSE===1) return holeAt(seed, hi, type);
@@ -364,6 +420,13 @@ function drawHole(c, h, t, scene={}){
       c.strokeStyle=nat?'#A8784A':'#E4572E'; c.lineWidth=3; if(!nat) c.setLineDash([8,8]); c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke(); c.setLineDash([]);
     });
   });
+  // gopher holes: a ring of dug-up dirt round a dark hole (and now and then, a gopher)
+  (h.gophers||[]).forEach(([gx,gy],i)=>{
+    c.fillStyle='#7A5230'; c.beginPath(); c.ellipse(gx,gy+1,GOPH_R+5,GOPH_R+3.5,0,0,7); c.fill();
+    c.fillStyle='#A0703F'; for(let k=0;k<6;k++){ const a=k*1.05+i; c.beginPath(); c.arc(gx+Math.cos(a)*(GOPH_R+4),gy+Math.sin(a)*(GOPH_R+3),2,0,7); c.fill(); }
+    c.fillStyle='#1B120B'; c.beginPath(); c.arc(gx,gy,GOPH_R,0,7); c.fill();
+    if(!reduceMotion && Math.sin(t/900+i*2.3)>0.93){ c.font='13px serif'; c.textAlign='center'; c.textBaseline='middle'; c.fillText('🐹',gx,gy-3); }
+  });
   // tee mat
   const [tx,ty]=h.tee;
   if(nat){ c.fillStyle='#8AD86A'; c.fillRect(tx-22,ty-13,44,26); [-14,14].forEach(dx=>{ c.fillStyle='#2A5DB0'; c.beginPath(); c.arc(tx+dx,ty-9,3,0,7); c.fill(); c.fillStyle='#ffffff99'; c.beginPath(); c.arc(tx+dx-1,ty-10,1,0,7); c.fill(); }); }
@@ -392,12 +455,12 @@ function drawHole(c, h, t, scene={}){
   c.globalAlpha=1;
   // ball
   if(scene.ball && !scene.ball.hidden){
-    const {x,y}=scene.ball;
-    c.fillStyle='#0006'; c.beginPath(); c.ellipse(x+2,y+3,R,R*.8,0,0,7); c.fill();
-    const g=c.createRadialGradient(x-2,y-2,1,x,y,R); g.addColorStop(0,'#fff'); g.addColorStop(1,'#D9DDE3');
-    c.fillStyle=g; c.beginPath(); c.arc(x,y,R,0,7); c.fill();
+    const {x}=scene.ball, air=scene.ball.air||0, lift=air>0?Math.sin(Math.PI*(1-air/CHIP_AIR))*28:0, y=scene.ball.y-lift, rr=R*(1+lift/50);
+    c.fillStyle=lift?'#0004':'#0006'; c.beginPath(); c.ellipse(x+2+lift*.3,scene.ball.y+3,R,R*.8,0,0,7); c.fill();   // in the air, the shadow stays on the grass
+    const g=c.createRadialGradient(x-2,y-2,1,x,y,rr); g.addColorStop(0,'#fff'); g.addColorStop(1,'#D9DDE3');
+    c.fillStyle=g; c.beginPath(); c.arc(x,y,rr,0,7); c.fill();
   }
 }
 
 
-export { LW, LH, COURSE, setCourse, HOLES, N_HOLES, rng, inPoly, inRect, segDist, buildHole, reachable, holeFor, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, drawHole, setGolfTheme, COS, SIN };
+export { LW, LH, COURSE, setCourse, HOLES, N_HOLES, rng, inPoly, inRect, segDist, buildHole, reachable, holeFor, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, holeWithTwists, twistsFor, CHIP_AIR, drawHole, setGolfTheme, COS, SIN };

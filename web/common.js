@@ -331,6 +331,7 @@ export const ITEMS = {
   salvo: { icon: '🎆', name: 'Double Salvo', game: 'battleship', desc: 'Fire two extra shots this turn.' },
   golden_tee: { icon: '🏌️', name: 'Golden Tee', game: 'golf', desc: 'One free, honest mulligan this hole.' },
   magnet: { icon: '🧲', name: 'Magnet Cup', game: 'golf', desc: 'A huge, grabby cup for this hole.' },
+  chip: { icon: '⛳', name: 'Chip Shot', game: 'golf', desc: 'Your next putt flies over walls, hedges, bumpers, water and sand, then lands and rolls.' },
   atk_ice: { icon: '🧊', name: 'Ice Rink', game: 'golf', desc: "Sneak attack on everyone else: their green freezes and every putt slides much farther." },
   atk_wind: { icon: '🌬️', name: 'Gusty Wind', game: 'golf', desc: 'Sneak attack on everyone else: a crosswind shoves their ball sideways.' },
   atk_cup: { icon: '🕳️', name: 'Tiny Cup', game: 'golf', desc: 'Sneak attack on everyone else: their cup shrinks and only takes gentle putts.' },

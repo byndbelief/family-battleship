@@ -1,7 +1,7 @@
 // Putt Post, live: turns and scores are saved on the server; putts replay for everyone.
 import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, compactPack, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, dramaOn, face, livePresence, avatarOf, splash, jumpToNext, setGameTools, condenseTop, golfTheme, setGolfThemePref } from './common.js';
 import {
-  LW, LH, COURSE, setCourse, HOLES, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, drawHole,
+  LW, LH, COURSE, setCourse, HOLES, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, holeWithTwists, twistsFor, CHIP_AIR, drawHole,
   inPoly, inRect, segDist, reduceMotion, setGolfTheme,
 } from './golf-engine.js';
 
@@ -38,7 +38,12 @@ const stillPlaying = () => G.game.players.filter((p) => !G.turns.some((x) => x.p
 const curPlayer = () => G.game.players[G.game.t % n()];
 const curHole = () => G.game.start + Math.floor(G.game.t / n());
 const magnetize = (h, on) => (on ? { ...h, cupR: 13, cupSpeed: 7.5 * COURSE } : h);
-const H = () => magnetize(holeWithAttack(G.game.seed, curHole(), curAttack), magnetOn && mode !== 'bot');
+// A hole as it stands for turn t: its sneak attack (if any) and the chaos twists that came before t (043).
+const holeAt = (hi, type, t) => holeWithTwists(G.game.seed, hi, type, G.game.twists, t);
+// My turn's slot: the turn number, or live, my slot on the hole everyone's on.
+const myT = () => (liveOn ? Math.floor(G.game.t / n()) * n() + G.game.players.indexOf(me.id) : G.game.t);
+const H = () => magnetize(holeAt(curHole(), curAttack, myT()), magnetOn && mode !== 'bot');
+let chipNext = false;   // a ⛳ Chip Shot is loaded for the next putt (043)
 const isBot = (id) => bots.has(id);
 const who = (id) => (id === me.id ? 'You' : nm(id));
 const seenKey = () => `golf.seen.${G.game.id}`;
@@ -142,7 +147,7 @@ function celebrate(s, par) {
 // Rolls one stroke from scene.clock; resolves with the result and the ball.
 function roll(stroke, h, speed = 2) {
   return new Promise((done) => {
-    const b = { x: stroke.x, y: stroke.y, vx: stroke.vx, vy: stroke.vy, ticks: 0, clock: scene.clock || 0 };
+    const b = { x: stroke.x, y: stroke.y, vx: stroke.vx, vy: stroke.vy, ticks: 0, clock: scene.clock || 0, air: stroke.chip ? CHIP_AIR : 0 };
     scene.ball = b; scene.trail = []; scene.bumpLit = scene.bumpLit || [];
     const quiet = skipReplay && mode === 'replay';
     if (!quiet) sfx('putt', { power: Math.hypot(b.vx, b.vy) / 8 });
@@ -155,6 +160,7 @@ function roll(stroke, h, speed = 2) {
         const ev = tick(b, h);
         if (!quiet && ev === 'wall' && performance.now() - lastClack > 70) { lastClack = performance.now(); sfx('clack'); }
         if (!quiet && ev === 'bump') sfx('boing');
+        if (!quiet && ev === 'gopher') { sfx('pop'); sfx('boing', { delay: 0.12 }); }
         if (ev !== 'cup' && Math.hypot(b.x - h.cup[0], b.y - h.cup[1]) < (h.cupR || CUP_R)) b.lip = true;   // rolled over the hole and kept going
         if (ev === 'bump') h.bumpers.forEach(([x, y, r], j) => { const dx = b.x - x, dy = b.y - y; if (dx * dx + dy * dy < (r + R + 2) ** 2) scene.bumpLit[j] = performance.now() + 180; });
         if (ev === 'cup' || ev === 'water' || ev === 'stop') {
@@ -178,8 +184,8 @@ function afterStroke(ev, b, h, sx, sy) {
   }
   b.x = q20(b.x); b.y = q20(b.y); b.vx = b.vy = 0; return { holed: false, penalty: 0 };
 }
-const toStroke = ([x, y, vx, vy]) => ({ x, y, vx, vy });
-const fromStroke = (s) => [s.x, s.y, s.vx, s.vy];
+const toStroke = ([x, y, vx, vy, chip]) => ({ x, y, vx, vy, chip: chip === 1 });
+const fromStroke = (s) => (s.chip ? [s.x, s.y, s.vx, s.vy, 1] : [s.x, s.y, s.vx, s.vy]);   // a chip is marked by a 5th number
 
 // ---------------------------------------------------------------- header, scorecard
 function setHud(hole, player, s, replay) {
@@ -259,7 +265,7 @@ async function decide() {
 }
 function waiting(cur) {
   mode = 'idle';
-  scene = { hole: holeWithAttack(G.game.seed, curHole(), 0), fx: [], clock: 0 };
+  scene = { hole: holeAt(curHole(), 0, G.game.t), fx: [], clock: 0 };
   setHud(curHole(), cur, 0, false);
   $('tip').textContent = `Waiting for ${who(cur).replace(/<[^>]+>/g, '')} to play hole ${curHole() + 1}. This page updates when they do.`;
   $('cheats').hidden = true; $('pack').innerHTML = ''; $('packMini').innerHTML = '';
@@ -268,7 +274,7 @@ function waiting(cur) {
 
 function waitingLive() {
   mode = 'idle';
-  scene = { hole: holeWithAttack(G.game.seed, curHole(), 0), fx: [], clock: 0 };
+  scene = { hole: holeAt(curHole(), 0, G.game.t), fx: [], clock: 0 };
   setHud(curHole(), me.id, 0, false);
   const left = stillPlaying().filter((p) => p !== me.id).map((p) => who(p).replace(/<[^>]+>/g, ''));
   $('tip').textContent = `⚔️ Live race: waiting for ${left.join(' & ') || 'the others'} to finish hole ${curHole() + 1}.`;
@@ -321,8 +327,8 @@ function setLive(v) {
 async function replayTurn(tu) {
   flowing = true;
   // Hit mid-hole in a live race (040): the plain hole until the attack's putt.
-  const from = tu.attack ? tu.attack_from || 0 : 0, hA = magnetize(holeWithAttack(G.game.seed, tu.hole, tu.attack), tu.boost === 1);
-  const h0 = from ? magnetize(holeWithAttack(G.game.seed, tu.hole, 0), tu.boost === 1) : hA;
+  const from = tu.attack ? tu.attack_from || 0 : 0, hA = magnetize(holeAt(tu.hole, tu.attack, tu.t), tu.boost === 1);
+  const h0 = from ? magnetize(holeAt(tu.hole, 0, tu.t), tu.boost === 1) : hA;
   let h = h0;
   mode = 'replay'; skipReplay = false; scene = { hole: h, fx: [], clock: 0, ball: { x: h.tee[0], y: h.tee[1] } };
   setHud(tu.hole, tu.player, 0, true);
@@ -391,7 +397,10 @@ function startTurn() {
   mode = 'aim'; scene = { hole: h, fx: [], clock: 0, ball: { x: h.tee[0], y: h.tee[1] } };
   if (n() > 1 && !liveOn) rumour(GOLF_RUMOURS);
   setHud(curHole(), me.id, 0, false);
-  $('tip').textContent = 'Drag back from anywhere on the course, then let go to putt.' + (h.extra ? ' This hole has random obstacles.' : '');
+  chipNext = false;
+  const tw = twistsFor(G.game.twists, curHole(), myT());
+  $('tip').textContent = 'Drag back from anywhere on the course, then let go to putt.' + (h.extra ? ' This hole has random obstacles.' : '')
+    + (tw.some((x) => x.k === 'cup') ? ' 🚩 Chaos moved the cup!' : '') + (tw.some((x) => x.k === 'gopher') ? ' 🐹 Gophers dug up the fairway: in one hole, out the other.' : '');
   $('send').hidden = true;
   renderCard();
   if (curAttack) {
@@ -486,7 +495,8 @@ cv.addEventListener('pointerup', async (e) => {
 });
 async function putt(a) {
   const sp = (0.6 + a.p * 10.4) * COURSE * (curAttack === 5 ? 0.67 : 1);
-  const s = { x: q20(scene.ball.x), y: q20(scene.ball.y), vx: q100(a.dx * sp), vy: q100(a.dy * sp) };
+  const s = { x: q20(scene.ball.x), y: q20(scene.ball.y), vx: q100(a.dx * sp), vy: q100(a.dy * sp), chip: chipNext };
+  if (chipNext) { chipNext = false; sfx('whistle', { dur: 0.35 }); }
   current.push(s); mode = 'rolling'; $('tip').textContent = ''; renderCheats(); renderCard();
   const clockBefore = scene.clock || 0;
   const { ev, b } = await roll(s, H());
@@ -513,12 +523,13 @@ function renderPack() {
   $('packMini').innerHTML = mini ? html : ''; $('pack').innerHTML = mini ? '' : html;
   document.querySelectorAll('#pack [data-loot], #packMini [data-loot]').forEach((b) => {
     const item = b.dataset.item;
-    if ((item === 'magnet' && magnetOn) || (item === 'golden_tee' && !lastStroke)) b.disabled = true;
+    if ((item === 'magnet' && magnetOn) || (item === 'golden_tee' && !lastStroke) || (item === 'chip' && chipNext)) b.disabled = true;
     b.onclick = async () => {
       b.disabled = true;
       const { error } = await useLoot(+b.dataset.loot, G.game.id);
       if (error) { $('tip').textContent = friendly(error); return; }
-      if (ATK_ITEMS[item]) {   // a sneak attack on everyone else
+      if (item === 'chip') { chipNext = true; sfx('pop'); bigText('<span class="small-pop">⛳ Chip shot!</span>', 1400); $('tip').textContent = '⛳ Your next putt is a chip: it flies over walls, hedges, bumpers, water and sand, then lands and rolls.'; }
+      else if (ATK_ITEMS[item]) {   // a sneak attack on everyone else
         const a = ATTACKS[ATK_ITEMS[item]];
         sfx('sneaky'); nudge(); bigText(`<span class="small-pop">${a.icon} ${a.name}!</span>`, 1500);
         $('tip').textContent = liveOn ? `${a.icon} ${a.name} hits everyone else right now (anyone already in the cup gets it next hole).` : `${a.icon} ${a.name} is waiting for everyone else on their next hole.`;
@@ -705,7 +716,8 @@ async function botLiveHole(bot) {
   if (botRowPlaying[bot] === row || G.turns.some((x) => x.player === bot && Math.floor(x.t / n()) === row)) return;
   botRowPlaying[bot] = row;
   const hole = curHole(), lvl = g.bot_level ?? 1, think = [3600, 2600, 2000][lvl];
-  let h = holeWithAttack(g.seed, hole, 0), atk = 0, atkFrom = -1;   // a sneak attack on it lands before its next putt (040)
+  const slot = row * n() + g.players.indexOf(bot);
+  let h = holeWithTwists(g.seed, hole, 0, g.twists, slot), atk = 0, atkFrom = -1;   // a sneak attack on it lands before its next putt (040)
   let ball = { x: h.tee[0], y: h.tee[1] }, clock = 0, count = 0, holed = false;
   const strokes = [], still = () => liveOn && G.game.status === 'playing' && Math.floor(G.game.t / n()) === row;
   ghosts[bot] = { hole, x: ball.x, y: ball.y, at: Date.now() };
@@ -715,7 +727,7 @@ async function botLiveHole(bot) {
     if (!still()) break;
     if (!atk) {
       const { data: a } = await sb.rpc('golf_bot_live_attack', { p_game: g.id, p_bot: bot });
-      if (a?.type) { atk = a.type; atkFrom = strokes.length; h = holeWithAttack(g.seed, hole, atk); }
+      if (a?.type) { atk = a.type; atkFrom = strokes.length; h = holeWithTwists(g.seed, hole, atk, g.twists, slot); }
     }
     const aim = botAimFrom(ball, clock, h, lvl, atk === 5 ? 0.67 : 1), s = { x: q20(ball.x), y: q20(ball.y), vx: aim.vx, vy: aim.vy };
     strokes.push(fromStroke(s));

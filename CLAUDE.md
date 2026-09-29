@@ -262,6 +262,21 @@ username. A new account only becomes a robot once it's in `public.bots`.
 - **Live Battleship bursts** (`037_bs_burst.sql`): 3 shots, then reload. `fire_live` refuses a 4th
   within 2.3 s; the page keeps its own shot times (`bsShots`, 2.4 s window) and shows ammo pips /
   a countdown in the fire bar. No minimum gap between shots in a burst. Robots are unchanged.
+- **More chaos** (`042_more_chaos_hilltop.sql`, `043_more_chaos_golf.sql`): twists fire on 16% of moves.
+  Hilltop (`_chaos_twist_duel`): ☄️ meteor shower `[x, depth, r, 5]` and 🌋 earthquake heaves/dips
+  `[x, dh, r, 6]`, craters placed *relative to the ground* (the server doesn't know the terrain;
+  `applyCrater` types 5/6), 🔀 shuffle (each tank to a random spot in its own `_duel_zone`), plus
+  hurricane and repairs. Chaos never knocks a tank out (min 1 HP): only a shot ends a duel. The
+  page animates new ones (`newTwists`/`twistFx`; never on first load). An old page draws a type 5/6
+  crater as a mound, so ship page changes to crater kinds *before* the migration that makes them.
+  Putt Post (`_chaos_twist_golf`): 🚩 moved cup and 🐹 gopher pair, in `golf_games.twists`
+  `{ "<hole>": [{k, s: seed, t: from turn}] }` (max 3 a hole). The page places them from the seed in
+  the base course (`holeWithTwists`, so `reachable()` can vet a moved cup) for turns `>= t`; turn by
+  turn a twist starts at the next turn, live at the next hole row. Every hole lookup in golf.js
+  goes through `holeAt(hole, attack, t)` / `myT()`. Gophers: in one, out its partner (`i^1`) at 70%
+  speed (`tick`, event `'gopher'`). ⛳ **Chip Shot** loot (`chip`): the next putt is saved with a 5th
+  number `1`; it flies `CHIP_AIR` ticks over everything, lands at 55% speed, and landing off the
+  course, in water or in a hedge counts as water.
 - **Putt Post looks**: `setGolfTheme('classic' | 'natural')` in golf-engine switches `drawHole` only
   (the physics is identical, so players in one game can each pick their own). Natural: rough with
   trees (`treesFor`, placed once per hole clear of the course), a cross-mown fairway, a green round
@@ -362,7 +377,7 @@ username. A new account only becomes a robot once it's in `public.bots`.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size, 037_bs_burst applied 2026-09-28; 038_drone_strike, 039_more_loot, 040_golf_live_attacks, 041_golf_attack_loot 2026-09-29), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size, 037_bs_burst applied 2026-09-28; 038_drone_strike, 039_more_loot, 040_golf_live_attacks, 041_golf_attack_loot, 042_more_chaos_hilltop, 043_more_chaos_golf 2026-09-29), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.
