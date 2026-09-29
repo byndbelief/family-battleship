@@ -1,7 +1,7 @@
 // Putt Post, live: turns and scores are saved on the server; putts replay for everyone.
 import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, compactPack, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, dramaOn, face, livePresence, avatarOf, splash, jumpToNext, setGameTools, condenseTop, golfTheme, setGolfThemePref, liveCountdown } from './common.js';
 import {
-  LW, LH, COURSE, POWER, LONG, parOf, maxStrokes, setCourse, HOLES, R, CUP_R, tick, q20, q100, ATTACKS, holeWithAttack, holeWithTwists, twistsFor, CHIP_AIR, drawHole,
+  BW, BH, LW, LH, COURSE, POWER, LONG, parOf, maxStrokes, setCourse, HOLES, R, CUP_R, tick, q20, q100, ATTACKS, holeWithAttack, holeWithTwists, twistsFor, CHIP_AIR, drawHole,
   inPoly, inRect, segDist, reduceMotion, setGolfTheme, holeName, flowTo,
 } from './golf-engine.js';
 
@@ -131,7 +131,43 @@ function camIntro(key, force) {
   cam.x = LW / 2; cam.y = LH / 2; cam.z = 1; cam.over = false; mapBtn();
 }
 const camFocus = () => (scene.ball && !scene.ball.hidden ? [scene.ball.x, scene.ball.y] : scene.hole.tee);
+// 🌀 The fractal cup (059): down in every cup is the next hole in miniature (the last hole's holds the
+// first: the round loops), and in its cup the one after that. Holing out dives into it until the
+// miniature fills the screen, which is just the next hole's opening view.
+const cupArts = new Map();
+function drawHoleTo(h, px, inner) {
+  const oc = document.createElement('canvas'); oc.width = px; oc.height = Math.round((px * LH) / LW);
+  const c = oc.getContext('2d'), k = px / LW; c.setTransform(k, 0, 0, k, 0, 0);
+  drawHole(c, h, 0, { cupArt: inner, cupDark: 1 }); return oc;
+}
+function cupArtFor(hi) {
+  const g = G.game, after = (i) => (i + 1 < g.start + g.count ? i + 1 : g.start), px = Math.max(240, rot ? cv.height : cv.width);
+  const key = `${g.id}:${hi}:${px}:${golfTheme()}:${JSON.stringify(g.twists || {})}`;
+  if (!cupArts.has(key)) {
+    const n1 = after(hi), n2 = after(n1), at = (i) => holeWithTwists(g.seed, i, 0, g.twists, g.t);
+    cupArts.clear(); cupArts.set(key, drawHoleTo(at(n1), px, drawHoleTo(at(n2), Math.round(px / 5))));
+  }
+  return cupArts.get(key);
+}
+function startDive(delay = 350) {
+  if (reduceMotion || !scene.hole) return;
+  const h = scene.hole, dg = Math.hypot(BW, BH), iw = ((h.cupR || CUP_R) * 2 * BW) / dg;
+  cam.intro = null;
+  cam.dive = { t0: performance.now() + delay, dur: 1700, z0: cam.z, x0: cam.x, y0: cam.y, zEnd: LW / iw, hole: h };
+}
+const diveDone = () => new Promise((res) => { const chk = () => (!cam.dive || performance.now() > cam.dive.t0 + cam.dive.dur ? res() : setTimeout(chk, 50)); chk(); });
 function camStep(now) {
+  if (cam.dive) {
+    const d = cam.dive, e = Math.min(1, Math.max(0, (now - d.t0) / d.dur));
+    if (e >= 1 && (mode !== 'done' || scene.hole !== d.hole)) { cam.dive = null; scene.cupDark = 1; }   // on to whatever's next (back out, or the next hole's opening)
+    else {
+      const k = e * e * (3 - 2 * e), m = Math.min(1, k * 3);
+      cam.z = d.z0 * (d.zEnd / d.z0) ** k;
+      cam.x = d.x0 + (d.hole.cup[0] - d.x0) * m; cam.y = d.y0 + (d.hole.cup[1] - d.y0) * m;
+      scene.cupDark = 1 - k; if (e > 0) scene.fx = [];
+      return;
+    }
+  }
   const zp = cam.over || mode === 'idle' || mode === 'over' ? 1 : zPlay(), [fx, fy] = camFocus();
   if (cam.intro) {
     const e0 = (now - cam.intro.t0 - cam.intro.hold) / cam.intro.dur;
@@ -173,6 +209,7 @@ function loop(t) {
   syncPutbar();
   scene.fx = (scene.fx || []).filter((f) => { f.x += f.vx; f.y += f.vy; f.vy += f.g || 0; f.life -= 0.02; return f.life > 0; });
   if (scene.hole) {
+    if (scene.cupArt === undefined && G) scene.cupArt = cupArtFor(scene.hi ?? curHole());
     camStep(t);
     let k;
     if (rot) { k = cv.height / LW; ctx.setTransform(0, k, -k, 0, LH * k, 0); }   // sideways: (x, y) → (LH − y, x)
@@ -181,7 +218,7 @@ function loop(t) {
     ctx.transform(cam.z, 0, 0, cam.z, LW / 2 - cam.z * cam.x, LH / 2 - cam.z * cam.y);
     drawHole(ctx, scene.hole, t, scene); if (liveOn) drawGhosts();
     ctx.setTransform(base);
-    if (cam.z > 1.05) cupPointer(k);
+    if (cam.z > 1.05 && !cam.dive) cupPointer(k);
   }
   requestAnimationFrame(loop);
 }
@@ -424,7 +461,7 @@ async function replayTurn(tu) {
   const from = tu.attack ? tu.attack_from || 0 : 0, hA = magnetize(holeAt(tu.hole, tu.attack, tu.t), tu.boost === 1);
   const h0 = from ? magnetize(holeAt(tu.hole, 0, tu.t), tu.boost === 1) : hA;
   let h = h0;
-  mode = 'replay'; skipReplay = false; scene = { hole: h, fx: [], clock: 0, ball: { x: h.tee[0], y: h.tee[1] } };
+  mode = 'replay'; skipReplay = false; scene = { hole: h, hi: tu.hole, fx: [], clock: 0, ball: { x: h.tee[0], y: h.tee[1] } };
   camIntro(holeKey(tu.hole));
   setHud(tu.hole, tu.player, 0, true);
   const atk = (tu.attack ? `, while hit by ${ATTACKS[tu.attack].name}${from ? ` from putt ${from + 1}` : ''}` : '') + (tu.boost ? ' (with a 🧲 Magnet Cup)' : '');
@@ -691,7 +728,7 @@ function wedgeTo(pt) {
 async function finishTurn(holed) {
   mode = 'done'; $('cheats').hidden = true; $('pack').innerHTML = ''; $('packMini').innerHTML = '';
   const par = parOf(curHole()), t = G.game.t;
-  if (holed) celebrate(strokes, par);
+  if (holed) { celebrate(strokes, par); startDive(); }
   const wasLive = liveOn;
   const { data, error } = await sb.rpc(wasLive ? 'golf_submit_live' : 'golf_submit_turn', { p_game: G.game.id, p_strokes: current.map(fromStroke), p_actual: strokes, p_cheats: cheatsUsed, p_holed: holed,
     ...(wasLive ? { p_attack_from: curAttack ? attackFrom : -1 } : {}) });
@@ -703,6 +740,7 @@ async function finishTurn(holed) {
   notify('golf', G.game.id);
   announceChaos({ gameId: G.game.id }); pack = await backpack();
   await sleep(holed && strokes === 1 && !reduceMotion ? 1800 : 300);
+  await diveDone();   // all the way down into the cup first
   await load(G.game.id);
   if (G.game.status === 'over' || n() === 1) { afterPanel = false; return decide(); }
   afterPanel = true; renderAfter(); decide();

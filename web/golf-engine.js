@@ -451,6 +451,27 @@ function treesFor(h){
   }
   treeCache.set(h,out); return out;
 }
+// Fractal trees (059): from above, a crown of limbs that split and split again (5 limbs, 4 forks
+// deep, each fork 0.62 as long), leaves bunched at every tip. Drawn once per look into a sprite.
+const treeSprites=[];
+function treeSprite(v){
+  if(treeSprites[v]) return treeSprites[v];
+  const S=160, cv=document.createElement('canvas'); cv.width=cv.height=S; const c=cv.getContext('2d'), m=S/2, r=rng(7919*(v+1));
+  const dark=v%2===0, tips=[];
+  c.fillStyle=dark?'#264F1E':'#2C5A22'; c.globalAlpha=.55; c.beginPath(); c.arc(m,m,S*.44,0,7); c.fill(); c.globalAlpha=1;
+  const limb=(x,y,a,len,w,d)=>{
+    const x2=x+Math.cos(a)*len, y2=y+Math.sin(a)*len;
+    c.strokeStyle=d>2?'#5A3E24':'#4E6B2E'; c.lineWidth=w; c.lineCap='round'; c.beginPath(); c.moveTo(x,y); c.lineTo(x2,y2); c.stroke();
+    if(d===0){ tips.push([x2,y2]); return; }
+    const spread=0.42+r()*0.18;
+    limb(x2,y2,a-spread,len*0.62,w*0.68,d-1); limb(x2,y2,a+spread,len*0.62,w*0.68,d-1);
+  };
+  const a0=r()*6.283; for(let i=0;i<5;i++) limb(m,m,a0+i*1.2566+(r()-.5)*.3,S*.2,5,4);
+  tips.forEach(([x,y],i)=>{ const g=c.createRadialGradient(x-2,y-2,1,x,y,S*.075);
+    g.addColorStop(0,dark?'#6BAA4C':'#7DBE58'); g.addColorStop(1,dark?'#2F6A26':'#3A7A2C');
+    c.fillStyle=g; c.beginPath(); c.arc(x,y,S*(.05+.03*((i*37)%5)/5),0,7); c.fill(); });
+  treeSprites[v]=cv; return cv;
+}
 function pathPts(c,pts){ c.beginPath(); pts.forEach(([x,y],i)=>c[i?'lineTo':'moveTo'](x,y)); c.closePath(); }
 function drawHole(c, h, t, scene={}){
   const nat=THEME==='natural', S=COURSE;
@@ -539,11 +560,7 @@ function drawHole(c, h, t, scene={}){
     c.strokeStyle='#3F6E2A'; c.lineWidth=13; pathPts(c,h.outline); c.stroke();
     c.strokeStyle='#5C9A3F'; c.lineWidth=4; pathPts(c,h.outline); c.stroke();
     // the trees' canopies over everything outside
-    treesFor(h).forEach(tr=>{
-      const g=c.createRadialGradient(tr.x-tr.r*.3,tr.y-tr.r*.35,2,tr.x,tr.y,tr.r); g.addColorStop(0,tr.shade>.5?'#5E9A42':'#4F8C3A'); g.addColorStop(1,tr.shade>.5?'#2C5A22':'#264F1E');
-      c.fillStyle=g; c.beginPath(); c.arc(tr.x,tr.y,tr.r,0,7); c.fill();
-      c.fillStyle='#ffffff14'; [[-.35,-.3,.35],[.25,-.1,.3],[-.05,.3,.28]].forEach(([dx,dy,k])=>{ c.beginPath(); c.arc(tr.x+dx*tr.r,tr.y+dy*tr.r,tr.r*k,0,7); c.fill(); });
-    });
+    treesFor(h).forEach((tr,i)=>c.drawImage(treeSprite(Math.floor(tr.shade*6)), tr.x-tr.r*1.15, tr.y-tr.r*1.15, tr.r*2.3, tr.r*2.3));
     // blocks are hedges
     h.blocks.forEach(([x,y,w,hh])=>{
       c.save(); c.shadowColor='#0007'; c.shadowBlur=8; c.shadowOffsetY=4; c.fillStyle='#2E5E24'; c.beginPath(); c.roundRect(x,y,w,hh,6); c.fill(); c.restore();
@@ -603,6 +620,16 @@ function drawHole(c, h, t, scene={}){
   // cup + flag
   const [cx,cy]=h.cup;
   const cupR=h.cupR||CUP_R; c.fillStyle='#0B1A12'; c.beginPath(); c.arc(cx,cy,cupR,0,7); c.fill();
+  // 🌀 the fractal cup (059): the next hole, in miniature, down in the cup (its own cup holds the one
+  // after). The page dives into it when you hole out. scene.cupArt is that hole drawn to a canvas;
+  // scene.cupDark (0-1) is how much the cup's shadow still covers it.
+  if(scene.cupArt){
+    const dg=Math.hypot(BW,BH), iw=cupR*2*BW/dg, ih=cupR*2*BH/dg, dk=scene.cupDark??1;
+    c.save(); c.beginPath(); c.arc(cx,cy,cupR,0,7); c.clip();
+    c.drawImage(scene.cupArt, cx-iw/2, cy-ih/2, iw, ih);
+    if(dk>0){ const g=c.createRadialGradient(cx,cy,0,cx,cy,cupR); g.addColorStop(0,`rgba(11,26,18,${0.35*dk})`); g.addColorStop(1,`rgba(11,26,18,${0.95*dk})`); c.fillStyle=g; c.fillRect(cx-cupR,cy-cupR,cupR*2,cupR*2); }
+    c.restore();
+  }
   c.strokeStyle='#ffffff55'; c.lineWidth=1.5; c.beginPath(); c.arc(cx,cy,cupR,Math.PI*1.1,Math.PI*1.9); c.stroke();
   if(!scene.flagOut){
     c.strokeStyle='#EDEDED'; c.lineWidth=2; c.beginPath(); c.moveTo(cx,cy); c.lineTo(cx,cy-42); c.stroke();
@@ -637,4 +664,4 @@ function drawHole(c, h, t, scene={}){
 }
 
 
-export { LONG, POWER, parOf, maxStrokes, holeName, isMaze, mazeCols, flowTo, LW, LH, COURSE, setCourse, HOLES, N_HOLES, rng, inPoly, inRect, segDist, buildHole, reachable, holeFor, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, holeWithTwists, twistsFor, CHIP_AIR, drawHole, setGolfTheme, COS, SIN };
+export { BW, BH, LONG, POWER, parOf, maxStrokes, holeName, isMaze, mazeCols, flowTo, LW, LH, COURSE, setCourse, HOLES, N_HOLES, rng, inPoly, inRect, segDist, buildHole, reachable, holeFor, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, holeWithTwists, twistsFor, CHIP_AIR, drawHole, setGolfTheme, COS, SIN };

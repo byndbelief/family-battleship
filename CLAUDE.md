@@ -643,3 +643,13 @@ r sweeps 2.8 → 4 over 5.2 s, a cobweb walks x round y = r·x·(1−x), and the
 itself column by column beneath it. `loaderDone()` fades it: the first `setGameTools` call (every page's
 first render, the lobby's `view()` included), or 6 s at most. Reduced motion: one still frame.
 
+### Putt Post: the fractal cup and trees (page only)
+Down in every cup is the next hole in miniature (`scene.cupArt`, drawn by golf.js `cupArtFor` at the
+canvas's own resolution; the last hole's cup holds the first, and each miniature's cup holds the hole
+after it, at 1/5 size). drawHole draws it as the rectangle inscribed in the cup circle, under a shadow
+(`scene.cupDark`). Holing out starts `startDive()`: the camera zooms from where it is to `LW / width of
+that rectangle` over 1.7 s, so the end frame is exactly the next hole's opening overview; finishTurn
+waits for it (`diveDone`). If the next scene is the next hole, its `camIntro` carries on from there;
+otherwise the camera eases back out of the cup. Natural-theme trees are fractal sprites (`treeSprite`:
+5 limbs forking 4 deep, leaves at the tips), six looks, drawn once.
+
