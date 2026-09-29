@@ -405,6 +405,7 @@ export function liveGame(topic, changes, onChange, check, extra = {}) {
 // ---------------------------------------------------------------- chaos: loot, curses, twists
 export const ITEMS = {
   sonar: { icon: '📡', name: 'Sonar Ping', game: 'battleship', desc: 'Reveal ship squares in a 3×3 patch.' },
+  sierpinski: { icon: '🔺', name: 'Sierpiński Salvo', game: 'battleship', desc: 'Tap the top of a triangle: up to 9 extra shots in a fractal, a triangle with a triangle-shaped hole in it.' },
   salvo: { icon: '🎆', name: 'Double Salvo', game: 'battleship', desc: 'Fire two extra shots this turn.' },
   golden_tee: { icon: '🏌️', name: 'Golden Tee', game: 'golf', desc: 'One free, honest mulligan this hole.' },
   magnet: { icon: '🧲', name: 'Magnet Cup', game: 'golf', desc: 'A huge, grabby cup for this hole.' },

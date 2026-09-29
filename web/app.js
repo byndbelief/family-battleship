@@ -33,7 +33,8 @@ let busy = false;
 let boardTab = null, boardTabFor = null;
 let shotsOpen = null, lastNoteKey = '';   // Latest shots folded or open; the last message popped up on a phone
 let peekMode = false;           // next tap on an opponent's board spends a peek cheat
-let sonarLoot = null;           // next tap on an opponent's board spends this Sonar Ping
+let sonarLoot = null;
+let triLoot = null;             // 🔺 armed Sierpiński Salvo: the next tap on the ocean is the triangle's top (060)           // next tap on an opponent's board spends this Sonar Ping
 // Live battle: while everyone still afloat has the game open there are no turns. Tap any rival's
 // square to fire, one shot at a time, whenever your guns have reloaded (bsPresence checks in).
 let bsPresence = null, liveBS = false;
@@ -235,7 +236,8 @@ function animateShots(newShots) {
     setTimeout(() => {
       if (!liveBS) showBoard(s.target);
       const el = cellEl(s.target, s.cell);
-      if (el && !reduceMotion) { const [x, y] = centerOf(el), m = document.createElement('div'); m.className = `seabeast ${s.chaos}`; m.textContent = s.chaos === 'kraken' ? '🐙' : '🌪️'; m.style.left = `${x}px`; m.style.top = `${y}px`; document.body.appendChild(m); setTimeout(() => m.remove(), 1300); }
+      if (el && !reduceMotion) { const [x, y] = centerOf(el), m = document.createElement('div'); m.className = `seabeast ${s.chaos}`; m.textContent = s.chaos === 'kraken' ? '🐙' : '🌪️'; m.style.left = `${x}px`; m.style.top = `${y}px`; document.body.appendChild(m); setTimeout(() => m.remove(), 1300);
+        if (s.chaos === 'kraken') { const t = krakenArms(s.cell); t.style.left = `${x}px`; t.style.top = `${y}px`; document.body.appendChild(t); setTimeout(() => t.remove(), 1500); } }
       if (k === 0) sfx(s.chaos === 'kraken' ? 'thud' : 'whistle', { dur: 0.6 });
       setTimeout(() => revealShot(s), reduceMotion ? 0 : 450);
     }, (reduceMotion ? 0 : 300) + k * 320);
@@ -1142,7 +1144,7 @@ async function loadGame(id) {
   G = {
     game, shots: shots ?? [],
     cheats: cheatsRes.data ?? [], accusations: accRes.data ?? [], sonars: sonars ?? [],
-    pack: MODES[game.mode].shared ? pack.filter((l) => l.item !== 'sonar') : pack,   // a ping needs a rival's board
+    pack: MODES[game.mode].shared ? pack.filter((l) => l.item !== 'sonar') : pack.filter((l) => l.item !== 'sierpinski'),   // a ping needs a rival's board; a triangle, the ocean
     themes: Object.fromEntries((themeRows ?? []).map((r) => [r.id, r.bs_theme])),   // each fleet is drawn in its owner's theme (027)
     cheatsOn: !cheatsRes.error && !accRes.error && !MODES[game.mode].shared,   // no cheats on the shared ocean
     shotMod: (modRes.data ?? []).find((m) => m.player_id === me.id)?.shot_mod ?? 0,
@@ -1192,7 +1194,9 @@ function boardHTML({ owner, ships, clickable, fresh }) {
   // squares, and the squares on top (see-through) for aiming and the shot markers.
   const theme = themeOf(G.themes?.[ocean ? me.id : owner]), at2 = (r, c) => `grid-area:${r + 2}/${c + 2}`;
   let h = `<div class="board seaview t-${theme}" style="grid-template-columns:18px repeat(${n},1fr)"><span class="lbl egg" data-egg style="grid-area:1/1"></span>`
-    + `<div class="sea sea-${theme}" style="grid-area:2/2/span ${n}/span ${n}"></div>`;
+    + `<div class="sea sea-${theme}" style="grid-area:2/2/span ${n}/span ${n}"></div>`
+    + (ocean && game.islands?.length ? coastSVG(game.islands, n) : '');
+  const isle = new Set(ocean ? game.islands || [] : []);
   const vessel = (cells, L, wreck, th = theme, who = owner) => {
     const r0 = Math.min(...cells.map((x) => Math.floor(x / n))), c0 = Math.min(...cells.map((x) => x % n));
     const horiz = new Set(cells.map((x) => Math.floor(x / n))).size === 1 && L > 1;
@@ -1210,6 +1214,7 @@ function boardHTML({ owner, ships, clickable, fresh }) {
     h += `<span class="lbl" style="${at2(r, -1)}">${ROWS[r]}</span>`;
     for (let c = 0; c < n; c++) {
       const i = r * n + c, cls = ['cell'], s = shotAt.get(i);
+      if (isle.has(i)) cls.push('isle');
       if (shipAt.has(i)) cls.push('ship');
       if (sunk.has(i)) cls.push('sunk');
       else if (s && fog.has(s.id) && !shipAt.has(i)) cls.push('fog');
@@ -1219,12 +1224,72 @@ function boardHTML({ owner, ships, clickable, fresh }) {
       if (!s && peekShip.has(i)) cls.push('peek-ship'); else if (!s && peekArea.has(i)) cls.push('peek-empty');
       const label = cellName(game.mode, i), pc = s?.hit && s.target && !cls.includes('fog') ? `;--pc:${pcol(s.target)}` : '';
       if (pc) cls.push('owned');
-      h += clickable && !s && !mine.has(i)
+      h += clickable && !s && !mine.has(i) && !isle.has(i)
         ? `<button class="${cls.join(' ')}" style="${at2(r, c)}" data-o="${owner}" data-i="${i}" data-target="${owner}" data-cell="${i}" aria-label="Aim at ${label}"></button>`
         : `<span class="${cls.join(' ')}" style="${at2(r, c)}${pc}" data-o="${owner}" data-i="${i}" aria-label="${label}"></span>`;
     }
   }
   return `<div class="bzoom">${h}</div></div>`;
+}
+// 🐙 The kraken's arms (060): six tentacles that curl out and fork, and fork again (3 levels, each
+// branch 0.6 as long), drawn as they grow. A fresh tangle each time (seeded by the square).
+function krakenArms(cell) {
+  let seed = (cell + 1) * 2654435761 >>> 0;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  const paths = [];
+  const arm = (x, y, a, len, w, depth) => {
+    const bend = (rnd() - 0.5) * 1.2, mx = x + Math.cos(a + bend * 0.5) * len * 0.55, my = y + Math.sin(a + bend * 0.5) * len * 0.55;
+    const x2 = x + Math.cos(a + bend) * len, y2 = y + Math.sin(a + bend) * len;
+    paths.push(`<path d="M${x.toFixed(1)} ${y.toFixed(1)}Q${mx.toFixed(1)} ${my.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}" stroke-width="${w.toFixed(1)}" style="animation-delay:${(3 - depth) * 0.16}s"/>`);
+    if (depth) [-0.5, 0.5].forEach((d) => arm(x2, y2, a + bend + d + (rnd() - 0.5) * 0.3, len * 0.6, w * 0.62, depth - 1));
+  };
+  const a0 = rnd() * 6.283;
+  for (let i = 0; i < 6; i++) arm(100, 100, a0 + (i * 6.283) / 6, 34, 7, 3);
+  const el = document.createElement('div'); el.className = 'krakenarms';
+  el.innerHTML = `<svg viewBox="0 0 200 200" width="200" height="200" fill="none" stroke="#9B4DCA" stroke-linecap="round">${paths.join('')}</svg>`;
+  return el;
+}
+// 🏝️ Islands (060): each island's outline traced round its squares, then every stretch of shore
+// broken up by midpoint displacement (three levels, each half the last): a coastline that stays
+// ragged however far you zoom. Seeded by where the shore is, so everyone sees the same islands.
+function coastSVG(cells, n) {
+  const set = new Set(cells), next = new Map();
+  const key = (x, y) => `${x},${y}`;
+  set.forEach((i) => {
+    const x = i % n, y = Math.floor(i / n), has = (dx, dy) => { const nx = x + dx, ny = y + dy; return nx >= 0 && ny >= 0 && nx < n && ny < n && set.has(ny * n + nx); };
+    if (!has(0, -1)) next.set(key(x, y), [x + 1, y]);
+    if (!has(1, 0)) next.set(key(x + 1, y), [x + 1, y + 1]);
+    if (!has(0, 1)) next.set(key(x + 1, y + 1), [x, y + 1]);
+    if (!has(-1, 0)) next.set(key(x, y + 1), [x, y]);
+  });
+  const jag = (ax, ay, bx, by) => {   // midpoint displacement between two shore corners
+    let pts = [[ax, ay], [bx, by]], amp = 0.34, seed = (ax * 73856093) ^ (ay * 19349663) ^ (bx * 83492791) ^ (by * 2654435);
+    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff - 0.5; };
+    for (let lvl = 0; lvl < 3; lvl++, amp *= 0.5) {
+      const out = [pts[0]];
+      for (let k = 1; k < pts.length; k++) {
+        const [x1, y1] = pts[k - 1], [x2, y2] = pts[k], nx = -(y2 - y1), ny = x2 - x1, d = rnd() * amp;
+        out.push([(x1 + x2) / 2 + nx * d, (y1 + y2) / 2 + ny * d], pts[k]);
+      }
+      pts = out;
+    }
+    return pts.slice(1);
+  };
+  let d = '';
+  const done = new Set();
+  next.forEach((_, k0) => {
+    if (done.has(k0)) return;
+    let k = k0, [x, y] = k0.split(',').map(Number), path = `M${x} ${y}`;
+    for (let guard = 0; guard < 400 && !done.has(k); guard++) {
+      done.add(k); const [x2, y2] = next.get(k);
+      jag(x, y, x2, y2).forEach(([px, py]) => { path += `L${px.toFixed(3)} ${py.toFixed(3)}`; });
+      x = x2; y = y2; k = key(x, y);
+    }
+    d += path + 'Z';
+  });
+  return `<svg class="isles" style="grid-area:2/2/span ${n}/span ${n}" viewBox="0 0 ${n} ${n}" preserveAspectRatio="none" aria-hidden="true">`
+    + `<path d="${d}" fill="none" stroke="#FFFFFF" stroke-opacity=".45" stroke-width="0.34" stroke-linejoin="round"/>`   // surf
+    + `<path d="${d}" fill="#62A04E" stroke="#E9D8A6" stroke-width="0.24" stroke-linejoin="round"/></svg>`;   // beach round the green
 }
 // 🔍 Board zoom (053): 1× to 2.4×, the same for every board, remembered on this device. A zoomed
 // board scrolls sideways inside its card.
@@ -1503,6 +1568,7 @@ function renderGame() {
   app.querySelectorAll('[data-cell]').forEach((b) => b.addEventListener('click', () => {
     const target = b.dataset.target, cell = +b.dataset.cell;
     if (sonarLoot) { doSonar(target, cell); return; }
+    if (triLoot) { doTriangle(cell); return; }
     if (peekMode) { doPeek(target, cell); return; }
     if (liveNow) { stageLive(target, cell); return; }
     if (aims.target !== target) aims = { target, cells: new Set() };
@@ -1540,6 +1606,7 @@ function openSquares(target) {
   if (target !== OCEAN) return n ** 2 - new Set(shots.filter((s) => s.target === target && taken(s)).map((s) => s.cell)).size;
   const gone = new Set(shots.filter(taken).map((s) => s.cell));
   if (G.fleets[me.id]) fleetCells(game.mode, G.fleets[me.id]).flat().forEach((x) => gone.add(x));
+  (game.islands || []).forEach((x) => gone.add(x));   // 🏝️ (060)
   return n ** 2 - gone.size;
 }
 // Shared Ocean setup: the server deals a spot clear of every fleet already anchored.
@@ -1681,6 +1748,18 @@ async function doPeek(target, cell) {
   await afterCheat();
   stamp(data.ships.length ? `👀 ${data.ships.length} ship square${data.ships.length > 1 ? 's' : ''}!` : '👀 Nothing there', 'purple', 1800); sfx('sneaky');
 }
+// 🔺 Sierpiński Salvo (060): the server works out the triangle from its top square, adds that many
+// shots, and the page stages them; live, they fire at once as a volley.
+async function doTriangle(cell) {
+  const id = triLoot; triLoot = null;
+  const { data, error } = await useLoot(id, G.game.id, null, cell);
+  if (error) { renderGame(); cheatError(error); return; }
+  await loadGame(G.game.id);
+  stamp('🔺 Sierpiński Salvo!', 'purple', 1600); sfx('pop');
+  aims = { target: OCEAN, cells: new Set(data.cells) };
+  renderGame();
+  if (liveBS) fireVolley();
+}
 async function doSonar(target, cell) {
   const id = sonarLoot; sonarLoot = null;
   const { data, error } = await useLoot(id, G.game.id, target, cell);
@@ -1691,8 +1770,10 @@ async function doSonar(target, cell) {
 function wireCheats() {
   app.querySelectorAll('.backpack [data-loot], .packmini [data-loot]').forEach((b) => {
     if (b.dataset.item === 'sonar') b.classList.toggle('on', sonarLoot === +b.dataset.loot);   // armed: tap a square to ping
+    if (b.dataset.item === 'sierpinski') b.classList.toggle('on', triLoot === +b.dataset.loot);   // armed: tap the triangle's top
     b.onclick = async () => {
       if (b.dataset.item === 'sonar') { sonarLoot = sonarLoot ? null : +b.dataset.loot; renderGame(); return; }
+      if (b.dataset.item === 'sierpinski') { triLoot = triLoot ? null : +b.dataset.loot; renderGame(); if (triLoot) note('🔺 Tap the square for the top of the triangle.'); return; }
       b.disabled = true;
       const { error } = await useLoot(+b.dataset.loot, G.game.id);
       if (error) { cheatError(error); return; }

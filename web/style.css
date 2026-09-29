@@ -653,3 +653,12 @@ img.hnav { object-fit: cover; background: #000; }
   body.fs-lock #app.fs-on .boardtabs { margin-top: 26px; }
   body.fs-lock #app.fs-on .bsec[data-owner="ocean"] > .row.between:first-child { padding-right: var(--gtw, 56px); }
 }
+/* 🏝️ Islands on the shared ocean (060): the fractal shore under the squares; their squares can't be aimed at */
+.board .isles { position: relative; z-index: 1; width: 100%; height: 100%; pointer-events: none; filter: drop-shadow(0 2px 3px #0006); }
+.board .cell.isle { background: transparent !important; box-shadow: none !important; cursor: default; }
+/* 🐙 the kraken's fractal arms (060): each branch draws itself out, then the tangle sinks away */
+.krakenarms { position: fixed; z-index: 44; pointer-events: none; transform: translate(-50%, -50%); animation: armsSink 1.5s ease-in forwards; filter: drop-shadow(0 2px 4px #0008); }
+.krakenarms path { stroke-dasharray: 60; stroke-dashoffset: 60; animation: armGrow .45s ease-out forwards; }
+@keyframes armGrow { to { stroke-dashoffset: 0; } }
+@keyframes armsSink { 0%, 70% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(.6); } }
+
