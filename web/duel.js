@@ -165,7 +165,27 @@ function sunCheck(fresh) {
   sfx('flash'); sfx('boom', { delay: 0.12 });
   if (!reduceMotion) for (let i = 0; i < 22; i++) particles.push({ x: tp.x, y: tp.y - 8, vx: (Math.random() - 0.5) * 4, vy: -Math.random() * 3.5, life: 1, s: 2 + Math.random() * 3, c: i % 2 ? '#FFD24A' : '#FF8A3C' });
 }
-const clouds = Array.from({ length: 5 }, (_, i) => { const r = rng(i * 104729 + 11); return { x: r(), y: 0.25 + r() * 0.5, r: 18 + r() * 16, v: 0.004 + r() * 0.006 }; });
+const clouds = Array.from({ length: 5 }, (_, i) => { const r = rng(i * 104729 + 11); return { x: r(), y: 0.25 + r() * 0.5, r: 18 + r() * 16, k: 0.7 + r() * 0.6 }; });
+const streaks = Array.from({ length: 22 }, (_, i) => { const r = rng(i * 7717 + 5); return { x: r(), y: 0.08 + r() * 0.7, k: 0.8 + r() * 0.6 }; });
+// The wind as the next shot will feel it, eased so a change of wind swings the sky round smoothly.
+// windOff is how far it has carried the clouds; with no wind they hang (a faint idle drift).
+let windNow = 0, windOff = 0, windLast = 0;
+function windStep(t, g) {
+  const dt = windLast ? Math.min(0.1, (t - windLast) / 1000) : 0; windLast = t;
+  const goal = windFor(g.seed, g.move, windXOf(g, g.move) % 10);
+  windNow += (goal - windNow) * (1 - Math.exp(-dt / 0.8));
+  if (!reduceMotion) windOff += dt * (windNow * 6 + 2);
+}
+function drawStreaks(t, dy) {
+  const w = Math.abs(windNow), a = w < 0.3 ? 0 : Math.min(1, 0.4 + w / 14); if (!a || reduceMotion) return;
+  const dir = Math.sign(windNow), len = (26 + Math.abs(windNow) * 3.5) * (W / 800), L = W + 200;
+  ctx.save(); ctx.lineCap = 'round'; ctx.lineWidth = 3.5 * (W / 800); ctx.strokeStyle = mixHex('#FFFFFF', '#2A6FB0', dayNow);   // white on the night sky, deep blue on the day's
+  streaks.forEach((s) => {
+    const x = ((((s.x * L + windOff * 3.2 * s.k) % L) + L) % L) - 100, y = s.y * (190 + dy) + Math.sin(t / 400 + s.x * 20) * 3;
+    ctx.globalAlpha = a * 0.6; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - dir * len * s.k, y); ctx.stroke();
+  });
+  ctx.restore();
+}
 // Daylight: 0 at night, 1 by day, eased across dawn (6-7) and dusk (19-20) by the local clock.
 const dayTarget = () => { if (G?.game?.sun >= 0) return 1; const n = new Date(), h = n.getHours() + n.getMinutes() / 60; return h < 6 || h >= 20 ? 0 : h < 7 ? h - 6 : h < 19 ? 1 : 20 - h; };
 let dayNow = reduceMotion ? dayTarget() : 0, dayLast = 0;
@@ -254,12 +274,15 @@ function draw(t) {
       ctx.beginPath(); ctx.moveTo(mx + sd * fr * 0.6, my - fr * 0.42); ctx.lineTo(mx + sd * fr * 0.16, my - fr * 0.26); ctx.stroke(); });
     ctx.beginPath(); ctx.arc(mx, my + fr * 0.55, fr * 0.3, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke(); ctx.restore();
   }
-  if (d > 0) {   // clouds drift in with the day
-    ctx.save(); ctx.globalAlpha = d * 0.85; ctx.fillStyle = '#FFFFFF';
-    clouds.forEach((c) => { const x = ((c.x * (W + 300) + (reduceMotion ? 0 : t * c.v)) % (W + 300)) - 150, y = c.y * (170 + dy);
+  // 🌬️ The wind shows: clouds drift with it (its way, its speed) and streaks blow through the sky.
+  if (!camPass) windStep(t, g);
+  {   // clouds: white by day, dim grey shapes at night
+    ctx.save(); ctx.globalAlpha = 0.28 + d * 0.57; ctx.fillStyle = mix('#8A86A8', '#FFFFFF');
+    clouds.forEach((c) => { const L = W + 300, x = ((((c.x * L + windOff * c.k) % L) + L) % L) - 150, y = c.y * (170 + dy);
       [[0, 0, 1], [-0.9, 0.25, 0.7], [0.9, 0.25, 0.75], [0.35, -0.35, 0.7]].forEach(([ox, oy, k]) => { ctx.beginPath(); ctx.ellipse(x + ox * c.r, y + oy * c.r, c.r * k, c.r * k * 0.72, 0, 0, 7); ctx.fill(); }); });
     ctx.restore();
   }
+  drawStreaks(t, dy);
   ctx.fillStyle = mix('#2A2158', '#6FA7C4'); ctx.beginPath(); ctx.moveTo(0, H);
   for (let x = 0; x <= W; x += 10) ctx.lineTo(x, 250 + dy + Math.sin(x * 0.011 + g.seed) * 30 + Math.sin(x * 0.027) * 14);
   ctx.lineTo(W, H); ctx.fill();
@@ -650,10 +673,23 @@ async function twistFx(list) {
   const quakes = list.filter((c) => c[3] === 6), rocks = list.filter((c) => c[3] === 5);
   if (quakes.length) {
     sfx('boom', { size: 1.6 }); sfx('thud', { delay: 0.3 }); navigator.vibrate?.([90, 40, 90, 40, 140]);
-    if (!reduceMotion && cv.animate) cv.animate([0, 1, 2, 3, 4, 5, 6, 7].map((k) => ({ transform: k === 7 ? 'none' : `translate(${(k % 2 ? 1 : -1) * (9 - k)}px,${(k % 3 - 1) * (7 - k)}px)` })), { duration: 900 });
+    const mountains = quakes.some((c) => c[1] >= 50), dur = reduceMotion ? 0 : mountains ? 1800 : 900;
+    if (mountains) { sfx('thud', { delay: 0.6 }); sfx('boom', { size: 2, delay: 1.1 }); }
+    if (!reduceMotion && cv.animate) cv.animate([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((k) => ({ transform: k === 11 ? 'none' : `translate(${(k % 2 ? 1 : -1) * (12 - k)}px,${(k % 3 - 1) * (9 - k * 0.7)}px)` })), { duration: dur });
     const cols = ['#8A5A2B', '#B08355', '#6B4423', '#D6B28A'];
-    quakes.forEach((c) => { applyCrater(top, c); for (let i = 0; i < 18; i++) { const x = c[0] + (Math.random() * 2 - 1) * c[2]; particles.push({ x, y: top[Math.max(0, Math.min(W - 1, Math.round(x)))], vx: (Math.random() - 0.5) * 2, vy: -Math.random() * 3, life: 1, s: Math.random() * 3 + 1.5, c: cols[i % 4] }); } });
-    render(); await sleep(reduceMotion ? 0 : 900);
+    // ⛰️ The ground heaves and the mountains grind up out of it (orogeny, 050) over the shaking, eased,
+    // so the tanks on top ride up with it; afterwards decide() rebuilds the ground exactly.
+    const before = top, copy = () => { const c = before.slice(); if (before.under) c.under = before.under.slice(); if (before.ceil) c.ceil = before.ceil.slice(); return c; };
+    const t0 = performance.now();
+    for (;;) {
+      const k = dur ? Math.min(1, (performance.now() - t0) / dur) : 1, e = k * k * (3 - 2 * k), c = copy();
+      quakes.forEach((q) => applyCrater(c, [q[0], q[1] * e, q[2], 6]));
+      top = c;
+      if (!reduceMotion) quakes.forEach((q) => { if (Math.random() < (q[1] >= 50 ? 0.9 : 0.25)) { const x = q[0] + (Math.random() * 2 - 1) * q[2] * 0.8; particles.push({ x, y: top[Math.max(0, Math.min(W - 1, Math.round(x)))], vx: (Math.random() - 0.5) * 2.4, vy: -Math.random() * 3.2, life: 1, s: Math.random() * 3 + 1.5, c: cols[Math.floor(Math.random() * 4)] }); } });
+      if (k >= 1) break;
+      await sleep(16);
+    }
+    render();
   }
   if (rocks.length) {
     const dur = reduceMotion ? 1 : 520, t0 = performance.now();
