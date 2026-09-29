@@ -12,6 +12,8 @@ const cv = $('course'), ctx = cv.getContext('2d');
 let G = null;              // { game, turns, players, acc, secrets, best }
 let scene = {}, mode = 'idle', strokes = 0, current = [], skipReplay = false;
 let curAttack = 0, curAttacker = null;   // sneak attack in effect for the hole being played
+// Live race (040): an attack can land mid-hole; attackFrom is the putt it starts on (0: the whole hole).
+let attackFrom = 0, liveAtkCheck = null;
 let cheatsUsed = 0, lastStroke = null, drag = null;
 let flowing = false;       // a replay, judging, robot or turn flow is running
 let afterPanel = false;    // the "plant an attack" panel after my hole is open
@@ -265,10 +267,27 @@ function waitingLive() {
 async function myTurnLive() {
   flowing = true;
   const { data: atk } = await sb.rpc('golf_my_attack', { p_game: G.game.id });
-  curAttack = atk?.type || 0; curAttacker = atk?.attacker || null;
+  curAttack = atk?.type || 0; curAttacker = atk?.attacker || null; attackFrom = 0;
   flowing = false;
   startTurn();
+  if (liveOn) { planted = null; pick = { target: null, type: 0 }; atkOpen = false; renderAfter(true); }   // plant one mid-hole: it hits them right now
   if (!curAttack) $('tip').textContent = `⚔️ Live race! Everyone's on hole ${curHole() + 1} at once. Drag back and let go.`;
+}
+// Live: has someone just hit me? Asked whenever the game changes (planting touches it). Lands on
+// my next putt: now if I'm aiming, or once the ball in play stops.
+async function checkLiveAttack() {
+  if (!liveOn || curAttack || liveAtkCheck || !['aim', 'rolling'].includes(mode) || myHoleDone()) return;
+  liveAtkCheck = sb.rpc('golf_my_attack', { p_game: G.game.id });
+  const { data: atk } = await liveAtkCheck; liveAtkCheck = null;
+  if (!atk?.type || curAttack || !liveOn || !['aim', 'rolling'].includes(mode)) return;
+  curAttack = atk.type; curAttacker = atk.attacker || null; attackFrom = current.length;
+  if (mode === 'aim') landLiveAttack();
+}
+function landLiveAttack() {
+  const a = ATTACKS[curAttack];
+  scene.hole = H(); shake(); sfx('buzz');
+  bigText(`<span class="small-pop">${a.icon} ${a.name}!</span>`, 1800);
+  $('tip').textContent = `${a.icon} Sneak attack from ${curAttacker ? who(curAttacker).replace(/<[^>]+>/g, '') : 'chaos'}: ${a.desc}`;
 }
 function setLive(v) {
   if (v === liveOn) return;
@@ -279,8 +298,10 @@ function setLive(v) {
     splash(['⛳ LIVE RACE', "Everyone's here", 'Same hole, same time. Go!'], { tone: 'gold', ms: 2200 });
     if (mode === 'idle' && !flowing) decide();
     else if (mode === 'aim') $('tip').textContent = `⚔️ Live race! Everyone's on hole ${curHole() + 1} at once. Drag back and let go.`;
+    if (['aim', 'rolling'].includes(mode) && !myHoleDone()) { planted = null; pick = { target: null, type: 0 }; atkOpen = false; renderAfter(true); }   // already on a hole: attacks go live now
   } else {
     note('Live race over: back to taking turns.');
+    if (during) { during = false; $('send').hidden = true; }
     // Mid-hole when it isn't your turn in order: that hole waits for your turn.
     if (['aim', 'rolling', 'wedge', 'reveal'].includes(mode) && curPlayer() !== me.id) { closeModal(); setLocked(false); mode = 'idle'; decide(); }
     else if (mode === 'idle' && !flowing) decide();
@@ -291,15 +312,19 @@ function setLive(v) {
 // Plays back a saved turn.
 async function replayTurn(tu) {
   flowing = true;
-  const h = magnetize(holeWithAttack(G.game.seed, tu.hole, tu.attack), tu.boost === 1);
+  // Hit mid-hole in a live race (040): the plain hole until the attack's putt.
+  const from = tu.attack ? tu.attack_from || 0 : 0, hA = magnetize(holeWithAttack(G.game.seed, tu.hole, tu.attack), tu.boost === 1);
+  const h0 = from ? magnetize(holeWithAttack(G.game.seed, tu.hole, 0), tu.boost === 1) : hA;
+  let h = h0;
   mode = 'replay'; skipReplay = false; scene = { hole: h, fx: [], clock: 0, ball: { x: h.tee[0], y: h.tee[1] } };
   setHud(tu.hole, tu.player, 0, true);
-  const atk = (tu.attack ? `, while hit by ${ATTACKS[tu.attack].name}` : '') + (tu.boost ? ' (with a 🧲 Magnet Cup)' : '');
+  const atk = (tu.attack ? `, while hit by ${ATTACKS[tu.attack].name}${from ? ` from putt ${from + 1}` : ''}` : '') + (tu.boost ? ' (with a 🧲 Magnet Cup)' : '');
   $('tip').textContent = `Watching ${who(tu.player).replace(/<[^>]+>/g, '')} on hole ${tu.hole + 1}: ${tu.written} on the card${atk}.`;
   $('skip').hidden = false;
   let count = 0;
-  for (const raw of tu.strokes) {
+  for (const [k, raw] of tu.strokes.entries()) {
     const s = toStroke(raw);
+    if (k === from && h !== hA) { h = hA; scene.hole = h; if (!skipReplay) { shake(); bigText(`<span class="small-pop">${ATTACKS[tu.attack].icon} ${ATTACKS[tu.attack].name}!</span>`, 1400); await sleep(600); } }
     scene.ball = { x: s.x, y: s.y, clock: scene.clock }; scene.flagOut = false;
     if (!skipReplay) await sleep(350);
     const { ev, b } = await roll(s, h);
@@ -464,6 +489,7 @@ async function putt(a) {
   if (strokes >= MAX_STROKES) return finishTurn(false);
   mode = 'aim';
   $('tip').textContent = r.penalty ? 'Splash! One penalty stroke. Back to where you putted from.' : `Stroke ${strokes + 1}. Drag back and let go.`;
+  if (curAttack && attackFrom === current.length && liveOn) landLiveAttack();   // it landed while the ball rolled
   renderCheats(); renderCard();
 }
 
@@ -487,7 +513,7 @@ function renderPack() {
       if (item === 'magnet') { sfx('pop'); magnetOn = true; scene.hole = H(); bigText('<span class="small-pop">🧲 Magnet Cup!</span>', 1500); $('tip').textContent = 'The cup just got huge and hungry.'; }
       else {   // Golden Tee: an honest mulligan
         const L = lastStroke;
-        current.pop(); strokes -= 1 + L.penalty; scene.clock = L.clockBefore; scene.flagOut = false;
+        current.pop(); strokes -= 1 + L.penalty; attackFrom = Math.min(attackFrom, current.length); scene.clock = L.clockBefore; scene.flagOut = false;
         scene.ball = { x: L.s.x, y: L.s.y }; lastStroke = null; $('strokes').textContent = strokes;
         sfx('pop'); bigText('<span class="small-pop">🏌️ Golden Tee!</span>', 1500); $('tip').textContent = 'A free do-over. Totally legal.';
       }
@@ -534,7 +560,8 @@ async function finishTurn(holed) {
   const par = HOLES[curHole()].par, t = G.game.t;
   if (holed) celebrate(strokes, par);
   const wasLive = liveOn;
-  const { data, error } = await sb.rpc(wasLive ? 'golf_submit_live' : 'golf_submit_turn', { p_game: G.game.id, p_strokes: current.map(fromStroke), p_actual: strokes, p_cheats: cheatsUsed, p_holed: holed });
+  const { data, error } = await sb.rpc(wasLive ? 'golf_submit_live' : 'golf_submit_turn', { p_game: G.game.id, p_strokes: current.map(fromStroke), p_actual: strokes, p_cheats: cheatsUsed, p_holed: holed,
+    ...(wasLive ? { p_attack_from: curAttack ? attackFrom : -1 } : {}) });
   if (error) { $('tip').textContent = `Couldn't save that hole: ${friendly(error)}`; if (wasLive) { mode = 'idle'; await load(G.game.id); decide(); } return; }
   markSeen(t);
   $('tip').textContent = (holed ? `In the cup: ${scoreWord(strokes, par)}.` : `Picked up after ${MAX_STROKES} strokes.`)
@@ -545,28 +572,34 @@ async function finishTurn(holed) {
   await sleep(holed && strokes === 1 && !reduceMotion ? 1800 : 300);
   await load(G.game.id);
   if (G.game.status === 'over' || n() === 1) { afterPanel = false; return decide(); }
-  afterPanel = true; renderAfter(); decide();
+  afterPanel = true; renderAfter(false); decide();
 }
 // After your hole: plant a sneak attack, then hand over.
 let pick = { target: null, type: 0 }, planted = null;
-function renderAfter() {
-  const el = $('send'); el.hidden = false;
+let during = false, atkOpen = false;   // live: the panel shows while I'm still playing my hole (folded unless opened)
+function renderAfter(mid = during) {
+  during = mid;
+  const el = $('send');
   const tokens = pl(me.id).tokens, next = curPlayer();
   const targets = G.game.players.filter((p) => p !== me.id);
-  let h = '<div class="attack">';
-  if (planted) h += `<h3>🤫 Planted</h3><p class="small">${ATTACKS[planted.type].icon} ${ATTACKS[planted.type].name} is waiting for ${nm(planted.target)} on their next hole.</p>`;
+  if (during && !tokens && !planted) { el.hidden = true; return; }   // nothing to plant: keep the screen clear
+  el.hidden = false;
+  const still = (p) => liveOn && stillPlaying().includes(p);
+  let h = during ? `<details class="attack" id="atkFold" ${atkOpen || pick.target || pick.type ? 'open' : ''}><summary><strong>🎯 Sneak attack</strong> <span class="small muted">${planted ? 'planted' : `${tokens} left · hits them right now`}</span></summary>` : '<div class="attack">';
+  if (planted) h += `<h3>🤫 Planted</h3><p class="small">${ATTACKS[planted.type].icon} ${ATTACKS[planted.type].name} ${liveOn && planted.now ? `hits ${nm(planted.target)} right now, mid-hole!` : `is waiting for ${nm(planted.target)} on their next hole.`}</p>`;
   else if (!tokens) h += '<h3>Sneak attack</h3><p class="small muted">You have none left. Birdie or better earns one, and a hole in one earns two.</p>';
   else {
     h += `<div class="row between"><h3>Sneak attack</h3><span class="tokens small">${'🎯'.repeat(tokens)} ${tokens} left</span></div>
-      <p class="small muted">It hits that player's next hole, and they only find out when they tee off.</p>
-      <div class="choice">${targets.map((p) => `<label><input type="radio" name="atkT" value="${p}" ${pick.target === p ? 'checked' : ''}>${nm(p)}</label>`).join('')}</div>
+      <p class="small muted">${liveOn ? "Live: it hits them right away, from their next putt. Anyone already in the cup gets it on the next hole." : "It hits that player's next hole, and they only find out when they tee off."}</p>
+      <div class="choice">${targets.map((p) => `<label><input type="radio" name="atkT" value="${p}" ${pick.target === p ? 'checked' : ''}>${nm(p)}${liveOn && !still(p) ? ' <span class="small muted">(in)</span>' : ''}</label>`).join('')}</div>
       <div class="atk-list">${ATTACKS.slice(1).map((a, k) => `<button type="button" data-atk="${k + 1}" aria-pressed="${pick.type === k + 1}"><b>${a.icon} ${a.name}</b><span class="small muted">${a.desc}</span></button>`).join('')}</div>
       <div class="row"><button class="go" id="plant" ${pick.target && pick.type ? '' : 'disabled'}>Plant it</button><span class="small muted" id="plantErr"></span></div>`;
   }
-  h += '</div>';
-  h += liveOn ? `<div class="row between"><strong>⚔️ The next hole starts when everyone's in.</strong><button id="doneAfter">Done</button></div>` : isBot(next) ? `<div class="row between"><strong>${nm(next)} is up next.</strong><button class="go" id="botGo">Let it play</button></div>`
+  h += during ? '</details>' : '</div>';
+  if (!during) h += liveOn ? `<div class="row between"><strong>⚔️ The next hole starts when everyone's in.</strong><button id="doneAfter">Done</button></div>` : isBot(next) ? `<div class="row between"><strong>${nm(next)} is up next.</strong><button class="go" id="botGo">Let it play</button></div>`
     : `<div class="row between"><strong>${nm(next)} is up next. They'll get an alert.</strong><button id="doneAfter">Done</button></div>`;
   el.innerHTML = h;
+  $('atkFold')?.addEventListener('toggle', (e) => { atkOpen = e.target.open; });
   el.querySelectorAll('input[name=atkT]').forEach((r) => { r.onchange = () => { pick.target = r.value; renderAfter(); }; });
   el.querySelectorAll('[data-atk]').forEach((b) => { b.onclick = () => { pick.type = +b.dataset.atk; renderAfter(); }; });
   const plant = $('plant');
@@ -574,9 +607,9 @@ function renderAfter() {
     plant.disabled = true;
     const { error } = await sb.rpc('golf_plant', { p_game: G.game.id, p_target: pick.target, p_type: pick.type });
     if (error) { $('plantErr').textContent = friendly(error); return; }
-    sfx('sneaky'); nudge(); planted = { ...pick }; pick = { target: null, type: 0 }; await load(G.game.id); renderAfter();
+    sfx('sneaky'); nudge(); planted = { ...pick, now: liveOn && still(pick.target) }; pick = { target: null, type: 0 }; await load(G.game.id); renderAfter();
   };
-  const close = () => { el.hidden = true; afterPanel = false; planted = null; pick = { target: null, type: 0 }; };
+  const close = () => { el.hidden = true; afterPanel = false; during = false; planted = null; pick = { target: null, type: 0 }; };
   const bg = $('botGo'); if (bg) bg.onclick = () => { close(); window.scrollTo(0, 0); decide(); };
   const dn = $('doneAfter'); if (dn) dn.onclick = close;
 }
@@ -664,11 +697,11 @@ async function robotTurn() {
 // It plays its own ball on the hole everyone is on, shown as a 🤖 ghost, with a think between
 // putts (Rookie slowest, Ace quickest), then saves its hole. One hole at a time, once.
 const botRowPlaying = {};   // robot id -> the hole row it's playing (several robots can race, 033)
-const botAimFrom = (ball, clock, h, lvl) => {
+const botAimFrom = (ball, clock, h, lvl, weak = 1) => {
   const bx = q20(ball.x), by = q20(ball.y), [cx, cy] = h.cup;
   let best = null;
   const trial = (ang, p) => {
-    const sp = (0.6 + p * 10.4) * COURSE, b = { x: bx, y: by, vx: q100(Math.cos(ang) * sp), vy: q100(Math.sin(ang) * sp), ticks: 0, clock };
+    const sp = (0.6 + p * 10.4) * COURSE * weak, b = { x: bx, y: by, vx: q100(Math.cos(ang) * sp), vy: q100(Math.sin(ang) * sp), ticks: 0, clock };
     let ev; do { ev = tick(b, h); } while (ev !== 'cup' && ev !== 'water' && ev !== 'stop');
     const sc = ev === 'cup' ? -1000 + p : ev === 'water' ? 1000 : Math.sqrt((b.x - cx) ** 2 + (b.y - cy) ** 2) + (h.sand.some((r) => inRect(b.x, b.y, r)) ? 20 : 0);
     if (!best || sc < best.sc) best = { sc, ang, p };
@@ -676,7 +709,7 @@ const botAimFrom = (ball, clock, h, lvl) => {
   for (let a = 0; a < 360; a += 5) for (let p = 0.06; p <= 1.0001; p += 0.08) trial((a * Math.PI) / 180, p);
   const a0 = best.ang, p0 = best.p;
   for (let da = -4; da <= 4; da++) for (let dp = -0.06; dp <= 0.0601; dp += 0.02) trial(a0 + (da * Math.PI) / 180, Math.min(1, Math.max(0.04, p0 + dp)));
-  const sk = BOT_SKILL[lvl], ang = best.ang + (gauss() * sk.aim * Math.PI) / 180, p = Math.min(1, Math.max(0.04, best.p * (1 + gauss() * sk.power))), sp = (0.6 + p * 10.4) * COURSE;
+  const sk = BOT_SKILL[lvl], ang = best.ang + (gauss() * sk.aim * Math.PI) / 180, p = Math.min(1, Math.max(0.04, best.p * (1 + gauss() * sk.power))), sp = (0.6 + p * 10.4) * COURSE * weak;
   return { vx: q100(Math.cos(ang) * sp), vy: q100(Math.sin(ang) * sp) };
 };
 const botLiveHoles = () => G?.game.players.filter(isBot).forEach((b) => botLiveHole(b));
@@ -686,7 +719,8 @@ async function botLiveHole(bot) {
   const row = Math.floor(g.t / n());
   if (botRowPlaying[bot] === row || G.turns.some((x) => x.player === bot && Math.floor(x.t / n()) === row)) return;
   botRowPlaying[bot] = row;
-  const hole = curHole(), h = holeWithAttack(g.seed, hole, 0), lvl = g.bot_level ?? 1, think = [3600, 2600, 2000][lvl];
+  const hole = curHole(), lvl = g.bot_level ?? 1, think = [3600, 2600, 2000][lvl];
+  let h = holeWithAttack(g.seed, hole, 0), atk = 0, atkFrom = -1;   // a sneak attack on it lands before its next putt (040)
   let ball = { x: h.tee[0], y: h.tee[1] }, clock = 0, count = 0, holed = false;
   const strokes = [], still = () => liveOn && G.game.status === 'playing' && Math.floor(G.game.t / n()) === row;
   ghosts[bot] = { hole, x: ball.x, y: ball.y, at: Date.now() };
@@ -694,7 +728,11 @@ async function botLiveHole(bot) {
   while (still() && count < MAX_STROKES && !holed) {
     await sleep(think * (0.7 + Math.random() * 0.6));
     if (!still()) break;
-    const aim = botAimFrom(ball, clock, h, lvl), s = { x: q20(ball.x), y: q20(ball.y), vx: aim.vx, vy: aim.vy };
+    if (!atk) {
+      const { data: a } = await sb.rpc('golf_bot_live_attack', { p_game: g.id, p_bot: bot });
+      if (a?.type) { atk = a.type; atkFrom = strokes.length; h = holeWithAttack(g.seed, hole, atk); }
+    }
+    const aim = botAimFrom(ball, clock, h, lvl, atk === 5 ? 0.67 : 1), s = { x: q20(ball.x), y: q20(ball.y), vx: aim.vx, vy: aim.vy };
     strokes.push(fromStroke(s));
     const b = { x: s.x, y: s.y, vx: s.vx, vy: s.vy, ticks: 0, clock };
     let ev;
@@ -710,7 +748,7 @@ async function botLiveHole(bot) {
     else ball = { x: q20(b.x), y: q20(b.y) };
   }
   if (!still()) { botRowPlaying[bot] = -1; return; }
-  const { error } = await sb.rpc('golf_submit_live_bot', { p_game: g.id, p_strokes: strokes, p_actual: Math.max(1, Math.min(12, count)), p_holed: holed, p_bot: bot });
+  const { error } = await sb.rpc('golf_submit_live_bot', { p_game: g.id, p_strokes: strokes, p_actual: Math.max(1, Math.min(12, count)), p_holed: holed, p_bot: bot, p_attack_from: atk ? atkFrom : -1 });
   if (error && !/finished this hole/.test(error.message || '')) { botRowPlaying[bot] = -1; return; }
   await load(g.id); renderCard(); if (mode === 'idle' && !flowing) decide();
 }
@@ -782,7 +820,8 @@ async function deleteGame() {
   let pending = false;
   const refresh = () => { if (pending) return; pending = true; setTimeout(async () => { pending = false; await load(id); renderCard(); announceChaos({ gameId: id });
     G.turns.forEach((x) => { if (ghosts[x.player] && Math.floor(x.t / n()) === Math.floor((G.game.t - 1) / n())) ghosts[x.player].holed = true; });
-    if (mode === 'idle' && !flowing) decide(); else if (liveOn && mode === 'idle') waitingLive(); }, 200); };
+    if (mode === 'idle' && !flowing) decide(); else if (liveOn && mode === 'idle') waitingLive();
+    checkLiveAttack(); if (during && liveOn && mode !== 'idle') renderAfter(true); }, 200); };
   live = liveGame(`golf-${id}`, [
     { event: '*', table: 'golf_games', filter: `id=eq.${id}` },
     { event: 'INSERT', table: 'golf_turns', filter: `game_id=eq.${id}` },
