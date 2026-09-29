@@ -638,7 +638,7 @@ img.hnav { object-fit: cover; background: #000; }
 @keyframes tornadoSpin { 0% { transform: translate(-150%, -50%) scale(.6); opacity: 0; } 25% { opacity: 1; } 100% { transform: translate(60%, -50%) scale(1.2) rotate(40deg); opacity: 0; } }
 
 /* 🔍 board zoom (053): the board grows inside a box that scrolls sideways */
-.bzoom { max-width: 100%; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+.bzoom { max-width: 100%; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; touch-action: pan-x pan-y; }   /* two fingers: our pinch (app.js), not the page's */
 .bz-on .bzoom > .board { width: calc(100% * var(--bz, 1)) !important; max-width: none !important; }   /* zoomed: past every layout's usual cap */
 .bzbar { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 6px auto; padding: 3px 6px; border-radius: 99px; background: var(--card, #ffffff10); border: 1px solid var(--line); font-size: 14px; }
 .bzbar button { width: 30px; height: 30px; min-height: 0; padding: 0; border-radius: 50%; font-size: 17px; line-height: 1; }

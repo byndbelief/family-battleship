@@ -1227,11 +1227,47 @@ function boardHTML({ owner, ships, clickable, fresh }) {
 }
 // 🔍 Board zoom (053): 1× to 2.4×, the same for every board, remembered on this device. A zoomed
 // board scrolls sideways inside its card.
-const BZ = [1, 1.4, 1.8, 2.4];
-let bzI = (() => { try { return Math.max(0, BZ.indexOf(+localStorage.getItem('bs.zoom'))); } catch { return 0; } })();
-const applyZoom = () => { document.documentElement.style.setProperty('--bz', BZ[bzI]); document.documentElement.classList.toggle('bz-on', bzI > 0); document.querySelectorAll('.bzbar b').forEach((b) => { b.textContent = `${BZ[bzI]}×`; }); document.querySelectorAll('.bzbar [data-bz]').forEach((b) => { b.disabled = +b.dataset.bz < 0 ? bzI === 0 : bzI === BZ.length - 1; }); };
+// Pinch a board (two fingers; trackpad pinch or Ctrl + wheel on a computer) for any zoom from 1× to
+// 3×, the spot between your fingers staying put; the buttons step 1 → 1.4 → 1.8 → 2.4 → 3.
+const BZ = [1, 1.4, 1.8, 2.4, 3], BZ_MAX = 3;
+let bz = (() => { try { const v = +localStorage.getItem('bs.zoom'); return v >= 1 && v <= BZ_MAX ? v : 1; } catch { return 1; } })();
+const bzLabel = () => `${Math.round(bz * 10) / 10}×`;
+const applyZoom = () => {
+  document.documentElement.style.setProperty('--bz', bz); document.documentElement.classList.toggle('bz-on', bz > 1.001);
+  document.querySelectorAll('.bzbar b').forEach((b) => { b.textContent = bzLabel(); });
+  document.querySelectorAll('.bzbar [data-bz]').forEach((b) => { b.disabled = +b.dataset.bz < 0 ? bz <= 1.001 : bz >= BZ_MAX - 0.001; });
+};
+const saveZoom = () => { try { localStorage.setItem('bs.zoom', String(Math.round(bz * 100) / 100)); } catch {} };
 applyZoom();
-const zoomBar = () => `<div class="bzbar" role="group" aria-label="Board zoom">🔍<button type="button" data-bz="-1" aria-label="Zoom out"${bzI === 0 ? ' disabled' : ''}>−</button><b>${BZ[bzI]}×</b><button type="button" data-bz="1" aria-label="Zoom in"${bzI === BZ.length - 1 ? ' disabled' : ''}>＋</button></div>`;
+const zoomBar = () => `<div class="bzbar" role="group" aria-label="Board zoom">🔍<button type="button" data-bz="-1" aria-label="Zoom out"${bz <= 1.001 ? ' disabled' : ''}>−</button><b>${bzLabel()}</b><button type="button" data-bz="1" aria-label="Zoom in"${bz >= BZ_MAX - 0.001 ? ' disabled' : ''}>＋</button></div>`;
+// Zoom to z keeping the board point under (cx, cy) on screen where it is: the zoom box scrolls
+// sideways, the page up and down.
+function zoomAround(box, z, cx, cy) {
+  z = Math.max(1, Math.min(BZ_MAX, z));
+  const r = box.getBoundingClientRect(), k = z / bz, px = cx - r.left + box.scrollLeft, py = cy - r.top;
+  bz = z; applyZoom();
+  box.scrollLeft = px * k - (cx - r.left);
+  const dy = py * (k - 1); if (Math.abs(dy) > 0.5) scrollBy(0, dy);
+}
+let bzPinch = null;
+document.addEventListener('touchstart', (e) => {
+  const box = e.target.closest?.('.bzoom');
+  if (!box || e.touches.length !== 2) return;
+  const [a, b] = e.touches;
+  bzPinch = { box, d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1, z: bz };
+}, { passive: true });
+document.addEventListener('touchmove', (e) => {
+  if (!bzPinch || e.touches.length !== 2) return;
+  e.preventDefault();   // our zoom, not the page's
+  const [a, b] = e.touches, d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) || 1;
+  zoomAround(bzPinch.box, bzPinch.z * (d / bzPinch.d), (a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2);
+}, { passive: false });
+document.addEventListener('touchend', (e) => { if (bzPinch && e.touches.length < 2) { bzPinch = null; if (bz < 1.04) { bz = 1; applyZoom(); } saveZoom(); } });
+document.addEventListener('wheel', (e) => {   // trackpad pinch arrives as Ctrl + wheel
+  const box = e.ctrlKey && e.target.closest?.('.bzoom'); if (!box) return;
+  e.preventDefault();
+  zoomAround(box, bz * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY); saveZoom();
+}, { passive: false });
 function fleetListHTML(owner) {
   const { game, shots } = G;
   const sunk = new Set(shots.filter((s) => s.target === owner && s.sunk_ship != null).map((s) => s.sunk_ship));
@@ -1424,7 +1460,9 @@ function renderGame() {
   if (clr) clr.onclick = () => { aims = { target: null, cells: new Set() }; renderGame(); };
   const fnow = document.getElementById('fireNow');
   if (fnow) fnow.onclick = () => fireVolley();
-  app.querySelectorAll('.bzbar [data-bz]').forEach((b) => { b.onclick = () => { bzI = Math.max(0, Math.min(BZ.length - 1, bzI + +b.dataset.bz)); try { localStorage.setItem('bs.zoom', BZ[bzI]); } catch {} applyZoom(); }; });
+  app.querySelectorAll('.bzbar [data-bz]').forEach((b) => { b.onclick = () => {
+    bz = +b.dataset.bz > 0 ? (BZ.find((v) => v > bz + 0.01) ?? BZ_MAX) : ([...BZ].reverse().find((v) => v < bz - 0.01) ?? 1);
+    saveZoom(); applyZoom(); }; });
 
   if (channel) { const l = document.getElementById('live'); l.classList.toggle('off', channel.state !== 'joined'); }
   fsRefresh();

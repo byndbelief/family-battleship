@@ -565,8 +565,9 @@ Live battles fire in **volleys**: tapping stages squares (`stageLive`), and a fu
 `fire_live_volley` (squares someone beat you to are skipped; the extra/jam is used up). The guns reload
 for `BS_RELOAD` (2 s) while it flies; a volley staged during the reload fires when it ends; "Fire now"
 lets a part volley go. `use_loot` allows Sonar/Salvo in a live battle. `loadGame` keeps staged squares
-across live moves (it only drops ones someone fired at). 🔍 Board zoom: `zoomBar()` above the boards,
-1×–2.4× (`--bz`, `.bz-on`), each board in a sideways-scrolling `.bzoom`. Chaos: 🐙 kraken (up to 2 squares
+across live moves (it only drops ones someone fired at). 🔍 Board zoom: pinch a board (two fingers; trackpad pinch /
+Ctrl + wheel) for 1×–3× around the fingers (`zoomAround`; `.bzoom` is `touch-action: pan-x pan-y` so the
+page itself doesn't zoom), or step with `zoomBar()`'s buttons; `bz` is kept per device (`bs.zoom`). Chaos: 🐙 kraken (up to 2 squares
 of one ship) and 🌪️ tornado (a row/column, up to 3), both never a ship's last square, saved as hits with
 `shots.chaos` set and the victim as `shooter` (`_log_result` skips chaos rows); the page shows them
 without a shell (`.seabeast`) and on feed lines of their own. Fog also lasts 20 s live (`fog_until`).
