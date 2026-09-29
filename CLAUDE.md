@@ -760,4 +760,14 @@ squirrel; the HUD meter shows x's last 24 values. Each level ends by zooming int
 knothole; the next forest grows out of a dot, 15% faster. The score goes to `solo_submit(game, score,
 level)` (`solo_scores`, readable by everyone; one run per 20 s), which answers with your best and the
 family's top five. `window.__sq()` is a read-only test hook (t_squirrel plays a full run).
+**Arsenal and fighting back (page only):** 📦 crates parachute in every 7-12 s (faster as x rises, and on
+every twist); shoot one to open it (`openCrate`) and the weapon bar (`#wbar`, bottom right) loads it:
+🔩 nail gun (40, hold to fire, `hold`), 💥 shotgun (8, five staples ±0.11 rad), 🧨 tack bomb (4, lobbed,
+`explode` r 58, screen shake), ⚡ chain stapler (6, `chain`: forks to the two nearest, twice: up to 7,
+drawn as midpoint-displacement bolts), 🌀 chaos cannon (3, a 15-point fractal burst). Empty → back to the
+stapler. Angry squirrels (red eyes) lob 🌰 acorns at the stapler when x > 0.55 (at most 2 in the air, 2.2 s
+flights): tap one to swat it (any weapon; the stapler spends a staple), else BONK: −1 ❤️ of 3, 0.7 s stun,
+combo lost; 0 hearts is KNOCKED OUT (the run ends and still saves). Each new level gives a heart back.
+A tap near the stapler reloads only when no acorn or crate is there. Cartoon impact, no gore: comic words
+(KA-CHUNK!, THWACK!…), fur tufts, dizzy ✦ on split squirrels, 70 ms hit-stop from a 3× combo.
 
