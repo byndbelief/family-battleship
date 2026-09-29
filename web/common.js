@@ -760,15 +760,15 @@ export async function gauntletBar(gauntletId, gameId, meId, nameOf) {
     const key = [...gt.players].sort().join(',');
     const { data: nextOnes } = await sb.from('gauntlets').select('*').eq('status', 'playing').order('created_at', { ascending: false }).limit(20);
     const nx = (nextOnes ?? []).find((x) => [...x.players].sort().join(',') === key);
-    go = nx ? `<a class="gtgo" data-reload href="${nx.current_kind === 'battleship' ? `./#game=${nx.current_game}` : `${nx.current_kind}.html#game=${nx.current_game}`}">👑 ${champs} ${champs === 'You' ? 'win' : 'wins'}! Next Gauntlet: ${GT_ICON[nx.current_kind]} ›</a>`
-      : `<a class="gtgo" href="./">👑 ${champs} ${champs === 'You' ? 'win' : 'wins'} the Gauntlet! ›</a>`;
+    go = nx ? `<a class="gtgo" data-reload href="${nx.current_kind === 'battleship' ? `./#game=${nx.current_game}` : `${nx.current_kind}.html#game=${nx.current_game}`}">👑 ${champs} ${champs === 'You' ? 'win' : 'wins'}! Next Chaos: ${GT_ICON[nx.current_kind]} ›</a>`
+      : `<a class="gtgo" href="./">👑 ${champs} ${champs === 'You' ? 'win' : 'wins'} the Chaos! ›</a>`;
   } else if (gt.current_game !== gameId) {
     go = `<a class="gtgo" data-reload href="${gt.current_kind === 'battleship' ? `./#game=${gt.current_game}` : `${gt.current_kind}.html#game=${gt.current_game}`}">Round ${gt.round}: ${GT_ICON[gt.current_kind]} Play ›</a>`;
   }
   const thisRound = done.findIndex((h) => h.game === gameId);
   const label = gt.status === 'over' ? 'Final' : `Round ${thisRound >= 0 ? thisRound + 1 : gt.round} of ${gt.rounds}`;
   const off = gt.status === 'playing' && gt.created_by === meId ? `<button type="button" class="gtoffbar" data-gtoff="${gt.id}">Call off</button>` : '';
-  const html = `<div class="gtbar"><span class="gtt">🏆 Gauntlet · ${label}</span><span class="gtdots">${dots}</span><span class="gtscores">${table}</span>${go}${off}</div>`;
+  const html = `<div class="gtbar"><span class="gtt">🌀 Route to Chaos · ${label}</span><span class="gtdots">${dots}</span><span class="gtscores">${table}</span>${go}${off}</div>`;
   const now = document.getElementById('gtbar'); if (now) now.innerHTML = html;
   return html;
 }
@@ -791,7 +791,7 @@ export async function jumpToNext(kind, game, meId, nameOf, wait = 3000, mount = 
       const k = [...gt.players].sort().join(',');
       const { data: nx } = await sb.from('gauntlets').select('*').eq('status', 'playing').order('created_at', { ascending: false }).limit(20);
       const n = (nx ?? []).find((x) => [...x.players].sort().join(',') === k);
-      if (n?.current_game) target = { kind: n.current_kind, id: n.current_game, players: n.players, label: 'Next Gauntlet' };
+      if (n?.current_game) target = { kind: n.current_kind, id: n.current_game, players: n.players, label: 'Next Chaos' };
     }
   }
   if (!target) { const list = (await myTurns(meId)).filter((x) => x.id !== game.id); if (list.length) target = { ...list[0], label: 'Your move' }; }
@@ -892,7 +892,7 @@ document.addEventListener('click', async (e) => {
   gtOffArmed = null; b.disabled = true;
   const { error } = await sb.rpc('gauntlet_delete', { p_gauntlet: id });
   if (error) { note(error.message.replace(/^.*?ERROR:\s*/, ''), 'error'); b.disabled = false; return; }
-  note('Gauntlet called off.');
+  note('Chaos called off.');
   setTimeout(() => { location.href = './'; }, 900);
 });
 const gtCss = document.createElement('style');
@@ -983,7 +983,7 @@ export function roundIntro(gt, gameId, meId, nameOf) {
   const clinch = gt.players.filter((_, i) => gt.scores[i] + 1 > Math.max(...gt.players.map((__, j) => (j === i ? -1 : gt.scores[j] + left))));
   const who = (p) => (p === meId ? 'YOU' : esc(nameOf(p)).toUpperCase());
   const stakes = clinch.length === 1 ? `MATCH POINT: ${who(clinch[0])}` : gt.round === gt.rounds ? 'FINAL ROUND' : `${gt.scores.join(' – ')}`;
-  splash([`ROUND ${gt.round}`, `${GT_ICON[gt.current_kind]} ${GT_NAME[gt.current_kind].toUpperCase()}`, stakes], { tone: clinch.length || gt.round === gt.rounds ? 'red' : 'gold', ms: 2600 });
+  splash([`🌀 ROUTE TO CHAOS · ROUND ${gt.round}`, `${GT_ICON[gt.current_kind]} ${GT_NAME[gt.current_kind].toUpperCase()}`, stakes], { tone: clinch.length || gt.round === gt.rounds ? 'red' : 'gold', ms: 2600 });
 }
 const dramaCss = document.createElement('style');
 dramaCss.textContent = `
@@ -1196,8 +1196,8 @@ export async function openSettings() {
         ${sw('gamePopups', pref('gamePopups', false), '📰 News pop-ups in games', 'Loot, curses and twists pop up over the game. Off: they wait in the 🔔 up top')}
       </div>
       ${uid ? `<div class="setgroup">
-        <div class="setrow"><div><strong>🏆 Gauntlet length</strong><span>Picked for you when you start one</span></div>
-          <div class="setseg" role="radiogroup" aria-label="Gauntlet length">${[3, 5, 7].map((r) => `<button type="button" role="radio" aria-checked="${gauntletRounds() === r}" data-rounds="${r}">${r}</button>`).join('')}</div></div>
+        <div class="setrow"><div><strong>🌀 Route to Chaos length</strong><span>Picked for you when you start one</span></div>
+          <div class="setseg" role="radiogroup" aria-label="Route to Chaos length">${[3, 5, 7].map((r) => `<button type="button" role="radio" aria-checked="${gauntletRounds() === r}" data-rounds="${r}">${r}</button>`).join('')}</div></div>
         <div class="setrow" id="alertRow"><div><strong>🔔 Turn alerts</strong><span id="alertHint">Checking…</span></div><span id="alertCtl"></span></div>
         <a class="setrow link" href="./#player=${uid}"><div><strong>🏅 My trophies</strong><span>Your trophy case and badges</span></div><span class="setgo">›</span></a>
       </div>

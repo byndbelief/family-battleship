@@ -492,7 +492,7 @@ username. A new account only becomes a robot once it's in `public.bots`.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size, 037_bs_burst applied 2026-09-28; 038_drone_strike, 039_more_loot, 040_golf_live_attacks, 041_golf_attack_loot, 042_more_chaos_hilltop, 043_more_chaos_golf, 044_even_more_chaos, 045_live_countdown, 046_gauntlet_big_ocean, 047_chaos_extras, 048_duel_rotate_start, 049_shoot_the_moon, 050_orogeny, 051_regrowth, 052_fill_holes, 053_bs_volleys_kraken, 054_bs_shared_misses, 055_golf_big_course, 056_bs_always_shared, 057_golf_long_course, 058_chaos_curve, 059_hilltop_fractals, 060_bs_fractals, 061_cards_butterfly_recursion 2026-09-29), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size, 037_bs_burst applied 2026-09-28; 038_drone_strike, 039_more_loot, 040_golf_live_attacks, 041_golf_attack_loot, 042_more_chaos_hilltop, 043_more_chaos_golf, 044_even_more_chaos, 045_live_countdown, 046_gauntlet_big_ocean, 047_chaos_extras, 048_duel_rotate_start, 049_shoot_the_moon, 050_orogeny, 051_regrowth, 052_fill_holes, 053_bs_volleys_kraken, 054_bs_shared_misses, 055_golf_big_course, 056_bs_always_shared, 057_golf_long_course, 058_chaos_curve, 059_hilltop_fractals, 060_bs_fractals, 061_cards_butterfly_recursion, 062_route_to_chaos 2026-09-29), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.
@@ -719,4 +719,11 @@ ResizeObserver on it and the header); tablets/desktop keep the hole's own shape.
 Hilltop's slingshot: let go of a pull and `#puttHere` pops up where the finger lifted (⛳ PUTT, ↺ ↻,
 − +, ✕, the power under it; `phShow`), and the Putt! bar is gone on touch screens (mouse still putts
 on release). Tests tap `#phGo`, not `#puttGo`.
+
+### The Gauntlet is the Route to Chaos (062)
+Players never see "Gauntlet" now: the lobby card is 🌀 **Route to Chaos** ("Start Chaos 🌀", "Go to your
+Chaos ›"), a running one is "Chaos #n", the game-page bar "🌀 Route to Chaos · Round …", titles and
+trophies "Chaos". Code, tables and RPCs keep the gauntlet names. The rounds walk the logistic map's route:
+`_chaos_curve` starts a round's game at n = (round − 1)·6, so round 1 is calm (r 2.90) and round 4 on
+opens in chaos. The server's messages (round news, champion, call-off, chaos-clock forfeits) say Chaos.
 

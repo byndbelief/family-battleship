@@ -310,7 +310,7 @@ function loginView(msg) {
   view(`
     <div class="narrow">
       <header class="stack"><span class="eyebrow">Family Game Room</span><h1>Game on</h1>
-        <p class="muted">Sign in with your player name to jump into Battleship, Putt Post, Hilltop Duel and the Gauntlet.</p></header>
+        <p class="muted">Sign in with your player name to jump into Battleship, Putt Post, Hilltop Duel and the Route to Chaos.</p></header>
       <form class="card" id="login">
         <label class="field" for="user">Username<input type="text" id="user" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
         <label class="field" for="pass">Password<input type="password" id="pass" autocomplete="current-password" required></label>
@@ -333,8 +333,8 @@ function loginView(msg) {
 
 
 // ---------------------------------------------------------------- lobby
-const KIND_ICON = { battleship: '⚓', golf: '⛳', duel: '💥', cards: '🃏', gauntlet: '🏆' };
-const KIND_NAME = { battleship: 'Battleship', golf: 'Putt Post', duel: 'Hilltop Duel', cards: 'Chaos Cards', gauntlet: 'The Gauntlet' };
+const KIND_ICON = { battleship: '⚓', golf: '⛳', duel: '💥', cards: '🃏', gauntlet: '🌀' };
+const KIND_NAME = { battleship: 'Battleship', golf: 'Putt Post', duel: 'Hilltop Duel', cards: 'Chaos Cards', gauntlet: 'Route to Chaos' };
 const KIND_BLURB = {
   battleship: 'Hide your fleet, hunt theirs. Peeking is allowed.',
   golf: '18 wild holes, sneak attacks and mulligans.',
@@ -342,7 +342,7 @@ const KIND_BLURB = {
   cards: 'Match colours, dump your hand. Chaos cards and card storms.',
   gauntlet: 'A best-of series of random games. Winner takes the crown.',
 };
-const KIND_SHORT = { battleship: 'Battleship', golf: 'Putt Post', duel: 'Duel', cards: 'Cards', gauntlet: 'Gauntlet' };
+const KIND_SHORT = { battleship: 'Battleship', golf: 'Putt Post', duel: 'Duel', cards: 'Cards', gauntlet: 'Chaos' };
 const KIND_WHO = { battleship: '2–3 players', golf: 'Solo or up to 4', duel: '2–4 players', cards: '2–4 players', gauntlet: '2–4 players · 3, 5 or 7 rounds' };
 
 async function lobby() {
@@ -358,14 +358,14 @@ async function lobby() {
   queueMicrotask(renderHere);
   view(`
     <div class="lobby${quick ? ' quickmode' : ' lobhome'}">
-      <div class="quickhead"><a href="#">← Game Room</a><h1>Quick play</h1><p class="muted">One game on its own, outside the Gauntlet. One of each kind per group of players at a time.</p></div>
+      <div class="quickhead"><a href="#">← Game Room</a><h1>Quick play</h1><p class="muted">One game on its own, off the Route to Chaos. One of each kind per group of players at a time.</p></div>
       <header class="row between gtop">
         <div class="stack lobhead"><span class="eyebrow">Family Game Room</span><h1>Ahoy, ${esc(me.username)}</h1></div>
         <div class="herenow" id="hereNow" aria-label="Who's here"></div>
       </header>
       <div class="lobmain">
       <section class="gthero" id="gtSec">
-        <div class="gthead"><span class="gtcup" aria-hidden="true">🏆</span><div><h2>The Gauntlet</h2><p class="small">One running Gauntlet per rival: surprise rounds of putts, duels and sea battles. Win the most rounds for the crown, and the next Gauntlet starts on its own.</p></div></div>
+        <div class="gthead"><span class="gtcup" aria-hidden="true">🌀</span><div><h2>Route to Chaos</h2><p class="small">One running Chaos per rival: surprise rounds of putts, duels, sea battles and cards, wilder as it goes. Win the most rounds for the crown, and the next Chaos starts on its own.</p></div></div>
         <div class="gtlive" id="gtLive"></div>
         <details class="gtfold" id="gtFold"><summary class="gtlabel" id="gtLabel">➕ New rival</summary>
         <form class="gtstart" id="gtStart">
@@ -439,7 +439,7 @@ async function lobby() {
     c.setAttribute('aria-pressed', String(on)); gtGo.disabled = !gPicked().length;
     const ids = gchips.filter((x) => x.getAttribute('aria-pressed') === 'true').map((x) => x.dataset.gid);
     const exists = ids.length && rivalGroups.has([me.id, ...ids].sort().join(','));
-    gtGo.textContent = exists ? 'Go to your Gauntlet ›' : 'Start 🏆';
+    gtGo.textContent = exists ? 'Go to your Chaos ›' : 'Start Chaos 🌀';
     app.querySelector('.gtrow .seg').hidden = !!exists;
   }));
   document.getElementById('gtStart').addEventListener('submit', async (e) => {
@@ -469,7 +469,7 @@ async function lobby() {
       el.hidden = el.dataset.for === 'botlevel' ? !((k === 'golf' || k === 'duel' || k === 'cards') && sel.some((c) => bots.has(c.dataset.id))) : el.dataset.for !== k;
     });
     start.disabled = sel.length < lo || sel.length > hi;
-    start.textContent = k === 'golf' && sel.length === 0 ? 'Start a solo round' : k === 'gauntlet' ? 'Start the Gauntlet' : 'Start game';
+    start.textContent = k === 'golf' && sel.length === 0 ? 'Start a solo round' : k === 'gauntlet' ? 'Start Chaos 🌀' : 'Start game';
   };
   chips.forEach((c) => c.addEventListener('click', () => {
     c.setAttribute('aria-pressed', c.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
@@ -657,11 +657,11 @@ async function loadGames() {
     return `<li class="gbundle fin"><details data-gid="${gid}" ${openBundles.has(gid) ? 'open' : ''}><summary class="grow over">
       <span class="thumb gthumb" aria-hidden="true">🏆</span>
       <span class="gmain">
-        <span class="gtitle"><strong>Gauntlet${nth ? ` #${nth}` : ''}</strong> <span class="small">${vsOf(players)}</span></span>
+        <span class="gtitle"><strong>🌀 Chaos${nth ? ` #${nth}` : ''}</strong> <span class="small">${vsOf(players)}</span></span>
         <span class="muted small">${res}${res ? ' · ' : ''}${rounds.length} round${rounds.length === 1 ? '' : 's'}: ${icons}</span>
       </span>
       <span class="gstate"><span class="pill done">${rounds.length} ▾</span></span>
-    </summary><ul class="glist gbrounds">${rounds.map(row).join('')}</ul></details>${del(gid, 'this Gauntlet and its rounds')}</li>`;
+    </summary><ul class="glist gbrounds">${rounds.map(row).join('')}</ul></details>${del(gid, 'this Chaos and its rounds')}</li>`;
   };
   list.innerHTML = groups.filter(([, cs]) => cs.length).map(([title, cs]) => title === 'Finished'
     ? `<div class="stack glist-fold" style="gap:6px"><div class="row between"><span class="eyebrow">Finished (${cs.length})</span><span class="row" style="gap:12px"><button type="button" class="link small" id="finMore" hidden></button><button type="button" class="link small gclear" id="finClear">🗑 Clear all</button></span></div><ul class="glist">${finishedRows(cs)}</ul></div>`
@@ -758,7 +758,7 @@ function renderGauntlets(all, cards) {
     const rivals = g.players.filter((p) => p !== me.id), others = rivals.map((p) => esc(names[p] ?? 'someone')).join(' & ');
     const faces = rivals.map((p) => avatar({ username: names[p], bot: bots.has(p) }, 'gtav')).join('');
     return `<div class="gtwrap"><a class="gtcard ${myMove ? 'mine' : ''}" href="${href}">
-      <span class="gtwho"><span class="gtfaces">${faces}</span><span class="gtrival"><strong>vs ${others}</strong><span>Gauntlet #${past.length + 1}${past.length ? ` · 🏆 ${g.players.map((p, i) => `${p === me.id ? 'You' : nm(p)} ${titles[i]}`).join(' · ')}` : ''}</span></span></span>
+      <span class="gtwho"><span class="gtfaces">${faces}</span><span class="gtrival"><strong>vs ${others}</strong><span>Chaos #${past.length + 1}${past.length ? ` · 🏆 ${g.players.map((p, i) => `${p === me.id ? 'You' : nm(p)} ${titles[i]}`).join(' · ')}` : ''}</span></span></span>
       <span class="gtscore">${g.players.map((p, i) => `<span class="${g.scores[i] === lead && lead > 0 ? 'lead' : ''}">${g.scores[i] === lead && lead > 0 ? '👑 ' : ''}${p === me.id ? 'You' : nm(p)} <b>${g.scores[i]}</b></span>`).join('')}</span>
       <span class="gttrack">${dots}</span>
     </a>${g.created_by === me.id ? `<button type="button" class="gtoff" data-off="${g.id}">Call off</button>` : ''}</div>`;
@@ -769,7 +769,7 @@ function renderGauntlets(all, cards) {
     b.disabled = true;
     const { error } = await sb.rpc('gauntlet_delete', { p_gauntlet: b.dataset.off });
     if (error) { note(friendly(error), 'error'); b.disabled = false; return; }
-    note('Gauntlet called off.'); loadGames(); loadChaos();
+    note('Chaos called off.'); loadGames(); loadChaos();
   }; });
   // The start form stays folded to one row; with no Gauntlet running it opens by itself.
   document.getElementById('gtLabel').textContent = live.length ? '➕ New rival' : '➕ Start a rivalry';
@@ -991,7 +991,7 @@ async function statsView() {
   const cards = ranked.map((p, i) => `
     <a class="scard ${p.id === me.id ? 'me' : ''}" href="#player=${p.id}">
       <div class="row between"><strong class="sname">${medal[i] || ''} ${p.bot ? '' : avatar(p, 'mini')} ${who(p)}</strong>${p.streak >= 2 ? `<span class="streak">🔥 ${p.streak} in a row</span>` : ''}</div>
-      <div class="sbig"><span><b>${p.titles}</b> 👑 Gauntlet${p.titles === 1 ? '' : 's'}</span><span><b>${p.won}</b>–${p.played - p.won} <small>${pct(p.won, p.played)}</small></span></div>
+      <div class="sbig"><span><b>${p.titles}</b> 👑 Chaos title${p.titles === 1 ? '' : 's'}</span><span><b>${p.won}</b>–${p.played - p.won} <small>${pct(p.won, p.played)}</small></span></div>
       <div class="skinds">${['battleship', 'golf', 'duel', 'cards'].map((k) => `<span>${KIND_ICON[k]} ${p.by_kind[k]?.won ?? 0}/${p.by_kind[k]?.played ?? 0}</span>`).join('')}<span>🏁 ${p.rounds_won} round${p.rounds_won === 1 ? '' : 's'}</span><span class="sgo">🏆 Trophies ›</span></div>
     </a>`).join('');
   const award = (icon, label, key, fmt = (v) => v) => {
@@ -1000,7 +1000,7 @@ async function statsView() {
     return `<li><span class="big">${icon}</span><span><strong>${label}</strong><br><span class="muted small">${ps.filter((p) => (p[key] || 0) === top).map(who).join(' & ')} · ${fmt(top)}</span></span></li>`;
   };
   const awards = [
-    award('👑', 'Gauntlet champion', 'titles', (v) => `${v} title${v === 1 ? '' : 's'}`),
+    award('👑', 'Chaos champion', 'titles', (v) => `${v} title${v === 1 ? '' : 's'}`),
     award('🎯', 'Sharpshooter', 'sunk', (v) => `${v} ship${v === 1 ? '' : 's'} sunk`),
     award('⛳', 'Ace', 'hio', (v) => `${v} hole${v === 1 ? '' : 's'} in one`),
     award('🐦', 'Birdie machine', 'under_par', (v) => `${v} under par`),
@@ -1017,7 +1017,7 @@ async function statsView() {
     return `<li><span>${who(a)}</span><b class="${h.a_wins > h.b_wins ? 'lead' : ''}">${h.a_wins}</b><span class="dash">–</span><b class="${h.b_wins > h.a_wins ? 'lead' : ''}">${h.b_wins}</b><span>${who(b)}</span></li>`;
   }).join('');
   const rows = [
-    ['👑 Gauntlet titles', 'titles'], ['🏁 Gauntlet rounds won', 'rounds_won'], ['🏆 Games won', 'won'], ['🎮 Games played', 'played'],
+    ['👑 Chaos titles', 'titles'], ['🏁 Chaos rounds won', 'rounds_won'], ['🏆 Games won', 'won'], ['🎮 Games played', 'played'],
     ['⚓ Ships sunk', 'sunk'], ['⚓ Hit rate', (p) => pct(p.hits, p.bs_shots)], ['⛳ Holes in one', 'hio'], ['⛳ Holes under par', 'under_par'],
     ['⛳ Strokes vs par', (p) => (p.holes ? (p.to_par > 0 ? `+${p.to_par}` : p.to_par === 0 ? 'E' : p.to_par) : '–')],
     ['💥 K.O.s', 'kos'], ['💥 Direct hits', 'direct_hits'], ['🦊 Cheats got away with', 'sneaky'], ['🔍 Cheaters caught', 'catches'], ['🚨 Times busted', 'busted'],
@@ -1033,7 +1033,7 @@ async function statsView() {
     </div>
     <div class="sside">
     ${awards ? `<section class="card"><h2>🏛️ Hall of fame</h2><ul class="pack">${awards}</ul></section>` : ''}
-    ${h2h ? `<section class="card"><h2>⚔️ Head to head</h2><ul class="h2h">${h2h}</ul><p class="muted small">One-on-one games, Gauntlet rounds included.</p></section>` : ''}
+    ${h2h ? `<section class="card"><h2>⚔️ Head to head</h2><ul class="h2h">${h2h}</ul><p class="muted small">One-on-one games, Chaos rounds included.</p></section>` : ''}
     </div>`;
 }
 
@@ -1044,10 +1044,10 @@ const BADGES = [
   ['🩸', 'First blood', 'Win your first game', (c) => c.won, 1],
   ['🎩', 'Hat trick', 'Win 3 games in a row', (c) => c.best_streak, 3],
   ['🔥', 'On fire', 'Win 5 games in a row', (c) => c.best_streak, 5],
-  ['👑', 'Champion', 'Win a Gauntlet', (c) => c.titles, 1],
-  ['💎', 'Flawless', 'Win a Gauntlet without dropping a round', (c, t) => t.filter((x) => x.perfect).length, 1],
-  ['🏰', 'Dynasty', 'Win 5 Gauntlets', (c) => c.titles, 5],
-  ['🏃', 'Grinder', 'Play 10 Gauntlets', (c) => c.gauntlets, 10],
+  ['👑', 'Champion', 'Win a Route to Chaos', (c) => c.titles, 1],
+  ['💎', 'Flawless', 'Win a Route to Chaos without dropping a round', (c, t) => t.filter((x) => x.perfect).length, 1],
+  ['🏰', 'Dynasty', 'Win 5 Routes to Chaos', (c) => c.titles, 5],
+  ['🏃', 'Grinder', 'Play 10 Routes to Chaos', (c) => c.gauntlets, 10],
   ['🎲', 'Triple threat', 'Win a game of each kind', (c) => [c.battleship_won, c.golf_won, c.duel_won].filter((x) => x > 0).length, 3],
   ['⚓', 'Admiral', 'Win 10 Battleship games', (c) => c.battleship_won, 10],
   ['🎯', 'Sharpshooter', 'Sink 10 ships', (c) => c.sunk, 10],
@@ -1075,7 +1075,7 @@ async function profileView(id) {
     ? titles.map((t) => `<button type="button" class="trophy ${t.perfect ? 'perfect' : ''}" data-t="${esc(t.table.map((x) => `${x.name} ${x.score}`).join(' · '))}">
         <span class="cup" aria-hidden="true">🏆</span><span class="tvs">vs ${esc(t.table.filter((x) => x.id !== d.id).map((x) => x.name).join(' & '))}</span>
         <span class="tscore">${t.table.map((x) => x.score).join('–')}${t.perfect ? ' 💎' : ''}</span><span class="tdate">${new Date(t.at).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span></button>`).join('')
-    : `<div class="trophy empty"><span class="cup" aria-hidden="true">🏆</span><span class="tvs">${mine ? 'Win a Gauntlet to put a trophy here' : 'No Gauntlet titles yet'}</span></div>`;
+    : `<div class="trophy empty"><span class="cup" aria-hidden="true">🏆</span><span class="tvs">${mine ? 'Win a Route to Chaos to put a trophy here' : 'No Chaos titles yet'}</span></div>`;
   const badges = BADGES.map(([icon, title, how, get, goal]) => {
     const need = typeof goal === 'function' ? goal(c) : goal, have = Math.min(need, get(c, titles) || 0), got = need > 0 && have >= need;
     return { got, html: `<div class="badge ${got ? 'got' : ''}" title="${esc(how)}"><span class="bicon" aria-hidden="true">${icon}</span><strong>${title}</strong><span class="bhow">${how}</span>${got ? '' : `<span class="bprog" aria-label="${have} of ${need}"><i style="width:${need ? Math.round((have / need) * 100) : 0}%"></i></span><span class="bnum">${have}/${need}</span>`}</div>` };
