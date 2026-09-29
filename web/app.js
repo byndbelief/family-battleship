@@ -393,7 +393,7 @@ async function lobby() {
           <div class="stack"><span class="eyebrow" id="oppHint">Opponents</span>
             <div class="choice">${others.map(([id, u]) => `<button type="button" class="chip" data-opp="${esc(u)}" data-id="${id}" aria-pressed="false">${bots.has(id) ? '🤖 ' : ''}${esc(u)}${bots.has(id) ? ' (robot)' : ''}</button>`).join('')}</div></div>
           <div class="stack" data-for="battleship"><span class="eyebrow">Board</span>
-            <div class="choice"><label><input type="radio" name="mode" value="0">Quick 8×8 · 4 ships</label><label><input type="radio" name="mode" value="1" checked>Classic 10×10 · 5 ships</label><label><input type="radio" name="mode" value="2">🌊 Shared ocean · every fleet on one grid (12×12, 16×16 for 4+)</label></div></div>
+            <p class="small muted" style="margin:0">🌊 Shared ocean: every fleet on one grid (12×12, 16×16 for 4 or more).</p></div>
           <div class="stack" data-for="battleship"><span class="eyebrow">Shots per turn</span>
             <div class="choice"><label><input type="radio" name="spt" value="1">1 shot</label><label><input type="radio" name="spt" value="3" checked>3 shots</label></div></div>
           <div class="stack" data-for="golf" hidden><span class="eyebrow">Course</span>
@@ -509,7 +509,7 @@ async function lobby() {
     } else if (k === 'gauntlet') {
       res = await sb.rpc('gauntlet_create', { opponents, p_rounds: +app.querySelector('input[name=rounds]:checked').value });
     } else {
-      res = await sb.rpc('create_game', { opponents, p_mode: +app.querySelector('input[name=mode]:checked').value, p_spt: +app.querySelector('input[name=spt]:checked').value });
+      res = await sb.rpc('create_game', { opponents, p_mode: 2, p_spt: +app.querySelector('input[name=spt]:checked').value });
     }
     const { data, error } = res;
     if (error) { const el = document.getElementById('newerr'); el.hidden = false; el.textContent = friendly(error); start.disabled = false; return; }

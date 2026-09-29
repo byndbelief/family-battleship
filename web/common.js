@@ -713,7 +713,7 @@ async function createRematch(kind, game, meId) {
   if (kind === 'duel') return sb.rpc('duel_create', { p_opponents: un, p_bot_level: game.bot_level });
   if (kind === 'golf') return sb.rpc('golf_create', { opponents: un, p_start: game.start, p_count: game.count, p_random: !!game.seed, p_bot_level: game.bot_level });
   if (kind === 'cards') return sb.rpc('card_create', { opponents: un, p_bot_level: game.bot_level });
-  return sb.rpc('create_game', { opponents: un, p_mode: game.mode, p_spt: game.spt });
+  return sb.rpc('create_game', { opponents: un, p_mode: 2, p_spt: game.spt });   // always the shared ocean (056)
 }
 document.addEventListener('click', (e) => {
   const a = e.target.closest?.('a[data-reload]');

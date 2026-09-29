@@ -492,7 +492,7 @@ username. A new account only becomes a robot once it's in `public.bots`.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size, 037_bs_burst applied 2026-09-28; 038_drone_strike, 039_more_loot, 040_golf_live_attacks, 041_golf_attack_loot, 042_more_chaos_hilltop, 043_more_chaos_golf, 044_even_more_chaos, 045_live_countdown, 046_gauntlet_big_ocean, 047_chaos_extras, 048_duel_rotate_start, 049_shoot_the_moon, 050_orogeny, 051_regrowth, 052_fill_holes, 053_bs_volleys_kraken, 054_bs_shared_misses, 055_golf_big_course 2026-09-29), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size, 037_bs_burst applied 2026-09-28; 038_drone_strike, 039_more_loot, 040_golf_live_attacks, 041_golf_attack_loot, 042_more_chaos_hilltop, 043_more_chaos_golf, 044_even_more_chaos, 045_live_countdown, 046_gauntlet_big_ocean, 047_chaos_extras, 048_duel_rotate_start, 049_shoot_the_moon, 050_orogeny, 051_regrowth, 052_fill_holes, 053_bs_volleys_kraken, 054_bs_shared_misses, 055_golf_big_course, 056_bs_always_shared 2026-09-29), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.
@@ -612,4 +612,10 @@ straight-line distance, and a foot wedge can't kick through a rail (`overRail`).
 each hole's total with penalties; a hole with any (splashes `actual − putts`, a false call or slow clock
 `written − actual`, a busted `fine`) shows `putts+penalty` under it, and your hole in play shows its
 count so far (italic `.going`).
+
+### Battleship: always the Shared Ocean (056)
+Every new Battleship game is the shared ocean: mode 2 (12×12), mode 3 (16×16) for 4+. `create_game`
+ignores `p_mode` (old pages and rematches of old games still send 0/1) and `_gauntlet_next` deals mode 2
+instead of Quick 8×8 for under 4, robots' fleets clear of each other. The lobby's board picker is gone
+(a note says it's the shared ocean); modes 0/1 stay in `MODES` for games made before 056.
 
