@@ -57,6 +57,7 @@ function buildHole(base, extra){
   h.segs=[];
   const add=pts=>pts.forEach((p,i)=>{ const q=pts[(i+1)%pts.length]; h.segs.push([p[0],p[1],q[0],q[1]]); });
   add(h.outline); h.blocks.forEach(b=>add(rect(...b)));
+  (h.walls||[]).forEach(w=>h.segs.push([...w]));   // a labyrinth's rails (055)
   return h;
 }
 // Can a ball get from tee to cup? Flood fill on a 5px grid, ignoring windmills.
@@ -73,6 +74,34 @@ function reachable(h){
   while(q.length){ const [x,y]=q.pop(); if(Math.abs(x-goal[0])<=1 && Math.abs(y-goal[1])<=1) return true;
     for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const nx=x+dx, ny=y+dy; if(nx<0||ny<0||nx>=W||ny>=Hh||seen[ny*W+nx]) continue; seen[ny*W+nx]=1; if(ok(nx,ny)) q.push([nx,ny]); } }
   return false;
+}
+// How far a ball has to roll from (x, y) to the cup, round the walls and ponds (a 5px grid flood
+// from the cup, on the hole as played). The robot aims by it (055): as the crow flies, a labyrinth's
+// cup is always just the other side of a wall. Drawing and robots only: the physics never asks.
+const flowCache=new WeakMap();
+const side=(ax,ay,bx,by,cx,cy)=>Math.sign((bx-ax)*(cy-ay)-(by-ay)*(cx-ax));
+const crosses=(x1,y1,x2,y2,[a,b,c,d])=>side(x1,y1,x2,y2,a,b)!==side(x1,y1,x2,y2,c,d) && side(a,b,c,d,x1,y1)!==side(a,b,c,d,x2,y2);
+function flowTo(h){
+  if(flowCache.has(h)) return flowCache.get(h);
+  const s=h.scale||1, S=5*s, W=Math.ceil(LW/S), Hh=Math.ceil(LH/S), d=new Float32Array(W*Hh).fill(-1);
+  const ok=(gx,gy)=>{ const x=gx*S+S/2, y=gy*S+S/2;
+    if(!inPoly(x,y,h.outline)) return false;
+    for(const sg of h.segs) if(segDist(x,y,sg)<R) return false;
+    for(const w of h.water) if(inRect(x,y,w)) return false;
+    for(const [cx,cy,cr] of h.bumpers){ const dx=x-cx, dy=y-cy; if(dx*dx+dy*dy<(cr+R)*(cr+R)) return false; }
+    return true; };
+  const g0=[Math.min(W-1,Math.floor(h.cup[0]/S)), Math.min(Hh-1,Math.floor(h.cup[1]/S))];
+  d[g0[1]*W+g0[0]]=0; const q=[g0];
+  for(let i=0;i<q.length;i++){ const [x,y]=q[i], v=d[y*W+x];
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const nx=x+dx, ny=y+dy; if(nx<0||ny<0||nx>=W||ny>=Hh||d[ny*W+nx]>=0||!ok(nx,ny)) continue;
+      const ax=x*S+S/2, ay=y*S+S/2; if(h.segs.some(sg=>crosses(ax,ay,ax+dx*S,ay+dy*S,sg))) continue;   // never through a rail
+      d[ny*W+nx]=v+S; q.push([nx,ny]); } }
+  const f=(x,y)=>{ const gx=Math.floor(x/S), gy=Math.floor(y/S); let best=Infinity;
+    for(let oy=-2;oy<=2;oy++) for(let ox=-2;ox<=2;ox++){ const nx=gx+ox, ny=gy+oy; if(nx<0||ny<0||nx>=W||ny>=Hh) continue; const v=d[ny*W+nx];
+      if(v<0) continue; const px=nx*S+S/2, py=ny*S+S/2, e=v+Math.hypot(px-x, py-y);
+      if(e<best && !h.segs.some(sg=>crosses(x,y,px,py,sg))) best=e; }
+    return best<Infinity?best:Math.hypot(x-h.cup[0],y-h.cup[1])*3; };
+  flowCache.set(h,f); return f;
 }
 function randomExtras(seed, hi){
   const base=HOLES[hi];
@@ -109,10 +138,86 @@ function randomExtras(seed, hi){
   }
   return buildHole(base, null);
 }
+// ================================================================= the labyrinth (055)
+// A big course (golf_games.course 160 and up: every game made from 055 on) turns its par-4 holes
+// into a labyrinth: a maze of rails dug by a seeded backtracker that likes to run straight, with
+// some dead ends knocked through so there's more than one way round. Its lanes are about five balls
+// wide as played, so the more players (the bigger the course), the more cells: 8 x 13 up to 12 x 20. The cup goes where the best route takes 4 straight runs (par 4),
+// as far from the tee as that allows. Its walls are plain segments (h.walls): the ball bounces off
+// them like the rails. A pond sits in a dead end or two, and a sand trap on the way.
+const mazeCols=(c=COURSE)=>c<1.6?0:Math.floor(320*c/62);
+const MAZE_NAMES=['The Labyrinth',"Minotaur's Maze",'The Warren','Hedge Maze','The Knot'];
+const isMaze=(hi,c=COURSE)=>HOLES[hi].par===4 && mazeCols(c)>0;
+function holeName(hi,c=COURSE){
+  if(!isMaze(hi,c)) return HOLES[hi].name;
+  return MAZE_NAMES[HOLES.slice(0,hi).filter(x=>x.par===4).length%MAZE_NAMES.length];
+}
+function mazeHole(seed, hi, cols){
+  const rows=Math.round(cols*520/320), X0=20, Y0=20, cw=320/cols, ch=520/rows, N=cols*rows;
+  const D=[[1,0],[-1,0],[0,1],[0,-1]], at=(x,y)=>y*cols+x, mid=(x,y)=>[Math.round(X0+(x+.5)*cw), Math.round(Y0+(y+.5)*ch)];
+  let fallback=null;
+  for(let attempt=0; attempt<12; attempt++){
+    const r=rng((Math.imul(seed|0,0x9E3779B1) ^ (hi*40503 + attempt*7717 + cols*131))>>>0);
+    const E=new Uint8Array(N), S=new Uint8Array(N), seen=new Uint8Array(N);   // passage to the right / below
+    const isOpen=(x,y,d)=>d===0?x<cols-1&&E[at(x,y)]:d===1?x>0&&E[at(x-1,y)]:d===2?y<rows-1&&S[at(x,y)]:y>0&&S[at(x,y-1)];
+    const dig=(x,y,d)=>{ if(d===0) E[at(x,y)]=1; else if(d===1) E[at(x-1,y)]=1; else if(d===2) S[at(x,y)]=1; else S[at(x,y-1)]=1; };
+    const inside=(x,y)=>x>=0&&y>=0&&x<cols&&y<rows;
+    const tee=[Math.floor(r()*cols), rows-1];
+    const stack=[[tee[0],tee[1],-1]]; seen[at(...tee)]=1;
+    while(stack.length){
+      const [x,y,last]=stack[stack.length-1];
+      const opts=[0,1,2,3].filter(d=>inside(x+D[d][0],y+D[d][1]) && !seen[at(x+D[d][0],y+D[d][1])]);
+      if(!opts.length){ stack.pop(); continue; }
+      const d=last>=0 && opts.includes(last) && r()<0.55 ? last : opts[Math.floor(r()*opts.length)];
+      dig(x,y,d); const nx=x+D[d][0], ny=y+D[d][1]; seen[at(nx,ny)]=1; stack.push([nx,ny,d]);
+    }
+    // knock through some dead ends: loops, so a miss isn't always a long way back
+    const ways=(x,y)=>[0,1,2,3].filter(d=>isOpen(x,y,d)).length;
+    for(let y=0;y<rows;y++) for(let x=0;x<cols;x++) if(ways(x,y)===1 && r()<0.2){
+      const shut=[0,1,2,3].filter(d=>inside(x+D[d][0],y+D[d][1]) && !isOpen(x,y,d));
+      if(shut.length) dig(x,y,shut[Math.floor(r()*shut.length)]);
+    }
+    // straight runs from the tee (legs) and steps (dist) to every cell
+    const legs=new Int16Array(N).fill(99), dist=new Int16Array(N).fill(-1);
+    legs[at(...tee)]=0; let front=[tee];
+    for(let k=1; front.length; k++){ const next=[];
+      for(const [x,y] of front) for(let d=0;d<4;d++){ let cx=x, cy=y;
+        while(isOpen(cx,cy,d)){ cx+=D[d][0]; cy+=D[d][1]; if(legs[at(cx,cy)]>k){ legs[at(cx,cy)]=k; next.push([cx,cy]); } } }
+      front=next; }
+    dist[at(...tee)]=0; const q=[tee];
+    while(q.length){ const [x,y]=q.shift(); for(let d=0;d<4;d++) if(isOpen(x,y,d)){ const nx=x+D[d][0], ny=y+D[d][1]; if(dist[at(nx,ny)]<0){ dist[at(nx,ny)]=dist[at(x,y)]+1; q.push([nx,ny]); } } }
+    let cup=null;
+    for(const want of [4,5,3]){
+      for(let y=0;y<rows;y++) for(let x=0;x<cols;x++) if(legs[at(x,y)]===want && (!cup || dist[at(x,y)]-y*0.5>dist[at(...cup)]-cup[1]*0.5)) cup=[x,y];
+      if(cup) break;
+    }
+    if(!cup || dist[at(...cup)]<cols) continue;
+    // the route (back from the cup), for a sand trap on it; dead ends off it, for ponds
+    const route=new Set(); for(let c=cup; c; ){ route.add(at(...c)); if(!dist[at(...c)]) break;
+      c=[0,1,2,3].filter(d=>isOpen(c[0],c[1],d)).map(d=>[c[0]+D[d][0],c[1]+D[d][1]]).find(([nx,ny])=>dist[at(nx,ny)]===dist[at(...c)]-1); }
+    const water=[], sand=[], pad=Math.round(Math.min(cw,ch)*0.18);
+    const cellRect=(x,y,p)=>[Math.round(X0+x*cw+p), Math.round(Y0+y*ch+p), Math.round(cw-2*p), Math.round(ch-2*p)];
+    const ends=[]; for(let y=0;y<rows;y++) for(let x=0;x<cols;x++) if(ways(x,y)===1 && !route.has(at(x,y)) && Math.abs(x-cup[0])+Math.abs(y-cup[1])>1) ends.push([x,y]);
+    for(let k=0;k<3 && ends.length;k++) water.push(cellRect(...ends.splice(Math.floor(r()*ends.length),1)[0],pad));
+    const mids=[...route].filter(i=>dist[i]>1 && dist[i]<dist[at(...cup)]-1);
+    for(let k=0;k<2 && mids.length;k++){ const i=mids.splice(Math.floor(r()*mids.length),1)[0]; sand.push(cellRect(i%cols,Math.floor(i/cols),pad*0.6)); }
+    // the walls, run together into straight rails
+    const walls=[];
+    for(let y=0;y<rows-1;y++){ let x0=-1; for(let x=0;x<=cols;x++){ const w=x<cols && !S[at(x,y)];
+      if(w && x0<0) x0=x; if(!w && x0>=0){ walls.push([Math.round(X0+x0*cw),Math.round(Y0+(y+1)*ch),Math.round(X0+x*cw),Math.round(Y0+(y+1)*ch)]); x0=-1; } } }
+    for(let x=0;x<cols-1;x++){ let y0=-1; for(let y=0;y<=rows;y++){ const w=y<rows && !E[at(x,y)];
+      if(w && y0<0) y0=y; if(!w && y0>=0){ walls.push([Math.round(X0+(x+1)*cw),Math.round(Y0+y0*ch),Math.round(X0+(x+1)*cw),Math.round(Y0+y*ch)]); y0=-1; } } }
+    const h=buildHole({ name:holeName(hi,mazeCols()), par:4, outline:rect(X0,Y0,320,520), tee:mid(...tee), cup:mid(...cup), walls, water, sand, maze:cols }, null);
+    h.extra=null;
+    if(reachable(h)) return h;
+    fallback=fallback||h;
+  }
+  return fallback||buildHole(HOLES[hi], null);
+}
 const holeCache=new Map();
 function holeFor(seed, hi){
-  const key=seed+':'+hi;
-  if(!holeCache.has(key)) holeCache.set(key, seed ? randomExtras(seed,hi) : buildHole(HOLES[hi], null));
+  const mz=isMaze(hi)?mazeCols():0, key=seed+':'+hi+':'+mz;
+  if(!holeCache.has(key)) holeCache.set(key, mz ? mazeHole(seed||1,hi,mz) : seed ? randomExtras(seed,hi) : buildHole(HOLES[hi], null));
   return holeCache.get(key);
 }
 
@@ -129,12 +234,12 @@ function collideSeg(b,[x1,y1,x2,y2]){
   const vn=b.vx*nx+b.vy*ny; if(vn<0){ b.vx-=1.78*vn*nx; b.vy-=1.78*vn*ny; }
   return true;
 }
-function collideBumper(b,[cx,cy,cr]){
+function collideBumper(b,[cx,cy,cr],cap){
   let nx=b.x-cx, ny=b.y-cy; const d=Math.sqrt(nx*nx+ny*ny), rr=cr+R;
   if(d>=rr||d===0) return false;
   nx/=d; ny/=d; b.x=cx+nx*rr; b.y=cy+ny*rr;
   const vn=b.vx*nx+b.vy*ny; if(vn<0){ b.vx-=2.2*vn*nx; b.vy-=2.2*vn*ny; }
-  const sp=Math.sqrt(b.vx*b.vx+b.vy*b.vy); if(sp>12){ b.vx*=12/sp; b.vy*=12/sp; }
+  const sp=Math.sqrt(b.vx*b.vx+b.vy*b.vy); if(sp>cap){ b.vx*=cap/sp; b.vy*=cap/sp; }
   return true;
 }
 // Windmill blades are a fixed table of angles per tick, not live trig, to keep replays exact.
@@ -147,6 +252,20 @@ function bladeSegs(sp, clock){
     out.push([cx, cy, cx+COS[idx]*len, cy+SIN[idx]*len]);
   }
   return out;
+}
+// A hole with a lot of rails (a labyrinth) sorts them into a grid, so a tick only tries the ones
+// near the ball: every rail within reach of the cell, in their usual order. A rail further off
+// can't touch the ball (collideSeg leaves it alone), so the ball rolls exactly as it would have.
+const railGrid=new WeakMap();
+function railsNear(h, x, y){
+  let g=railGrid.get(h.segs);
+  if(!g){ const C=48*(h.scale||1), m=2*R+2, W=Math.ceil(LW/C)+1, Hh=Math.ceil(LH/C)+1, cells=Array.from({length:W*Hh},()=>[]);
+    h.segs.forEach(([x1,y1,x2,y2],i)=>{ const a=Math.max(0,Math.floor((Math.min(x1,x2)-m)/C)), b=Math.min(W-1,Math.floor((Math.max(x1,x2)+m)/C)),
+      c=Math.max(0,Math.floor((Math.min(y1,y2)-m)/C)), d=Math.min(Hh-1,Math.floor((Math.max(y1,y2)+m)/C));
+      for(let gy=c;gy<=d;gy++) for(let gx=a;gx<=b;gx++) cells[gy*W+gx].push(h.segs[i]); });
+    g={C,W,Hh,cells}; railGrid.set(h.segs,g); }
+  const gx=Math.floor(x/g.C), gy=Math.floor(y/g.C);
+  return gx<0||gy<0||gx>=g.W||gy>=g.Hh ? h.segs : g.cells[gy*g.W+gx];
 }
 // Advances the ball one tick. Returns null, 'bump', 'wall', 'cup', 'water' or 'stop'.
 // A chipped ball (043) flies CHIP_AIR ticks over everything, then lands at half speed and rolls;
@@ -162,11 +281,12 @@ function tick(b, h){
   let ev=null;
   const blades=h.spinners.flatMap(s=>bladeSegs(s,b.clock));
   const sp=Math.sqrt(b.vx*b.vx+b.vy*b.vy), n=Math.max(1,Math.ceil(sp/2));
+  const cap=h.scale>=1.6?12*h.scale:12;   // a big course's bumpers let its faster balls keep their speed (055)
   for(let i=0;i<n;i++){
     b.x+=b.vx/n; b.y+=b.vy/n;
-    for(const s of h.segs) if(collideSeg(b,s)) ev=ev||'wall';
+    for(const s of (h.segs.length>24?railsNear(h,b.x,b.y):h.segs)) if(collideSeg(b,s)) ev=ev||'wall';
     for(const s of blades) if(collideSeg(b,s)) ev=ev||'wall';
-    for(const c of h.bumpers) if(collideBumper(b,c)) ev='bump';
+    for(const c of h.bumpers) if(collideBumper(b,c,cap)) ev='bump';
   }
   b.clock++;
   const sand=h.sand.some(r=>inRect(b.x,b.y,r)), mud=h.mud&&h.mud.some(r=>inRect(b.x,b.y,r));
@@ -206,7 +326,7 @@ function scaleHole(h, s){
   return {...h, outline:h.outline.map(P), tee:P(h.tee), cup:P(h.cup), segs:h.segs.map(([a,b,c,d])=>[a*s,b*s,c*s,d*s]),
     blocks:h.blocks.map(Rc), sand:h.sand.map(Rc), water:h.water.map(Rc), bumpers:h.bumpers.map(([x,y,r])=>[x*s,y*s,r*s]),
     slopes:h.slopes.map(sl=>({...sl, r:Rc(sl.r), a:[sl.a[0]*s, sl.a[1]*s]})), spinners:h.spinners.map(([x,y,len,n,turn])=>[x*s,y*s,len*s,n,turn]),
-    wind:h.wind?[h.wind[0]*s,h.wind[1]*s]:h.wind, cupSpeed:(h.cupSpeed||5.5)*s, scale:s, gophers:h.gophers?.map(P), mud:h.mud?.map(Rc)};
+    wind:h.wind?[h.wind[0]*s,h.wind[1]*s]:h.wind, walls:h.walls?.map(([a,b,c,d])=>[a*s,b*s,c*s,d*s]), cupSpeed:(h.cupSpeed||5.5)*s, scale:s, gophers:h.gophers?.map(P), mud:h.mud?.map(Rc)};
 }
 // ================================================================= chaos twists on a hole (043)
 // golf_games.twists = { "<hole>": [{ k: 'cup' | 'gopher', s: seed, t: from turn }] }. The ones with
@@ -283,7 +403,7 @@ function holeWithAttack(seed, hi, type){
 function holeAt(seed, hi, type){
   const base=holeFor(seed, hi);
   if(!type) return base;
-  const key=seed+':'+hi+':'+type;
+  const key=seed+':'+hi+':'+type+':'+mazeCols();
   if(attackCache.has(key)) return attackCache.get(key);
   const h={...base, bumpers:[...base.bumpers], attack:type};
   if(type===1){ h.friction=0.991; h.ice=true; }
@@ -427,6 +547,14 @@ function drawHole(c, h, t, scene={}){
     c.save(); c.shadowColor='#0008'; c.shadowBlur=8; c.shadowOffsetY=4; c.fillStyle='#8B5A2B'; c.beginPath(); c.roundRect(x,y,w,hh,5); c.fill(); c.restore();
     c.fillStyle='#B07A45'; if(w>=hh) c.fillRect(x+3,y+3,w-6,4); else c.fillRect(x+3,y+3,4,hh-6);
   });
+  // a labyrinth's walls (055): rails in mini golf, hedges on a natural course
+  if(h.walls&&h.walls.length){
+    const wallPath=()=>{ c.beginPath(); h.walls.forEach(([x1,y1,x2,y2])=>{ c.moveTo(x1,y1); c.lineTo(x2,y2); }); };
+    c.save(); c.lineCap='round'; c.lineJoin='round';
+    c.save(); c.shadowColor='#0008'; c.shadowBlur=7; c.shadowOffsetY=3; c.strokeStyle=nat?'#2E5E24':'#8B5A2B'; c.lineWidth=nat?11:9; wallPath(); c.stroke(); c.restore();
+    c.strokeStyle=nat?'#3F7A30':'#B07A45'; c.lineWidth=nat?6:3; wallPath(); c.stroke();
+    c.restore();
+  }
   // bumpers
   h.bumpers.forEach(([x,y,r],i)=>{
     const lit=scene.bumpLit && scene.bumpLit[i]>t;
@@ -499,4 +627,4 @@ function drawHole(c, h, t, scene={}){
 }
 
 
-export { LW, LH, COURSE, setCourse, HOLES, N_HOLES, rng, inPoly, inRect, segDist, buildHole, reachable, holeFor, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, holeWithTwists, twistsFor, CHIP_AIR, drawHole, setGolfTheme, COS, SIN };
+export { holeName, isMaze, mazeCols, flowTo, LW, LH, COURSE, setCourse, HOLES, N_HOLES, rng, inPoly, inRect, segDist, buildHole, reachable, holeFor, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, holeWithTwists, twistsFor, CHIP_AIR, drawHole, setGolfTheme, COS, SIN };

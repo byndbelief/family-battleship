@@ -124,6 +124,11 @@ table.score{border-collapse:collapse;width:100%;font-variant-numeric:tabular-num
 #holeName,.hudbar .pill{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 /* Top-left: the ⚙️ Settings button owns the bottom-right corner (and the top-right in full screen). */
 .course-wrap .fsslot{position:absolute;left:8px;top:8px;z-index:3}
+/* 🗺️ the whole hole (055): a big course is followed up close; this steps back to see all of it */
+.mapbtn{position:absolute;right:10px;bottom:10px;z-index:3;width:42px;height:42px;padding:0;border-radius:50%;font-size:20px;line-height:1;background:#0B1A12b3;border:1px solid #ffffff33;box-shadow:0 4px 12px #0006}
+.mapbtn.on{background:#F2C14E;border-color:#F2C14E}
+.score td small.pen{display:block;font-size:9px;line-height:1;font-weight:700;color:#FF9A7A;opacity:.9}
+.score td.going{font-style:italic;opacity:.75}
 #play.fs-on{gap:8px!important}
 #play.fs-on > .panel{display:none}
 /* Full screen on a landscape phone (047): the sideways course down the left at full height; the hole,
@@ -199,6 +204,7 @@ table.score{border-collapse:collapse;width:100%;font-variant-numeric:tabular-num
     <div class="course-wrap">
       <canvas id="course" aria-label="Mini golf hole. Drag backward from anywhere on the course to aim, release to putt."></canvas>
       <div class="pmeter" id="pmeter" hidden><i id="pfill"></i><span id="ptext"></span></div>
+      <button type="button" class="mapbtn" id="mapBtn" hidden aria-pressed="false" title="The whole hole" aria-label="Show the whole hole">🗺️</button>
       <div class="hio" id="hio" hidden></div>
       <div class="overlay" id="gate" hidden><div class="card" id="gateCard"></div></div>
     </div>

@@ -2,7 +2,7 @@
 import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, compactPack, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, dramaOn, face, livePresence, avatarOf, splash, jumpToNext, setGameTools, condenseTop, golfTheme, setGolfThemePref, liveCountdown } from './common.js';
 import {
   LW, LH, COURSE, setCourse, HOLES, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, holeWithTwists, twistsFor, CHIP_AIR, drawHole,
-  inPoly, inRect, segDist, reduceMotion, setGolfTheme,
+  inPoly, inRect, segDist, reduceMotion, setGolfTheme, holeName, flowTo,
 } from './golf-engine.js';
 
 const $ = (id) => document.getElementById(id);
@@ -112,15 +112,76 @@ function clockCheck() {
     if (data) note(`⏱️ Too slow! ${data}.`, 'error');
   });
 }
+// ---------------------------------------------------------------- camera (055)
+// A big course is bigger than the screen: the page shows it at a 1-player course's size (ball and
+// cup at their normal size) and follows the ball. Each hole opens on the whole layout, the balls
+// tiny specks, then zooms down onto the tee: in a live race over the countdown, so it lands on GO.
+// 🗺️ steps back to the whole hole. Waiting on someone else, you see all of it.
+const cam = { x: 0, y: 0, z: 1, intro: null, over: false, key: '' };
+const holeKey = (hole) => `${G.game.id}:${hole}`;
+const zPlay = () => Math.max(1, COURSE);
+const viewW = () => LW / cam.z, viewH = () => LH / cam.z;
+function camClamp(x, y, z) { const hw = LW / (2 * z), hh = LH / (2 * z); return [Math.min(LW - hw, Math.max(hw, x)), Math.min(LH - hh, Math.max(hh, y))]; }
+function camIntro(key, force) {
+  if (!force && key === cam.key) return;
+  cam.key = key;
+  if (zPlay() === 1) return;
+  const left = liveOn ? liveGo - Date.now() : 0, synced = left > 1600;
+  cam.intro = { t0: performance.now(), hold: synced ? left - 1500 : 1100, dur: synced ? 1400 : 1600 };
+  cam.x = LW / 2; cam.y = LH / 2; cam.z = 1; cam.over = false; mapBtn();
+}
+const camFocus = () => (scene.ball && !scene.ball.hidden ? [scene.ball.x, scene.ball.y] : scene.hole.tee);
+function camStep(now) {
+  const zp = cam.over || mode === 'idle' || mode === 'over' ? 1 : zPlay(), [fx, fy] = camFocus();
+  if (cam.intro) {
+    const e0 = (now - cam.intro.t0 - cam.intro.hold) / cam.intro.dur;
+    if (e0 < 1) {
+      const e = e0 <= 0 ? 0 : e0 * e0 * (3 - 2 * e0), [tx, ty] = camClamp(fx, fy, zp);
+      cam.z = zp ** e;   // geometric, so the zoom feels even all the way down
+      [cam.x, cam.y] = camClamp(LW / 2 + (tx - LW / 2) * e, LH / 2 + (ty - LH / 2) * e, cam.z);
+      return;
+    }
+    cam.intro = null;
+  }
+  const k = reduceMotion ? 1 : 0.14;
+  cam.z += (zp - cam.z) * k; if (Math.abs(zp - cam.z) < 0.003) cam.z = zp;
+  const [tx, ty] = camClamp(fx, fy, cam.z);
+  cam.x += (tx - cam.x) * (reduceMotion ? 1 : 0.2); cam.y += (ty - cam.y) * (reduceMotion ? 1 : 0.2);
+  [cam.x, cam.y] = camClamp(cam.x, cam.y, cam.z);
+}
+// Where the cup is when it's off the screen: a flag at the edge, pointing the way.
+function cupPointer(k) {
+  const [cx, cy] = scene.hole.cup, lx = (cx - cam.x) * cam.z + LW / 2, ly = (cy - cam.y) * cam.z + LH / 2, m = 22 * COURSE;
+  if (lx > 0 && ly > 0 && lx < LW && ly < LH) return;
+  const px = Math.min(LW - m, Math.max(m, lx)), py = Math.min(LH - m, Math.max(m, ly)), a = Math.atan2(ly - py, lx - px), r = 13 * COURSE;
+  ctx.save(); ctx.translate(px, py);
+  ctx.fillStyle = '#0B1A12cc'; ctx.beginPath(); ctx.arc(0, 0, r, 0, 7); ctx.fill();
+  ctx.fillStyle = '#F2C14E'; ctx.beginPath(); ctx.moveTo(Math.cos(a) * (r + 9 * COURSE), Math.sin(a) * (r + 9 * COURSE));
+  ctx.lineTo(Math.cos(a + 0.5) * r, Math.sin(a + 0.5) * r); ctx.lineTo(Math.cos(a - 0.5) * r, Math.sin(a - 0.5) * r); ctx.fill();
+  if (rot) ctx.rotate(-Math.PI / 2);   // the emoji stays upright on a sideways course
+  ctx.font = `${Math.round(14 * COURSE)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⛳', 0, 1);
+  ctx.restore();
+}
+function mapBtn() {
+  const b = $('mapBtn'); b.hidden = zPlay() === 1 || !G || G.game.status !== 'playing';
+  b.classList.toggle('on', cam.over); b.setAttribute('aria-pressed', String(cam.over));
+}
+$('mapBtn').onclick = () => { cam.over = !cam.over; cam.intro = null; mapBtn(); sfx('click'); };
 function loop(t) {
   clockCheck();
   if (locked && mode !== 'aim') { setLocked(false); showAim(null); }
   syncPutbar();
   scene.fx = (scene.fx || []).filter((f) => { f.x += f.vx; f.y += f.vy; f.vy += f.g || 0; f.life -= 0.02; return f.life > 0; });
   if (scene.hole) {
-    if (rot) { const k = cv.height / LW; ctx.setTransform(0, k, -k, 0, LH * k, 0); }   // sideways: (x, y) → (LH − y, x)
-    else { const k = cv.width / LW; ctx.setTransform(k, 0, 0, k, 0, 0); }
+    camStep(t);
+    let k;
+    if (rot) { k = cv.height / LW; ctx.setTransform(0, k, -k, 0, LH * k, 0); }   // sideways: (x, y) → (LH − y, x)
+    else { k = cv.width / LW; ctx.setTransform(k, 0, 0, k, 0, 0); }
+    const base = ctx.getTransform();
+    ctx.transform(cam.z, 0, 0, cam.z, LW / 2 - cam.z * cam.x, LH / 2 - cam.z * cam.y);
     drawHole(ctx, scene.hole, t, scene); if (liveOn) drawGhosts();
+    ctx.setTransform(base);
+    if (cam.z > 1.05) cupPointer(k);
   }
   requestAnimationFrame(loop);
 }
@@ -151,9 +212,10 @@ function celebrate(s, par) {
     bigText('<span>HOLE<br>IN ONE!</span>', 2900); shake(); sfx('fanfare', { delay: 0.25 });
     for (let i = 0; i < 9; i++) sfx('pop', { delay: 0.3 + i * 0.26 });
     const cols = ['#F2C14E', '#E4572E', '#7FD3F7', '#fff', '#B6F09C', '#FF8AD8'];
-    for (let i = 0; i < 9; i++) setTimeout(() => { const x = 50 + Math.random() * 260, y = 70 + Math.random() * 260; burst(x, y, cols, 70, 0.03);
+    const vx = () => cam.x + (Math.random() - 0.5) * viewW() * 0.72, vy = () => cam.y + (Math.random() - 0.5) * viewH() * 0.6;
+    for (let i = 0; i < 9; i++) setTimeout(() => { const x = vx(), y = vy(); burst(x, y, cols, 70, 0.03);
       for (let k = 0; k < 24; k++) { const a = (k / 24) * 6.283; scene.fx.push({ x, y, vx: Math.cos(a) * 4.2, vy: Math.sin(a) * 4.2, g: 0.02, life: 1.2, s: 2.2, c: cols[k % cols.length] }); } }, i * 260);
-    for (let i = 0; i < 120; i++) scene.fx.push({ x: Math.random() * LW, y: -20 - Math.random() * 200, vx: (Math.random() - 0.5) * 1.2, vy: 1 + Math.random() * 2, g: 0.02, life: 2.2, s: 2 + Math.random() * 2, c: cols[i % cols.length] });
+    for (let i = 0; i < 120; i++) scene.fx.push({ x: cam.x - viewW() / 2 + Math.random() * viewW(), y: cam.y - viewH() / 2 - 20 - Math.random() * 200, vx: (Math.random() - 0.5) * 1.2, vy: 1 + Math.random() * 2, g: 0.02, life: 2.2, s: 2 + Math.random() * 2, c: cols[i % cols.length] });
   } else if (s < par) {
     sfx('birdie', { delay: 0.2 });
     bigText(`<span class="small-pop">${{ '-1': 'Birdie!', '-2': 'Eagle!', '-3': 'Albatross!' }[s - par] || 'Amazing!'}</span>`, 1700);
@@ -206,7 +268,7 @@ const fromStroke = (s) => (s.chip ? [s.x, s.y, s.vx, s.vy, 1] : [s.x, s.y, s.vx,
 // ---------------------------------------------------------------- header, scorecard
 function setHud(hole, player, s, replay) {
   $('holeNo').textContent = `Hole ${hole + 1} of ${G.game.start + G.game.count} · Par ${HOLES[hole].par}`;
-  $('holeName').textContent = HOLES[hole].name;
+  $('holeName').textContent = holeName(hole);
   $('whoPill').innerHTML = `${replay ? '▶' : '⛳'} ${face(player)}${who(player)}`;
   $('strokes').textContent = s;
 }
@@ -214,6 +276,13 @@ function cellScore(p, hole) {
   const tu = G.turns.find((x) => x.player === p && x.hole === hole);
   if (!tu) return null;
   return tu.skipped ? 'skip' : tu.written + tu.fine;
+}
+// The strokes on a card that weren't putts (055): splashes (+1 each), a false accusation or a slow
+// shot clock (added when the hole was written down) and a busted cheat's fine.
+function cellPen(p, hole) {
+  const tu = G.turns.find((x) => x.player === p && x.hole === hole);
+  if (!tu || tu.skipped || tu.actual == null) return 0;
+  return Math.max(0, tu.actual - (tu.strokes?.length ?? tu.actual)) + Math.max(0, tu.written - tu.actual) + (tu.fine || 0);
 }
 function standings() {
   return G.game.players.map((p) => {
@@ -235,18 +304,23 @@ function renderCard() {
       const v = cellScore(p, i), cls = [];
       if (cur && (liveOn ? cur.h === i && cellScore(p, i) == null : cur.p === p && cur.h === i)) cls.push('now');
       if (v === 'skip') cls.push('skip'); else if (v) cls.push(v < HOLES[i].par ? 'under' : v > HOLES[i].par ? 'over' : '');
-      h += `<td class="${cls.join(' ')}">${v === 'skip' ? '–' : v ?? ''}</td>`;
+      const pen = typeof v === 'number' ? cellPen(p, i) : 0;
+      // your hole in progress: the count so far, penalties included
+      const going = v == null && p === me.id && cls.includes('now') && ['aim', 'rolling', 'wedge', 'reveal'].includes(mode) && strokes > 0;
+      if (going) cls.push('going');
+      h += `<td class="${cls.join(' ')}" ${pen ? `title="${v - pen} putts + ${pen} penalty"` : going ? 'title="So far this hole"' : ''}>${v === 'skip' ? '–' : going ? strokes : v ?? ''}${pen ? `<small class="pen">${v - pen}+${pen}</small>` : ''}</td>`;
     });
     h += `<td class="tot">${st[k].strokes || ''}</td><td>${st[k].played ? (st[k].toPar > 0 ? '+' : '') + st[k].toPar : ''}</td></tr>`;
   });
   $('scorecard').innerHTML = h + '</tbody></table>';
+  mapBtn();
   setGameTools({ fs: '#play', canDelete: g.created_by === me.id, onDelete: deleteGame,
     bot: g.status === 'playing' && n() > 1 && g.players.some(isBot) ? { on: !!g.live_bot, label: 'Live race vs robot', onToggle: toggleBotLive } : null });
   // Live race vs robot: a switch whenever the robot is playing.
   // Skip ahead, only while it's your turn and nothing is rolling.
   const canJump = !over && !liveOn && curPlayer() === me.id && mode === 'aim' && curHole() < g.start + g.count - 1;
   $('jumpRow').hidden = !canJump;
-  if (canJump) { let o = ''; for (let i = curHole() + 1; i < g.start + g.count; i++) o += `<option value="${i}">Hole ${i + 1}: ${esc(HOLES[i].name)}</option>`; $('jumpTo').innerHTML = o; }
+  if (canJump) { let o = ''; for (let i = curHole() + 1; i < g.start + g.count; i++) o += `<option value="${i}">Hole ${i + 1}: ${esc(holeName(i))}</option>`; $('jumpTo').innerHTML = o; }
 }
 
 // ---------------------------------------------------------------- what happens next
@@ -329,6 +403,8 @@ function setLive(v) {
     stopShotClock();
     liveGo = Date.now() + 3000;
     liveCountdown('golf', G.game.id, ['⛳ LIVE RACE', 'Same hole, same time'], { solo: G.game.players.filter((p) => !isBot(p)).length < 2 }).then((t) => { liveGo = t; });
+    cam.key = '';   // the whole hole, then down onto the tee as the countdown runs
+    if (mode === 'aim') camIntro(holeKey(curHole()), true);
     if (mode === 'idle' && !flowing) decide();
     else if (mode === 'aim') $('tip').textContent = `⚔️ Live race! Everyone's on hole ${curHole() + 1} at once. Drag back and let go.`;
     if (mode === 'reveal' && curAttack) { closeModal(); mode = 'aim'; attackFrom = 0; landLiveAttack(); renderCheats(); }   // its box would block the race
@@ -349,6 +425,7 @@ async function replayTurn(tu) {
   const h0 = from ? magnetize(holeAt(tu.hole, 0, tu.t), tu.boost === 1) : hA;
   let h = h0;
   mode = 'replay'; skipReplay = false; scene = { hole: h, fx: [], clock: 0, ball: { x: h.tee[0], y: h.tee[1] } };
+  camIntro(holeKey(tu.hole));
   setHud(tu.hole, tu.player, 0, true);
   const atk = (tu.attack ? `, while hit by ${ATTACKS[tu.attack].name}${from ? ` from putt ${from + 1}` : ''}` : '') + (tu.boost ? ' (with a 🧲 Magnet Cup)' : '');
   $('tip').textContent = `Watching ${who(tu.player).replace(/<[^>]+>/g, '')} on hole ${tu.hole + 1}: ${tu.written} on the card${atk}.`;
@@ -413,6 +490,7 @@ function startTurn() {
   const h = H();
   cheatsUsed = 0; lastStroke = null; strokes = 0; current = [];
   mode = 'aim'; scene = { hole: h, fx: [], clock: 0, ball: { x: h.tee[0], y: h.tee[1] } };
+  camIntro(holeKey(curHole()));
   if (n() > 1 && !liveOn) rumour(GOLF_RUMOURS);
   setHud(curHole(), me.id, 0, false);
   chipNext = false;
@@ -481,15 +559,17 @@ $('puttGo').onclick = () => { const a = scene.aim; setLocked(false); scene.aim =
 
 function toLogical(e) {
   const r = cv.getBoundingClientRect(), u = (e.clientX - r.left) / r.width, v = (e.clientY - r.top) / r.height;
-  return rot ? { x: v * LW, y: LH - u * LH } : { x: u * LW, y: v * LH };
+  const L = rot ? { x: v * LW, y: LH - u * LH } : { x: u * LW, y: v * LH };
+  return { x: (L.x - LW / 2) / cam.z + cam.x, y: (L.y - LH / 2) / cam.z + cam.y };   // through the camera (055)
 }
 cv.addEventListener('pointerdown', (e) => {
   if (mode === 'wedge') return wedgeTo(toLogical(e));
   if (mode !== 'aim') return;
+  if (cam.intro) { cam.intro = null; cam.z = cam.over ? 1 : zPlay(); [cam.x, cam.y] = camClamp(...camFocus(), cam.z); }   // straight to the tee, before the aim is read
   drag = { ...toLogical(e), cx: e.clientX, cy: e.clientY, mouse: e.pointerType === 'mouse' }; cv.setPointerCapture(e.pointerId); setLocked(false);
   // Holding still on your own ball is the secret foot wedge.
   clearTimeout(wedgeHold);
-  if (canCheat() && scene.ball && Math.hypot(drag.x - scene.ball.x, drag.y - scene.ball.y) < 26 * COURSE) wedgeHold = setTimeout(() => { if (drag && !scene.aim) cheatWedge(); }, 750);
+  if (canCheat() && scene.ball && Math.hypot(drag.x - scene.ball.x, drag.y - scene.ball.y) < (26 * COURSE) / cam.z) wedgeHold = setTimeout(() => { if (drag && !scene.aim) cheatWedge(); }, 750);
 });
 let wedgeHold = null;
 cv.addEventListener('pointerup', () => clearTimeout(wedgeHold), true);
@@ -500,12 +580,12 @@ cv.addEventListener('pointermove', (e) => {
   if (d < 6) { scene.aim = null; showAim(null); return; }
   // Full power is 150 course units of drag. With a mouse the screen edge can get in the way (the tee
   // sits near the bottom), so full power comes a little before whichever edge you're dragging toward.
-  let full = 150 * COURSE;   // the same drag on screen whatever the course size
+  let full = (150 * COURSE) / cam.z;   // the same drag on screen whatever the course size and zoom
   if (drag.mouse) {
-    const k = rot ? cv.getBoundingClientRect().height / LW : cv.getBoundingClientRect().width / LW, lx = -dx / d, ly = -dy / d;
+    const k = ((rot ? cv.getBoundingClientRect().height : cv.getBoundingClientRect().width) / LW) * cam.z, lx = -dx / d, ly = -dy / d;
     const ux = rot ? -ly : lx, uy = rot ? lx : ly;   // the way the pointer is moving, on screen
     const room = Math.min(ux > 0 ? (innerWidth - drag.cx) / ux : ux < 0 ? drag.cx / -ux : Infinity, uy > 0 ? (innerHeight - drag.cy) / uy : uy < 0 ? drag.cy / -uy : Infinity);
-    full = Math.min(150 * COURSE, Math.max(50 * COURSE, (room - 8) / k));
+    full = Math.min((150 * COURSE) / cam.z, Math.max((50 * COURSE) / cam.z, (room - 8) / k));
   }
   const pw = Math.min(1, d / full); scene.aim = { bx: scene.ball.x, by: scene.ball.y, dx: dx / d, dy: dy / d, p: pw };
   showAim(scene.aim);
@@ -539,7 +619,10 @@ async function putt(a) {
 }
 
 // ---------------------------------------------------------------- cheating (if you dare)
-function clearSpot(h, x, y) {
+const ccw = (ax, ay, bx, by, cx, cy) => Math.sign((bx - ax) * (cy - ay) - (by - ay) * (cx - ax));
+const overRail = (h, x1, y1, x2, y2) => h.segs.some(([a, b, c, d]) => ccw(x1, y1, x2, y2, a, b) !== ccw(x1, y1, x2, y2, c, d) && ccw(a, b, c, d, x1, y1) !== ccw(a, b, c, d, x2, y2));
+function clearSpot(h, x, y, from) {
+  if (from && overRail(h, from.x, from.y, x, y)) return false;   // a foot can't kick through a labyrinth wall
   return inPoly(x, y, h.outline) && !h.segs.some((sg) => segDist(x, y, sg) < R + 1) && !h.water.some((w) => inRect(x, y, w))
     && !h.bumpers.some(([cx, cy, cr]) => (x - cx) ** 2 + (y - cy) ** 2 < (cr + R + 1) ** 2);
 }
@@ -599,7 +682,7 @@ const GOLF_RUMOURS = ['The groundskeeper swears someone keeps nudging balls when
 function wedgeTo(pt) {
   const h = H(), b = scene.ball, dx = pt.x - b.x, dy = pt.y - b.y, d = Math.sqrt(dx * dx + dy * dy);
   const k = d > 45 ? 45 / d : 1, x = q20(b.x + dx * k), y = q20(b.y + dy * k);
-  if (!clearSpot(h, x, y)) { $('tip').textContent = "Can't kick it there. Pick an open spot."; return; }
+  if (!clearSpot(h, x, y, b)) { $('tip').textContent = "Can't kick it there. Pick an open spot."; return; }
   scene.ball = { x, y }; cheatsUsed |= 1; mode = 'aim'; lastStroke = null;
   sfx('sneaky'); $('tip').textContent = '*whistles innocently* Drag back and let go.'; renderCheats();
 }
@@ -641,13 +724,13 @@ function renderAfter() {
 const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
 // Test-rolls about a thousand putts through the real physics and keeps the best, then wobbles it by skill.
 function botAim() {
-  const h = H(), bx = q20(scene.ball.x), by = q20(scene.ball.y), clock = scene.clock || 0, [cx, cy] = h.cup;
+  const h = H(), bx = q20(scene.ball.x), by = q20(scene.ball.y), clock = scene.clock || 0, flow = flowTo(h);
   const weak = curAttack === 5 ? 0.67 : 1;
   let best = null;
   const trial = (ang, p) => {
     const sp = (0.6 + p * 10.4) * COURSE * weak, b = { x: bx, y: by, vx: q100(Math.cos(ang) * sp), vy: q100(Math.sin(ang) * sp), ticks: 0, clock };
     let ev; do { ev = tick(b, h); } while (ev !== 'cup' && ev !== 'water' && ev !== 'stop');
-    const sc = ev === 'cup' ? -1000 + p : ev === 'water' ? 1000 : Math.sqrt((b.x - cx) ** 2 + (b.y - cy) ** 2) + (h.sand.some((r) => inRect(b.x, b.y, r)) ? 20 : 0);
+    const sc = ev === 'cup' ? -1000 + p : ev === 'water' ? 1e5 : flow(b.x, b.y) + (h.sand.some((r) => inRect(b.x, b.y, r)) ? 20 : 0);
     if (!best || sc < best.sc) best = { sc, ang, p };
   };
   for (let a = 0; a < 360; a += 5) for (let p = 0.06; p <= 1.0001; p += 0.08) trial((a * Math.PI) / 180, p);
@@ -665,6 +748,7 @@ async function robotTurn() {
   const h = H();
   cheatsUsed = 0; strokes = 0; current = []; mode = 'bot'; $('pack').innerHTML = ''; $('packMini').innerHTML = '';
   scene = { hole: h, fx: [], clock: 0, ball: { x: h.tee[0], y: h.tee[1] } };
+  camIntro(holeKey(curHole()));
   setHud(curHole(), bot, 0, false); renderCard();
   if (curAttack) { sfx('sneaky'); bigText(`<span class="small-pop">${ATTACKS[curAttack].icon} ${ATTACKS[curAttack].name}!</span>`, 1700); $('tip').textContent = `${nm(bot).replace(/<[^>]+>/g, '')} got hit with ${ATTACKS[curAttack].name}. Heh.`; await sleep(1500); }
   let holed = false;
@@ -672,7 +756,7 @@ async function robotTurn() {
     // Foot wedge when nobody's looking.
     if (!(cheatsUsed & 1) && Math.random() < sk.cheat * 0.5) {
       const b = scene.ball, [cx, cy] = h.cup, d = Math.sqrt((cx - b.x) ** 2 + (cy - b.y) ** 2);
-      if (d > 70) { const x = q20(b.x + ((cx - b.x) * 45) / d), y = q20(b.y + ((cy - b.y) * 45) / d); if (clearSpot(h, x, y)) { scene.ball = { x, y }; cheatsUsed |= 1; } }
+      if (d > 70) { const x = q20(b.x + ((cx - b.x) * 45) / d), y = q20(b.y + ((cy - b.y) * 45) / d); if (clearSpot(h, x, y, b)) { scene.ball = { x, y }; cheatsUsed |= 1; } }
     }
     $('tip').textContent = `${nm(bot).replace(/<[^>]+>/g, '')} is lining up a putt…`;
     await sleep(350);
@@ -721,12 +805,12 @@ async function robotTurn() {
 // putts (Rookie slowest, Ace quickest), then saves its hole. One hole at a time, once.
 const botRowPlaying = {};   // robot id -> the hole row it's playing (several robots can race, 033)
 const botAimFrom = (ball, clock, h, lvl, weak = 1) => {
-  const bx = q20(ball.x), by = q20(ball.y), [cx, cy] = h.cup;
+  const bx = q20(ball.x), by = q20(ball.y), flow = flowTo(h);
   let best = null;
   const trial = (ang, p) => {
     const sp = (0.6 + p * 10.4) * COURSE * weak, b = { x: bx, y: by, vx: q100(Math.cos(ang) * sp), vy: q100(Math.sin(ang) * sp), ticks: 0, clock };
     let ev; do { ev = tick(b, h); } while (ev !== 'cup' && ev !== 'water' && ev !== 'stop');
-    const sc = ev === 'cup' ? -1000 + p : ev === 'water' ? 1000 : Math.sqrt((b.x - cx) ** 2 + (b.y - cy) ** 2) + (h.sand.some((r) => inRect(b.x, b.y, r)) ? 20 : 0);
+    const sc = ev === 'cup' ? -1000 + p : ev === 'water' ? 1e5 : flow(b.x, b.y) + (h.sand.some((r) => inRect(b.x, b.y, r)) ? 20 : 0);
     if (!best || sc < best.sc) best = { sc, ang, p };
   };
   for (let a = 0; a < 360; a += 5) for (let p = 0.06; p <= 1.0001; p += 0.08) trial((a * Math.PI) / 180, p);
@@ -805,7 +889,7 @@ async function showFinal() {
       ${log.length ? `<details><summary class="small">The truth comes out</summary><ul class="small" style="text-align:left;margin:6px 0 0;padding-left:18px">${log.map((l) => `<li>${l}</li>`).join('')}</ul></details>` : '<p class="small muted">Nobody cheated. Allegedly.</p>'}`;
   }
   modal(h);   // "Coming next" and its countdown join this card (jumpToNext, above)
-  for (let i = 0; i < 4; i++) setTimeout(() => burst(60 + Math.random() * 240, 80 + Math.random() * 200, ['#F2C14E', '#E4572E', '#7FD3F7', '#fff'], 50, 0.05), i * 350);
+  for (let i = 0; i < 4; i++) setTimeout(() => burst(cam.x + (Math.random() - 0.5) * viewW() * 0.66, cam.y + (Math.random() - 0.4) * viewH() * 0.4, ['#F2C14E', '#E4572E', '#7FD3F7', '#fff'], 50, 0.05), i * 350);
 }
 
 // ---------------------------------------------------------------- skip ahead, delete
