@@ -56,27 +56,33 @@
   #controls.waiting .moverow{opacity:.4}
   #controls.waiting #fire{opacity:.55;font-size:.8em}
   /* 3-4 players: a chip per tank across the top, the wind on its own line below */
-  .hud.multi{flex-wrap:wrap;align-items:flex-start}
+  /* Health (047): one slim strip of pills for any number of tanks, the wind on the same line */
+  .hud.multi{flex-wrap:nowrap;align-items:center;gap:6px}
   .hud.multi .hp{display:none}
-  .hud.multi .wind{order:2;width:100%;text-align:center;margin-top:4px}
-  .hprow{display:grid;grid-template-columns:repeat(var(--n,3),minmax(0,1fr));gap:6px;width:100%}
+  .hud.multi .wind{order:2;flex:none;align-self:center;margin:0}
+  .hprow{display:flex;gap:4px;flex:1;min-width:0}
   .hprow[hidden]{display:none}
-  .hpc{display:flex;flex-direction:column;gap:3px;min-width:0;padding:4px 6px;border-radius:10px;background:#0006;font-size:12px}
-  .hpc.turn{box-shadow:0 0 0 2px var(--c)}
+  .hpc{flex:1 1 0;min-width:0;display:flex;align-items:center;gap:3px;height:22px;padding:0 7px;border-radius:99px;font-size:12px;white-space:nowrap;overflow:hidden;
+    background:linear-gradient(90deg,color-mix(in srgb,var(--c) 42%,#0000) var(--hp),#0008 var(--hp));transition:background .6s}
+  .hpc.turn{box-shadow:inset 0 0 0 2px var(--c)}
   .hpc.out{opacity:.45}
-  .hpc>span{display:flex;align-items:center;gap:3px;min-width:0;white-space:nowrap}
-  .hpc .nm{overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
-  .hpc b{flex:none}
-  .hpc i.dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--c)}
-  .hpc .bar{height:6px;border-radius:99px;background:#ffffff22;overflow:hidden}
-  .hpc .bar i{display:block;height:100%;border-radius:99px;background:var(--c);transition:width .6s}
+  .hpc .nm{overflow:hidden;text-overflow:ellipsis;min-width:0;flex:0 1 auto;display:none}
+  .hpc b{flex:none;margin-left:auto}
+  .hpc .tg{flex:0 1 auto;min-width:0;overflow:hidden;font-size:10px}
+  .hpc .face{flex:none}
+  .hpc i.dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--c)}
+  .hprow.tight .face{display:none}
+  .hprow.tight .hpc{padding:0 5px}
+  @media (min-width:700px){.hpc .nm{display:block}}
   .wind{align-self:flex-start;background:#0008;border-radius:999px;padding:3px 10px;white-space:nowrap}
   @media (max-width:520px){.hud{font-size:11px;inset:8px 8px auto 8px}}
   #play:not(.fs-on) .stage.bighud{display:flex;flex-direction:column}
   #play:not(.fs-on) .stage.bighud .hud{position:static;order:-1;padding:8px 8px 6px;background:#0E0C22}
   .stage .hud .cambar{position:static;order:3;pointer-events:auto;opacity:1;margin-top:4px;gap:4px}
   .stage .hud .cambar button{width:34px;height:30px;font-size:15px;border-radius:8px}
-  #play:not(.fs-on) .stage.bighud .hud .wind{width:auto;flex:1;align-self:center}
+  #play:not(.fs-on) .stage.bighud .hud{flex-wrap:wrap}
+  #play:not(.fs-on) .stage.bighud .hprow{flex:1 1 100%}
+  #play:not(.fs-on) .stage.bighud .hud .wind{flex:1;align-self:center;text-align:center}
   .sliders{display:flex;flex-direction:column;gap:10px}
   .slider{display:grid;grid-template-columns:52px 44px minmax(0,1fr) 44px 44px;align-items:center;gap:8px;font-weight:700;font-size:14px;width:100%}
   .slider output{font-variant-numeric:tabular-nums;text-align:right;color:var(--gold);font-size:17px}

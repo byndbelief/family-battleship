@@ -380,25 +380,18 @@ function render() {
   // Face, name (the part that gives way on a narrow screen, with …), then the HP, which always shows.
   const label = (p) => `${face(g.players[p])}<span class="nm">${who(g.players[p])}</span><span>&nbsp;· ${g.hp[p]}${tag(g.players[p])}</span>`;
   const many = multi();
-  document.querySelector('.hud').classList.toggle('multi', many);
+  document.querySelector('.hud').classList.add('multi');   // every count gets the slim chip strip (047)
   // 4+ tanks on a phone: the HP chips and wind sit above the battlefield instead of covering half of it.
   const bigHud = g.players.length >= 4 && isPhone();
   document.querySelector('.stage').classList.toggle('bighud', bigHud);
   // ...and the zoom buttons ride along in that bar, beside the wind (not over the tanks in the corner).
   const cb = $('camBar'), home = bigHud && !$('play').classList.contains('fs-on') ? document.querySelector('.hud') : document.querySelector('.stage');
   if (cb.parentElement !== home) home.appendChild(cb);
-  $('hpRow').hidden = !many;
-  if (many) {
-    // One chip per tank: its colour, face, name and HP (the one whose turn it is outlined).
-    $('hpRow').style.setProperty('--n', g.players.length > 4 ? 3 : g.players.length);   // 5-6 tanks: two rows of chips
-    $('hpRow').innerHTML = g.players.map((id, p) => `<div class="hpc ${g.hp[p] <= 0 ? 'out' : ''} ${g.status === 'playing' && !liveOn && g.turn === p ? 'turn' : ''}" style="--c:${COLS[p]}">
-      <span><i class="dot"></i>${face(id)}<span class="nm">${who(id)}</span><b>${g.hp[p] <= 0 ? '💀' : g.hp[p]}${tag(id)}</b></span>
-      <span class="bar"><i style="width:${g.hp[p]}%"></i></span></div>`).join('');
-  } else {
-    $('n0').innerHTML = `<span style="color:var(--coral)">●&nbsp;</span>${label(0)}`;
-    $('n1').innerHTML = `${label(1)}<span style="color:var(--teal)">&nbsp;●</span>`;
-    $('hp0').style.width = g.hp[0] + '%'; $('hp1').style.width = g.hp[1] + '%';
-  }
+  // One slim pill per tank in a single strip: colour, face, HP (names on wide screens), the pill
+  // filling with the tank's colour as HP drops; the one whose turn it is outlined.
+  $('hpRow').hidden = false; $('hpRow').classList.toggle('tight', g.players.length >= 5 && isPhone());   // 5-6 on a phone: colour dots, no faces
+  $('hpRow').innerHTML = g.players.map((id, p) => `<div class="hpc ${g.hp[p] <= 0 ? 'out' : ''} ${g.status === 'playing' && !liveOn && g.turn === p ? 'turn' : ''}" style="--c:${COLS[p]};--hp:${Math.max(0, g.hp[p])}%" title="${esc(who(id).replace(/<[^>]+>/g, ''))}: ${g.hp[p]} HP">
+    <i class="dot"></i>${face(id)}<span class="nm">${who(id)}</span><b>${g.hp[p] <= 0 ? '💀' : g.hp[p]}</b><span class="tg">${tag(id)}</span></div>`).join('');
   const gusty = g.gust === g.move, w = windFor(g.seed, g.move, gusty ? 3 : 1);
   $('wind').textContent = (g.lowgrav === g.move ? '🌙 ' : '') + (gusty ? '🌪️ ' : '') + (w === 0 ? 'No wind' : `Wind ${w < 0 ? '←' : '→'} ${Math.abs(w)}${gusty ? ' (hurricane!)' : ''}`);
   const over = g.status === 'over', out = !over && mi >= 0 && g.hp[mi] <= 0;   // knocked out, still watching (3-4 players)

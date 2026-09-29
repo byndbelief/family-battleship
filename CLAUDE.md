@@ -296,6 +296,9 @@ username. A new account only becomes a robot once it's in `public.bots`.
   server clock. `liveCountdown()` in common.js shows 3-2-1-GO to that moment on every screen (they
   land within a few ms), pass-through; Putt Post, Hilltop and Battleship hold putts/fire and robots
   until GO (`liveGo` / `bsGo`). A robot-only game gets a local 3 s. Cards has no countdown (turns).
+- **Hilltop health** is one slim strip of pills for any number of tanks (`#hpRow`, `.hpc`): dot, face,
+  HP, the pill filling with the tank's colour (`--hp`); names only from 700 px; 5-6 tanks on a phone
+  drop the faces (`.tight`). The old 2-tank `.hp` labels are hidden (`.hud.multi` always).
 - **Hilltop aiming is a slingshot** (like Putt Post): pull back from anywhere on the battlefield or
   the controls panel's empty space (`slingStart`/`slingMove`); the shell goes the other way, the pull
   length is power (`SLING_FULL`). The Angle/Power sliders are gone for an aim bar (`#aimbar`: ⤴ ⤵,
