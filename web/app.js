@@ -153,17 +153,19 @@ const fx = (() => {
       ring(x, y, '#BFE9FF', 34, 34, 3); setTimeout(() => ring(x, y, '#7FC8F8', 24, 34, 2), 120);
       for (let i = 0; i < 26; i++) { const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.6, v = 2 + Math.random() * 4; spark(x, y, Math.cos(a) * v, Math.sin(a) * v, i % 2 ? '#DFF4FF' : '#6FC3F5', 1.5 + Math.random() * 1.5, 34, 0.22); }
     },
-    shell(fromX, fromY, x, y, onArrive, dur = 520) {
+    // A shell in its shooter's colour (col): the trail, the glow and a ring where it lands.
+    shell(fromX, fromY, x, y, onArrive, dur = 520, col = '#FFB25A') {
       const t0 = performance.now(), lift = Math.min(160, Math.abs(y - fromY) * 0.35 + 40);
       add({
         px: fromX, py: fromY,
         step() {
           const f = Math.min(1, (performance.now() - t0) / dur);
           this.px = fromX + (x - fromX) * f; this.py = fromY + (y - fromY) * f - Math.sin(f * Math.PI) * lift;
-          spark(this.px, this.py, (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.6, '#FFB25A', 1.6, 16, 0);
-          if (f >= 1) { onArrive(); return false; } return true;
+          spark(this.px, this.py, (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.6, col, 2.2, 18, 0);
+          if (f >= 1) { ring(x, y, col, 26, 26, 4); onArrive(); return false; } return true;
         },
-        draw(k) { k.fillStyle = '#FFF6D8'; k.shadowColor = '#FFB25A'; k.shadowBlur = 16; k.beginPath(); k.arc(this.px, this.py, 4, 0, 7); k.fill(); k.shadowBlur = 0; },
+        draw(k) { k.fillStyle = col; k.shadowColor = col; k.shadowBlur = 18; k.beginPath(); k.arc(this.px, this.py, 6, 0, 7); k.fill(); k.shadowBlur = 0;
+          k.fillStyle = '#FFFFFF'; k.beginPath(); k.arc(this.px, this.py, 2.6, 0, 7); k.fill(); },
       });
     },
     fireworks(n = 8) {
@@ -203,7 +205,7 @@ function launchShell(owner, cell) {
   if (reduceMotion || !el) { launched.set(key, Date.now()); return; }
   const [x, y] = centerOf(el);
   launched.set(key, Date.now() + 520);
-  fx.shell(x + (Math.random() - 0.5) * 120, innerHeight + 20, x, y, () => { const e = cellEl(owner, cell); if (e && launched.has(key)) e.classList.add('landing'); });
+  fx.shell(x + (Math.random() - 0.5) * 120, innerHeight + 20, x, y, () => { const e = cellEl(owner, cell); if (e && launched.has(key)) e.classList.add('landing'); }, 520, pcol(me.id));
 }
 const unlaunch = (owner, cells) => cells.forEach((c) => { launched.delete(owner === OCEAN ? `o|${c}` : `${owner}|${c}`); cellEl(owner, c)?.classList.remove('landing'); });
 // What a shot did, shown where it landed: the splash or the blast, the sinking.
@@ -265,7 +267,7 @@ function animateShots(newShots) {
         const incoming = s.target === me.id;
         const fromX = x + (Math.random() - 0.5) * 120, fromY = incoming ? -20 : innerHeight + 20;
         sfx(incoming ? 'whistle' : 'cannon', { dur: 0.5 });
-        fx.shell(fromX, fromY, x, y, () => revealShot(s));
+        fx.shell(fromX, fromY, x, y, () => revealShot(s), 520, pcol(s.shooter));   // in the shooter's colour
       }, delay + k * 260);
     });
     delay += batch.length * 260 + 700;

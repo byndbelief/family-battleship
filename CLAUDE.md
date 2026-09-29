@@ -695,3 +695,9 @@ the bottom a Wild/number does nothing). `last_play.as` tells the page; its effec
 "🔁 RECURSION: …". The robot targets its lead player when its CR replays a Swap or Target. cards.js
 `topAs(g)` mirrors `_card_as`; a CR that replays CS/CT asks for a player like they do.
 
+### Players' colours on shots (page only)
+Battleship: `fx.shell(…, dur, col)` flies in the shooter's `pcol` (trail, glow, a landing ring), yours
+and everyone else's. Hilltop: `drawShell` trails and glows in `COLS[sh.p]` (the head keeps its
+weapon's look; the railgun beam's glow too), and your aim (hint dots, drag line, drone marker) is in your
+tank's colour with a dark outline, so it reads on sky and hill.
+

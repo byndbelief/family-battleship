@@ -345,9 +345,11 @@ function draw(t) {
   if (canAim()) {
     if (drag && !droneOn()) {
       const tp = tankPos(myIdx(), top, X);
-      ctx.strokeStyle = '#FFF4D688'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]);
-      ctx.beginPath(); ctx.moveTo(tp.x, tp.y - 14); ctx.lineTo(drag.x, drag.y); ctx.stroke(); ctx.setLineDash([]);
-      ctx.fillStyle = '#FFC85755'; ctx.beginPath(); ctx.arc(drag.x, drag.y, 16, 0, 7); ctx.fill();
+      const mc = COLS[myIdx()] || '#FFC857';
+      ctx.setLineDash([7, 6]); ctx.lineCap = 'round';
+      ctx.strokeStyle = '#0B0A1E99'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(tp.x, tp.y - 14); ctx.lineTo(drag.x, drag.y); ctx.stroke();
+      ctx.strokeStyle = mc; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.moveTo(tp.x, tp.y - 14); ctx.lineTo(drag.x, drag.y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = `${mc}55`; ctx.strokeStyle = mc; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(drag.x, drag.y, 16, 0, 7); ctx.fill(); ctx.stroke();
     }
     drawHint(t);
   }
@@ -388,16 +390,20 @@ function drawShell(sh, t) {
   if (sh.weapon === 'railgun') {   // a beam: a white-hot core in a cyan glow, fading once it's done
     const fade = sh.i >= pts.length ? Math.max(0, 1 - (sh.i - pts.length) / 20) : 1;
     ctx.save(); ctx.globalAlpha = fade; ctx.lineCap = 'round';
-    [[10, '#29E7FF33'], [5, '#29E7FFAA'], [2, '#FFFFFF']].forEach(([w, c]) => { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); for (let j = 1; j < n; j++) ctx.lineTo(pts[j].x, pts[j].y); ctx.stroke(); });
+    const rc = COLS[sh.p] || '#29E7FF';   // in the shooter's colour
+    [[10, `${rc}33`], [5, `${rc}AA`], [2, '#FFFFFF']].forEach(([w, c]) => { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); for (let j = 1; j < n; j++) ctx.lineTo(pts[j].x, pts[j].y); ctx.stroke(); });
     ctx.restore(); return;
   }
-  const L = SHELL_LOOK[sh.weapon] || SHELL_LOOK.null, len = sh.weapon === 'homing' ? 60 : 40;
+  // Every shell trails and glows in its shooter's tank colour; the head keeps its weapon's look.
+  const L = SHELL_LOOK[sh.weapon] || SHELL_LOOK.null, len = sh.weapon === 'homing' ? 60 : 40, pc = COLS[sh.p] || L.trail;
   for (let j = Math.max(0, n - len); j < n; j++) {
-    ctx.globalAlpha = (j - (n - len)) / len; ctx.fillStyle = sh.weapon === 'cluster' && j % 3 === 0 ? '#FFF4D6' : L.trail;
-    ctx.beginPath(); ctx.arc(pts[j].x + (sh.weapon === 'homing' ? Math.sin(j + t / 40) * 1.5 : 0), pts[j].y, sh.weapon === 'homing' ? 2.6 : 2, 0, 7); ctx.fill();
+    ctx.globalAlpha = (j - (n - len)) / len; ctx.fillStyle = (sh.weapon === 'cluster' || sh.weapon === 'fractal') && j % 3 === 0 ? L.trail : pc;
+    ctx.beginPath(); ctx.arc(pts[j].x + (sh.weapon === 'homing' ? Math.sin(j + t / 40) * 1.5 : 0), pts[j].y, sh.weapon === 'homing' ? 3 : 2.6, 0, 7); ctx.fill();
   }
   ctx.globalAlpha = 1;
-  if (n < pts.length) { const q = pts[n]; ctx.shadowColor = L.glow; ctx.shadowBlur = 18; ctx.fillStyle = L.head; ctx.beginPath(); ctx.arc(q.x, q.y, L.r, 0, 7); ctx.fill(); ctx.shadowBlur = 0; }
+  if (n < pts.length) { const q = pts[n];
+    ctx.shadowColor = pc; ctx.shadowBlur = 20; ctx.fillStyle = pc; ctx.beginPath(); ctx.arc(q.x, q.y, L.r + 2.5, 0, 7); ctx.fill();
+    ctx.shadowBlur = 0; ctx.fillStyle = L.head; ctx.beginPath(); ctx.arc(q.x, q.y, L.r * 0.7, 0, 7); ctx.fill(); }
 }
 // Aim hint: a rough guide, not a solution. Each turn it carries a small hidden error (a few
 // degrees and a bit of power, different every turn), it wobbles a little even in calm air, sways
@@ -416,16 +422,19 @@ function drawDots(pts, alpha, t, still) {
   const n = pts.length, drift = still ? 0 : (t / 60) % 6;
   for (let j = Math.floor(drift) % 6; j < n; j += 6) {
     const q = pts[j], f = 1 - j / n;
-    ctx.globalAlpha = alpha * (0.15 + 0.85 * f * f); ctx.fillStyle = '#FFC857'; ctx.shadowColor = '#FFC857'; ctx.shadowBlur = 8;
-    ctx.beginPath(); ctx.arc(q.x, Math.max(4, q.y), 2.2 + 2 * f, 0, 7); ctx.fill();
+    const mc = COLS[myIdx()] || '#FFC857';   // your tank's colour, outlined so it reads on sky and hill alike
+    ctx.globalAlpha = alpha * (0.25 + 0.75 * f * f); ctx.fillStyle = mc; ctx.shadowColor = mc; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.arc(q.x, Math.max(4, q.y), 2.8 + 2.4 * f, 0, 7); ctx.fill();
+    ctx.shadowBlur = 0; ctx.strokeStyle = '#0B0A1ECC'; ctx.lineWidth = 1.3; ctx.stroke();
   }
 }
 function drawHint(t) {
   if (droneOn()) {   // where the drone will drop: a dashed line down from the sky (the wind still drifts the bomb)
     const x = dropX ?? W / 2, gy = top.under?.[Math.round(x)] ?? top[Math.max(0, Math.min(W - 1, Math.round(x)))];
-    ctx.save(); ctx.strokeStyle = '#FFC857AA'; ctx.lineWidth = 2; ctx.setLineDash([6, 8]); ctx.lineDashOffset = -t / 40;
+    const mc = COLS[myIdx()] || '#FFC857';
+    ctx.save(); ctx.strokeStyle = `${mc}CC`; ctx.lineWidth = 2.5; ctx.setLineDash([6, 8]); ctx.lineDashOffset = -t / 40;
     ctx.beginPath(); ctx.moveTo(x, droneY() + 14); ctx.lineTo(x, gy); ctx.stroke(); ctx.setLineDash([]);
-    ctx.strokeStyle = '#FFC857'; ctx.beginPath(); ctx.arc(x, gy - 2, 10, 0, 7); ctx.moveTo(x - 15, gy - 2); ctx.lineTo(x + 15, gy - 2); ctx.stroke();
+    ctx.strokeStyle = mc; ctx.beginPath(); ctx.arc(x, gy - 2, 10, 0, 7); ctx.moveTo(x - 15, gy - 2); ctx.lineTo(x + 15, gy - 2); ctx.stroke();
     ctx.font = `${Math.round(34 * W / 800)}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.globalAlpha = 0.8; ctx.fillText('🚁', x, droneY()); ctx.restore();
     return;
   }
