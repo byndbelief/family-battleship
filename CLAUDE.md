@@ -126,8 +126,10 @@ username. A new account only becomes a robot once it's in `public.bots`.
   tank; a null in `xs` is a tank that's out (`standing()` in duel.js, by the HP *before* the shot, so
   replays of a knockout still hit). Turns skip dead tanks (`_duel_next`); `duel_shots.xs` records
   every tank's position for replays (`from_x`/`target_x` remain for 2). Live messages carry `from`
-  (seat); a message without it is from "the other one" of two. The robot targets the weakest tank
-  standing, and live only the first human still standing drives it (`botDriver`). **Never rebuild
+  (seat); a message without it is from "the other one" of two. Each robot picks its own target
+  (`botTarget`: nearer, whoever last hit it, a tank at ≤ 25 HP, plus a big random share) and keeps
+  it 3 shots; people and robots count alike. It was "the weakest tank standing" for every robot,
+  so the table ganged up on whoever took the first hit, usually the person. Live only the first human still standing drives it (`botDriver`). **Never rebuild
   `hp` as a two-value array**: curses, repairs and the chaos clock update `hp[i]` in place.
   The Gauntlet deals duels for any group size (`_duel_new`); 24 h forfeit = `_duel_knockout`.
 - **Battleship themes** (`027_bs_themes.sql`, art in `web/bs-themes.js`): the board is a sea view —
@@ -190,6 +192,10 @@ username. A new account only becomes a robot once it's in `public.bots`.
   tunnel fires out of its mouth or into its own roof (`hitAt`: a roof hit from inside explodes
   there). A blast with more than ~8 px of solid hill between it and a covered tank does nothing to
   it (`blocked`, 035); the railgun ignores hills. A crater that bites into the hollow opens it.
+  A blast whose centre is *inside* the hill (fired into your own roof) hollows it out instead:
+  the hollow's ceiling rises (`top.ceil[x]`, read through `ceilAt`; default floor − 22), columns
+  with no hollow get a cave, and a roof left under 4 px falls in, so repeated shots bore out.
+  Surface hits never make hollows (a slope beside a crater stays solid).
   **🔻 Bunker Buster** (`buster`, 035): flies like a shell, bores up to 80 px down from where it
   lands, goes off at the end or on breaking into a hollow, and saves a shaft `[x, y, r, 4]` (dug
   from the surface down through its blast) — the one weapon that reaches a dug-in tank. The server

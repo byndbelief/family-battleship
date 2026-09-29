@@ -1,7 +1,7 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
 import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, shotClock, stopShotClock, chaosClock, dramaOn, face, jumpToNext, setGameTools, condenseTop, compactPack } from './common.js';
-import { W, H, CRATER_R, BERTHA_R, rng, buildTop as buildTopN, applyCrater, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, startXs, zones, aimDir, digCut, coveredAt, TUN, setWorld } from './duel-engine.js';
+import { W, H, CRATER_R, BERTHA_R, rng, buildTop as buildTopN, applyCrater, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, startXs, zones, aimDir, digCut, coveredAt, ceilAt, TUN, setWorld } from './duel-engine.js';
 
 const $ = (id) => document.getElementById(id);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -149,12 +149,12 @@ function draw(t) {
     for (let x = 0; x < W; x++) {
       if (top.under[x] == null) continue;
       let e = x; while (e + 1 < W && top.under[e + 1] != null) e++;
-      ctx.beginPath(); ctx.moveTo(x, top.under[x] - TUN);
-      for (let k = x; k <= e; k++) ctx.lineTo(k, top.under[k] - TUN);
+      ctx.beginPath(); ctx.moveTo(x, ceilAt(top, x));
+      for (let k = x; k <= e; k++) ctx.lineTo(k, ceilAt(top, k));
       for (let k = e; k >= x; k--) ctx.lineTo(k, top.under[k]);
       ctx.closePath(); ctx.fill(); ctx.stroke();
       // a miner's lamp glow along the floor
-      const gl = ctx.createLinearGradient(0, top.under[x] - TUN, 0, top.under[x]); gl.addColorStop(0, '#FFC85700'); gl.addColorStop(1, '#FFC85733');
+      const gl = ctx.createLinearGradient(0, ceilAt(top, x), 0, top.under[x]); gl.addColorStop(0, '#FFC85700'); gl.addColorStop(1, '#FFC85733');
       ctx.fillStyle = gl; ctx.fill(); ctx.fillStyle = '#04090F';
       x = e;
     }
@@ -611,13 +611,32 @@ function setLive(v) {
 // It gives you 4 s to get going, and wobbles more than in turns (see botLiveShot).
 let botReloadAt = {}, botBusy = new Set();   // by seat: several robots can be in one duel (033)
 const BOT_RELOAD = [2300, 1600, 1300];
-// Who the robot shoots at: with two players the other tank; with more, the weakest one still
-// standing (the nearest on a tie). It only searches angles that way.
+// Who the robot shoots at: with two players the other tank. With more, each robot picks its own
+// target and sticks with it for a few shots: nearer tanks are easier, it hits back at whoever last
+// hit it, and it likes to finish off a tank that's nearly out, with plenty of chance on top. It
+// used to be "the weakest tank standing" for everyone, so the whole table ganged up on whoever took
+// the first hit (usually the person, who shoots slower than robots). People and robots count alike.
+const botAim = {};   // by seat: { game, t, left }
+function lastHitBy(bi) {
+  const g = G.game, full = g.players.map(() => 100);
+  for (let i = G.shots.length - 1; i >= 0; i--) {
+    const s = G.shots[i], before = G.shots[i - 1]?.hp_after || full;
+    if (s.shooter !== g.players[bi] && s.hp_after?.[bi] < before[bi]) return g.players.indexOf(s.shooter);
+  }
+  return -1;
+}
 function botTarget(bi, X) {
   const g = G.game;
   if (!multi()) return 1 - bi;
-  return g.players.map((_, p) => p).filter((p) => p !== bi && g.hp[p] > 0)
-    .sort((a, b) => g.hp[a] - g.hp[b] || Math.abs(X[a] - X[bi]) - Math.abs(X[b] - X[bi]))[0];
+  const alive = g.players.map((_, p) => p).filter((p) => p !== bi && g.hp[p] > 0);
+  const cur = botAim[bi];
+  if (cur?.game === g.id && cur.left > 0 && alive.includes(cur.t)) { cur.left--; return cur.t; }
+  const foe = lastHitBy(bi);
+  const score = Object.fromEntries(alive.map((p) => [p,
+    (Math.abs(X[p] - X[bi]) / W) * 80 - (p === foe ? 35 : 0) - (g.hp[p] <= 25 ? 20 : 0) + Math.random() * 60]));
+  const t = alive.sort((a, b) => score[a] - score[b])[0];
+  botAim[bi] = { game: g.id, t, left: 2 };
+  return t;
 }
 const botAngles = (bi, ti, X, step) => { const right = !multi() || X[ti] > X[bi], out = []; for (let a = 10; a <= 85; a += step) out.push(right ? a : 180 - a); return out; };
 // Keep a wobbled angle on the side it was aimed at.

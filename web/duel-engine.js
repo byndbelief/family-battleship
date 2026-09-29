@@ -47,6 +47,9 @@ const TUN = 22, ROOF = 6;
 const clampX = (x) => Math.max(0, Math.min(W - 1, Math.round(x)));
 const standY = (top, x) => top.under?.[x] ?? top[x];
 const coveredAt = (top, x) => x != null && top.under?.[clampX(x)] != null;
+// The hollow's ceiling: TUN above its floor, higher where a blast inside the hill has hollowed it out.
+const ceilAt = (top, x) => top.ceil?.[x] ?? top.under[x] - TUN;
+function openUp(top, x) { top[x] = Math.max(top[x], top.under[x]); delete top.under[x]; if (top.ceil) delete top.ceil[x]; }
 function lowerAt(top, x, y) {   // deepen whatever you'd stand on at x
   if (top.under?.[x] != null) top.under[x] = Math.min(H - 8, Math.max(top.under[x], y));
   else top[x] = Math.max(top[x], y);
@@ -65,17 +68,28 @@ function applyCrater(top, [cx, cy, r, mound]) {
   if (mound === 4) {   // a Bunker Buster [x, y, r, 4]: a shaft from the surface down through its blast underground
     for (let x = Math.max(0, cx - r); x <= Math.min(W - 1, cx + r); x++) {
       top[x] = Math.min(H - 8, Math.max(top[x], cy + Math.sqrt(r * r - (x - cx) ** 2)));
-      if (top.under?.[x] != null && top[x] > top.under[x] - TUN) { top[x] = Math.max(top[x], top.under[x]); delete top.under[x]; }
+      if (top.under?.[x] != null && top[x] > ceilAt(top, x)) openUp(top, x);
     }
     return;
   }
+  const buried = !mound && cy > top[clampX(cx)] + 2;   // went off inside the hill, not on its surface
   for (let x = Math.max(0, cx - r); x <= Math.min(W - 1, cx + r); x++) {
     const dy = Math.sqrt(r * r - (x - cx) ** 2);
     if (mound) top[x] = Math.max(24, Math.min(top[x], cy - dy));
-    else if (cy - dy <= top[x]) {
+    else if (cy - dy > top[x]) {
+      if (!buried) continue;
+      // Went off inside the hill (a tank in a tunnel firing into its roof): it hollows out a cave,
+      // or widens the tunnel it's in; a roof blasted thinner than a crust falls in.
+      const lo = Math.min(H - 8, cy + dy);
+      if (dy < 2) continue;
+      if (top.under?.[x] == null) { if (lo - (cy - dy) < 8) continue; (top.under ||= [])[x] = lo; (top.ceil ||= [])[x] = cy - dy; }
+      else if (cy - dy < top.under[x] && lo > ceilAt(top, x) - 2) { (top.ceil ||= [])[x] = Math.min(ceilAt(top, x), cy - dy); top.under[x] = Math.max(top.under[x], lo); }
+      else continue;
+      if (top.ceil[x] - top[x] < 4) openUp(top, x);
+    } else {
       top[x] = Math.min(H - 8, Math.max(top[x], cy + dy));
       // Bit into a tunnel: the roof's gone here and the hollow is open down to its floor.
-      if (top.under?.[x] != null && top[x] > top.under[x] - TUN) { top[x] = Math.max(top[x], top.under[x]); delete top.under[x]; }
+      if (top.under?.[x] != null && top[x] > ceilAt(top, x)) openUp(top, x);
     }
   }
 }
@@ -93,7 +107,7 @@ function solidAt(top, x, y) {
   const i = Math.floor(x); if (i < 0 || i >= W) return false;
   if (y < top[i]) return false;
   const u = top.under?.[i];
-  return !(u != null && y > u - TUN && y < u);
+  return !(u != null && y > ceilAt(top, i) && y < u);
 }
 // Where a shell stops when it runs into the ground: the surface, or a tunnel's roof from inside.
 const hitAt = (top, x, y) => { const i = Math.floor(x); return y > top[i] + 2 ? { x, y } : { x, y: top[i] }; };
@@ -168,7 +182,7 @@ function simulateWeapon(seed, move, top, shooter, angle, power, windX = 1, xs = 
       if (nx < 0 || nx >= W || ny > H - 4) break;
       x = nx; y = ny; path.push({ x, y });
       const u = top.under?.[Math.floor(x)];
-      if (u != null && y > u - TUN && y < u) break;   // into the tunnel: bang
+      if (u != null && y > ceilAt(top, Math.floor(x)) && y < u) break;   // into the tunnel: bang
     }
     return [{ path, impact: { x, y } }];
   }
@@ -248,4 +262,4 @@ const guardOf = (v) => (v === true ? 0.5 : typeof v === 'number' ? v : 1);
 // tank's stop so the whole tank fits.
 const digCut = (x0, x1) => (x0 == null || x1 == null || x1 === x0 ? null : x1 > x0 ? [x0, x1 + 12, x0, 2] : [x1 - 12, x0, x0, 2]);
 
-export { startXs, zones, aimDir, hitTank, rng, baseTerrain, applyCrater, buildTop, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, digCut, coveredAt, TUN };
+export { startXs, zones, aimDir, hitTank, rng, baseTerrain, applyCrater, buildTop, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, digCut, coveredAt, ceilAt, TUN };
