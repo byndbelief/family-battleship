@@ -83,14 +83,19 @@ username. A new account only becomes a robot once it's in `public.bots`.
   `ball`), the hole moves on when all are in, first in the cup earns a sneak attack, and cheating is
   refused while live. `_golf_submit` now always advances `t` past slots already played, so turns
   pick up cleanly when live ends.
-  **Live sneak attacks** (`040_golf_live_attacks.sql`): in a live race the 🎯 panel (`renderAfter(true)`,
-  folded) shows while you play too, and `golf_plant` takes one any time (one per hole row, keyed to
-  your slot on it) and touches `golf_games.updated_at` so every page refreshes; the target's page
-  (`checkLiveAttack` on refresh) lands it on their next putt (`attackFrom` = putts already played;
-  mid-roll it waits for the ball to stop). The save sends `p_attack_from` (-1 = never saw one: the
-  attack is left for the next hole via `golf.no_attack`), stored as `golf_turns.attack_from`;
-  `replayTurn` plays the plain hole until that putt. A robot racing live asks
-  `golf_bot_live_attack` before each putt (it used to ignore attacks while the save recorded them).
+  **Sneak attacks are backpack loot** (`041_golf_attack_loot.sql`): five items `atk_ice`, `atk_wind`,
+  `atk_cup`, `atk_bumpers`, `atk_butter` (attack types 1-5, `ATK_ITEMS` in golf.js), in Putt Post's
+  own loot. `use_loot` plants that attack on **every other player** without one waiting (refused
+  if none can be hit); usable on your own hole, or any time live. The old per-game 🎯 tokens and the
+  plant panel are gone for people: a trigger on `golf_players` (`_golf_tokens_to_loot`) turns every
+  token a person earns (birdie+, catching a cheater, first in the cup live) into a random attack
+  item and starts them at 0; robots keep tokens and still plant one attack at one victim.
+  `golf_plant` is unused by the page. **Live** (`040_golf_live_attacks.sql`): an attack touches
+  `golf_games.updated_at` so every page refreshes, and the target's page (`checkLiveAttack`) lands
+  it on their next putt (`attackFrom` = putts already played; mid-roll it waits for the ball to
+  stop). The save sends `p_attack_from` (-1 = never saw one: the attack is left for the next hole
+  via `golf.no_attack`), stored as `golf_turns.attack_from`; `replayTurn` plays the plain hole until
+  that putt. A robot racing live asks `golf_bot_live_attack` before each putt.
 - **Live vs the robot** (`017_robot_live.sql`): a "⚔️ Live battle vs robot" switch on each game page
   when the robot plays (`set_live_bot`, column `live_bot`); while on, the robot counts as always
   "here". It acts from the watching page: Duel `botLiveShot` (drives a little, aims at where you are
@@ -350,7 +355,7 @@ username. A new account only becomes a robot once it's in `public.bots`.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size, 037_bs_burst applied 2026-09-28; 038_drone_strike, 039_more_loot, 040_golf_live_attacks 2026-09-29), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size, 037_bs_burst applied 2026-09-28; 038_drone_strike, 039_more_loot, 040_golf_live_attacks, 041_golf_attack_loot 2026-09-29), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.
