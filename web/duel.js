@@ -73,12 +73,14 @@ let ctx = cv.getContext('2d');   // swapped for the tank cam's while it draws (d
 // the battlefield (x, y). Pinch or the wheel to zoom, one finger pans when you're not aiming, and a
 // shell in the air pulls the view along with it. At 1× it's the whole field, exactly as before.
 let cam = { z: 1, x: 400, y: 220 }, camHeld = 0;   // camHeld: until when the person, not the shell, steers
-// 🎬 The shot camera: zoomed in, the view stays where you put it until someone fires. Then it glides
-// to the shooter's tank, follows the shell, holds on the impact, and glides back to your spot at
-// your zoom. Touch the battlefield (or a zoom button) and it lets go at once, leaving the view there.
+// 🎬 The shot camera: zoomed in, the view stays where you put it until YOU fire. Then it glides to
+// your tank, follows your shell, holds on the impact, and glides back to your spot at your zoom.
+// Everyone else's shots, and chaos (meteors, quakes, the sun), leave your view alone: the calm in
+// the chaos (the 🎥 tank cam still shows your tank if it's hit off screen). Touch the battlefield
+// (or a zoom button) and it lets go at once, leaving the view there.
 let ride = null, rideLast = 0;
 function rideStart(p) {
-  if (!camOn() || cam.z <= 1.001 || reduceMotion || Date.now() < camHeld) return 0;
+  if (!camOn() || cam.z <= 1.001 || reduceMotion || Date.now() < camHeld || p !== myIdx()) return 0;
   const tp = tankPos(p, top, xs());
   const far = tp && Math.hypot(tp.x - cam.x, tp.y - 30 - cam.y) > 40;
   if (!ride) ride = { home: { x: cam.x, y: cam.y }, p, t0: performance.now(), end: 0, aim: null, vx: 0, vy: 0 };

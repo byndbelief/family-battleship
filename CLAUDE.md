@@ -727,3 +727,8 @@ trophies "Chaos". Code, tables and RPCs keep the gauntlet names. The rounds walk
 `_chaos_curve` starts a round's game at n = (round − 1)·6, so round 1 is calm (r 2.90) and round 4 on
 opens in chaos. The server's messages (round news, champion, call-off, chaos-clock forfeits) say Chaos.
 
+### Hilltop shot camera: yours only
+`rideStart(p)` returns at once unless `p === myIdx()`: zoomed in, the camera rides only your own shots;
+other players' shots, robots' and chaos (meteors, quakes, the sun) leave your view where it is (the tank
+cam still shows your tank when it's hit off screen). t_ride checks both (robot table: others' max move 0).
+
