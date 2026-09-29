@@ -62,6 +62,56 @@ export const fsRefresh = () => fsLabels();
 // setGameTools({ fs, canDelete, onDelete, bot }) shows the game buttons; setGameTools(null) hides
 // them. onDelete() returns an error message, or nothing when the game is gone.
 // bot: { on, label, onToggle } — onToggle() flips it and returns an error message or nothing.
+// ---------------------------------------------------------------- the loader: x → r·x·(1−x)
+// While a page loads, the chaos curve plays itself: r sweeps from calm to chaos, a cobweb walks x
+// round the parabola (settling, then flipping, then lost), and the bifurcation diagram draws itself
+// underneath, one r at a time. It goes when the page first shows its tools (setGameTools), or 6 s.
+const loaderEl = (() => {
+  if (!document.body) return null;
+  const el = document.createElement('div'); el.id = 'chaosLoader'; el.setAttribute('role', 'status'); el.setAttribute('aria-label', 'Loading');
+  el.style.cssText = 'position:fixed;inset:0;z-index:200;background:radial-gradient(ellipse at 50% 35%,#1C1640,#0B0918 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:#fff;font:700 15px/1.3 system-ui,sans-serif;transition:opacity .35s';
+  el.innerHTML = '<canvas width="560" height="700" style="width:min(300px,72vw);height:auto"></canvas><div style="font:800 22px/1 system-ui,sans-serif;letter-spacing:.02em">x → r·x·(1−x)</div><div class="lr" style="opacity:.7;font-size:13px;font-variant-numeric:tabular-nums">r = 2.80</div>';
+  document.body.appendChild(el);
+  const cv = el.querySelector('canvas'), c = cv.getContext('2d'), W = 560, top = 460, bif = document.createElement('canvas');
+  bif.width = W; bif.height = 220; const b = bif.getContext('2d');
+  const R0 = 2.8, R1 = 4, still = matchMedia('(prefers-reduced-motion: reduce)').matches, t0 = performance.now();
+  let col = 0;
+  const plotCol = (px) => {   // one column of the diagram: where x settles for this r
+    const r = R0 + ((R1 - R0) * px) / (W - 1); let x = 0.5;
+    for (let i = 0; i < 200; i++) x = r * x * (1 - x);
+    b.fillStyle = r >= 3.5699 ? '#FF8A3D55' : '#3DD6C6aa';
+    for (let i = 0; i < 90; i++) { x = r * x * (1 - x); b.fillRect(px, (1 - x) * 219, 1.4, 1.4); }
+  };
+  const frame = (now) => {
+    if (!el.isConnected) return;
+    const k = still ? 1 : ((now - t0) / 5200) % 1, r = R0 + (R1 - R0) * k;
+    if (still) while (col < W) plotCol(col++);
+    else { const upto = Math.floor(k * W); if (upto < col) { b.clearRect(0, 0, W, 220); col = 0; } while (col <= upto && col < W) plotCol(col++); }
+    c.clearRect(0, 0, W, 700);
+    // the cobweb: y = r·x·(1−x) against y = x, x stepping from 0.2
+    const P = 40, S = top - 2 * P, X = (v) => P + v * S, Y = (v) => top - P - v * S;
+    c.strokeStyle = '#ffffff22'; c.lineWidth = 2; c.strokeRect(P, P, S, S);
+    c.strokeStyle = '#ffffff55'; c.beginPath(); c.moveTo(X(0), Y(0)); c.lineTo(X(1), Y(1)); c.stroke();
+    c.strokeStyle = '#B9A6FF'; c.lineWidth = 4; c.beginPath();
+    for (let i = 0; i <= 60; i++) { const v = i / 60; c[i ? 'lineTo' : 'moveTo'](X(v), Y(r * v * (1 - v))); } c.stroke();
+    let x = 0.2; c.lineWidth = 2.5; c.beginPath(); c.moveTo(X(x), Y(0));
+    for (let i = 0; i < 70; i++) { const y = r * x * (1 - x); c.lineTo(X(x), Y(y)); c.lineTo(X(y), Y(y)); x = y; }
+    c.strokeStyle = r >= 3.5699 ? '#FF8A3Dcc' : '#3DD6C6cc'; c.stroke();
+    c.fillStyle = '#fff'; c.beginPath(); c.arc(X(x), Y(x), 7, 0, 7); c.fill();
+    // the diagram, and where r is on it
+    c.drawImage(bif, 0, top + 10); c.fillStyle = '#fff'; c.fillRect(Math.min(W - 3, k * W), top + 6, 3, 228);
+    el.querySelector('.lr').textContent = `r = ${r.toFixed(2)} · ${r < 3 ? 'calm' : r < 3.449 ? 'a rhythm of 2' : r < 3.5699 ? '4, 8, 16…' : 'chaos'}`;
+    if (!still) requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+  setTimeout(() => loaderDone(), 6000);
+  return el;
+})();
+export function loaderDone() {
+  if (!loaderEl?.isConnected || loaderEl.dataset.out) return;
+  loaderEl.dataset.out = '1'; loaderEl.style.opacity = '0'; loaderEl.style.pointerEvents = 'none';
+  setTimeout(() => loaderEl.remove(), 380);
+}
 let tools = null, toolsOpts = null;
 const toolsCss = document.createElement('style');
 toolsCss.textContent = `
@@ -167,6 +217,7 @@ export function condenseTop(el, hide = []) {
   hide.forEach((h) => h?.classList.add('hdrgone'));
 }
 export function setGameTools(opts) {
+  loaderDone();   // the page is up
   settingsButton();
   toolsOpts = opts;
   const host = document.querySelector('.fs-on') || document.body;

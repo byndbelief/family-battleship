@@ -638,4 +638,8 @@ Each crossing is 🌀 news to every player (the most advanced crossing wins when
 button (`setGameTools({ chaos: { kind, id } })`, common.js `curveFor`, refetched at most every 1.5 s):
 a sparkline of the last 14 x's against the twist line; tapped, `#curveBox` draws the bifurcation
 diagram (built once, 720×360) with this game's path through it and r now.
+**The loader** (common.js, `#chaosLoader`): every page opens on the curve playing itself while it loads:
+r sweeps 2.8 → 4 over 5.2 s, a cobweb walks x round y = r·x·(1−x), and the bifurcation diagram draws
+itself column by column beneath it. `loaderDone()` fades it: the first `setGameTools` call (every page's
+first render, the lobby's `view()` included), or 6 s at most. Reduced motion: one still frame.
 
