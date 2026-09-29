@@ -1,7 +1,7 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
 import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, liveCountdown, shotClock, stopShotClock, chaosClock, dramaOn, face, jumpToNext, setGameTools, condenseTop, compactPack } from './common.js';
-import { W, H, CRATER_R, BERTHA_R, rng, buildTop as buildTopN, applyCrater, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, startXs, zones, aimDir, digCut, coveredAt, ceilAt, TUN, setWorld, droneX, droneAim, droneY, DRONE_STEP } from './duel-engine.js';
+import { W, H, CRATER_R, BERTHA_R, rng, buildTop as buildTopN, applyCrater, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, startXs, zones, aimDir, digCut, coveredAt, ceilAt, TUN, setWorld, droneX, droneAim, droneY, DRONE_STEP, setMoon, moonAt } from './duel-engine.js';
 
 const $ = (id) => document.getElementById(id);
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -85,7 +85,7 @@ function rideStart(p) {
   else Object.assign(ride, { p, t0: performance.now(), end: 0 });
   return far && !liveOn && ff() === 1 ? 650 : 0;   // turn by turn: the shell leaves once the camera has got there
 }
-window.__duelCam = () => ({ x: cam.x, y: cam.y, z: cam.z, ride: !!ride });   // for tests: read-only
+window.__duelCam = () => ({ x: cam.x, y: cam.y, z: cam.z, ride: !!ride, beams: sunBeams.length });   // for tests: read-only
 function rideStep(t) {
   const dt = rideLast ? Math.min(0.1, (t - rideLast) / 1000) : 0; rideLast = t;
   if (!ride) return;
@@ -138,9 +138,36 @@ function toWorld(clientX, clientY) {
 // Zoom to z keeping the battlefield point under (fx, fy) of the screen where it is.
 function zoomAt(z, fx, fy, wx, wy) { cam.z = clampN(z, 1, 3); cam.x = wx - (fx - 0.5) * (W / cam.z); cam.y = wy - (fy - 0.5) * (viewH() / cam.z); camClamp(); showCam(); }
 function camLook(x, y, z = cam.z) { cam.z = z; cam.x = x; cam.y = y; camClamp(); showCam(); }
+// 🌙💥 Shoot the moon (049): a shell that flies into it shatters it, and that duel's morning comes (for
+// everyone, whatever their clock says). The sun that rises is angry: now and then, after a move, it
+// fires a beam at a tank (the server rolls it: duel_games.sun_shot = [count, tank, damage]).
+let moonGone = null, sunSeen = null, sunBeams = [];
+const moonUp = (move) => !(G?.game?.sun >= 0) || move <= G.game.sun;
+function moonDown(move) {
+  const m = moonAt();
+  if (!reduceMotion) for (let i = 0; i < 46; i++) { const a = Math.random() * 6.28, v = 1 + Math.random() * 4; particles.push({ x: m.x, y: m.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 1, life: 1.4, s: 2 + Math.random() * 4, c: ['#FFF4D6', '#E8E0C8', '#B9B2A0', '#FFE3A3'][i % 4] }); }
+  sfx('boom', { size: 2 }); navigator.vibrate?.([60, 30, 120]);
+  if (G.game.sun >= 0 && G.game.sun < move) return;   // a replay of it: the fireworks, nothing more
+  if (!(G.game.sun >= 0)) {
+    G.game.sun = move; moonGone = { id: G.game.id, move }; setMoon(moonUp(G.game.move));
+    stamp('🌙💥 MOON DOWN!'); setTimeout(() => note('☀️ Morning breaks… and the sun woke up angry. Watch out: it shoots!'), 1400);
+    sb.rpc('duel_moon_hit', { p_game: G.game.id, p_move: move }).then(() => {}, () => {});
+  }
+}
+// A new sun shot since we last looked: a beam from the sun to that tank (not on opening the page).
+function sunCheck(fresh) {
+  const ss = G.game.sun_shot || [], n = ss[0] || 0;
+  if (fresh || sunSeen === null) { sunSeen = n; return; }
+  if (n <= sunSeen) return;
+  sunSeen = n;
+  const tp = tankPos(ss[1], top || ground(), xs()); if (!tp) return;
+  sunBeams.push({ x: tp.x, y: tp.y - 10, t0: performance.now(), dmg: ss[2] });
+  sfx('flash'); sfx('boom', { delay: 0.12 });
+  if (!reduceMotion) for (let i = 0; i < 22; i++) particles.push({ x: tp.x, y: tp.y - 8, vx: (Math.random() - 0.5) * 4, vy: -Math.random() * 3.5, life: 1, s: 2 + Math.random() * 3, c: i % 2 ? '#FFD24A' : '#FF8A3C' });
+}
 const clouds = Array.from({ length: 5 }, (_, i) => { const r = rng(i * 104729 + 11); return { x: r(), y: 0.25 + r() * 0.5, r: 18 + r() * 16, v: 0.004 + r() * 0.006 }; });
 // Daylight: 0 at night, 1 by day, eased across dawn (6-7) and dusk (19-20) by the local clock.
-const dayTarget = () => { const n = new Date(), h = n.getHours() + n.getMinutes() / 60; return h < 6 || h >= 20 ? 0 : h < 7 ? h - 6 : h < 19 ? 1 : 20 - h; };
+const dayTarget = () => { if (G?.game?.sun >= 0) return 1; const n = new Date(), h = n.getHours() + n.getMinutes() / 60; return h < 6 || h >= 20 ? 0 : h < 7 ? h - 6 : h < 19 ? 1 : 20 - h; };
 let dayNow = reduceMotion ? dayTarget() : 0, dayLast = 0;
 function dayStep(t) {   // a 2.5 s morph from wherever the sky is to where the clock says it should be
   const goal = dayTarget(), dt = dayLast ? Math.min(0.1, (t - dayLast) / 1000) : 0; dayLast = t;
@@ -221,6 +248,12 @@ function draw(t) {
     for (let i = 0; i < 12; i++) { const an = spin + (i * Math.PI) / 6; ctx.beginPath(); ctx.moveTo(mx + Math.cos(an) * r0, my + Math.sin(an) * r0); ctx.lineTo(mx + Math.cos(an) * r1, my + Math.sin(an) * r1); ctx.stroke(); }
     ctx.restore();
   }
+  if (d > 0.6 && G.game.sun >= 0) {   // 😠 the sun that woke up angry
+    const a = Math.min(1, (d - 0.6) / 0.3), fr = gr * 0.3; ctx.save(); ctx.globalAlpha = a; ctx.strokeStyle = '#7A3A00'; ctx.fillStyle = '#7A3A00'; ctx.lineCap = 'round'; ctx.lineWidth = 3;
+    [-1, 1].forEach((sd) => { ctx.beginPath(); ctx.ellipse(mx + sd * fr * 0.36, my - fr * 0.08, fr * 0.1, fr * 0.13, 0, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(mx + sd * fr * 0.6, my - fr * 0.42); ctx.lineTo(mx + sd * fr * 0.16, my - fr * 0.26); ctx.stroke(); });
+    ctx.beginPath(); ctx.arc(mx, my + fr * 0.55, fr * 0.3, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke(); ctx.restore();
+  }
   if (d > 0) {   // clouds drift in with the day
     ctx.save(); ctx.globalAlpha = d * 0.85; ctx.fillStyle = '#FFFFFF';
     clouds.forEach((c) => { const x = ((c.x * (W + 300) + (reduceMotion ? 0 : t * c.v)) % (W + 300)) - 150, y = c.y * (170 + dy);
@@ -280,6 +313,14 @@ function draw(t) {
     drawHint(t);
   }
   shells.forEach((sh) => drawShell(sh, t));
+  const now = performance.now(); sunBeams = sunBeams.filter((b) => now - b.t0 < 1300);
+  sunBeams.forEach((b) => {   // ☀️🔫 the sun's beam, and the damage it did
+    const k = (now - b.t0) / 1300, a = k < 0.15 ? k / 0.15 : Math.max(0, 1 - (k - 0.15) / 0.5);
+    ctx.save(); ctx.globalAlpha = a; ctx.lineCap = 'round';
+    [[16, '#FFD24A44'], [8, '#FFB020AA'], [3, '#FFFFFF']].forEach(([w, c]) => { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(b.x, b.y); ctx.stroke(); });
+    ctx.globalAlpha = Math.min(1, 2 - k * 1.6); ctx.font = `900 ${Math.round(22 * W / 800)}px system-ui,sans-serif`; ctx.textAlign = 'center'; ctx.fillStyle = '#FF5A3C'; ctx.strokeStyle = '#2A0A00'; ctx.lineWidth = 4;
+    const ty = b.y - 40 - k * 30; ctx.strokeText(`☀️ −${b.dmg}`, b.x, ty); ctx.fillText(`☀️ −${b.dmg}`, b.x, ty); ctx.restore();
+  });
   meteors.forEach((m) => drawMeteor(m));
   particles.forEach((q) => { ctx.globalAlpha = Math.max(0, q.life); ctx.fillStyle = q.c; ctx.beginPath(); ctx.arc(q.x, q.y, q.s, 0, 7); ctx.fill(); });
   ctx.globalAlpha = 1;
@@ -323,7 +364,7 @@ function drawShell(sh, t) {
 // with the wind, and only shows the first 65% of the flight. Reduced motion: a still band.
 const hintCache = new Map();
 function hintPath(angle, power, windX) {
-  const g = G.game, X = xs(), wpn = armedOf(me.id), key = `${g.move}|${wpn}|${X[myIdx()]}|${angle.toFixed(1)}|${power.toFixed(1)}|${windX.toFixed(2)}`;
+  const g = G.game, X = xs(), wpn = armedOf(me.id), key = `${moonUp(g.move) ? 'm' : ''}${g.move}|${wpn}|${X[myIdx()]}|${angle.toFixed(1)}|${power.toFixed(1)}|${windX.toFixed(2)}`;
   if (!hintCache.has(key)) {
     if (hintCache.size > 300) hintCache.clear();
     const { path } = simulateWeapon(g.seed, g.move, top, myIdx(), angle, power, windX, standing(X, g.hp, myIdx()), wpn)[0];
@@ -456,7 +497,9 @@ function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1, X = x
   return new Promise((done) => {
     if (!liveOn) top = buildTop(G.game.seed, beforeCraters);   // live: the ground is already current
     X = standing(X, hpBefore, p);
+    setMoon(moonUp(move));
     const sims = simulateWeapon(G.game.seed, move, top, p, angle, power, windX, X, weapon);
+    setMoon(moonUp(G.game.move));
     const mine = sims.map((sim) => ({ p, angle, weapon, path: sim.path, lead: sim.lead, xs: X, i: reduceMotion ? sim.path.length : 0 }));
     const wait = rideStart(p);
     shells.push(...mine); if (!liveOn) shot = mine[0];
@@ -478,6 +521,7 @@ function flyShell(p, angle, power, beforeCraters, move, crater, windX = 1, X = x
       if (ride && ride.p === p && !shells.some((x) => !mine.includes(x) && x.i < x.path.length)) ride.end = performance.now();
       const list = craterList(crater);
       if (list.length) { list.forEach((c) => { blast(c); applyCrater(top, c); }); if (list[0][3] !== 1 && !reduceMotion && cv.animate) cv.animate([{ transform: 'translate(-6px,3px)' }, { transform: 'translate(5px,-3px)' }, { transform: 'none' }], { duration: 350 }); }
+      if (sims.some((x) => x.moon)) moonDown(move);
       done({ impact: sims[0].impact, impacts: sims.map((x) => x.impact) });
     };
     if (wait) setTimeout(() => requestAnimationFrame(step), wait); else requestAnimationFrame(step);
@@ -633,7 +677,10 @@ async function load(id) {
   const fresh = G?.game.id !== g.data.id;
   setWorld(g.data.world);   // 3-4 tanks: a wider battlefield, drawn zoomed out (031)
   if (fresh) camReset();   // a new duel starts on the whole field
+  if (moonGone?.id === g.data.id && !(g.data.sun >= 0)) g.data.sun = moonGone.move;   // we saw it fall; the server's catching up
   G = { game: g.data, shots: s.data ?? [], names: Object.fromEntries((prof ?? []).map((p) => [p.id, p.username])) };
+  setMoon(moonUp(G.game.move));
+  sunCheck(fresh);
   if (G.game.gauntlet_id) gauntletBar(G.game.gauntlet_id, G.game.id, me.id, (p) => G.names[p] ?? names[p] ?? 'someone');
   return true;
 }

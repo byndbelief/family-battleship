@@ -141,6 +141,13 @@ const blastD = (top, im, t) => (coveredAt(top, t.x) && blocked(top, im, t) ? Inf
 
 // The tank a homing missile chases: the nearest one that isn't the shooter's.
 const nearestFoe = (x, shooter, top, xs) => { let best = null; xs.forEach((tx, p) => { if (p !== shooter && tx != null && (!best || Math.abs(tx - x) < Math.abs(best.x - x))) best = tankPos(p, top, xs); }); return best; };
+// 🌙 The moon (049) hangs where the page draws it, and a shell that flies into it shatters it: the
+// flight ends there ({ impact: null, moon: true }) and that duel's morning comes. The page says
+// whether it's still up for the move being flown (setMoon), so every device flies it the same.
+let MOON = true;
+function setMoon(on) { MOON = !!on; }
+const moonAt = () => ({ x: W * 0.7625, y: 90 + (H - 440) * 0.5, r: 30 });
+const hitMoon = (x, y) => { if (!MOON) return false; const m = moonAt(); return (x - m.x) ** 2 + (y - m.y) ** 2 < m.r * m.r; };
 function simulate(seed, move, top, shooter, angle, power, windX = 1, xs = TANK_X) {
   const { dir, a } = aimDir(shooter, angle, xs), t = tankPos(shooter, top, xs), wind = windFor(seed, move, windX) * 0.004, G = gravOf(windX);
   let x = t.x + dir * 14, y = t.y - 18; const v = power * PV();   // from a tunnel, it has to get out of the tunnel
@@ -149,6 +156,7 @@ function simulate(seed, move, top, shooter, angle, power, windX = 1, xs = TANK_X
   for (let i = 0; i < 3000; i++) {
     vx += wind; vy += G; x += vx; y += vy; path.push({ x, y });
     if (x < 0 || x >= W) return { path, impact: null };
+    if (hitMoon(x, y)) return { path, impact: null, moon: true };
     if (solidAt(top, x, y)) return { path, impact: hitAt(top, x, y) };
     if (hitTank(x, y, shooter, top, xs)) return { path, impact: { x, y } };
     if (y > H + 50) return { path, impact: null };
@@ -191,6 +199,7 @@ function flyFrom(state, seed, move, top, shooter, windX, xs, steer) {
     if (e) { vx += Math.max(-0.16, Math.min(0.16, (e.x - x) * 0.004)); vx *= 0.99; }
     vx += wind; vy += G; x += vx; y += vy; path.push({ x, y });
     if (x < 0 || x >= W) return { path, impact: null };
+    if (hitMoon(x, y)) return { path, impact: null, moon: true };
     if (solidAt(top, x, y)) return { path, impact: hitAt(top, x, y) };
     if (hitTank(x, y, shooter, top, xs)) return { path, impact: { x, y } };
     if (y > H + 50) return { path, impact: null };
@@ -243,6 +252,7 @@ function simulateWeapon(seed, move, top, shooter, angle, power, windX = 1, xs = 
     for (let i = 0; i < 400; i++) {
       x += vx; y += vy; path.push({ x, y });
       if (x < 0 || x >= W || y < -200 || y > H) return [{ path, impact: null }];
+      if (hitMoon(x, y)) return [{ path, impact: null, moon: true }];
       if (hitTank(x, y, shooter, top, xs, 16)) return [{ path, impact: { x, y } }];
     }
     return [{ path, impact: null }];
@@ -254,11 +264,12 @@ function simulateWeapon(seed, move, top, shooter, angle, power, windX = 1, xs = 
   for (let i = 0; i < 3000; i++) {
     vx += wind; vy += G; x += vx; y += vy; pre.push({ x, y });
     if (x < 0 || x >= W) return [{ path: pre, impact: null }];
+    if (hitMoon(x, y)) return [{ path: pre, impact: null, moon: true }];
     if (solidAt(top, x, y)) return [{ path: pre, impact: hitAt(top, x, y) }];
     if (hitTank(x, y, shooter, top, xs)) return [{ path: pre, impact: { x, y } }];
     if (vy >= 0) break;
   }
-  return [-1.3, 0, 1.3].map((d) => { const s = flyFrom({ x, y, vx: vx + d, vy: vy - Math.abs(d) * 0.4 }, seed, move, top, shooter, windX, xs, false); return { path: pre.concat(s.path), impact: s.impact }; });
+  return [-1.3, 0, 1.3].map((d) => { const s = flyFrom({ x, y, vx: vx + d, vy: vy - Math.abs(d) * 0.4 }, seed, move, top, shooter, windX, xs, false); return { path: pre.concat(s.path), impact: s.impact, moon: s.moon }; });
 }
 // The craters a shot leaves: [x, y, r] each (a mound gets a 4th element, 1).
 function weaponCraters(impacts, weapon, big = false) {
@@ -310,4 +321,4 @@ const guardOf = (v) => (v === true ? 0.5 : typeof v === 'number' ? v : 1);
 // tank's stop so the whole tank fits.
 const digCut = (x0, x1) => (x0 == null || x1 == null || x1 === x0 ? null : x1 > x0 ? [x0, x1 + 12, x0, 2] : [x1 - 12, x0, x0, 2]);
 
-export { startXs, zones, aimDir, hitTank, rng, baseTerrain, applyCrater, buildTop, windFor, gravOf, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, digCut, coveredAt, ceilAt, TUN, droneX, droneAim, droneY, DRONE_STEP };
+export { setMoon, moonAt, startXs, zones, aimDir, hitTank, rng, baseTerrain, applyCrater, buildTop, windFor, gravOf, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, digCut, coveredAt, ceilAt, TUN, droneX, droneAim, droneY, DRONE_STEP };

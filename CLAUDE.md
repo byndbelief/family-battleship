@@ -311,6 +311,14 @@ username. A new account only becomes a robot once it's in `public.bots`.
   duel is knocked out, turn-based robot turns run 3× faster (pauses, driving, shell flight; no slow
   motion, no camera wait) and the status says ⏩. Live battles keep their pace (the server times
   reloads). Battleship needs nothing: `_bot_maybe_play` already plays robot turns back to back.
+- **Shoot the moon** (`049_shoot_the_moon.sql`; `setMoon`/`moonAt` in duel-engine.js): the moon is a
+  target every page flies the same (a shell into it ends `{ impact: null, moon: true }`). The page
+  says whether it's up for the move being flown (`moonUp(move)`: up while `duel_games.sun` is -1, and
+  for the shell that downed it). Any page that flies it calls `duel_moon_hit` (first one counts);
+  `load()` keeps a moon it saw fall (`moonGone`) until the server catches up. With a sun the sky is day
+  for everyone (`dayTarget`), the sun has an angry face, and `_chaos_after_move` gives it a 30% shot
+  per move (`_duel_sun_fire`: 6-14, never below 1 HP) saved in `sun_shot` = [count, tank, dmg]; pages
+  draw the beam for a count newer than they've seen (`sunCheck`, not on opening).
 - **Tank cam** (`drawTankCam` in duel.js, `#tankCam` in duel.html): zoomed in (4+ tanks) with your
   tank off screen, a corner window re-runs `draw()` with `ctx`/`cam` swapped for its own canvas and a
   camera on your tank (`camPass` stops the shell-follow from steering the real camera). It shows your
@@ -450,7 +458,7 @@ username. A new account only becomes a robot once it's in `public.bots`.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size, 037_bs_burst applied 2026-09-28; 038_drone_strike, 039_more_loot, 040_golf_live_attacks, 041_golf_attack_loot, 042_more_chaos_hilltop, 043_more_chaos_golf, 044_even_more_chaos, 045_live_countdown, 046_gauntlet_big_ocean, 047_chaos_extras, 048_duel_rotate_start 2026-09-29), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size, 037_bs_burst applied 2026-09-28; 038_drone_strike, 039_more_loot, 040_golf_live_attacks, 041_golf_attack_loot, 042_more_chaos_hilltop, 043_more_chaos_golf, 044_even_more_chaos, 045_live_countdown, 046_gauntlet_big_ocean, 047_chaos_extras, 048_duel_rotate_start, 049_shoot_the_moon 2026-09-29), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.
