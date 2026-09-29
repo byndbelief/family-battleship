@@ -118,7 +118,9 @@ const viewH = () => Math.min(H, (W * cv.height) / cv.width);
 function camClamp() {
   cam.z = clampN(cam.z, 1, 3);
   const vw = W / cam.z, vh = viewH() / cam.z;
-  if (cam.z <= 1.001) { cam.x = W / 2; cam.y = H - vh / 2; return; }
+  // At 1×, a view shorter than the field (landscape full screen) trims the sky and also shows a strip
+  // below the ground's bottom edge, so the tanks sit up clear of the corner controls.
+  if (cam.z <= 1.001) { cam.x = W / 2; cam.y = H - vh / 2 + (vh < H - 1 ? Math.min(60 * (W / 800), (H - vh) * 0.5) : 0); return; }
   cam.x = clampN(cam.x, vw / 2, W - vw / 2); cam.y = clampN(cam.y, vh / 2, H - vh / 2);
 }
 const camReset = () => { cam = { z: 1, x: W / 2, y: H / 2 }; camClamp(); showCam(); };
@@ -287,7 +289,7 @@ function draw(t) {
   for (let x = 0; x <= W; x += 10) ctx.lineTo(x, 250 + dy + Math.sin(x * 0.011 + g.seed) * 30 + Math.sin(x * 0.027) * 14);
   ctx.lineTo(W, H); ctx.fill();
   const tg = ctx.createLinearGradient(0, 170 + dy, 0, H); tg.addColorStop(0, '#3DD6C6'); tg.addColorStop(0.08, '#1F8C8A'); tg.addColorStop(1, '#0F2E3F');
-  ctx.fillStyle = tg; ctx.beginPath(); ctx.moveTo(0, H); for (let x = 0; x < W; x++) ctx.lineTo(x, top[x]); ctx.lineTo(W, H); ctx.fill();
+  ctx.fillStyle = tg; ctx.beginPath(); ctx.moveTo(0, H + 200); for (let x = 0; x < W; x++) ctx.lineTo(x, top[x]); ctx.lineTo(W, H + 200); ctx.fill();   // on past the bottom: the full-screen view can show a strip below
   ctx.strokeStyle = '#9BF5EA'; ctx.lineWidth = 2; ctx.beginPath(); for (let x = 0; x < W; x++) ctx[x ? 'lineTo' : 'moveTo'](x, top[x]); ctx.stroke();
   // Tunnels (⛏️ Dig): the hollow inside the hill, dark, with the tank sitting in it under its roof.
   if (top.under?.length) {
@@ -317,14 +319,28 @@ function draw(t) {
     const aim = aimDir(p, ang, X), dir = aim.dir;
     ang = aim.a;
     if (armedOf(g.players[p]) === 'railgun' || (shot && shot.p === p && shot.weapon === 'railgun')) ang = railAngle(ang);
-    ctx.save(); ctx.translate(x, y); if (g.hp[p] <= 0) ctx.globalAlpha = 0.45;
-    ctx.strokeStyle = col; ctx.lineWidth = 4; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(0, -14); ctx.lineTo(Math.cos((ang * Math.PI) / 180) * 20 * dir, -14 - Math.sin((ang * Math.PI) / 180) * 20); ctx.stroke();
-    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0, -12, 8, Math.PI, 0); ctx.fill();
-    ctx.beginPath(); ctx.roundRect(-16, -10, 32, 10, 4); ctx.fill();
-    ctx.fillStyle = '#0008'; for (let i = -12; i <= 12; i += 8) { ctx.beginPath(); ctx.arc(i, 0, 3, 0, 7); ctx.fill(); }
+    // Tanks stand out from the hills (051): a dark outline, a glow in their own colour, and a name tag.
+    const out = g.hp[p] <= 0, bx = Math.cos((ang * Math.PI) / 180) * 20 * dir, by = -14 - Math.sin((ang * Math.PI) / 180) * 20;
+    ctx.save(); ctx.translate(x, y); if (out) ctx.globalAlpha = 0.45;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#0B0A1E'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(0, -14); ctx.lineTo(bx, by); ctx.stroke();   // barrel: dark edge
+    ctx.strokeStyle = col; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(0, -14); ctx.lineTo(bx, by); ctx.stroke();
+    const body = () => { ctx.beginPath(); ctx.arc(0, -12, 8, Math.PI, 0); ctx.closePath(); ctx.roundRect(-16, -10, 32, 10, 4); };
+    if (!out) { ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = 14; ctx.fillStyle = col; body(); ctx.fill(); ctx.restore(); }
+    ctx.fillStyle = col; body(); ctx.fill();
+    ctx.strokeStyle = '#0B0A1E'; ctx.lineWidth = 2.5; body(); ctx.stroke();
+    ctx.strokeStyle = '#FFFFFF99'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-12, -9); ctx.lineTo(12, -9); ctx.stroke();   // a highlight along the top
+    ctx.fillStyle = '#0B0A1E'; for (let i = -12; i <= 12; i += 8) { ctx.beginPath(); ctx.arc(i, 0, 3, 0, 7); ctx.fill(); }
     ctx.restore();
-    if (aiming && !liveOn) { ctx.fillStyle = col; const bob = Math.sin(t / 250) * 3; ctx.beginPath(); ctx.moveTo(x - 6, y - 44 + bob); ctx.lineTo(x + 6, y - 44 + bob); ctx.lineTo(x, y - 36 + bob); ctx.fill(); }
+    // The name tag: "You" for yours, the player's name for the rest, in their colour.
+    { const id = g.players[p], raw = p === myIdx() ? 'You' : (G.names?.[id] || ''), label = (out ? '💀 ' : '') + (raw.length > 9 ? raw.slice(0, 8) + '…' : raw);
+      if (label) { const fs = Math.round(11 * Math.sqrt(W / 800)), ty = y - 34 - (fs - 11);
+        ctx.save(); ctx.font = `800 ${fs}px system-ui,sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; if (out) ctx.globalAlpha = 0.55;
+        const tw = ctx.measureText(label).width + fs; ctx.fillStyle = col; ctx.strokeStyle = '#0B0A1E'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.roundRect(x - tw / 2, ty - fs * 0.75, tw, fs * 1.5, fs * 0.75); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#0B0A1E'; ctx.fillText(label, x, ty + 0.5); ctx.restore(); } }
+    if (aiming && !liveOn) { ctx.fillStyle = col; ctx.strokeStyle = '#0B0A1E'; ctx.lineWidth = 2; const bob = Math.sin(t / 250) * 3, ay = y - 58 + bob;
+      ctx.beginPath(); ctx.moveTo(x - 7, ay); ctx.lineTo(x + 7, ay); ctx.lineTo(x, ay + 9); ctx.closePath(); ctx.fill(); ctx.stroke(); }
   });
   if (canAim()) {
     if (drag && !droneOn()) {
@@ -427,7 +443,7 @@ function drawHint(t) {
   }
   ctx.globalAlpha = 1; ctx.shadowBlur = 0;
 }
-function loop(t) { particles.forEach((q) => { q.x += q.vx; q.y += q.vy; q.vy += 0.12; q.life -= 0.018; }); particles = particles.filter((q) => q.life > 0); draw(t); drawTankCam(t); requestAnimationFrame(loop); }
+function loop(t) { particles.forEach((q) => { q.x += q.vx; q.y += q.vy; q.vy += 0.12; q.life -= 0.018; }); particles = particles.filter((q) => q.life > 0); draw(t); drawTankCam(t); if (!fh.hidden && !canAim()) fireHereHide(); requestAnimationFrame(loop); }
 // 🎥 The tank cam: zoomed in with your own tank off screen, a small window in the corner keeps it in
 // view: the same scene drawn again with a camera on your tank (so its barrel, the aim guide, shells
 // and blasts all show), your HP under it, and a red flash with the damage when you're hit. Tap it
@@ -1183,10 +1199,11 @@ document.querySelectorAll('[data-step]').forEach((b) => {
 // The pull shows as a rubber band behind your tank. A 🚁 Drone Strike still points at its spot.
 let sling = null;
 const SLING_FULL = () => Math.min(210, Math.max(130, innerWidth * 0.42));
-function slingStart(e) { sling = { x: e.clientX, y: e.clientY }; drag = null; }
+function slingStart(e) { sling = { x: e.clientX, y: e.clientY }; drag = null; fireHereHide(); }
 function slingMove(e) {
   const hx = sling.x - e.clientX, up = e.clientY - sling.y, len = Math.hypot(hx, up);
   if (len < 10) return;
+  sling.aimed = true;
   const p = myIdx(), t = tankPos(p, top, xs()), rail = armedOf(me.id) === 'railgun', deg = (r) => (r * 180) / Math.PI;
   const lim = (el) => (rail ? Math.max(-40, Math.min(40, el)) + 45 : Math.max(5, Math.min(85, el)));
   let angle;
@@ -1203,7 +1220,21 @@ ctl.addEventListener('pointerdown', (e) => {
   e.preventDefault(); try { ctl.setPointerCapture(e.pointerId); } catch {} aimBefore = { angle: +$('angle').value, power: +$('power').value }; slingStart(e);
 });
 ctl.addEventListener('pointermove', (e) => { if (sling && canAim()) slingMove(e); });
-['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => ctl.addEventListener(ev, () => { sling = null; drag = null; aimBefore = null; }));
+['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => ctl.addEventListener(ev, (e) => { if (ev === 'pointerup' && sling?.aimed) fireHereShow(e); sling = null; drag = null; aimBefore = null; }));
+// 🔥 Fire where you let go: after a pull that aimed, a round Fire button pops up right under your
+// finger (or pointer), so the shot is one more tap in the same spot. It goes away on a new pull,
+// when you fire, or when it's no longer your shot.
+const fh = $('fireHere');
+function fireHereShow(e) {
+  if (!canAim()) return;
+  const r = document.querySelector('.stage').getBoundingClientRect(), half = 38;
+  if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) return;   // let go on the panel below: its Fire is right there
+  fh.style.left = `${Math.max(half, Math.min(r.width - half, e.clientX - r.left))}px`;
+  fh.style.top = `${Math.max(half, Math.min(r.height - half, e.clientY - r.top))}px`;
+  fh.hidden = false; fh.classList.remove('pop'); void fh.offsetWidth; fh.classList.add('pop');
+}
+function fireHereHide() { fh.hidden = true; }
+fh.addEventListener('click', (e) => { e.stopPropagation(); fireHereHide(); $('fire').onclick(); });
 
 // Drag on the battlefield to aim: the direction from your tank sets the angle and the
 // distance sets the power. The aim hint follows your finger.
@@ -1242,7 +1273,7 @@ cv.addEventListener('pointerdown', (e) => {
     return;
   }
   if (touches.size > 1) return;
-  if (canAim()) { e.preventDefault(); cv.setPointerCapture?.(e.pointerId); aimBefore = { angle: +$('angle').value, power: +$('power').value }; if (droneOn()) aimFromPointer(e); else slingStart(e); return; }
+  if (canAim()) { e.preventDefault(); cv.setPointerCapture?.(e.pointerId); aimBefore = { angle: +$('angle').value, power: +$('power').value }; fireHereHide(); if (droneOn()) aimFromPointer(e); else slingStart(e); return; }
   if (camOn() && cam.z > 1) { e.preventDefault(); cv.setPointerCapture?.(e.pointerId); pan = { sx: e.clientX, sy: e.clientY, cx: cam.x, cy: cam.y }; camHeld = Date.now() + 4000; }
 });
 cv.addEventListener('pointermove', (e) => {
@@ -1263,6 +1294,7 @@ cv.addEventListener('pointermove', (e) => {
   if (sling && canAim()) slingMove(e); else if (drag && canAim() && droneOn()) aimFromPointer(e);
 });
 ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => cv.addEventListener(ev, (e) => {
+  if (ev === 'pointerup' && touches.size === 1 && !pinch && ((sling?.aimed && canAim()) || (drag && droneOn() && canAim()))) fireHereShow(e);
   touches.delete(e.pointerId);
   if (touches.size < 2) pinch = null;
   if (!touches.size) { pan = null; drag = null; aimBefore = null; sling = null; }

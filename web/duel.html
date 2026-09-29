@@ -44,6 +44,14 @@
   button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
   .stage{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:#0E0C22}
   .stage canvas{display:block;width:100%;height:auto;touch-action:manipulation}
+  /* 🔥 Fire where you let go: pops up under your finger after an aiming pull */
+  .firehere{position:absolute;z-index:8;width:76px;height:76px;margin:-38px 0 0 -38px;padding:0;border-radius:50%;border:3px solid #FFF4D6;background:radial-gradient(circle at 50% 38%,#FF8A6A,#E4572E 60%,#B83A1C);color:#fff;font:900 13px/1 system-ui,sans-serif;letter-spacing:.06em;display:grid;place-items:center;align-content:center;gap:2px;box-shadow:0 6px 20px #000a,0 0 0 6px #E4572E44;touch-action:manipulation;cursor:pointer}
+  .firehere[hidden]{display:none}
+  .firehere{font-size:24px}.firehere b{font-size:12px}
+  .firehere.pop{animation:fhpop .28s cubic-bezier(.2,1.6,.4,1)}
+  .firehere:active{transform:scale(.92)}
+  @keyframes fhpop{from{transform:scale(.3);opacity:0}to{transform:none;opacity:1}}
+  @media (prefers-reduced-motion:reduce){.firehere.pop{animation:none}}
   /* 🎥 the tank cam: your tank, when zooming in has left it off screen */
   .tankcam{position:absolute;left:8px;bottom:8px;z-index:3;width:min(36%,230px);padding:0;border:2px solid var(--c,#FFC857);border-radius:10px;overflow:hidden;background:#0E0C22;box-shadow:0 4px 14px #0009;cursor:pointer}
   .tankcam[hidden]{display:none}
@@ -250,6 +258,7 @@
   <div id="play">
   <div class="stage">
     <canvas id="cv" width="1600" height="880" aria-label="Artillery battlefield"></canvas>
+    <button type="button" class="firehere" id="fireHere" hidden aria-label="Fire">🔥<b>FIRE</b></button>
     <button type="button" class="tankcam" id="tankCam" hidden aria-label="Your tank is off screen: tap to look at it"><canvas id="tankCamCv" width="460" height="253"></canvas><span class="tchp" id="tankCamHp"><i></i><span>🎥 You</span><b></b></span></button>
     <div class="cambar" id="camBar" hidden role="group" aria-label="Zoom">
       <button type="button" data-cam="in" aria-label="Zoom in">＋</button><button type="button" data-cam="out" aria-label="Zoom out">－</button><button type="button" data-cam="me" aria-label="Look at your tank">🎯</button><button type="button" data-cam="fit" aria-label="Show the whole battlefield">⤢</button>

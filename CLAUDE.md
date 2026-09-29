@@ -328,6 +328,14 @@ username. A new account only becomes a robot once it's in `public.bots`.
   of the last 6 digging craters ([x, dh, 60-90, 6, 1]: about two craters' worth; the 5th number 1 tells
   `twistFx` to grow it gently via `riseGround` instead of shaking). Simulated over 80-move duels the
   ground by the tanks holds near 117 px (was falling to 23). Quakes now raise 2-3 mountains, 80-150 px.
+- **Fire where you let go** (`fireHereShow`/`#fireHere` in duel.js/duel.html): a pull that aimed and
+  ends over the battlefield pops a round Fire button under the finger/pointer (clamped inside the
+  stage; a pull let go on the portrait panel shows none: its Fire is right there). New pull, firing or
+  losing the turn hides it. Tests that click `#fire` still work.
+- **Tanks stand out**: dark outline, own-colour glow, top highlight, and a name tag ("You" for yours,
+  💀 when out) sized by √(W/800). The aiming arrow sits above the tag. In landscape full screen the 1×
+  view also shows a strip below the ground's bottom (`camClamp`, up to 60 world px; the ground fill
+  runs to H+200) so the end tanks sit clear of the corner controls.
 - **Wind you can see** (`windStep`/`drawStreaks` in duel.js): the next shot's wind (multiplier
   included) eases into `windNow`; clouds (white by day, dim grey at night) drift with it and streaks
   blow through the sky, their length and strength with the wind, none in a calm.
