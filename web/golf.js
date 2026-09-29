@@ -314,7 +314,7 @@ function renderCard() {
   });
   $('scorecard').innerHTML = h + '</tbody></table>';
   mapBtn();
-  setGameTools({ fs: '#play', canDelete: g.created_by === me.id, onDelete: deleteGame,
+  setGameTools({ fs: '#play', canDelete: g.created_by === me.id, onDelete: deleteGame, chaos: { kind: 'golf', id: g.id },
     bot: g.status === 'playing' && n() > 1 && g.players.some(isBot) ? { on: !!g.live_bot, label: 'Live race vs robot', onToggle: toggleBotLive } : null });
   // Live race vs robot: a switch whenever the robot is playing.
   // Skip ahead, only while it's your turn and nothing is rolling.

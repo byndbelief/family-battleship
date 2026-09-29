@@ -1469,7 +1469,7 @@ function renderGame() {
   fsRefresh();
   document.getElementById('back').onclick = () => { location.hash = ''; };
 
-  setGameTools({ fs: '#app', canDelete,
+  setGameTools({ fs: '#app', canDelete, chaos: { kind: 'battleship', id: game.id },
     bot: game.status === 'playing' && !imOut && game.players.some((p) => bots.has(p)) ? { on: !!game.live_bot, label: 'Live battle vs robot', onToggle: async () => {
       const { error } = await sb.rpc('set_live_bot', { p_kind: 'battleship', p_game: game.id, p_on: !game.live_bot });
       if (error) return friendly(error);

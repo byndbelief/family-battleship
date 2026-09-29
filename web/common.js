@@ -73,6 +73,13 @@ toolsCss.textContent = `
   #gameTools .gtb.bot b{position:absolute;right:-6px;bottom:-7px;padding:1px 4px;border-radius:6px;font-size:9px;font-weight:900;letter-spacing:.04em;background:#141026;color:#fff;border:1px solid #ffffff55}
   #gameTools .gtb.bot[aria-pressed=true] b{background:#FFC857;color:#2A2100;border-color:#FFC857}
   #gameTools .gtb:disabled{opacity:.6}
+  #gameTools .gtb.chaos canvas{width:32px;height:32px;display:block}
+  body.fs-lock #gameTools .gtb.chaos canvas{width:28px;height:28px}
+  #curveBox{box-sizing:border-box;position:fixed;top:calc(58px + env(safe-area-inset-top,0px));right:calc(10px + env(safe-area-inset-right,0px));z-index:86;width:min(380px,calc(100vw - 20px));background:#141026f5;color:#fff;border:1px solid #ffffff33;border-radius:14px;box-shadow:0 14px 34px #0009;padding:12px 12px 10px;font:600 13.5px/1.4 system-ui,sans-serif}
+  #curveBox h3{margin:0 0 2px;font:800 17px/1.2 system-ui,sans-serif}
+  #curveBox canvas{width:100%;height:auto;display:block;border-radius:10px;margin:8px 0;background:#0B0918}
+  #curveBox p{margin:4px 0;opacity:.85}
+  #curveBox .ph{color:#3DD6C6;font-weight:900}
   #gameTools .gtb.news b{position:absolute;right:-6px;top:-7px;min-width:17px;height:17px;padding:0 4px;border-radius:99px;font-size:10.5px;font-weight:900;background:#F2C230;color:#2A2100;display:grid;place-items:center}
   #gameTools .gtb.news.ping{animation:newsPing .9s ease-out 2}
   @keyframes newsPing{0%{box-shadow:0 0 0 0 #F2C230aa}100%{box-shadow:0 0 0 12px #F2C23000}}
@@ -118,7 +125,8 @@ document.head.appendChild(toolsCss);
 function settingsButton() {
   if (tools) return;
   tools = document.createElement('div'); tools.id = 'gameTools'; tools.setAttribute('role', 'toolbar'); tools.setAttribute('aria-label', 'Tools');
-  tools.innerHTML = `<button type="button" class="gtb news" hidden aria-label="News" title="News">🔔<b></b></button>`
+  tools.innerHTML = `<button type="button" class="gtb chaos" hidden aria-label="The chaos curve" title="The chaos curve: x → r·x·(1−x)"><canvas width="64" height="64"></canvas></button>`
+    + `<button type="button" class="gtb news" hidden aria-label="News" title="News">🔔<b></b></button>`
     + `<button type="button" class="gtb bot" hidden aria-pressed="false">🤖<b>OFF</b></button>`
     + `<button type="button" class="gtb fsbtn" data-fs="" hidden aria-label="Full screen">⛶</button>`
     + `<button type="button" class="gtb del" hidden aria-label="Delete this game" title="Delete this game">🗑</button>`
@@ -126,6 +134,7 @@ function settingsButton() {
   (document.body || document.documentElement).appendChild(tools);
   tools.querySelector('#setBtn').onclick = openSettings;
   tools.querySelector('.news').onclick = toggleNews;
+  tools.querySelector('.chaos').onclick = toggleCurve;
   const del = tools.querySelector('.del');
   let t = null;
   const disarm = () => { clearTimeout(t); delete del.dataset.armed; del.classList.remove('armed'); del.textContent = '🗑'; del.setAttribute('aria-label', 'Delete this game'); fit(); };
@@ -166,6 +175,7 @@ export function setGameTools(opts) {
   fsb.dataset.fs = opts?.fs || ''; fsb.hidden = !opts?.fs;
   del.hidden = !opts?.canDelete;
   bot.hidden = !opts?.bot;
+  curveFor(opts?.chaos);
   if (opts?.bot) {
     bot.setAttribute('aria-pressed', String(!!opts.bot.on));
     bot.querySelector('b').textContent = opts.bot.on ? 'LIVE' : 'OFF';
@@ -401,6 +411,84 @@ function showNews(fresh = false) {
   b.setAttribute('aria-label', newsUnread ? `News: ${newsUnread} new` : 'News');
   if (fresh && newsUnread) { b.classList.remove('ping'); void b.offsetWidth; b.classList.add('ping'); sfx('tick'); }
   fit();
+}
+// ---------------------------------------------------------------- the chaos curve (058)
+// Every game carries the logistic map x → r·x·(1−x) (chaos_curve): r climbs a little every move, and a
+// move twists when x lands above 0.75. The 🌀 button draws x's recent values; tapped, it shows the
+// bifurcation diagram (itself a fractal: every split repeats the whole in miniature) with this game's r.
+let curve = null, curveKey = '', curveAt = 0;
+const CURVE_T = 0.75;
+const curvePhase = (r) => (r < 3 ? ['Calm', 'x settles on one value below the line, so no twists yet']
+  : r < 3.449 ? ['A rhythm of 2', 'x flips between two values: a twist every other move']
+  : r < 3.544 ? ['A rhythm of 4', 'the curve split again: twists in a four-move beat']
+  : r < 3.5699 ? ['8, 16, 32…', 'period doubling, faster and faster: the rhythm is falling apart']
+  : ['CHAOS', 'no rhythm left. Tiny differences grow huge, and no one can say what comes next']);
+async function curveFor(c) {
+  const btn = tools?.querySelector('.chaos'); if (!btn) return;
+  if (!c?.id) { btn.hidden = true; curve = null; curveKey = ''; fit(); return; }
+  const key = `${c.kind}:${c.id}`;
+  if (key !== curveKey) { curveKey = key; curve = null; curveAt = 0; }
+  if (Date.now() - curveAt < 1500) return drawCurveBtn();
+  curveAt = Date.now();
+  const { data } = await sb.from('chaos_curve').select('n, r, x, hist').eq('game_id', c.id).maybeSingle();
+  if (curveKey !== key) return;
+  curve = data || { n: 0, r: 2.9, x: null, hist: [] };
+  drawCurveBtn(); if (document.getElementById('curveBox')) drawCurveBox();
+}
+function drawCurveBtn() {
+  const btn = tools?.querySelector('.chaos'); if (!btn) return;
+  const was = btn.hidden; btn.hidden = !curveKey; if (was !== btn.hidden) fit();
+  if (!curve) return;
+  const [ph] = curvePhase(curve.r); btn.title = `The chaos curve: ${ph} (r ${curve.r.toFixed(2)}). Tap for more.`;
+  const c = btn.querySelector('canvas').getContext('2d'), W = 64, H = 64, pts = (curve.hist || []).slice(-14);
+  c.clearRect(0, 0, W, H);
+  c.strokeStyle = '#FF5A4A99'; c.lineWidth = 2; c.setLineDash([4, 4]); c.beginPath(); c.moveTo(4, H - 6 - CURVE_T * (H - 12)); c.lineTo(W - 4, H - 6 - CURVE_T * (H - 12)); c.stroke(); c.setLineDash([]);
+  if (!pts.length) { c.font = '34px system-ui'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('🌀', W / 2, H / 2 + 2); return; }
+  const X = (i) => 6 + (i * (W - 12)) / Math.max(1, pts.length - 1), Y = (v) => H - 6 - v * (H - 12);
+  c.strokeStyle = curve.r >= 3.5699 ? '#FF8A3D' : '#3DD6C6'; c.lineWidth = 3; c.lineJoin = 'round'; c.beginPath();
+  pts.forEach((v, i) => c[i ? 'lineTo' : 'moveTo'](X(i), Y(v))); c.stroke();
+  pts.forEach((v, i) => { c.fillStyle = v > CURVE_T ? '#FF5A4A' : '#fff'; c.beginPath(); c.arc(X(i), Y(v), i === pts.length - 1 ? 5 : 3, 0, 7); c.fill(); });
+}
+let bifImg = null;
+function bifurcation(W, H, r0, r1) {   // drawn once: 1200 r's, 160 settled x's each
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const c = cv.getContext('2d'), img = c.createImageData(W, H), d = img.data;
+  for (let px = 0; px < W; px++) {
+    const r = r0 + ((r1 - r0) * px) / (W - 1); let x = 0.5;
+    for (let i = 0; i < 300; i++) x = r * x * (1 - x);
+    for (let i = 0; i < 160; i++) { x = r * x * (1 - x); const py = Math.round((1 - x) * (H - 1)), k = (py * W + px) * 4; d[k] = 150; d[k + 1] = 140; d[k + 2] = 255; d[k + 3] = Math.min(255, d[k + 3] + 90); }
+  }
+  c.putImageData(img, 0, 0); return cv;
+}
+function drawCurveBox() {
+  const box = document.getElementById('curveBox'); if (!box || !curve) return;
+  const [ph, say] = curvePhase(curve.r), W = 720, H = 360, r0 = 2.8, r1 = 4;
+  box.querySelector('.ph').textContent = ph; box.querySelector('.say').textContent = say;
+  box.querySelector('.num').textContent = curve.n ? `Move ${curve.n} · r = ${curve.r.toFixed(2)} · x = ${curve.x.toFixed(3)}${curve.x > CURVE_T ? ' → twist!' : ''}` : 'No moves yet: r starts at 2.90.';
+  const cv = box.querySelector('canvas'), c = cv.getContext('2d');
+  bifImg = bifImg || bifurcation(W, H, r0, r1);
+  c.clearRect(0, 0, W, H); c.drawImage(bifImg, 0, 0);
+  const Y = (v) => (1 - v) * (H - 1), Xr = (r) => ((r - r0) / (r1 - r0)) * (W - 1);
+  c.strokeStyle = '#FF5A4Acc'; c.lineWidth = 2; c.setLineDash([8, 6]); c.beginPath(); c.moveTo(0, Y(CURVE_T)); c.lineTo(W, Y(CURVE_T)); c.stroke(); c.setLineDash([]);
+  c.fillStyle = '#FF5A4A'; c.font = '800 20px system-ui'; c.fillText('twist', 8, Y(CURVE_T) - 8);
+  c.fillStyle = '#ffffff99'; c.font = '700 18px system-ui'; ['3', '3.449', '3.57', '4'].forEach((t) => { const x = Xr(+t); c.fillRect(x, H - 14, 2, 14); c.fillText(t === '3.57' ? 'chaos' : t, Math.min(W - 60, x + 5), H - 4); });
+  // this game: r now, and x's last moves (older ones at the r they had then)
+  const hist = curve.hist || [], n = curve.n;
+  hist.forEach((v, i) => { const r = Math.min(4, 2.9 + 0.04 * (n - hist.length + 1 + i)), last = i === hist.length - 1;
+    c.fillStyle = v > CURVE_T ? '#FF5A4A' : '#3DD6C6'; c.globalAlpha = last ? 1 : 0.35 + (0.5 * i) / hist.length; c.beginPath(); c.arc(Xr(r), Y(v), last ? 9 : 5, 0, 7); c.fill(); });
+  c.globalAlpha = 1; c.strokeStyle = '#fff'; c.lineWidth = 2; c.beginPath(); c.moveTo(Xr(curve.r), 0); c.lineTo(Xr(curve.r), H); c.stroke();
+}
+function toggleCurve() {
+  const open = document.getElementById('curveBox');
+  if (open) { open.remove(); return; }
+  const box = document.createElement('div'); box.id = 'curveBox'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', 'The chaos curve');
+  box.innerHTML = `<h3>🌀 x → r·x·(1−x)</h3><p><span class="ph"></span>: <span class="say"></span>.</p>
+    <canvas width="720" height="360" aria-label="The bifurcation diagram of the logistic map, with this game's place on it"></canvas>
+    <p class="num"></p><p class="small" style="font-size:12px;opacity:.7">Each move r climbs a little (2.9 → 4) and x takes one step. A move twists when x lands above the red line. The picture is every value x settles into for each r: watch it split in two, then four, then shatter, and zoom in anywhere in the mess to find the whole picture again.</p>`;
+  (document.querySelector('.fs-on') || document.body).appendChild(box);
+  curveAt = 0; curveFor(toolsOpts?.chaos); drawCurveBox();
+  const close = (ev) => { if (!box.contains(ev.target) && !ev.target.closest?.('.chaos')) { box.remove(); document.removeEventListener('pointerdown', close, true); } };
+  setTimeout(() => document.addEventListener('pointerdown', close, true), 0);
 }
 function toggleNews() {
   const open = document.getElementById('newsBox');

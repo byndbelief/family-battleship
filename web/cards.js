@@ -129,7 +129,7 @@ function render() {
   $('passBtn').disabled = !(mine && g.drew && !busy);
   renderPack(g, mine && !busy, over);
   $('botLiveRow').hidden = !(!over && g.players.some(isBot));
-  setGameTools({ fs: '#play', canDelete: g.created_by === me.id, onDelete: deleteGame });
+  setGameTools({ fs: '#play', canDelete: g.created_by === me.id, onDelete: deleteGame, chaos: { kind: 'cards', id: g.id } });
   $('feed').innerHTML = log.map((l) => `<li>${isBot(l.p) ? '' : face(l.p)}${esc(l.line)}</li>`).join('') || '<li class="muted">Moves show up here.</li>';
   // The end.
   if (over) {

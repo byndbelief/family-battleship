@@ -650,7 +650,7 @@ function render() {
       render(); showAim();
     };
   });
-  setGameTools({ fs: '#play', canDelete: g.created_by === me.id, onDelete: deleteGame,
+  setGameTools({ fs: '#play', canDelete: g.created_by === me.id, onDelete: deleteGame, chaos: { kind: 'duel', id: g.id },
     bot: g.status === 'playing' && mi >= 0 && g.players.some(isBot) ? { on: !!g.live_bot, label: 'Live battle vs robot', onToggle: toggleBotLive } : null });
   // Live vs robot: a switch whenever the robot is in the duel.
   $('feed').innerHTML = [...G.shots].reverse().slice(0, 6).map((s) => {
