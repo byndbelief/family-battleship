@@ -223,8 +223,48 @@ function holeAt(seed, hi, type){
 }
 
 
+// Looks (drawing only; the physics is the same): 'classic' mini golf (wooden rails on felt) or
+// 'natural', a real course (rough edges, a mown fairway, a green round the cup, trees, hedges,
+// boulders, bunkers and ponds). Chosen per device (golfTheme() in common.js).
+let THEME='classic';
+function setGolfTheme(v){ THEME=v==='natural'?'natural':'classic'; }
+// Trees in the rough round a hole, placed once per hole: clear of the course and of each other.
+const treeCache=new WeakMap();
+function treesFor(h){
+  if(treeCache.has(h)) return treeCache.get(h);
+  const r=rng(((h.tee[0]*31+h.cup[1]*17+h.outline.length*977)|0)>>>0), out=[], S=COURSE;
+  const segs=h.outline.map((p,i)=>[...p,...h.outline[(i+1)%h.outline.length]]);
+  for(let k=0;k<160 && out.length<22;k++){
+    const x=r()*LW, y=r()*LH, rad=(16+r()*18)*S;
+    if(inPoly(x,y,h.outline) || segs.some((sg)=>segDist(x,y,sg)<rad+10*S) || out.some(t=>Math.hypot(t.x-x,t.y-y)<t.r+rad)) continue;
+    out.push({x,y,r:rad,shade:r()});
+  }
+  treeCache.set(h,out); return out;
+}
 function pathPts(c,pts){ c.beginPath(); pts.forEach(([x,y],i)=>c[i?'lineTo':'moveTo'](x,y)); c.closePath(); }
 function drawHole(c, h, t, scene={}){
+  const nat=THEME==='natural', S=COURSE;
+  if(nat){
+    // the rough: long olive grass, tufts, and trees standing in it
+    c.fillStyle='#4B7A33'; c.fillRect(0,0,LW,LH);
+    c.fillStyle='#55883A'; for(let i=0;i<90;i++){ const x=(i*97)%LW, y=(i*151)%LH; c.beginPath(); c.ellipse(x,y,(10+(i%5)*5)*S,(6+(i%3)*3)*S,i,0,7); c.fill(); }
+    c.strokeStyle='#3C6628'; c.lineWidth=1.5; for(let i=0;i<140;i++){ const x=(i*61)%LW, y=(i*113)%LH; c.beginPath(); c.moveTo(x,y); c.lineTo(x-2,y-6); c.moveTo(x+3,y); c.lineTo(x+4,y-5); c.stroke(); }
+    treesFor(h).forEach(tr=>{ c.fillStyle='#0003'; c.beginPath(); c.ellipse(tr.x+tr.r*.35,tr.y+tr.r*.45,tr.r,tr.r*.8,0,0,7); c.fill(); });
+    // the fairway's own soft shadow on the rough
+    c.save(); c.shadowColor='#0006'; c.shadowBlur=14; c.shadowOffsetY=5; c.fillStyle='#3F6E2A'; pathPts(c,h.outline); c.fill(); c.restore();
+    c.save(); pathPts(c,h.outline); c.clip();
+    // fairway, cross-mown in a diamond pattern
+    c.fillStyle='#6FBE4F'; c.fillRect(0,0,LW,LH);
+    c.save(); c.translate(LW/2,LH/2); c.rotate(Math.PI/4); const D=Math.hypot(LW,LH);
+    c.fillStyle='#7ACB59'; for(let x=-D;x<D;x+=64*S) c.fillRect(x,-D,32*S,2*D);
+    c.fillStyle='#0000000d'; for(let y=-D;y<D;y+=64*S) c.fillRect(-D,y,2*D,32*S);
+    c.restore();
+    // the green round the cup: finer, lighter, with a fringe
+    const [gx,gy]=h.cup, gr=64*S;
+    c.fillStyle='#5DAA43'; c.beginPath(); c.arc(gx,gy,gr+7*S,0,7); c.fill();
+    const gg=c.createRadialGradient(gx,gy,4,gx,gy,gr); gg.addColorStop(0,'#9BE07A'); gg.addColorStop(1,'#86D366');
+    c.fillStyle=gg; c.beginPath(); c.arc(gx,gy,gr,0,7); c.fill();
+  } else {
   // rough
   c.fillStyle='#1F5B3A'; c.fillRect(0,0,LW,LH);
   c.fillStyle='#246843'; for(let i=0;i<60;i++){ const x=(i*97)%LW, y=(i*151)%LH; c.beginPath(); c.arc(x,y,14+(i%5)*4,0,7); c.fill(); }
@@ -233,6 +273,7 @@ function drawHole(c, h, t, scene={}){
   c.save(); pathPts(c,h.outline); c.clip();
   c.fillStyle='#46A75A'; c.fillRect(0,0,LW,LH);
   c.fillStyle='#4FB464'; for(let y=0;y<LH;y+=56) c.fillRect(0,y,LW,28);   // mowing stripes
+  }
   if(h.ice){ c.fillStyle='#CFF3FF55'; c.fillRect(0,0,LW,LH); c.strokeStyle='#ffffff66'; c.lineWidth=1;
     for(let i=0;i<40;i++){ const x=(i*83)%LW, y=(i*137)%LH; c.beginPath(); c.moveTo(x,y); c.lineTo(x+14,y-6); c.stroke(); } }
   if(h.wind){ c.strokeStyle='#ffffff55'; c.lineWidth=2; c.lineCap='round'; const dir=Math.sign(h.wind[0]);
@@ -251,15 +292,24 @@ function drawHole(c, h, t, scene={}){
     c.restore();
   });
   // sand
-  h.sand.forEach(([x,y,w,hh])=>{
+  if(nat) h.sand.forEach(([x,y,w,hh])=>{   // a bunker: raked sand under a grassy lip
+    const rr=Math.min(w,hh)/2.2;
+    c.save(); c.beginPath(); c.roundRect(x,y,w,hh,rr); c.fillStyle='#EFE0B0'; c.fill(); c.clip();
+    c.fillStyle='#D8C48E'; c.fillRect(x,y,w,5*S);   // shade under the top lip
+    c.strokeStyle='#DCC894'; c.lineWidth=1.2; for(let k=6;k<hh;k+=7) { c.beginPath(); for(let xx=x;xx<=x+w;xx+=8) c.lineTo(xx,y+k+Math.sin(xx/9+k)*1.5); c.stroke(); }
+    c.restore(); c.strokeStyle='#4F8A36'; c.lineWidth=3; c.beginPath(); c.roundRect(x,y,w,hh,rr); c.stroke();
+  });
+  else h.sand.forEach(([x,y,w,hh])=>{
     c.save(); c.beginPath(); c.roundRect(x,y,w,hh,Math.min(22,hh/2)); c.fillStyle='#E8D39A'; c.fill(); c.clip();
     c.fillStyle='#D4BC7E'; for(let i=0;i<w*hh/60;i++){ const px=x+((i*37)%w), py=y+((i*53)%hh); c.fillRect(px,py,1.5,1.5); }
     c.restore(); c.strokeStyle='#C9AE6B'; c.lineWidth=2; c.beginPath(); c.roundRect(x,y,w,hh,Math.min(22,hh/2)); c.stroke();
   });
   // water
   h.water.forEach(([x,y,w,hh])=>{
-    const g=c.createLinearGradient(0,y,0,y+hh); g.addColorStop(0,'#3FA7E0'); g.addColorStop(1,'#1F6FB0');
-    c.fillStyle=g; c.beginPath(); c.roundRect(x,y,w,hh,6); c.fill();
+    const g=c.createLinearGradient(0,y,0,y+hh); g.addColorStop(0,nat?'#3C8FB0':'#3FA7E0'); g.addColorStop(1,nat?'#1E5A78':'#1F6FB0');
+    if(nat){ c.strokeStyle='#6B5A3A'; c.lineWidth=5; c.beginPath(); c.roundRect(x,y,w,hh,10); c.stroke(); }   // a muddy bank
+    c.fillStyle=g; c.beginPath(); c.roundRect(x,y,w,hh,nat?10:6); c.fill();
+    if(nat){ c.strokeStyle='#3F6B2A'; c.lineWidth=1.5; [[x+3,y+hh-2],[x+w-6,y+4]].forEach(([rx,ry])=>{ for(let k=0;k<4;k++){ c.beginPath(); c.moveTo(rx+k*2.5,ry); c.lineTo(rx+k*2.5+(k-1.5),ry-7-(k%2)*3); c.stroke(); } }); }   // reeds
     c.save(); c.beginPath(); c.rect(x,y,w,hh); c.clip(); c.strokeStyle='#BFE9FF66'; c.lineWidth=1.5;
     for(let k=0;k*16+12<hh;k++){ const yy=y+12+k*16, ph=reduceMotion?0:t/500+k; c.beginPath(); for(let xx=x;xx<=x+w;xx+=6) c.lineTo(xx, yy+Math.sin(xx/14+ph)*2.5); c.stroke(); }
     c.restore();
@@ -267,15 +317,39 @@ function drawHole(c, h, t, scene={}){
   c.restore();
   // rails
   c.lineJoin='round';
+  if(nat){
+    // the edge: a band of longer grass (it plays like the rails did)
+    c.strokeStyle='#3F6E2A'; c.lineWidth=13; pathPts(c,h.outline); c.stroke();
+    c.strokeStyle='#5C9A3F'; c.lineWidth=4; pathPts(c,h.outline); c.stroke();
+    // the trees' canopies over everything outside
+    treesFor(h).forEach(tr=>{
+      const g=c.createRadialGradient(tr.x-tr.r*.3,tr.y-tr.r*.35,2,tr.x,tr.y,tr.r); g.addColorStop(0,tr.shade>.5?'#5E9A42':'#4F8C3A'); g.addColorStop(1,tr.shade>.5?'#2C5A22':'#264F1E');
+      c.fillStyle=g; c.beginPath(); c.arc(tr.x,tr.y,tr.r,0,7); c.fill();
+      c.fillStyle='#ffffff14'; [[-.35,-.3,.35],[.25,-.1,.3],[-.05,.3,.28]].forEach(([dx,dy,k])=>{ c.beginPath(); c.arc(tr.x+dx*tr.r,tr.y+dy*tr.r,tr.r*k,0,7); c.fill(); });
+    });
+    // blocks are hedges
+    h.blocks.forEach(([x,y,w,hh])=>{
+      c.save(); c.shadowColor='#0007'; c.shadowBlur=8; c.shadowOffsetY=4; c.fillStyle='#2E5E24'; c.beginPath(); c.roundRect(x,y,w,hh,6); c.fill(); c.restore();
+      c.fillStyle='#3F7A30'; const n=Math.max(2,Math.round(Math.max(w,hh)/9)); for(let k=0;k<n;k++){ const f=(k+.5)/n, bx=w>=hh?x+f*w:x+w/2, by=w>=hh?y+hh/2:y+f*hh; c.beginPath(); c.arc(bx,by,Math.min(w,hh)*.42,0,7); c.fill(); }
+    });
+  } else {
   c.strokeStyle='#8B5A2B'; c.lineWidth=12; pathPts(c,h.outline); c.stroke();
   c.strokeStyle='#B07A45'; c.lineWidth=4; pathPts(c,h.outline); c.stroke();
-  h.blocks.forEach(([x,y,w,hh])=>{
+  }
+  if(!nat) h.blocks.forEach(([x,y,w,hh])=>{
     c.save(); c.shadowColor='#0008'; c.shadowBlur=8; c.shadowOffsetY=4; c.fillStyle='#8B5A2B'; c.beginPath(); c.roundRect(x,y,w,hh,5); c.fill(); c.restore();
     c.fillStyle='#B07A45'; if(w>=hh) c.fillRect(x+3,y+3,w-6,4); else c.fillRect(x+3,y+3,4,hh-6);
   });
   // bumpers
   h.bumpers.forEach(([x,y,r],i)=>{
     const lit=scene.bumpLit && scene.bumpLit[i]>t;
+    if(nat){   // a boulder
+      c.save(); c.shadowColor=lit?'#FFF3C4':'#0008'; c.shadowBlur=lit?20:8; c.shadowOffsetY=lit?0:4;
+      const g=c.createRadialGradient(x-r*.35,y-r*.4,1,x,y,r); g.addColorStop(0,lit?'#E6E2D6':'#B9B6AA'); g.addColorStop(1,'#6F6C62');
+      c.fillStyle=g; c.beginPath(); c.arc(x,y,r,0,7); c.fill(); c.restore();
+      c.strokeStyle='#5A574F'; c.lineWidth=1; c.beginPath(); c.moveTo(x-r*.3,y+r*.1); c.lineTo(x+r*.05,y+r*.35); c.lineTo(x+r*.4,y+r*.2); c.stroke();
+      return;
+    }
     c.save(); c.shadowColor=lit?'#FFD27A':'#0008'; c.shadowBlur=lit?24:8; c.shadowOffsetY=lit?0:4;
     c.fillStyle='#E4572E'; c.beginPath(); c.arc(x,y,r,0,7); c.fill(); c.restore();
     c.fillStyle='#fff'; c.beginPath(); c.arc(x,y,r*.62,0,7); c.fill();
@@ -286,12 +360,14 @@ function drawHole(c, h, t, scene={}){
     const clock=scene.ball&&scene.ball.clock!==undefined?scene.ball.clock:(scene.clock||0);
     bladeSegs(sp,clock).forEach(([x1,y1,x2,y2])=>{
       c.save(); c.shadowColor='#0008'; c.shadowBlur=6; c.shadowOffsetY=3; c.lineCap='round';
-      c.strokeStyle='#F4F1E4'; c.lineWidth=8; c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke(); c.restore();
-      c.strokeStyle='#E4572E'; c.lineWidth=3; c.setLineDash([8,8]); c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke(); c.setLineDash([]);
+      c.strokeStyle=nat?'#7A5230':'#F4F1E4'; c.lineWidth=8; c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke(); c.restore();
+      c.strokeStyle=nat?'#A8784A':'#E4572E'; c.lineWidth=3; if(!nat) c.setLineDash([8,8]); c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke(); c.setLineDash([]);
     });
   });
   // tee mat
-  const [tx,ty]=h.tee; c.fillStyle='#2E7D46'; c.beginPath(); c.roundRect(tx-16,ty-10,32,20,5); c.fill();
+  const [tx,ty]=h.tee;
+  if(nat){ c.fillStyle='#8AD86A'; c.fillRect(tx-22,ty-13,44,26); [-14,14].forEach(dx=>{ c.fillStyle='#2A5DB0'; c.beginPath(); c.arc(tx+dx,ty-9,3,0,7); c.fill(); c.fillStyle='#ffffff99'; c.beginPath(); c.arc(tx+dx-1,ty-10,1,0,7); c.fill(); }); }
+  else { c.fillStyle='#2E7D46'; c.beginPath(); c.roundRect(tx-16,ty-10,32,20,5); c.fill(); }
   // cup + flag
   const [cx,cy]=h.cup;
   const cupR=h.cupR||CUP_R; c.fillStyle='#0B1A12'; c.beginPath(); c.arc(cx,cy,cupR,0,7); c.fill();
@@ -299,7 +375,7 @@ function drawHole(c, h, t, scene={}){
   if(!scene.flagOut){
     c.strokeStyle='#EDEDED'; c.lineWidth=2; c.beginPath(); c.moveTo(cx,cy); c.lineTo(cx,cy-42); c.stroke();
     const wave=reduceMotion?0:Math.sin(t/300)*3;
-    c.fillStyle='#E4572E'; c.beginPath(); c.moveTo(cx,cy-42); c.quadraticCurveTo(cx+14,cy-40+wave,cx+26,cy-35+wave); c.lineTo(cx,cy-28); c.fill();
+    c.fillStyle=nat?'#F2D13B':'#E4572E'; c.beginPath(); c.moveTo(cx,cy-42); c.quadraticCurveTo(cx+14,cy-40+wave,cx+26,cy-35+wave); c.lineTo(cx,cy-28); c.fill();
   }
   // aim guide
   if(scene.aim){
@@ -324,4 +400,4 @@ function drawHole(c, h, t, scene={}){
 }
 
 
-export { LW, LH, COURSE, setCourse, HOLES, N_HOLES, rng, inPoly, inRect, segDist, buildHole, reachable, holeFor, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, drawHole, COS, SIN };
+export { LW, LH, COURSE, setCourse, HOLES, N_HOLES, rng, inPoly, inRect, segDist, buildHole, reachable, holeFor, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, drawHole, setGolfTheme, COS, SIN };

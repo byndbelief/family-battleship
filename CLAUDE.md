@@ -262,6 +262,13 @@ username. A new account only becomes a robot once it's in `public.bots`.
 - **Live Battleship bursts** (`037_bs_burst.sql`): 3 shots, then reload. `fire_live` refuses a 4th
   within 2.3 s; the page keeps its own shot times (`bsShots`, 2.4 s window) and shows ammo pips /
   a countdown in the fire bar. No minimum gap between shots in a burst. Robots are unchanged.
+- **Putt Post looks**: `setGolfTheme('classic' | 'natural')` in golf-engine switches `drawHole` only
+  (the physics is identical, so players in one game can each pick their own). Natural: rough with
+  trees (`treesFor`, placed once per hole clear of the course), a cross-mown fairway, a green round
+  the cup, rough-grass edges for rails, hedges for blocks, boulders for bumpers, raked bunkers,
+  ponds with a bank, a tee box, a yellow flag. The choice is per device (`golfTheme()` /
+  `setGolfThemePref()` in common.js, pref `golfTheme`), toggled by the 🌳/⛳ pill on the golf page
+  (icon only on phones) and used by the lobby's hole preview too.
 - **Putt Post course size** (`036_golf_course_size.sql`): `golf_games.course` (%) is set by a
   trigger from the players: 100 for 1–3, 120 for 4, 135 for 5, 150 for 6. The engine's `setCourse()`
   (golf.js on load, the lobby per preview) makes `LW`/`LH` live and `holeWithAttack()` return the

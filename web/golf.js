@@ -1,11 +1,20 @@
 // Putt Post, live: turns and scores are saved on the server; putts replay for everyone.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, compactPack, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, dramaOn, face, livePresence, avatarOf, splash, jumpToNext, setGameTools, condenseTop } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, compactPack, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, dramaOn, face, livePresence, avatarOf, splash, jumpToNext, setGameTools, condenseTop, golfTheme, setGolfThemePref } from './common.js';
 import {
   LW, LH, COURSE, setCourse, HOLES, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, drawHole,
-  inPoly, inRect, segDist, reduceMotion,
+  inPoly, inRect, segDist, reduceMotion, setGolfTheme,
 } from './golf-engine.js';
 
 const $ = (id) => document.getElementById(id);
+// The course's look (drawing only, so everyone can pick their own): mini golf or a natural course.
+function showTheme() {
+  const nat = golfTheme() === 'natural'; setGolfTheme(golfTheme());
+  const b = $('themeBtn'); b.innerHTML = nat ? '🌳<span class="tlabel"> Natural</span>' : '⛳<span class="tlabel"> Mini golf</span>'; b.setAttribute('aria-pressed', String(nat));
+  b.title = nat ? 'Natural golf course: tap for mini golf' : 'Mini golf: tap for a natural golf course';
+  document.body.classList.toggle('natural', nat);
+}
+$('themeBtn').onclick = () => { setGolfThemePref(golfTheme() === 'natural' ? 'classic' : 'natural'); showTheme(); sfx('click'); };
+showTheme();
 const cv = $('course'), ctx = cv.getContext('2d');
 
 // ---------------------------------------------------------------- state
