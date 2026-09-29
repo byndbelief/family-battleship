@@ -11,8 +11,10 @@ const BW=360, BH=560;   // the holes are drawn up in this space (and random obst
 // ball and cup, so the page shows more green, zoomed out (golf_games.course: 120 / 135 / 150 %).
 // Putts go that much faster, so the same drag reaches the same share of the hole. LW/LH are the
 // course as played and drawn; the page sets it with setCourse() for the game it shows.
-let LW=BW, LH=BH, COURSE=1;
-function setCourse(s){ COURSE=s||1; LW=BW*COURSE; LH=BH*COURSE; }
+// A long course (course 160 and up, 055/057) is different: putts keep a 1-player course's power
+// (POWER 1), so the bigger the course, the more putts a hole takes, and par grows with it (parOf).
+let LW=BW, LH=BH, COURSE=1, LONG=false, POWER=1;
+function setCourse(s){ COURSE=s||1; LW=BW*COURSE; LH=BH*COURSE; LONG=COURSE>=1.6; POWER=LONG?1:COURSE; }
 const rect = (x,y,w,h) => [[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
 const BOX = rect(40,40,280,480);
 const HOLES = [
@@ -145,7 +147,7 @@ function randomExtras(seed, hi){
 // wide as played, so the more players (the bigger the course), the more cells: 8 x 13 up to 12 x 20. The cup goes where the best route takes 4 straight runs (par 4),
 // as far from the tee as that allows. Its walls are plain segments (h.walls): the ball bounces off
 // them like the rails. A pond sits in a dead end or two, and a sand trap on the way.
-const mazeCols=(c=COURSE)=>c<1.6?0:Math.floor(320*c/62);
+const mazeCols=(c=COURSE)=>c<1.6?0:Math.min(16,Math.floor(320*c/62));
 const MAZE_NAMES=['The Labyrinth',"Minotaur's Maze",'The Warren','Hedge Maze','The Knot'];
 const isMaze=(hi,c=COURSE)=>HOLES[hi].par===4 && mazeCols(c)>0;
 function holeName(hi,c=COURSE){
@@ -225,6 +227,14 @@ function holeFor(seed, hi){
 // Only + - * / and sqrt (plus sin/cos for windmills, from the same tick count),
 // so a stored putt replays the same way on the other player's phone.
 const R = 6, CUP_R = 9, MAX_STROKES = 8;
+// Par on a long course (057): the base par plus about 0.55 strokes per extra course length for a
+// par 3, in whole numbers (integer maths, the same as _golf_par(hole, course) on the server).
+// You pick up at par + 5 there (8 strokes on the others).
+function parOf(hi, c=COURSE){
+  const base=HOLES[hi].par, pct=Math.round(c*100);
+  return pct<160 ? base : base+Math.floor((base*(pct-100)*110+30000)/60000);
+}
+const maxStrokes=(hi, c=COURSE)=>(Math.round(c*100)<160 ? MAX_STROKES : parOf(hi,c)+5);
 function collideSeg(b,[x1,y1,x2,y2]){
   const dx=x2-x1, dy=y2-y1, L2=dx*dx+dy*dy;
   let t=((b.x-x1)*dx+(b.y-y1)*dy)/L2; t=t<0?0:t>1?1:t;
@@ -234,12 +244,12 @@ function collideSeg(b,[x1,y1,x2,y2]){
   const vn=b.vx*nx+b.vy*ny; if(vn<0){ b.vx-=1.78*vn*nx; b.vy-=1.78*vn*ny; }
   return true;
 }
-function collideBumper(b,[cx,cy,cr],cap){
+function collideBumper(b,[cx,cy,cr]){
   let nx=b.x-cx, ny=b.y-cy; const d=Math.sqrt(nx*nx+ny*ny), rr=cr+R;
   if(d>=rr||d===0) return false;
   nx/=d; ny/=d; b.x=cx+nx*rr; b.y=cy+ny*rr;
   const vn=b.vx*nx+b.vy*ny; if(vn<0){ b.vx-=2.2*vn*nx; b.vy-=2.2*vn*ny; }
-  const sp=Math.sqrt(b.vx*b.vx+b.vy*b.vy); if(sp>cap){ b.vx*=cap/sp; b.vy*=cap/sp; }
+  const sp=Math.sqrt(b.vx*b.vx+b.vy*b.vy); if(sp>12){ b.vx*=12/sp; b.vy*=12/sp; }
   return true;
 }
 // Windmill blades are a fixed table of angles per tick, not live trig, to keep replays exact.
@@ -281,12 +291,11 @@ function tick(b, h){
   let ev=null;
   const blades=h.spinners.flatMap(s=>bladeSegs(s,b.clock));
   const sp=Math.sqrt(b.vx*b.vx+b.vy*b.vy), n=Math.max(1,Math.ceil(sp/2));
-  const cap=h.scale>=1.6?12*h.scale:12;   // a big course's bumpers let its faster balls keep their speed (055)
   for(let i=0;i<n;i++){
     b.x+=b.vx/n; b.y+=b.vy/n;
     for(const s of (h.segs.length>24?railsNear(h,b.x,b.y):h.segs)) if(collideSeg(b,s)) ev=ev||'wall';
     for(const s of blades) if(collideSeg(b,s)) ev=ev||'wall';
-    for(const c of h.bumpers) if(collideBumper(b,c,cap)) ev='bump';
+    for(const c of h.bumpers) if(collideBumper(b,c)) ev='bump';
   }
   b.clock++;
   const sand=h.sand.some(r=>inRect(b.x,b.y,r)), mud=h.mud&&h.mud.some(r=>inRect(b.x,b.y,r));
@@ -322,11 +331,12 @@ const attackCache=new Map();
 // Every part of a hole, scaled by s around the origin (the ball and cup keep their size).
 const scaledCache=new Map();
 function scaleHole(h, s){
+  const k=LONG?1:s;   // slopes, wind and the cup's grip go with putt speed: unscaled on a long course
   const P=([x,y])=>[x*s,y*s], Rc=([x,y,w,hh])=>[x*s,y*s,w*s,hh*s];
   return {...h, outline:h.outline.map(P), tee:P(h.tee), cup:P(h.cup), segs:h.segs.map(([a,b,c,d])=>[a*s,b*s,c*s,d*s]),
     blocks:h.blocks.map(Rc), sand:h.sand.map(Rc), water:h.water.map(Rc), bumpers:h.bumpers.map(([x,y,r])=>[x*s,y*s,r*s]),
-    slopes:h.slopes.map(sl=>({...sl, r:Rc(sl.r), a:[sl.a[0]*s, sl.a[1]*s]})), spinners:h.spinners.map(([x,y,len,n,turn])=>[x*s,y*s,len*s,n,turn]),
-    wind:h.wind?[h.wind[0]*s,h.wind[1]*s]:h.wind, walls:h.walls?.map(([a,b,c,d])=>[a*s,b*s,c*s,d*s]), cupSpeed:(h.cupSpeed||5.5)*s, scale:s, gophers:h.gophers?.map(P), mud:h.mud?.map(Rc)};
+    slopes:h.slopes.map(sl=>({...sl, r:Rc(sl.r), a:[sl.a[0]*k, sl.a[1]*k]})), spinners:h.spinners.map(([x,y,len,n,turn])=>[x*s,y*s,len*s,n,turn]),
+    wind:h.wind?[h.wind[0]*k,h.wind[1]*k]:h.wind, walls:h.walls?.map(([a,b,c,d])=>[a*s,b*s,c*s,d*s]), cupSpeed:(h.cupSpeed||5.5)*k, scale:s, gophers:h.gophers?.map(P), mud:h.mud?.map(Rc)};
 }
 // ================================================================= chaos twists on a hole (043)
 // golf_games.twists = { "<hole>": [{ k: 'cup' | 'gopher', s: seed, t: from turn }] }. The ones with
@@ -501,7 +511,7 @@ function drawHole(c, h, t, scene={}){
   });
   else h.sand.forEach(([x,y,w,hh])=>{
     c.save(); c.beginPath(); c.roundRect(x,y,w,hh,Math.min(22,hh/2)); c.fillStyle='#E8D39A'; c.fill(); c.clip();
-    c.fillStyle='#D4BC7E'; for(let i=0;i<w*hh/60;i++){ const px=x+((i*37)%w), py=y+((i*53)%hh); c.fillRect(px,py,1.5,1.5); }
+    c.fillStyle='#D4BC7E'; for(let i=0,n=Math.min(w*hh/60,900);i<n;i++){ const px=x+((i*37)%w), py=y+((i*53)%hh); c.fillRect(px,py,1.5,1.5); }
     c.restore(); c.strokeStyle='#C9AE6B'; c.lineWidth=2; c.beginPath(); c.roundRect(x,y,w,hh,Math.min(22,hh/2)); c.stroke();
   });
   // 🟤 mud (047): a sticky brown patch
@@ -627,4 +637,4 @@ function drawHole(c, h, t, scene={}){
 }
 
 
-export { holeName, isMaze, mazeCols, flowTo, LW, LH, COURSE, setCourse, HOLES, N_HOLES, rng, inPoly, inRect, segDist, buildHole, reachable, holeFor, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, holeWithTwists, twistsFor, CHIP_AIR, drawHole, setGolfTheme, COS, SIN };
+export { LONG, POWER, parOf, maxStrokes, holeName, isMaze, mazeCols, flowTo, LW, LH, COURSE, setCourse, HOLES, N_HOLES, rng, inPoly, inRect, segDist, buildHole, reachable, holeFor, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, holeWithTwists, twistsFor, CHIP_AIR, drawHole, setGolfTheme, COS, SIN };

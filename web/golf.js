@@ -1,7 +1,7 @@
 // Putt Post, live: turns and scores are saved on the server; putts replay for everyone.
 import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, compactPack, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, dramaOn, face, livePresence, avatarOf, splash, jumpToNext, setGameTools, condenseTop, golfTheme, setGolfThemePref, liveCountdown } from './common.js';
 import {
-  LW, LH, COURSE, setCourse, HOLES, R, CUP_R, MAX_STROKES, tick, q20, q100, ATTACKS, holeWithAttack, holeWithTwists, twistsFor, CHIP_AIR, drawHole,
+  LW, LH, COURSE, POWER, LONG, parOf, maxStrokes, setCourse, HOLES, R, CUP_R, tick, q20, q100, ATTACKS, holeWithAttack, holeWithTwists, twistsFor, CHIP_AIR, drawHole,
   inPoly, inRect, segDist, reduceMotion, setGolfTheme, holeName, flowTo,
 } from './golf-engine.js';
 
@@ -38,7 +38,7 @@ const myHoleDone = () => G.turns.some((x) => x.player === me.id && Math.floor(x.
 const stillPlaying = () => G.game.players.filter((p) => !G.turns.some((x) => x.player === p && Math.floor(x.t / n()) === Math.floor(G.game.t / n())));
 const curPlayer = () => G.game.players[G.game.t % n()];
 const curHole = () => G.game.start + Math.floor(G.game.t / n());
-const magnetize = (h, on) => (on ? { ...h, cupR: 13, cupSpeed: 7.5 * COURSE } : h);
+const magnetize = (h, on) => (on ? { ...h, cupR: 13, cupSpeed: 7.5 * POWER } : h);
 // A hole as it stands for turn t: its sneak attack (if any) and the chaos twists that came before t (043).
 const holeAt = (hi, type, t) => holeWithTwists(G.game.seed, hi, type, G.game.twists, t);
 // My turn's slot: the turn number, or live, my slot on the hole everyone's on.
@@ -267,7 +267,7 @@ const fromStroke = (s) => (s.chip ? [s.x, s.y, s.vx, s.vy, 1] : [s.x, s.y, s.vx,
 
 // ---------------------------------------------------------------- header, scorecard
 function setHud(hole, player, s, replay) {
-  $('holeNo').textContent = `Hole ${hole + 1} of ${G.game.start + G.game.count} · Par ${HOLES[hole].par}`;
+  $('holeNo').textContent = `Hole ${hole + 1} of ${G.game.start + G.game.count} · Par ${parOf(hole)}`;
   $('holeName').textContent = holeName(hole);
   $('whoPill').innerHTML = `${replay ? '▶' : '⛳'} ${face(player)}${who(player)}`;
   $('strokes').textContent = s;
@@ -287,7 +287,7 @@ function cellPen(p, hole) {
 function standings() {
   return G.game.players.map((p) => {
     let s = 0, par = 0, played = 0;
-    for (let i = G.game.start; i < G.game.start + G.game.count; i++) { const v = cellScore(p, i); if (typeof v === 'number') { s += v; par += HOLES[i].par; played++; } }
+    for (let i = G.game.start; i < G.game.start + G.game.count; i++) { const v = cellScore(p, i); if (typeof v === 'number') { s += v; par += parOf(i); played++; } }
     return { p, strokes: s, toPar: s - par, played };
   });
 }
@@ -296,14 +296,14 @@ function renderCard() {
   const st = standings(), lead = Math.min(...st.map((s) => (s.played ? s.toPar : Infinity)));
   const idx = []; for (let i = g.start; i < g.start + g.count; i++) idx.push(i);
   let h = `<table class="score"><thead><tr><th>Player</th>${idx.map((i) => `<th>${i + 1}</th>`).join('')}<th>Total</th><th>±</th></tr></thead><tbody>`;
-  h += `<tr class="par"><td>Par</td>${idx.map((i) => `<td>${HOLES[i].par}</td>`).join('')}<td>${idx.reduce((a, i) => a + HOLES[i].par, 0)}</td><td></td></tr>`;
+  h += `<tr class="par"><td>Par</td>${idx.map((i) => `<td>${parOf(i)}</td>`).join('')}<td>${idx.reduce((a, i) => a + parOf(i), 0)}</td><td></td></tr>`;
   g.players.forEach((p, k) => {
     const sb2 = pl(p), badges = sb2.busted ? ` <span class="badge" title="Busted cheating">${'🚨'.repeat(Math.min(3, sb2.busted))}</span>` : '';
     h += `<tr class="${st[k].played && st[k].toPar === lead ? 'lead' : ''}"><td>${face(p)}${who(p)}${badges}</td>`;
     idx.forEach((i) => {
       const v = cellScore(p, i), cls = [];
       if (cur && (liveOn ? cur.h === i && cellScore(p, i) == null : cur.p === p && cur.h === i)) cls.push('now');
-      if (v === 'skip') cls.push('skip'); else if (v) cls.push(v < HOLES[i].par ? 'under' : v > HOLES[i].par ? 'over' : '');
+      if (v === 'skip') cls.push('skip'); else if (v) cls.push(v < parOf(i) ? 'under' : v > parOf(i) ? 'over' : '');
       const pen = typeof v === 'number' ? cellPen(p, i) : 0;
       // your hole in progress: the count so far, penalties included
       const going = v == null && p === me.id && cls.includes('now') && ['aim', 'rolling', 'wedge', 'reveal'].includes(mode) && strokes > 0;
@@ -438,7 +438,7 @@ async function replayTurn(tu) {
     if (!skipReplay) await sleep(350);
     const { ev, b } = await roll(s, h);
     const r = afterStroke(ev, b, h, s.x, s.y); count += 1 + r.penalty; $('strokes').textContent = count;
-    if (r.holed && !skipReplay) celebrate(count, HOLES[tu.hole].par);
+    if (r.holed && !skipReplay) celebrate(count, parOf(tu.hole));
     if (!skipReplay) await sleep(r.holed && count === 1 ? 2600 : 500);
   }
   $('skip').hidden = true;
@@ -601,7 +601,7 @@ cv.addEventListener('pointerup', async (e) => {
 });
 async function putt(a) {
   if (liveOn && Date.now() < liveGo) { bigText('<span class="small-pop">Wait for GO!</span>', 900); sfx('buzz'); return; }
-  const sp = (0.6 + a.p * 10.4) * COURSE * (curAttack === 5 ? 0.67 : 1);
+  const sp = (0.6 + a.p * 10.4) * POWER * (curAttack === 5 ? 0.67 : 1);
   const s = { x: q20(scene.ball.x), y: q20(scene.ball.y), vx: q100(a.dx * sp), vy: q100(a.dy * sp), chip: chipNext };
   if (chipNext) { chipNext = false; sfx('whistle', { dur: 0.35 }); }
   current.push(s); mode = 'rolling'; $('tip').textContent = ''; renderCheats(); renderCard();
@@ -611,7 +611,7 @@ async function putt(a) {
   strokes += 1 + r.penalty; $('strokes').textContent = strokes;
   lastStroke = { s, penalty: r.penalty, clockBefore };
   if (r.holed) return finishTurn(true);
-  if (strokes >= MAX_STROKES) return finishTurn(false);
+  if (strokes >= maxStrokes(curHole())) return finishTurn(false);
   mode = 'aim';
   $('tip').textContent = r.penalty ? 'Splash! One penalty stroke. Back to where you putted from.' : `Stroke ${strokes + 1}. Drag back and let go.`;
   if (curAttack && attackFrom === current.length && liveOn) landLiveAttack();   // it landed while the ball rolled
@@ -690,14 +690,14 @@ function wedgeTo(pt) {
 // ---------------------------------------------------------------- finishing a hole
 async function finishTurn(holed) {
   mode = 'done'; $('cheats').hidden = true; $('pack').innerHTML = ''; $('packMini').innerHTML = '';
-  const par = HOLES[curHole()].par, t = G.game.t;
+  const par = parOf(curHole()), t = G.game.t;
   if (holed) celebrate(strokes, par);
   const wasLive = liveOn;
   const { data, error } = await sb.rpc(wasLive ? 'golf_submit_live' : 'golf_submit_turn', { p_game: G.game.id, p_strokes: current.map(fromStroke), p_actual: strokes, p_cheats: cheatsUsed, p_holed: holed,
     ...(wasLive ? { p_attack_from: curAttack ? attackFrom : -1 } : {}) });
   if (error) { $('tip').textContent = `Couldn't save that hole: ${friendly(error)}`; if (wasLive) { mode = 'idle'; await load(G.game.id); decide(); } return; }
   markSeen(t);
-  $('tip').textContent = (holed ? `In the cup: ${scoreWord(strokes, par)}.` : `Picked up after ${MAX_STROKES} strokes.`)
+  $('tip').textContent = (holed ? `In the cup: ${scoreWord(strokes, par)}.` : `Picked up after ${strokes} strokes.`)
     + (data.earned ? ` ${data.earned > 1 ? `${data.earned} sneak attacks` : 'A sneak attack'} dropped into your backpack!` : '')
     + (cheatsUsed & 4 ? ` You wrote down ${data.written}. 🤫` : '') + (data.penalty ? ` (+${data.penalty} for the false accusation.)` : '');
   notify('golf', G.game.id);
@@ -728,7 +728,7 @@ function botAim() {
   const weak = curAttack === 5 ? 0.67 : 1;
   let best = null;
   const trial = (ang, p) => {
-    const sp = (0.6 + p * 10.4) * COURSE * weak, b = { x: bx, y: by, vx: q100(Math.cos(ang) * sp), vy: q100(Math.sin(ang) * sp), ticks: 0, clock };
+    const sp = (0.6 + p * 10.4) * POWER * weak, b = { x: bx, y: by, vx: q100(Math.cos(ang) * sp), vy: q100(Math.sin(ang) * sp), ticks: 0, clock };
     let ev; do { ev = tick(b, h); } while (ev !== 'cup' && ev !== 'water' && ev !== 'stop');
     const sc = ev === 'cup' ? -1000 + p : ev === 'water' ? 1e5 : flow(b.x, b.y) + (h.sand.some((r) => inRect(b.x, b.y, r)) ? 20 : 0);
     if (!best || sc < best.sc) best = { sc, ang, p };
@@ -737,7 +737,7 @@ function botAim() {
   const a0 = best.ang, p0 = best.p;
   for (let da = -4; da <= 4; da++) for (let dp = -0.06; dp <= 0.0601; dp += 0.02) trial(a0 + (da * Math.PI) / 180, Math.min(1, Math.max(0.04, p0 + dp)));
   const sk = botSkill(), ang = best.ang + (gauss() * sk.aim * Math.PI) / 180, p = Math.min(1, Math.max(0.04, best.p * (1 + gauss() * sk.power)));
-  const sp = (0.6 + p * 10.4) * COURSE * weak;
+  const sp = (0.6 + p * 10.4) * POWER * weak;
   return { ang, p, vx: q100(Math.cos(ang) * sp), vy: q100(Math.sin(ang) * sp) };
 }
 async function robotTurn() {
@@ -752,7 +752,7 @@ async function robotTurn() {
   setHud(curHole(), bot, 0, false); renderCard();
   if (curAttack) { sfx('sneaky'); bigText(`<span class="small-pop">${ATTACKS[curAttack].icon} ${ATTACKS[curAttack].name}!</span>`, 1700); $('tip').textContent = `${nm(bot).replace(/<[^>]+>/g, '')} got hit with ${ATTACKS[curAttack].name}. Heh.`; await sleep(1500); }
   let holed = false;
-  while (strokes < MAX_STROKES) {
+  while (strokes < maxStrokes(curHole())) {
     // Foot wedge when nobody's looking.
     if (!(cheatsUsed & 1) && Math.random() < sk.cheat * 0.5) {
       const b = scene.ball, [cx, cy] = h.cup, d = Math.sqrt((cx - b.x) ** 2 + (cy - b.y) ** 2);
@@ -777,12 +777,12 @@ async function robotTurn() {
     await sleep(450);
   }
   if (holed && strokes > 1 && Math.random() < sk.cheat) cheatsUsed |= 4;   // pencil whip
-  if (holed) celebrate(strokes, HOLES[curHole()].par);
+  if (holed) celebrate(strokes, parOf(curHole()));
   const { error } = await sb.rpc('golf_submit_bot_turn', { p_game: G.game.id, p_strokes: current.map(fromStroke), p_actual: strokes, p_cheats: cheatsUsed, p_holed: holed });
   curAttack = 0;
   markSeen(t);
   if (!error) { notify('golf', G.game.id); announceChaos({ gameId: G.game.id }); }
-  $('tip').textContent = holed ? `${nm(bot).replace(/<[^>]+>/g, '')}: ${scoreWord(strokes, HOLES[curHole()].par)}.` : '';
+  $('tip').textContent = holed ? `${nm(bot).replace(/<[^>]+>/g, '')}: ${scoreWord(strokes, parOf(curHole()))}.` : '';
   await sleep(1200);
   // Did it call cheater on the hole before?
   await load(G.game.id);
@@ -808,7 +808,7 @@ const botAimFrom = (ball, clock, h, lvl, weak = 1) => {
   const bx = q20(ball.x), by = q20(ball.y), flow = flowTo(h);
   let best = null;
   const trial = (ang, p) => {
-    const sp = (0.6 + p * 10.4) * COURSE * weak, b = { x: bx, y: by, vx: q100(Math.cos(ang) * sp), vy: q100(Math.sin(ang) * sp), ticks: 0, clock };
+    const sp = (0.6 + p * 10.4) * POWER * weak, b = { x: bx, y: by, vx: q100(Math.cos(ang) * sp), vy: q100(Math.sin(ang) * sp), ticks: 0, clock };
     let ev; do { ev = tick(b, h); } while (ev !== 'cup' && ev !== 'water' && ev !== 'stop');
     const sc = ev === 'cup' ? -1000 + p : ev === 'water' ? 1e5 : flow(b.x, b.y) + (h.sand.some((r) => inRect(b.x, b.y, r)) ? 20 : 0);
     if (!best || sc < best.sc) best = { sc, ang, p };
@@ -816,7 +816,7 @@ const botAimFrom = (ball, clock, h, lvl, weak = 1) => {
   for (let a = 0; a < 360; a += 5) for (let p = 0.06; p <= 1.0001; p += 0.08) trial((a * Math.PI) / 180, p);
   const a0 = best.ang, p0 = best.p;
   for (let da = -4; da <= 4; da++) for (let dp = -0.06; dp <= 0.0601; dp += 0.02) trial(a0 + (da * Math.PI) / 180, Math.min(1, Math.max(0.04, p0 + dp)));
-  const sk = BOT_SKILL[lvl], ang = best.ang + (gauss() * sk.aim * Math.PI) / 180, p = Math.min(1, Math.max(0.04, best.p * (1 + gauss() * sk.power))), sp = (0.6 + p * 10.4) * COURSE * weak;
+  const sk = BOT_SKILL[lvl], ang = best.ang + (gauss() * sk.aim * Math.PI) / 180, p = Math.min(1, Math.max(0.04, best.p * (1 + gauss() * sk.power))), sp = (0.6 + p * 10.4) * POWER * weak;
   return { vx: q100(Math.cos(ang) * sp), vy: q100(Math.sin(ang) * sp) };
 };
 const botLiveHoles = () => G?.game.players.filter(isBot).forEach((b) => botLiveHole(b));
@@ -833,7 +833,7 @@ async function botLiveHole(bot) {
   const strokes = [], still = () => liveOn && G.game.status === 'playing' && Math.floor(G.game.t / n()) === row;
   ghosts[bot] = { hole, x: ball.x, y: ball.y, at: Date.now() };
   await sleep(Math.max(0, liveGo - Date.now()) + 1200 + Math.random() * 1200);   // the robot waits for GO too
-  while (still() && count < MAX_STROKES && !holed) {
+  while (still() && count < maxStrokes(hole) && !holed) {
     await sleep(think * (0.7 + Math.random() * 0.6));
     if (!still()) break;
     if (!atk) {
@@ -856,7 +856,7 @@ async function botLiveHole(bot) {
     else ball = { x: q20(b.x), y: q20(b.y) };
   }
   if (!still()) { botRowPlaying[bot] = -1; return; }
-  const { error } = await sb.rpc('golf_submit_live_bot', { p_game: g.id, p_strokes: strokes, p_actual: Math.max(1, Math.min(12, count)), p_holed: holed, p_bot: bot, p_attack_from: atk ? atkFrom : -1 });
+  const { error } = await sb.rpc('golf_submit_live_bot', { p_game: g.id, p_strokes: strokes, p_actual: Math.max(1, Math.min(20, count)), p_holed: holed, p_bot: bot, p_attack_from: atk ? atkFrom : -1 });
   if (error && !/finished this hole/.test(error.message || '')) { botRowPlaying[bot] = -1; return; }
   await load(g.id); renderCard(); if (mode === 'idle' && !flowing) decide();
 }
