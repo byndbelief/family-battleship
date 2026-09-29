@@ -492,7 +492,7 @@ username. A new account only becomes a robot once it's in `public.bots`.
   otherwise the owner pastes it into Supabase → SQL Editor.
 - **theGAME is the starting block.** `schema.sql` + 002–007 are the baseline, verified
   identical to production on 2026-09-27 (`supabase/BASELINE.md`). New changes are
-  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size, 037_bs_burst applied 2026-09-28; 038_drone_strike, 039_more_loot, 040_golf_live_attacks, 041_golf_attack_loot, 042_more_chaos_hilltop, 043_more_chaos_golf, 044_even_more_chaos, 045_live_countdown, 046_gauntlet_big_ocean, 047_chaos_extras, 048_duel_rotate_start, 049_shoot_the_moon, 050_orogeny, 051_regrowth, 052_fill_holes 2026-09-29), applied with `apply_migration` under the same name so Supabase's history
+  `008_…` onward (008_clocks, 009_scoreboard, 010_trophies, 011_tank_moves, 012_smarter_robot, 013_dodge, 014_live_battle, 015_live_chaos, 016_duel_weapons, 017_robot_live, 018_chaos_cards, 019_cards_turn_time, 020_hide_finished, 021_online, 022_fleet_ready, 023_duel_multi, 024_card_loot, 025_duel_fast_reload, 026_bs_fast_reload, 027_bs_themes, 028_bs_shared, 029_duel_dig, 030_bs_theme_wording, 031_duel_world, 032_six_players, 033_more_bots, 034_six_gauntlet_battleship, 035_bunker_buster, 036_golf_course_size, 037_bs_burst applied 2026-09-28; 038_drone_strike, 039_more_loot, 040_golf_live_attacks, 041_golf_attack_loot, 042_more_chaos_hilltop, 043_more_chaos_golf, 044_even_more_chaos, 045_live_countdown, 046_gauntlet_big_ocean, 047_chaos_extras, 048_duel_rotate_start, 049_shoot_the_moon, 050_orogeny, 051_regrowth, 052_fill_holes, 053_bs_volleys_kraken 2026-09-29), applied with `apply_migration` under the same name so Supabase's history
   matches the repo. `tools/drift-check.sql` compares production with a local build.
 - **Edge function:** `notify` is deployed by hand (or `deploy_edge_function`); redeploy
   only when `supabase/functions/notify/` changes.
@@ -558,3 +558,16 @@ the shot comes back in a load, `animateShots` reveals it (`revealShot`) as soon 
 arrived, with no second flight; other players' shots fly as before. An error un-launches them.
 `loadGame` is one round trip now (the fleets' themes are cached in `G.themes` between loads of the same
 game; the `bstheme` event clears it). Locally: Fire to first result 3.1 s → 0.55 s.
+
+### Battleship live volleys, zoom, kraken & tornado (053)
+Live battles fire in **volleys**: tapping stages squares (`stageLive`), and a full volley
+(`volleySize()` = 3 + `G.shotMod`, so a ⚓ Double Salvo or a Frenzy makes it 5) goes off at once through
+`fire_live_volley` (squares someone beat you to are skipped; the extra/jam is used up). The guns reload
+for `BS_RELOAD` (2 s) while it flies; a volley staged during the reload fires when it ends; "Fire now"
+lets a part volley go. `use_loot` allows Sonar/Salvo in a live battle. `loadGame` keeps staged squares
+across live moves (it only drops ones someone fired at). 🔍 Board zoom: `zoomBar()` above the boards,
+1×–2.4× (`--bz`, `.bz-on`), each board in a sideways-scrolling `.bzoom`. Chaos: 🐙 kraken (up to 2 squares
+of one ship) and 🌪️ tornado (a row/column, up to 3), both never a ship's last square, saved as hits with
+`shots.chaos` set and the victim as `shooter` (`_log_result` skips chaos rows); the page shows them
+without a shell (`.seabeast`) and on feed lines of their own. Fog also lasts 20 s live (`fog_until`).
+Old tests that tapped once to fire (t_bslive, t_burst, t_bsreload) now stage; see t_volley.

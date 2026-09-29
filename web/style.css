@@ -629,3 +629,18 @@ img.hnav { object-fit: cover; background: #000; }
   #app.fs-on .firebar .backpack { overflow-x: auto; }
   #app.fs-on .firebar .fbmini { flex: 0 0 auto; overflow-x: auto; }
 }
+
+/* 🐙🌪️ the kraken rising / the tornado spinning over a square it hits (053) */
+.seabeast { position: fixed; z-index: 45; pointer-events: none; font-size: 40px; line-height: 1; transform: translate(-50%, -50%); filter: drop-shadow(0 4px 8px #0008); }
+.seabeast.kraken { animation: krakenRise 1.3s ease-out forwards; }
+.seabeast.tornado { animation: tornadoSpin 1.3s ease-in-out forwards; }
+@keyframes krakenRise { 0% { transform: translate(-50%, 10%) scale(.4); opacity: 0; } 30% { transform: translate(-50%, -60%) scale(1.25); opacity: 1; } 70% { transform: translate(-50%, -50%) scale(1.1) rotate(-8deg); opacity: 1; } 100% { transform: translate(-50%, 20%) scale(.5); opacity: 0; } }
+@keyframes tornadoSpin { 0% { transform: translate(-150%, -50%) scale(.6); opacity: 0; } 25% { opacity: 1; } 100% { transform: translate(60%, -50%) scale(1.2) rotate(40deg); opacity: 0; } }
+
+/* 🔍 board zoom (053): the board grows inside a box that scrolls sideways */
+.bzoom { max-width: 100%; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+.bz-on .bzoom > .board { width: calc(100% * var(--bz, 1)) !important; max-width: none !important; }   /* zoomed: past every layout's usual cap */
+.bzbar { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 6px auto; padding: 3px 6px; border-radius: 99px; background: var(--card, #ffffff10); border: 1px solid var(--line); font-size: 14px; }
+.bzbar button { width: 30px; height: 30px; min-height: 0; padding: 0; border-radius: 50%; font-size: 17px; line-height: 1; }
+.bzbar button:disabled { opacity: .35; }
+.bzbar b { min-width: 34px; text-align: center; font-variant-numeric: tabular-nums; }
