@@ -1,7 +1,7 @@
 // Chaos Cards: a shedding card game (plays like Uno) with chaos cards and chaos events.
 // Everything is decided on the server (card_play, card_draw…); this page shows the table, your
 // own hand (the only one you can read) and what just happened, and asks the robot to play.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, sfx, compactPack, liveGame, nextUpChip, names, gauntletBar, note, splash, chaosClock, face, avatar, livePresence, jumpToNext, announceChaos, isPhone, ITEMS, backpack, backpackBarHTML, setGameTools, condenseTop } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, sfx, compactPack, liveGame, nextUpChip, names, gauntletBar, note, splash, splash as splashAll, chaosClock, face, avatar, livePresence, jumpToNext, announceChaos, isPhone, ITEMS, backpack, backpackBarHTML, setGameTools, condenseTop } from './common.js';
 
 const $ = (id) => document.getElementById(id);
 let G = null;                 // { game, hand }
@@ -15,8 +15,12 @@ const CHAOS = {
   CT: { icon: '🎯', name: 'Target', desc: 'Pick someone: they draw 3' },
   CP: { icon: '🔀', name: 'Pass along', desc: 'Everyone passes their hand on' },
   CB: { icon: '💣', name: 'Bomb', desc: 'Everyone else draws 2' },
+  CF: { icon: '🦋', name: 'Butterfly', desc: 'It flutters round the table: +1, +2, +3…' },
+  CR: { icon: '🔁', name: 'Recursion', desc: 'Plays the card under it again (even another Recursion)' },
 };
-const isWild = (c) => ['W', 'W4', 'CS', 'CT', 'CP', 'CB'].includes(c);
+const isWild = (c) => ['W', 'W4', 'CS', 'CT', 'CP', 'CB', 'CF', 'CR'].includes(c);
+// What the top card counts as (061): a Recursion's is the card it replayed.
+const topAs = (g) => (g.top === 'CR' ? g.top_as || 'W' : g.top);
 const playable = (c, g) => isWild(c) || c[0] === g.color || (!isWild(g.top) && c.slice(1) === g.top.slice(1));
 const isBot = (id) => bots.has(id);
 const who = (id) => (id === me.id ? 'You' : nm(id));
@@ -66,12 +70,19 @@ function announce(g) {
   else if (lp.passed) line = `${name} passed`;
   else if (lp.drew && !lp.card) line = `${name} drew a card`;
   else if (lp.card) {
-    const c = lp.card, tgt = lp.target ? plain(who(lp.target)) : '';
-    line = `${name} played ${label(c)}${isWild(c) ? ` → ${COLORS[lp.color]}` : ''}${tgt ? ` on ${tgt}` : ''}`;
+    const played = lp.card, c = played === 'CR' && lp.as ? lp.as : played, tgt = lp.target ? plain(who(lp.target)) : '';
+    line = `${name} played ${label(played)}${played === 'CR' && lp.as ? ` (as ${label(lp.as)})` : ''}${isWild(played) ? ` → ${COLORS[lp.color]}` : ''}${tgt ? ` on ${tgt}` : ''}`;
+    // A Recursion's effect says so: "🔁 RECURSION: 🦋 BUTTERFLY" (and on its own when it has nothing to show)
+    const rec = played === 'CR', splash = (lines, o) => splashAll(rec ? [`🔁 RECURSION: ${lines[0]}`, ...lines.slice(1)] : lines, o);
+    if (rec && !['CS', 'CP', 'CF', 'CB'].includes(c)) splashAll(['🔁 RECURSION', lp.as && lp.as !== 'W' ? `${label(lp.as)} again!` : 'Nothing to repeat…', 'x → f(x)'], { tone: 'gold', ms: 1600 });
     if (p !== me.id) sfx('clack');
     if (c === 'CS' && lp.target === me.id) splash(['🌀 SWAPPED', `${name} took your hand`, 'and gave you theirs'], { tone: 'red', ms: 2000 });
     else if (c === 'CT' && lp.target === me.id) { note(`🎯 ${name} targeted you: +3 cards.`, 'error'); sfx('buzz'); }
     else if (c === 'CP') splash(['🔀 PASS IT ON', 'Everyone passed', 'their hand along'], { tone: 'gold', ms: 1800 });
+    else if (c === 'CF') {   // 🦋 +1, +2, +3 in the direction of play from the player
+      const n = g.players.length, i = g.players.indexOf(p), k = g.players.map((_, j) => ((j - i) * g.dir + n * 2) % n)[g.players.indexOf(me.id)];
+      splash(['🦋 BUTTERFLY', 'It flutters round the table…', p === me.id ? 'and grows as it goes' : `+${k} for you`], { tone: 'red', ms: 1900 });
+    }
     else if (c === 'CB') splash(['💣 BOMB', p === me.id ? 'Everyone else draws 2' : `${name} bombed the table`, p === me.id ? 'Boom.' : '+2 for you'], { tone: 'red', ms: 1800 });
     else if (p !== me.id && (c === 'W4' || c.slice(1) === '+2') && g.players[(g.players.indexOf(p) + g.dir + g.players.length) % g.players.length] === me.id) {
       note(`${c === 'W4' ? '+4' : '+2'} for you, and you skip a turn.`, 'error'); sfx('buzz');
@@ -175,7 +186,8 @@ async function play(c) {
   if (busy || g.status !== 'playing' || g.players[g.turn] !== me.id) return;
   if (!playable(c, g)) { note(`That doesn't match: play ${COLORS[g.color].toLowerCase()}${isWild(g.top) ? '' : ` or a ${sym(g.top)}`}, a wild, or draw.`); return; }
   let target = null, color = null;
-  if (c === 'CS' || c === 'CT') { target = await pickPlayer(c); if (!target) return; }
+  const eff = c === 'CR' ? topAs(g) : c;   // 🔁 a Recursion that replays a Swap or a Target needs someone too
+  if (eff === 'CS' || eff === 'CT') { target = await pickPlayer(eff); if (!target) return; }
   if (isWild(c)) { color = await pickColor(); if (!color) return; }
   busy = true; render();
   const last = G.hand.length === 2 && callLast;
