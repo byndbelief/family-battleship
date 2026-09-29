@@ -70,19 +70,32 @@ let ctx = cv.getContext('2d');   // swapped for the tank cam's while it draws (d
 let cam = { z: 1, x: 400, y: 220 }, camHeld = 0;   // camHeld: until when the person, not the shell, steers
 const camOn = () => !!G && N() >= 4;
 const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+// How much of the battlefield's height the canvas shows at 1×: all of it (H), except in landscape
+// full screen on a phone, where the canvas takes the screen's wider shape and the top of the sky
+// is trimmed (fitCanvas). At 1× the view sits on the ground.
+const viewH = () => Math.min(H, (W * cv.height) / cv.width);
 function camClamp() {
   cam.z = clampN(cam.z, 1, 3);
-  const vw = W / cam.z, vh = H / cam.z;
+  const vw = W / cam.z, vh = viewH() / cam.z;
+  if (cam.z <= 1.001) { cam.x = W / 2; cam.y = H - vh / 2; return; }
   cam.x = clampN(cam.x, vw / 2, W - vw / 2); cam.y = clampN(cam.y, vh / 2, H - vh / 2);
 }
-const camReset = () => { cam = { z: 1, x: W / 2, y: H / 2 }; showCam(); };
+const camReset = () => { cam = { z: 1, x: W / 2, y: H / 2 }; camClamp(); showCam(); };
+function fitCanvas() {
+  const cover = $('play').classList.contains('fs-on') && matchMedia('(orientation: landscape) and (max-height: 520px)').matches;
+  const r = cover ? cv.parentElement.clientWidth / Math.max(1, cv.parentElement.clientHeight) : 0;
+  const h = cover && r > 1600 / 880 ? Math.round(1600 / r) : 880;
+  if (cv.height !== h) { cv.height = h; camClamp(); }
+}
+addEventListener('resize', fitCanvas);
+new MutationObserver(() => requestAnimationFrame(fitCanvas)).observe($('play'), { attributes: true, attributeFilter: ['class'] });
 // A point on the page → the battlefield under it.
 function toWorld(clientX, clientY) {
   const r = cv.getBoundingClientRect(), fx = (clientX - r.left) / r.width, fy = (clientY - r.top) / r.height;
-  return { x: cam.x + (fx - 0.5) * (W / cam.z), y: cam.y + (fy - 0.5) * (H / cam.z), fx, fy };
+  return { x: cam.x + (fx - 0.5) * (W / cam.z), y: cam.y + (fy - 0.5) * (viewH() / cam.z), fx, fy };
 }
 // Zoom to z keeping the battlefield point under (fx, fy) of the screen where it is.
-function zoomAt(z, fx, fy, wx, wy) { cam.z = clampN(z, 1, 3); cam.x = wx - (fx - 0.5) * (W / cam.z); cam.y = wy - (fy - 0.5) * (H / cam.z); camClamp(); showCam(); }
+function zoomAt(z, fx, fy, wx, wy) { cam.z = clampN(z, 1, 3); cam.x = wx - (fx - 0.5) * (W / cam.z); cam.y = wy - (fy - 0.5) * (viewH() / cam.z); camClamp(); showCam(); }
 function camLook(x, y, z = cam.z) { cam.z = z; cam.x = x; cam.y = y; camClamp(); showCam(); }
 const stars = Array.from({ length: 90 }, (_, i) => { const r = rng(i * 7919 + 3); return { x: r(), y: r() * 240, s: r() * 1.4 + 0.3, t: r() * 6 }; });
 const myIdx = () => G.game.players.indexOf(me.id);
@@ -138,7 +151,8 @@ function draw(t) {
     const s = shells[shells.length - 1], q = s.path[Math.min(s.i, s.path.length - 1)];
     if (q) { cam.x += (q.x - cam.x) * 0.12; cam.y += (q.y - cam.y) * 0.12; camClamp(); }
   }
-  const k = (ctx.canvas.width / W) * cam.z; ctx.setTransform(k, 0, 0, k, -(cam.x - W / cam.z / 2) * k, -(cam.y - H / cam.z / 2) * k);
+  if (!camPass) camClamp();   // keeps 1× on the ground whatever shape the canvas is
+  const k = (ctx.canvas.width / W) * cam.z; ctx.setTransform(k, 0, 0, k, -(cam.x - W / cam.z / 2) * k, -(cam.y - ctx.canvas.height / k / 2) * k);
   const sky = ctx.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, '#1B1646'); sky.addColorStop(0.6, '#3B2A6E'); sky.addColorStop(1, '#7A3E72');
   ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
   stars.forEach((s) => { ctx.globalAlpha = 0.5 + 0.5 * Math.sin(t / 900 + s.t); ctx.fillStyle = '#fff'; ctx.fillRect(s.x * W, s.y * (H / 440), s.s, s.s); }); ctx.globalAlpha = 1;
@@ -291,7 +305,7 @@ const tcCv = $('tankCamCv'), tcCtx = tcCv.getContext('2d');
 function drawTankCam(t) {
   const box = $('tankCam'), mi = G && top ? myIdx() : -1;
   const tp = mi >= 0 ? tankPos(mi, top, shot?.xs || xs()) : null;
-  const vw = W / cam.z, vh = H / cam.z;
+  const vw = W / cam.z, vh = viewH() / cam.z;
   const off = tp && camOn() && cam.z > 1.001 && G.game.hp[mi] > 0
     && (tp.x < cam.x - vw / 2 + 12 || tp.x > cam.x + vw / 2 - 12 || tp.y - 20 < cam.y - vh / 2 || tp.y > cam.y + vh / 2 - 6);
   if (box.hidden === !!off) { box.hidden = !off; if (off) box.style.setProperty('--c', COLS[mi]); }
@@ -1076,7 +1090,7 @@ cv.addEventListener('pointermove', (e) => {
   }
   if (pan) {
     const r = cv.getBoundingClientRect();
-    cam.x = pan.cx - ((e.clientX - pan.sx) / r.width) * (W / cam.z); cam.y = pan.cy - ((e.clientY - pan.sy) / r.height) * (H / cam.z);
+    cam.x = pan.cx - ((e.clientX - pan.sx) / r.width) * (W / cam.z); cam.y = pan.cy - ((e.clientY - pan.sy) / r.height) * (viewH() / cam.z);
     camClamp(); camHeld = Date.now() + 4000;
     return;
   }

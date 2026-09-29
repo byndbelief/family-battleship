@@ -288,6 +288,12 @@ username. A new account only becomes a robot once it's in `public.bots`.
   wind multiplier goes through `windXOf(g, move)`. Hilltop 🎁 supply drop (loot for every person);
   Putt Post 🌫️ fog (drawing: a clearing round the ball) and 🌊 flood (a pond vetted by
   `reachable()`) as `twists` kinds; Battleship crates are a supply drop for all half the time.
+- **Hilltop landscape full screen covers the screen** (phones, `(orientation:landscape) and
+  (max-height:520px)` in duel.html): `fitCanvas()` gives `#cv` the screen's shape (buffer 1600×h, h < 880)
+  and `viewH()` is the world height that shows at 1×; `camClamp()` sits 1× on the ground, so a wider
+  screen trims the top of the sky. Everything that maps screen↔world uses `viewH()`, never `H`. The
+  controls float in the corners (`#controls` is `display:contents`; aim bottom right beside a round
+  FIRE, backpack up the right edge, drive bottom left, zoom down the left edge, tank cam top left).
 - **Tank cam** (`drawTankCam` in duel.js, `#tankCam` in duel.html): zoomed in (4+ tanks) with your
   tank off screen, a corner window re-runs `draw()` with `ctx`/`cam` swapped for its own canvas and a
   camera on your tank (`camPass` stops the shell-follow from steering the real camera). It shows your

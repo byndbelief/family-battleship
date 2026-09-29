@@ -188,28 +188,54 @@
   }
   /* Full screen on a landscape phone (047): the battlefield the full height on the left (no gap
      above it for the toolbar), the controls in a 212px column whose top the toolbar sits over. */
+  /* Phone on its side, full screen: the battlefield covers the whole screen (the canvas takes the
+     screen's shape and the camera trims the top of the sky: fitCanvas in duel.js) and the controls
+     float over it in the corners, see-through: aim and power by the slingshot gesture anywhere,
+     fine-tune ⤴⤵ −+ and FIRE bottom right, the backpack up the right edge, driving bottom left. */
   @media (orientation:landscape) and (max-height:520px){
-    body.fs-lock #play.fs-on{padding:6px 6px 6px calc(6px + env(safe-area-inset-left,0px))!important}
-    #play.fs-on{display:grid;grid-template-columns:minmax(0,1fr) 212px;grid-auto-rows:min-content;align-items:start;column-gap:8px;row-gap:6px}
-    #play.fs-on > :not(.stage){grid-column:2;min-width:0}
-    #play.fs-on #controls{margin-top:48px;padding:8px}
-    #play.fs-on .aimbar{grid-template-columns:repeat(2,38px) minmax(0,1fr) repeat(2,38px);gap:4px}
-    #play.fs-on .aimbar .step{width:38px;height:38px}
-    #play.fs-on .aimread{flex-direction:column;gap:0;font-size:12px;line-height:1.2}
-    #play.fs-on .aimread output{font-size:15px}
-    #play.fs-on .slider.moverow{grid-template-columns:36px 36px minmax(0,1fr) 36px 30px;gap:4px}
-    #play.fs-on .moverow .step,#play.fs-on .modebtn{width:36px;height:36px}
-    #play.fs-on .aimbar{grid-template-columns:repeat(2,34px) minmax(0,1fr) repeat(2,34px)}
-    #play.fs-on .aimbar .step{width:34px;height:34px}
-    #play.fs-on .slider{grid-template-columns:40px minmax(0,1fr) 40px 42px;gap:6px}
-    #play.fs-on .slider label{display:none}
-    #play.fs-on .slider.moverow{grid-template-columns:40px 40px minmax(0,1fr) 40px 42px}
-    #play.fs-on .modebtn{height:40px}
+    body.fs-lock #play.fs-on{padding:0!important;display:block;overflow:hidden}
+    #play.fs-on .stage{position:absolute;inset:0;height:auto;border-radius:0;display:block}
+    #play.fs-on .stage canvas#cv{width:100%;height:100%;max-width:none;max-height:none}
+    #play.fs-on .hud{inset:calc(8px + env(safe-area-inset-top,0px)) calc(250px + env(safe-area-inset-right,0px)) auto calc(8px + env(safe-area-inset-left,0px))}
+    #play.fs-on .stage .cambar{left:calc(8px + env(safe-area-inset-left,0px));top:50%;bottom:auto;transform:translateY(-50%);flex-direction:column}
+    #play.fs-on .tankcam{left:calc(8px + env(safe-area-inset-left,0px));top:44px;bottom:auto;width:min(26%,190px)}
+    #play.fs-on .stage .fsslot{display:none}
+    #play.fs-on #controls,#play.fs-on #controls .controls,#play.fs-on #controls .sliders{position:static;display:contents}
+    #play.fs-on #controls[hidden]{display:none}
+    #play.fs-on #controls > .aimtip,#play.fs-on #shotsFold{display:none}
+    /* each group floats on its own, dark glass so the hills show through */
+    #play.fs-on .aimbar,#play.fs-on .moverow,#play.fs-on #dropRow,#play.fs-on #packMini,#play.fs-on #dodge{position:absolute;z-index:6;background:#0E0C2277;border:1px solid #ffffff26;border-radius:14px;padding:5px;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+    #play.fs-on .aimbar{right:calc(96px + env(safe-area-inset-right,0px));bottom:8px;display:grid;grid-template-columns:38px 38px;grid-template-areas:"r r" "a b" "c d";gap:4px}
+    #play.fs-on .aimbar .aimread{grid-area:r;flex-direction:row;gap:8px;font-size:12px;line-height:1.2;justify-content:center}
+    #play.fs-on .aimbar .aimread output{font-size:14px}
+    #play.fs-on .aimbar [data-step=angle][data-d="1"]{grid-area:a}
+    #play.fs-on .aimbar [data-step=angle][data-d="-1"]{grid-area:c}
+    #play.fs-on .aimbar [data-step=power][data-d="1"]{grid-area:b}
+    #play.fs-on .aimbar [data-step=power][data-d="-1"]{grid-area:d}
+    #play.fs-on .aimbar .step{width:38px;height:38px;font-size:20px}
+    #play.fs-on #controls .row:has(#fire){position:absolute;z-index:6;right:calc(8px + env(safe-area-inset-right,0px));bottom:8px;display:flex;flex-direction:column;gap:4px;align-items:center}
+    #play.fs-on button.go#fire{width:80px;height:80px;min-width:0;min-height:0;padding:0;border-radius:50%;font-size:17px;box-shadow:0 4px 16px #0009,0 0 0 3px #ffffff33}
+    #play.fs-on .moverow{left:calc(8px + env(safe-area-inset-left,0px));right:auto;width:auto;bottom:8px;display:grid;grid-template-columns:40px 40px 40px auto;gap:4px;align-items:center}
+    #play.fs-on .moverow input.mover{display:none}
+    #play.fs-on .moverow .modebtn,#play.fs-on .moverow .step{width:40px;height:40px}
     #play.fs-on .modebtn .ml{display:none}
-    #play.fs-on .step{width:40px;height:40px}
-    #play.fs-on button.go#fire{min-height:52px;width:100%}
-    #play.fs-on .stage{grid-column:1;grid-row:1 / span 12;height:calc(100dvh - 12px)}
-    #play.fs-on #controls .controls{grid-template-columns:1fr;gap:6px}
+    #play.fs-on .moverow output{font-size:13px;padding-right:4px}
+    #play.fs-on #dropRow{left:50%;transform:translateX(-50%);bottom:8px;width:min(40%,300px);display:grid;grid-template-columns:36px minmax(0,1fr) 36px 30px;gap:4px;align-items:center}
+    #play.fs-on #dropRow label{display:none}
+    #play.fs-on #dropRow .step{width:36px;height:36px}
+    #play.fs-on #dropRow[hidden]{display:none}
+    #play.fs-on #packMini{right:calc(8px + env(safe-area-inset-right,0px));bottom:150px;max-height:calc(100dvh - 210px);overflow-y:auto;padding:8px 10px 4px 5px}
+    #play.fs-on #packMini:empty{display:none}
+    #play.fs-on #packMini .packmini,#play.fs-on #packMini > *{flex-direction:column!important;flex-wrap:nowrap!important}
+    #play.fs-on #dodge{left:calc(8px + env(safe-area-inset-left,0px));bottom:8px;width:min(46%,330px)}
+    #play.fs-on #dodge[hidden]{display:none}
+    #play.fs-on #err{position:absolute;z-index:6;left:50%;transform:translateX(-50%);bottom:56px;margin:0;padding:2px 8px;border-radius:8px;background:#0E0C22cc}
+    #play.fs-on #err:empty{display:none}
+    #play.fs-on #endPanel,#play.fs-on #nextSlot:not(:empty),#play.fs-on #pack:not(:empty){position:absolute;z-index:7;left:50%;top:50%;transform:translate(-50%,-50%);width:min(70vw,520px);max-height:84dvh;overflow:auto}
+    #play.fs-on #endPanel[hidden]{display:none}
+    #play.fs-on #pack{display:none}
+    #play.fs-on #packMini .packmini{padding:0;gap:6px}
+    #play.fs-on #packMini .pmlabel{display:none}
   }
   </style>
 </head>
