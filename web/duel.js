@@ -195,6 +195,7 @@ function draw(t) {
     drawHint(t);
   }
   shells.forEach((sh) => drawShell(sh, t));
+  meteors.forEach((m) => drawMeteor(m));
   particles.forEach((q) => { ctx.globalAlpha = Math.max(0, q.life); ctx.fillStyle = q.c; ctx.beginPath(); ctx.arc(q.x, q.y, q.s, 0, 7); ctx.fill(); });
   ctx.globalAlpha = 1;
 }
@@ -476,6 +477,44 @@ function render() {
   }
 }
 
+// ---------------------------------------------------------------- chaos twists on the battlefield
+// Meteors [x, depth, r, 5] and quakes [x, dh, r, 6] (042) arrive as craters from the server: the
+// page plays the ones it hasn't shown yet (never on first load), then the ground is rebuilt.
+let twistSeen = null, meteors = [];
+function newTwists(g) {
+  const tw = g.craters.filter((c) => c[3] === 5 || c[3] === 6), prev = twistSeen?.game === g.id ? twistSeen.n : null;
+  twistSeen = { game: g.id, n: tw.length };
+  return prev == null ? [] : tw.slice(prev);
+}
+function drawMeteor(m) {
+  const f = Math.min(1, (performance.now() - m.t0) / m.dur); if (f <= 0) return;
+  const x = m.x0 + (m.x1 - m.x0) * f, y = m.y0 + (m.y1 - m.y0) * f;
+  ctx.save(); ctx.lineCap = 'round';
+  const g = ctx.createLinearGradient(x - (m.x1 - m.x0) * 0.25, y - (m.y1 - m.y0) * 0.25, x, y); g.addColorStop(0, '#FF6B3D00'); g.addColorStop(1, '#FFC857');
+  ctx.strokeStyle = g; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(x - (m.x1 - m.x0) * 0.25, y - (m.y1 - m.y0) * 0.25); ctx.lineTo(x, y); ctx.stroke();
+  ctx.shadowColor = '#FF6B3D'; ctx.shadowBlur = 20; ctx.fillStyle = '#FFF4D6'; ctx.beginPath(); ctx.arc(x, y, 6, 0, 7); ctx.fill(); ctx.restore();
+}
+async function twistFx(list) {
+  const quakes = list.filter((c) => c[3] === 6), rocks = list.filter((c) => c[3] === 5);
+  if (quakes.length) {
+    sfx('boom', { size: 1.6 }); sfx('thud', { delay: 0.3 }); navigator.vibrate?.([90, 40, 90, 40, 140]);
+    if (!reduceMotion && cv.animate) cv.animate([0, 1, 2, 3, 4, 5, 6, 7].map((k) => ({ transform: k === 7 ? 'none' : `translate(${(k % 2 ? 1 : -1) * (9 - k)}px,${(k % 3 - 1) * (7 - k)}px)` })), { duration: 900 });
+    const cols = ['#8A5A2B', '#B08355', '#6B4423', '#D6B28A'];
+    quakes.forEach((c) => { applyCrater(top, c); for (let i = 0; i < 18; i++) { const x = c[0] + (Math.random() * 2 - 1) * c[2]; particles.push({ x, y: top[Math.max(0, Math.min(W - 1, Math.round(x)))], vx: (Math.random() - 0.5) * 2, vy: -Math.random() * 3, life: 1, s: Math.random() * 3 + 1.5, c: cols[i % 4] }); } });
+    render(); await sleep(reduceMotion ? 0 : 900);
+  }
+  if (rocks.length) {
+    const dur = reduceMotion ? 1 : 520, t0 = performance.now();
+    rocks.forEach((c, i) => { const x1 = c[0], y1 = top[Math.max(0, Math.min(W - 1, Math.round(x1)))]; meteors.push({ x0: x1 - 140, y0: -30, x1, y1, t0: t0 + i * (reduceMotion ? 0 : 260), dur, c }); });
+    if (!reduceMotion) sfx('whistle', { dur: 0.5 });
+    await Promise.all(meteors.map((m) => sleep(m.t0 + m.dur - performance.now()).then(() => {
+      const y = top[Math.max(0, Math.min(W - 1, Math.round(m.x1)))] + m.c[1];
+      blast([m.x1, y, m.c[2]]); applyCrater(top, m.c); render();
+    })));
+    meteors = [];
+  }
+}
+
 async function load(id) {
   const [g, s] = await Promise.all([
     sb.from('duel_games').select('*').eq('id', id).maybeSingle(),
@@ -511,6 +550,8 @@ async function decide() {
     markSeen(last.move); top = ground(); busy = false;
     hitDrama(prevHp, last.hp_after);
   }
+  const tw = newTwists(g);
+  if (tw.length) { busy = true; await twistFx(tw); busy = false; }
   top = ground();
   render();
   if (g.status === 'over') { if (liveOn) setLive(false); endDrama(g); return; }

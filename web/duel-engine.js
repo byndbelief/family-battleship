@@ -72,6 +72,18 @@ function applyCrater(top, [cx, cy, r, mound]) {
     }
     return;
   }
+  // Chaos twists (042) are placed relative to the ground, which only the pages know:
+  //   a meteor [x, depth, r, 5]: a crater dug where it strikes the surface at x
+  //   a heave  [x, dh, r, 6]:    an earthquake lifts the ground dh px at x (a dip if dh < 0), easing out over ±r
+  if (mound === 5) { applyCrater(top, [cx, top[clampX(cx)] + cy, r]); return; }
+  if (mound === 6) {
+    for (let x = Math.max(0, Math.round(cx - r)); x <= Math.min(W - 1, Math.round(cx + r)); x++) {
+      const k = (1 + Math.cos((Math.PI * (x - cx)) / r)) / 2;
+      top[x] = Math.max(24, Math.min(H - 8, top[x] - cy * k));
+      if (top.under?.[x] != null && top[x] > ceilAt(top, x)) openUp(top, x);   // dropped into a tunnel: it's open now
+    }
+    return;
+  }
   const buried = !mound && cy > top[clampX(cx)] + 2;   // went off inside the hill, not on its surface
   for (let x = Math.max(0, cx - r); x <= Math.min(W - 1, cx + r); x++) {
     const dy = Math.sqrt(r * r - (x - cx) ** 2);
