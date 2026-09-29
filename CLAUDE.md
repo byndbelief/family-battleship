@@ -739,3 +739,11 @@ picking, limits, "already running" and create calls are unchanged: `wireBotStep`
 (by name) up to the table's room (`LIMITS[kind][1]` or 5, less the people picked), and `refreshForm`
 drops robots first when a table overflows. Tests pick robots with the counter, not `[data-opp="bot1"]`.
 
+### Battleship: fleets by outline, fireballs by target, shots stay staged (page only)
+Ships carry no colour dot any more: each fleet is told apart by a thick outline in its player's colour
+(`.vessel.pc` drop-shadows). A hit explodes in the colour of the player whose ship was hit
+(`fx.explode(…, col)`: ring and sparks in `pcol(s.target)`); shells in flight keep the shooter's colour.
+Fired squares stay marked (`inFlight`, keyed like `shotKey`) as staged, then landing, until each one's
+result is revealed (`revealShot` clears it; `unlaunch` on an error; 6 s at most), and they can't be tapped
+meanwhile. t_bsflight: staged/landed counts go 3/0 → 2/1 → 1/2 → 0/3 as the results come in.
+

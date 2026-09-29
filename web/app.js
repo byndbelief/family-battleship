@@ -143,9 +143,10 @@ const fx = (() => {
     draw(k) { k.globalCompositeOperation = 'source-over'; k.globalAlpha = this.life / 60 * 0.35; k.fillStyle = '#3a3a44'; k.beginPath(); k.arc(this.x, this.y, this.r, 0, 7); k.fill(); k.globalAlpha = 1; k.globalCompositeOperation = 'lighter'; },
   });
   return {
-    explode(x, y, big = 1) {
-      ring(x, y, '#FFF3C4', 46 * big, 22, 5); ring(x, y, '#FF8A3D', 30 * big, 30, 3);
-      const cols = ['#FFF3C4', '#FFD166', '#FF8A3D', '#FF4D3D'];
+    // A hit's fireball in the colour of the player whose ship it was (col), a white-hot core.
+    explode(x, y, big = 1, col = null) {
+      ring(x, y, '#FFF3C4', 46 * big, 22, 5); ring(x, y, col || '#FF8A3D', 30 * big, 30, col ? 5 : 3);
+      const cols = col ? ['#FFF3C4', col, col, '#FFD166'] : ['#FFF3C4', '#FFD166', '#FF8A3D', '#FF4D3D'];
       for (let i = 0; i < 46 * big; i++) { const a = Math.random() * 6.283, v = (1.5 + Math.random() * 5) * big; spark(x, y, Math.cos(a) * v, Math.sin(a) * v - 1.5, cols[i % 4], 2 + Math.random() * 2.5, 30 + Math.random() * 25); }
       for (let i = 0; i < 7; i++) smoke(x + (Math.random() - 0.5) * 14, y + (Math.random() - 0.5) * 10);
     },
@@ -198,6 +199,13 @@ const centerOf = (el) => { const r = el.getBoundingClientRect(); return [r.left 
 // shot comes back from it, the result is revealed where that shell landed (or lands), with no second
 // flight. launched: board square → when its shell arrives.
 const launched = new Map();
+// Squares you've fired at stay marked (staged, then landing) until each one's result shows: the
+// aim is cleared the moment you fire, and a redraw would lose the marks (6 s at most, in case one
+// never comes back, e.g. someone else got there first).
+const inFlight = new Map();
+const flightKey = (owner, cell) => (owner === OCEAN ? `o|${cell}` : `${owner}|${cell}`);
+const markInFlight = (owner, cells) => cells.forEach((c) => inFlight.set(flightKey(owner, c), Date.now()));
+const flying = (owner, cell) => { const t = inFlight.get(flightKey(owner, cell)); return t != null && Date.now() - t < 6000; };
 const shotKey = (s) => (MODES[G.game.mode].shared ? `o|${s.cell}` : `${s.target}|${s.cell}`);
 function launchShell(owner, cell) {
   const key = owner === OCEAN ? `o|${cell}` : `${owner}|${cell}`, el = cellEl(owner, cell);
@@ -207,19 +215,19 @@ function launchShell(owner, cell) {
   launched.set(key, Date.now() + 520);
   fx.shell(x + (Math.random() - 0.5) * 120, innerHeight + 20, x, y, () => { const e = cellEl(owner, cell); if (e && launched.has(key)) e.classList.add('landing'); }, 520, pcol(me.id));
 }
-const unlaunch = (owner, cells) => cells.forEach((c) => { launched.delete(owner === OCEAN ? `o|${c}` : `${owner}|${c}`); cellEl(owner, c)?.classList.remove('landing'); });
+const unlaunch = (owner, cells) => cells.forEach((c) => { launched.delete(flightKey(owner, c)); inFlight.delete(flightKey(owner, c)); cellEl(owner, c)?.classList.remove('landing'); });
 // What a shot did, shown where it landed: the splash or the blast, the sinking.
 function revealShot(s) {
   const { game } = G;
-  pending.delete(s.id);
+  pending.delete(s.id); inFlight.delete(shotKey(s));
   renderGame();
   const el2 = cellEl(s.target, s.cell);
   if (!el2) return;
   const [x, y] = centerOf(el2), incoming = s.target === me.id;
   el2.classList.add('land');
-  if (s.hit) { fx.explode(x, y, s.sunk_ship != null ? 1.6 : 1); sfx('boom', { size: s.sunk_ship != null ? 1.6 : 0.8 }); if (incoming) quake(true); } else { fx.splash(x, y); sfx('splash'); }
+  if (s.hit) { fx.explode(x, y, s.sunk_ship != null ? 1.6 : 1, s.target ? pcol(s.target) : null); sfx('boom', { size: s.sunk_ship != null ? 1.6 : 0.8 }); if (incoming) quake(true); } else { fx.splash(x, y); sfx('splash'); }
   if (s.sunk_ship != null) {
-    (s.sunk_cells || []).forEach((c, j) => setTimeout(() => { const e = cellEl(s.target, c); if (e) { const [cx, cy] = centerOf(e); fx.explode(cx, cy, 0.7); } }, 120 * j));
+    (s.sunk_cells || []).forEach((c, j) => setTimeout(() => { const e = cellEl(s.target, c); if (e) { const [cx, cy] = centerOf(e); fx.explode(cx, cy, 0.7, pcol(s.target)); } }, 120 * j));
     const ship = shipName(game.mode, s.sunk_ship);
     if (incoming) stamp(`Your ${ship}<br>is sunk!`, 'red');
     else if (s.shooter === me.id) stamp(`Sunk!<br><small style="font-size:.45em">${ship}</small>`);
@@ -1249,12 +1257,14 @@ function boardHTML({ owner, ships, clickable, fresh }) {
       if (sunk.has(i)) cls.push('sunk');
       else if (s && fog.has(s.id) && !shipAt.has(i)) cls.push('fog');
       else if (s) cls.push(s.hit ? 'hit' : 'miss');
-      if (aiming?.has(i)) cls.push('aim');
+      const inAir = !s && flying(owner, i);   // fired, not landed yet: still staged, then landing
+      if (aiming?.has(i) || inAir) cls.push('aim');
+      if (inAir && (launched.get(flightKey(owner, i)) ?? Infinity) <= Date.now()) cls.push('landing');
       if (s && fresh && s.move === game.move) cls.push('new');
       if (!s && peekShip.has(i)) cls.push('peek-ship'); else if (!s && peekArea.has(i)) cls.push('peek-empty');
       const label = cellName(game.mode, i), pc = s?.hit && s.target && !cls.includes('fog') ? `;--pc:${pcol(s.target)}` : '';
       if (pc) cls.push('owned');
-      h += clickable && !s && !mine.has(i) && !isle.has(i)
+      h += clickable && !s && !mine.has(i) && !isle.has(i) && !inAir
         ? `<button class="${cls.join(' ')}" style="${at2(r, c)}" data-o="${owner}" data-i="${i}" data-target="${owner}" data-cell="${i}" aria-label="Aim at ${label}"></button>`
         : `<span class="${cls.join(' ')}" style="${at2(r, c)}${pc}" data-o="${owner}" data-i="${i}" aria-label="${label}"></span>`;
     }
@@ -1615,7 +1625,7 @@ function renderGame() {
   const fire = document.getElementById('fire');
   if (fire) fire.onclick = async () => {
     busy = true; fire.disabled = true;
-    const owner = aims.target, cells = [...aims.cells];
+    const owner = aims.target, cells = [...aims.cells]; markInFlight(owner, cells);
     cells.forEach((c, k) => setTimeout(() => launchShell(owner, c), k * 120));   // away now; the server tells us what they hit
     const { error } = await sb.rpc('fire', { p_game: game.id, p_target: aims.target === OCEAN ? null : aims.target, p_cells: cells });
     busy = false;
@@ -1693,7 +1703,7 @@ async function fireVolley() {
   if (!aims.target || !aims.cells.size || !liveBS) return;
   const wait = bsReloadUntil - Date.now();
   if (wait > 0) { if (!volleyTimer) volleyTimer = setTimeout(() => { volleyTimer = null; fireVolley(); }, wait + 20); return; }
-  const owner = aims.target, cells = [...aims.cells];
+  const owner = aims.target, cells = [...aims.cells]; markInFlight(owner, cells);
   aims = { target: null, cells: new Set() };
   bsReloadUntil = Date.now() + BS_RELOAD;
   navigator.vibrate?.([30, 40, 30]);

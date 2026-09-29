@@ -103,8 +103,8 @@ button.cell:hover { background: var(--water-2); }
 .fleet-list span.gone { text-decoration: line-through; color: var(--muted); }
 /* Battleship: each player's colour (by seat) on their ships, hits and name */
 .pdot { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--pc); box-shadow: 0 0 0 1.5px #fff9; margin-right: 5px; vertical-align: middle; }
-.board.seaview .vessel.pc { position: relative; filter: drop-shadow(0 0 1.5px var(--pc)) drop-shadow(0 0 1.5px var(--pc)) drop-shadow(0 0 2.5px var(--pc)) drop-shadow(0 3px 3px #0006); }
-.board.seaview .vessel.pc::before { content: ""; position: absolute; z-index: 1; left: 1px; top: 1px; width: 9px; height: 9px; border-radius: 50%; background: var(--pc); box-shadow: 0 0 0 1.5px #fff; }
+/* Each fleet told apart by a thick outline in its player's colour (no dot on the ship) */
+.board.seaview .vessel.pc { position: relative; filter: drop-shadow(0 0 1.5px var(--pc)) drop-shadow(0 0 1.5px var(--pc)) drop-shadow(0 0 1.5px var(--pc)) drop-shadow(0 0 4px var(--pc)) drop-shadow(0 3px 3px #0006); }
 .board.seaview .vessel.pc.wreck { filter: grayscale(.75) brightness(.6) drop-shadow(0 0 1px var(--pc)) drop-shadow(0 0 1.5px var(--pc)); }
 .board .cell.owned { box-shadow: inset 0 0 0 2.5px var(--pc) !important; }
 .boardtabs button[role=tab][style*="--pc"] { border-bottom: 3px solid var(--pc); }
