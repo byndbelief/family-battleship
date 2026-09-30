@@ -1,0 +1,21 @@
+/* r4box · the one look every page shares (fonts, the top bar, buttons). A game page keeps its own
+   world colours (Putt Post's green, the duel's night); this only sets the chrome around it.
+   Loaded after a page's own <style>, so its :root wins on the fonts. */
+:root {
+  --r4-bg: #0B0918; --r4-panel: #171331; --r4-line: #2F2957; --r4-ink: #F3F1FF; --r4-muted: #ACA5D6;
+  --teal: #3DD6C6; --gold: #F5C542; --hot: #FF5A4A; --violet: #B9A6FF; --mint: #C9FFF8;
+  --display: "Unbounded", "Arial Black", Impact, sans-serif;
+  --body: "Sora", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+body { font-family: var(--body); }
+h1, h2, h3 { font-family: var(--display); font-weight: 700; letter-spacing: -.01em; }
+.topnav, nav.gtop { display: flex; align-items: center; gap: 12px; min-height: 44px; }
+.topnav a:first-child, nav.gtop a:first-child { display: inline-flex; align-items: center; gap: 6px; font-family: var(--display); font-weight: 700; font-size: 14px; letter-spacing: .02em;
+  color: var(--r4-ink) !important; text-decoration: none; padding: 6px 12px 6px 8px; border-radius: 99px; background: #ffffff10; border: 1px solid #ffffff1c; }
+.topnav a:first-child:hover, nav.gtop a:first-child:hover { background: #ffffff1c; }
+.topnav h1, nav.gtop h1 { font-size: clamp(17px, 4.6vw, 24px); }
+button.go, .enter { font-family: var(--display); font-weight: 700; letter-spacing: .01em; }
+/* the r4box word mark: a box glyph, then the word */
+.r4mark { display: inline-flex; align-items: center; gap: 8px; font-family: var(--display); font-weight: 800; letter-spacing: -.02em; color: var(--r4-ink); text-decoration: none; }
+.r4mark i { width: 1.05em; height: 1.05em; border-radius: 22%; background: conic-gradient(from 210deg, var(--teal), var(--violet), var(--gold), var(--hot), var(--teal)); box-shadow: inset 0 0 0 .18em var(--r4-bg), 0 0 14px #3DD6C655; }
+.r4mark small { font-family: var(--body); font-weight: 800; font-size: .55em; letter-spacing: .12em; text-transform: uppercase; color: var(--r4-muted); align-self: flex-end; margin-bottom: .1em; }

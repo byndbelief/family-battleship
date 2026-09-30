@@ -3,6 +3,7 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
 import { SUPABASE_URL, SUPABASE_ANON_KEY, VAPID_PUBLIC_KEY } from './config.js';
 import { sfx, isMuted, setMuted } from './sfx.js';
+import { drawPal } from './pals.js';
 import { CHAOS } from './chaos.js';   // 🌀 the box: CHAOS.md
 export { sfx };
 import { THEMES, vesselSVG } from './bs-themes.js';
@@ -102,7 +103,8 @@ const loaderEl = (() => {
     let x = 0.2; c.lineWidth = 2.5; c.beginPath(); c.moveTo(X(x), Y(0));
     for (let i = 0; i < 70; i++) { const y = r * x * (1 - x); c.lineTo(X(x), Y(y)); c.lineTo(X(y), Y(y)); x = y; }
     c.strokeStyle = r >= 3.5699 ? '#FF8A3Dcc' : '#3DD6C6cc'; c.stroke();
-    c.fillStyle = '#fff'; c.beginPath(); c.arc(X(x), Y(x), 7, 0, 7); c.fill();
+    let palKey = 'fig'; try { palKey = localStorage.getItem('r4.pal') || 'fig'; } catch {}
+    drawPal(palKey, c, { x: X(x), y: Y(x), s: 20, t: now / 1000, r, face: 1 });   // the resident rides the cobweb
     // the diagram, and where r is on it
     c.drawImage(bif, 0, top + 10); c.fillStyle = '#fff'; c.fillRect(Math.min(W - 3, k * W), top + 6, 3, 228);
     el.querySelector('.lr').textContent = `r = ${r.toFixed(2)} · ${r < 3 ? 'calm' : r < 3.449 ? 'a rhythm of 2' : r < 3.5699 ? '4, 8, 16…' : 'chaos'}`;
@@ -248,7 +250,8 @@ function fit() {
     const row = document.querySelector('.gtop');
     if (row && isPhone() && !document.querySelector('.fs-on') && scrollY < 4) {
       row.style.marginTop = '';
-      const r = row.getBoundingClientRect(), shift = Math.round((t.top + t.height / 2) - (r.top + r.height / 2));
+      // A tall row (the lobby's header: the mark, a name, the avatars) lines its top up instead of its middle.
+      const r = row.getBoundingClientRect(), shift = r.height > t.height + 8 ? Math.round(t.top - r.top) : Math.round((t.top + t.height / 2) - (r.top + r.height / 2));
       if (shift < 0) row.style.marginTop = `${shift}px`;
     }
   });
@@ -1339,7 +1342,7 @@ const ALERT_HINT = {
   on: "You'll get a notification when it's your turn, even with the game closed.",
   off: 'Get a notification when it\'s your turn, even with the game closed.',
   blocked: "Notifications are blocked for this site. Allow them in your browser's site settings, then come back.",
-  'ios-install': 'On iPhone or iPad: tap Share → Add to Home Screen, open The Box from there, then turn alerts on here.',
+  'ios-install': 'On iPhone or iPad: tap Share → Add to Home Screen, open r4box from there, then turn alerts on here.',
   unsupported: "This browser can't show alerts. Games still update live while they're open.",
 };
 async function paintAlerts(wrap) {

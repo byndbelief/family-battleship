@@ -727,9 +727,52 @@ trophies "Chaos". Code, tables and RPCs keep the gauntlet names. The rounds walk
 `_chaos_curve` starts a round's game at n = (round − 1)·6, so round 1 is calm (r 2.90) and round 4 on
 opens in chaos. The server's messages (round news, champion, call-off, chaos-clock forfeits) say Chaos.
 
-### The room is The Box · r = 4; five organs (page only)
-Title, manifest and eyebrow say **The Box** (· r = 4 in the eyebrow); every game page's back link is
-"← The Box". Three more organs in `web/organs/`: ⚓ `salvo.js` (lanes of enemy ships across the middle of
+### 🎨 r4box: the name, the redesign, the pals and the Design Studio (073)
+The room is **r4box** (r4box.com, bought 2026-09-30 at Cloudflare; DNS: four GitHub Pages A records +
+`www` CNAME, proxy off; `web/CNAME`; the Pages custom domain is set in the repo's settings, the CNAME
+file alone does nothing on an Actions deploy). Title, manifest, wordmark (`.r4mark`, a conic box glyph
++ "r4box · r = 4") and every back link say r4box.
+
+**The redesign** is dark-only (no light mode any more): one deep ink-violet (`--bg #0B0918`, panels
+`#171331`), the curve's four colours for meaning (`--teal` calm, `--gold` golden, `--hot` a peak,
+`--violet` the window), Unbounded for display and Sora for reading. `web/theme.css` is the chrome
+every page shares (fonts, the top bar, `.r4mark`); each game page links it after its own `<style>`
+and keeps its own world colours. The lobby's rules live at the end of `style.css` ("r4box: the
+redesign"), overriding the older ones above them; the boards' rules are untouched. On phones the
+toolbar (`fit()` in common.js) top-aligns a tall `.gtop` row instead of centring it, or the lobby
+header climbs off the screen.
+
+**The pals** (`web/pals.js`): four candidates for who lives in r4box, each a canvas drawing with a
+face for all nine events (`palMood(ev)` → a mood and how long it lasts; `drawPal(key, ctx, opts)`;
+`palWidget(canvas, { pal, s, beat, own, dpr })` runs one on its own canvas, on its own curve or driven
+with `set({ r })` + `react(ev)`, plus `force(mood)`, `hurt()`, `sleep()`, `wake()`). 🟢 **Fig** (a drop
+of the curve; its tail is the bifurcation diagram, forking 1 → 2 → 4 → 8, fraying in chaos; the gold
+bead is the golden cut; named for Feigenbaum), 🟪 **Bit** (the box itself; pixel eyes and the chaos
+meter for a mouth on a screen, a spring antenna, static in chaos), 🐌 **Phi** (a snail whose shell is a
+golden spiral that spins faster as r climbs), 🦋 **Kit** (the butterfly effect: its wings are the
+diagram and its mirror image). Gold moods switch the body colour outright (`gold > 0.3`): a lerp goes
+muddy on violet and lilac.
+
+**The Design Studio** (`studio.html`, `studio.js`, migration 073): the four side by side, live, with a
+"poke a beat" row that forces the same mood on all of them, an r slider, and one vote per player
+(`design_votes(player, topic, choice)`, RLS own-row; `design_vote(topic, choice)` and
+`design_tally(topic)`, security definer, return the tally with names). Topic `resident`: the leader
+(most votes, ties to whoever reached the count first, none → Fig) **is the resident**: it rides the
+curve as the live x in the lobby's box (`boxHero(cv, pal)`, now stepping a real `makeCurve`), sits
+by the wordmark's "Meet" chip, greets you on the sign-in screen, rides the loader's cobweb dot, and
+sits in the corner of every solo game (`#spal` in the shell: `react` on every beat, `hurt` on a hit,
+`sleep` at game over). `resident()` caches the key in localStorage `r4.pal`, and `residentNow()` reads
+that synchronously for the loader and the sign-in screen (which run before or without a session).
+The topic mechanism is generic: a second question is another topic string and its own page section.
+
+**Fresh start (2026-09-30).** All game data was wiped on production with `tools/sql/fresh-start.sql`
+(truncates every table but `profiles`, `bots`, `push_subscriptions`, resets Battleship themes and
+eggs). The pre-wipe rows are in schema **`backup_20260930`** on the production database (33 tables,
+~25k rows); drop it once nobody wants anything back: `drop schema backup_20260930 cascade`.
+
+### The room was The Box · r = 4; five organs (page only)
+Title, manifest and eyebrow said **The Box** (· r = 4 in the eyebrow) until 2026-09-30, when the room
+became **r4box** (below); every game page's back link is "← r4box". Three more organs in `web/organs/`: ⚓ `salvo.js` (lanes of enemy ships across the middle of
 the sea, cells burn, torpedoes to tap, twists fog / kraken arms / storm / whirlpool, Sierpiński salvo on
 the mirror, hooks `window.__sv`), ⛳ `putt.js` (one green, drag to putt, five putts a cup, bumpers / sand
 / water from the beats, the mirror flips the green, three cups in the window, `window.__pt`), 💥

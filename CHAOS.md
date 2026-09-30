@@ -129,6 +129,16 @@ fire, tap torpedoes) · ⛳ Putt (drag back and let go) · 💥 Hilltop (drag to
 three are the multiplayer games' DNA in thirty-second bites, solo: every cell of a ship must burn; five
 putts a cup on a green of fractal bumps; a fractal ridge that craters, and tanks that fire back.
 
+## The pals (who lives in r4box)
+
+Four candidates (`web/pals.js`), chosen by vote in the Design Studio (`studio.html`): 🟢 Fig, a drop of
+the curve whose tail is the bifurcation diagram; 🟪 Bit, the box itself; 🐌 Phi, a snail with a golden
+spiral for a shell; 🦋 Kit, the butterfly effect, its wings the diagram and its mirror. All four read the
+nine events: a peak is a jump, big a wobble, gold turns them gold, a gift is happy eyes, the mirror flips
+them, balance a halo, the window three of something, the golden cut lights their bead, a Fibonacci beat a
+wink; past 3.57 their eyes spiral. The leader lives in the lobby's box as the live x, rides the loader,
+and sits in the corner of every solo game feeling the shell's beat.
+
 ## A new game must
 
 1. Be an organ of the shell (solo: `organs/<key>.js` + a page that calls `runShell`, and an entry in

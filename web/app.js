@@ -1,5 +1,7 @@
 import { USERNAME_DOMAIN } from './config.js';
-import { rankOf, RANK_ICON, WEIGHTS, CHAOS, phaseOf } from './chaos.js';   // 🌀 the box
+import { rankOf, RANK_ICON, WEIGHTS, CHAOS, phaseOf, makeCurve, stepCurve } from './chaos.js';   // 🌀 the box
+import { PAL, drawPal, palWidget, palMood } from './pals.js';   // 🎨 who lives in r4box
+import { resident, residentNow } from './studio.js';
 import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence, jumpToNext, startOnline, online, agoText, setGameTools, themeTiles, forgetThemes, golfTheme, liveCountdown, overlayHost, bifurcation } from './common.js';
 import { holeName, holeWithAttack, holeWithTwists, drawHole, LW, LH, setCourse, setGolfTheme } from './golf-engine.js';
 import { THEMES, themeOf, vesselSVG } from './bs-themes.js';
@@ -318,9 +320,10 @@ window.addEventListener('hashchange', route);
 function loginView(msg) {
   setChannel(null);
   view(`
-    <div class="narrow">
-      <header class="stack"><span class="eyebrow">The Box · r = 4</span><h1>Game on</h1>
-        <p class="muted">Sign in with your player name to jump into Battleship, Putt Post, Hilltop Duel and the Route to Chaos.</p></header>
+    <div class="narrow login">
+      <header class="stack"><a class="r4mark" href="./"><i aria-hidden="true"></i>r4box<small>r = 4</small></a><h1>Game on</h1>
+        <p class="muted">Sign in with your player name to jump into the Route to Chaos.</p></header>
+      <div class="hello"><canvas id="palHi" width="240" height="240" aria-hidden="true"></canvas><p class="bubble" id="palSay">Hi! I live in r4box.</p></div>
       <form class="card" id="login">
         <label class="field" for="user">Username<input type="text" id="user" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
         <label class="field" for="pass">Password<input type="password" id="pass" autocomplete="current-password" required></label>
@@ -328,6 +331,7 @@ function loginView(msg) {
         <div><button class="primary" type="submit">Sign in</button></div>
       </form>
     </div>`);
+  { const k = residentNow(); palWidget(document.getElementById('palHi'), { pal: k, s: 40, beat: 0.8, dpr: 2 }); document.getElementById('palSay').textContent = `Hi, I'm ${PAL[k].name}. I live in r4box. ${PAL[k].tag}`; }
   document.getElementById('login').addEventListener('submit', async (e) => {
     e.preventDefault();
     const user = document.getElementById('user').value.trim().toLowerCase();
@@ -388,9 +392,9 @@ async function lobby() {
   queueMicrotask(renderHere);
   view(`
     <div class="lobby${quick ? ' quickmode' : ' lobhome'}">
-      <div class="quickhead"><a href="#">← The Box</a><h1>Practice</h1><p class="muted">One game on its own, off the Route to Chaos. One of each kind per group of players at a time. It still counts toward your chaos rating.</p></div>
+      <div class="quickhead"><a href="#">← r4box</a><h1>Practice</h1><p class="muted">One game on its own, off the Route to Chaos. One of each kind per group of players at a time. It still counts toward your chaos rating.</p></div>
       <header class="row between gtop">
-        <div class="stack lobhead"><span class="eyebrow">The Box · r = 4</span><h1>Ahoy, ${esc(me.username)}</h1></div>
+        <div class="stack lobhead"><a class="r4mark" href="./"><i aria-hidden="true"></i>r4box<small>r = 4</small></a><h1>Ahoy, ${esc(me.username)}</h1></div>
         <div class="herenow" id="hereNow" aria-label="Who's here"></div>
       </header>
       <div class="lobmain">
@@ -399,7 +403,8 @@ async function lobby() {
           <canvas id="boxHero" aria-label="The Box: the chaos curve's bifurcation diagram, with a live x walking it as r climbs"></canvas>
           <div class="boxwords"><span class="eyebrow">The Box · chaos · symmetry · fractals · fibonacci</span><h2>Route to Chaos</h2>
             <p class="small">Every game here runs on one curve, x → r·x·(1−x). A Chaos is rounds of the games against your rivals, wilder as r climbs; win the most rounds for the crown, and the next Chaos starts on its own. The games are won by playing Chaos.</p>
-            <div class="row" style="gap:10px;flex-wrap:wrap"><a class="enter" id="enterChaos" href="#start">Enter Chaos 🌀</a><a class="enter alt" href="run.html">🧬 Solo run</a></div></div>
+            <div class="row" style="gap:10px;flex-wrap:wrap"><a class="enter" id="enterChaos" href="#start">Enter Chaos 🌀</a><a class="enter alt" href="run.html">🧬 Solo run</a></div>
+            <a class="meet" id="meetPal" href="studio.html"><canvas id="palMini" width="88" height="88" aria-hidden="true"></canvas><span><b id="palName">…</b><small>lives in r4box · vote in the Design Studio ›</small></span></a></div>
         </div>
         <details class="gtfold" id="gtFold"><summary class="gtlabel" id="gtLabel">➕ Start a rivalry</summary>
         <form class="gtstart" id="gtStart">
@@ -449,6 +454,7 @@ async function lobby() {
       </div>
       <div class="lobside">
       <a class="quickentry" href="#stats"><span class="qicons" aria-hidden="true">🏅</span><span><strong>Family scoreboard</strong><span class="muted small">All-time titles, wins, streaks and bragging rights</span></span><span class="qgo" aria-hidden="true">›</span></a>
+      <a class="quickentry" href="studio.html"><span class="qicons" aria-hidden="true">🎨</span><span><strong>Design Studio</strong><span class="muted small">Who lives in r4box? Poke the four and pick one</span></span><span class="qgo" aria-hidden="true">›</span></a>
       <details class="practice"><summary class="quickentry"><span class="qicons" aria-hidden="true">🎯</span><span><strong>Practice</strong><span class="muted small">One game on its own, off the Route to Chaos: it still feeds your chaos rating</span></span><span class="qgo" aria-hidden="true">›</span></summary>
         <a class="quickentry" href="#quick"><span class="qicons" aria-hidden="true">⚓⛳💥🃏</span><span><strong>A game against someone</strong><span class="muted small">Battleship, Putt Post, Hilltop Duel or Chaos Cards</span></span><span class="qgo" aria-hidden="true">›</span></a>
         <a class="quickentry" href="squirrel.html"><span class="qicons" aria-hidden="true">🐿️📎</span><span><strong>Squirrel Chaos</strong><span class="muted small">Solo: staple the squirrels in a fractal forest before the chaos swarms</span></span><span class="qgo" aria-hidden="true">›</span></a>
@@ -470,7 +476,8 @@ async function lobby() {
     </div>`);
   // 🌀 The Box on the wall: the bifurcation diagram with a live x walking it. Enter Chaos goes to your
   // running Chaos's round when there is one (renderGauntlets sets it), else opens the start form.
-  if (!quick) boxHero(document.getElementById('boxHero'));
+  if (!quick) { const k0 = residentNow(); boxHero(document.getElementById('boxHero'), k0); const mini = palWidget(document.getElementById('palMini'), { pal: k0, s: 15, beat: 0.8, dpr: 2 }); document.getElementById('palName').textContent = PAL[k0].name;
+    resident().then((k) => { if (k !== k0 && document.getElementById('palMini')) { mini.set({ pal: k }); document.getElementById('palName').textContent = PAL[k].name; boxHero(document.getElementById('boxHero'), k); } }); }
   document.getElementById('enterChaos')?.addEventListener('click', (e) => {
     const a = e.currentTarget; if (a.dataset.go) return;   // a running Chaos: the link goes to its round
     e.preventDefault(); const fold = document.getElementById('gtFold'); fold.open = true; fold.scrollIntoView({ behavior: 'smooth', block: 'center' }); fold.querySelector('.chip:not([hidden])')?.focus();
@@ -808,29 +815,34 @@ function renderGauntlets(all) {
     else { delete btn.dataset.go; btn.href = '#start'; btn.textContent = 'Enter Chaos 🌀'; }
   }
 }
-// The Box, animated: the bifurcation diagram, a beat every quarter second walking x along the curve
-// as r climbs 2.9 → 4 and starts over, the window band, the golden cut, a golden spiral, a Sierpiński.
-function boxHero(cv) {
+// The Box, animated: the bifurcation diagram, a beat every 0.4 s walking x along the curve as r climbs
+// 2.9 → 4 and starts over, the window band, the golden cut, a golden spiral, a Sierpiński, and the
+// resident pal (pals.js, chosen in the Design Studio) as the live x.
+function boxHero(cv, pal = 'fig') {
   if (!cv) return;
   const W = 720, H = 300; cv.width = W; cv.height = H; const c = cv.getContext('2d'), r0 = 2.8, r1 = 4;
   const bif = bifurcation(W, H, r0, r1), Y = (v) => (1 - v) * (H - 1), Xr = (r) => ((r - r0) / (r1 - r0)) * (W - 1);
-  let x = 0.31, r = 2.9, acc = 0, last = 0, trail = [], n = 0;
+  let curve = makeCurve(), acc = 0, last = 0, trail = [], mood = null, moodT = 0, moodDur = 1;
   const tri = (px, py, s, d) => { if (!d) { c.moveTo(px, py - s * 0.577); c.lineTo(px + s / 2, py + s * 0.289); c.lineTo(px - s / 2, py + s * 0.289); c.closePath(); return; } tri(px, py - s * 0.289, s / 2, d - 1); tri(px - s / 4, py + s * 0.144, s / 2, d - 1); tri(px + s / 4, py + s * 0.144, s / 2, d - 1); };
   const step = (t) => {
     if (!cv.isConnected) return;
     const dt = last ? Math.min(0.1, (t - last) / 1000) : 0; last = t; acc += dt;
-    while (acc >= 0.25) { acc -= 0.25; n += 1; r = 2.9 + 0.02 * n; if (r > 4) { n = 0; r = 2.9; trail = []; x = 0.05 + Math.random() * 0.9; } x = r * x * (1 - x); if (x < 1e-6 || x > 1 - 1e-6) x = 0.5; trail.push([r, x]); if (trail.length > 70) trail.shift(); }
+    while (acc >= 0.4) { acc -= 0.4; if (curve.n >= 36) { curve = makeCurve(); trail = []; } const ev = stepCurve(curve); trail.push([curve.r, curve.x]); if (trail.length > 70) trail.shift(); const m = palMood(ev); if (m) { [mood, moodDur] = m; moodT = 0; } }
+    if (mood) { moodT += dt; if (moodT >= moodDur) mood = null; }
+    const r = curve.r;
     c.clearRect(0, 0, W, H); c.drawImage(bif, 0, 0);
     c.fillStyle = '#C9B8FF22'; c.fillRect(Xr(CHAOS.WINDOW[0]), 0, Math.max(3, Xr(CHAOS.WINDOW[1]) - Xr(CHAOS.WINDOW[0])), H);
     c.strokeStyle = '#FF5A4A66'; c.setLineDash([8, 6]); c.lineWidth = 2; c.beginPath(); c.moveTo(0, Y(CHAOS.PEAK)); c.lineTo(W, Y(CHAOS.PEAK)); c.stroke();
     c.strokeStyle = '#F5C54266'; c.setLineDash([3, 7]); c.beginPath(); c.moveTo(0, Y(CHAOS.CUT)); c.lineTo(W, Y(CHAOS.CUT)); c.stroke(); c.setLineDash([]);
-    trail.forEach(([rr, xx], i) => { const lastDot = i === trail.length - 1; c.globalAlpha = lastDot ? 1 : 0.25 + (0.6 * i) / trail.length; c.fillStyle = xx > CHAOS.PEAK ? '#FF5A4A' : xx < CHAOS.GIFT ? '#3DD6C6' : '#fff'; c.beginPath(); c.arc(Xr(rr), Y(xx), lastDot ? 8 : 3.5, 0, 7); c.fill(); });
-    c.globalAlpha = 1; c.strokeStyle = '#ffffffcc'; c.lineWidth = 2; c.beginPath(); c.moveTo(Xr(r), 0); c.lineTo(Xr(r), H); c.stroke();
-    c.fillStyle = '#FFE08A'; c.font = '800 24px system-ui'; c.textAlign = 'left'; c.fillText(`${phaseOf(r).toUpperCase()}  ·  r ${r.toFixed(2)}`, 14, 34);
-    c.fillStyle = '#ffffff99'; c.font = '700 14px system-ui'; c.fillText('x → r·x·(1−x)', 14, 56);
+    trail.forEach(([rr, xx], i) => { if (i === trail.length - 1) return; c.globalAlpha = 0.25 + (0.6 * i) / trail.length; c.fillStyle = xx > CHAOS.PEAK ? '#FF5A4A' : xx < CHAOS.GIFT ? '#3DD6C6' : '#fff'; c.beginPath(); c.arc(Xr(rr), Y(xx), 3.5, 0, 7); c.fill(); });
+    c.globalAlpha = 1; c.strokeStyle = '#ffffff66'; c.lineWidth = 2; c.beginPath(); c.moveTo(Xr(r), 0); c.lineTo(Xr(r), H); c.stroke();
+    c.fillStyle = '#FFE08A'; c.font = '800 24px Unbounded, system-ui'; c.textAlign = 'left'; c.fillText(`${phaseOf(r).toUpperCase()}  ·  r ${r.toFixed(2)}`, 14, 34);
+    c.fillStyle = '#ffffff99'; c.font = '700 14px Sora, system-ui'; c.fillText('x → r·x·(1−x)', 14, 56);
     // 🌻 a golden spiral, and 🔺 a Sierpiński triangle, in the corners
     c.strokeStyle = '#F5C542aa'; c.lineWidth = 2; c.beginPath(); for (let th = 0; th <= Math.PI * 4.5; th += 0.1) { const rad = 2.2 * Math.pow(CHAOS.PHI, th / (Math.PI / 2)); const px = W - 74 + Math.cos(th) * rad, py = 64 + Math.sin(th) * rad; if (th === 0) c.moveTo(px, py); else c.lineTo(px, py); } c.stroke();
     c.fillStyle = '#C9FFF888'; c.beginPath(); tri(W - 60, H - 40, 70, 3); c.fill();
+    // the resident rides the curve: the live x is the pal, in the mood the beat put it in
+    if (trail.length) drawPal(pal, c, { x: Xr(r), y: Y(curve.x), s: 15, t: t / 1000, r, mood, mp: mood ? moodT / moodDur : 0, face: 1 });
     requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
@@ -840,7 +852,7 @@ function boxHero(cv) {
 function renderUpStrip(mine, cards, myFleets, atMe) {
   const sec = document.getElementById('upSec'), strip = document.getElementById('upStrip');
   if (!sec) return;
-  document.title = (mine.length ? `(${mine.length}) ` : '') + 'The Box';
+  document.title = (mine.length ? `(${mine.length}) ` : '') + 'r4box';
   sec.hidden = !mine.length;
   if (!mine.length) { strip.innerHTML = ''; return; }
   document.getElementById('upCount').textContent = mine.length;
@@ -1034,7 +1046,7 @@ async function statsView() {
   G = null; setChannel(null); stopShotClock(); danger(false);
   document.getElementById('nextUp')?.remove(); document.body.classList.remove('has-firebar');
   view(`<div class="lobby statsview">
-      <div class="statshead"><a href="#">← The Box</a><h1>🏅 Family scoreboard</h1><p class="muted" id="since">All-time</p></div>
+      <div class="statshead"><a href="#">← r4box</a><h1>🏅 Family scoreboard</h1><p class="muted" id="since">All-time</p></div>
       <div id="statsBody" class="stack" style="gap:18px"><p class="muted">Counting…</p></div>
     </div>`);
   const [{ data, error }, { data: ratings }] = await Promise.all([sb.rpc('family_stats'), sb.rpc('chaos_ratings')]);
@@ -1574,7 +1586,7 @@ function renderGame() {
   const fbPack = deskBar() ? `<span class="fbpack">${backpackBarHTML(G.pack || [], 'battleship', !busy)}</span>` : packMini ? `<div class="fbmini">${packMini}</div>` : '';
   view(`
     <header class="stack">
-      <div class="row between gtop"><button class="link" id="back">← The Box</button>${isPhone() ? `<h1 class="intop">${title}</h1>` : ''}<span class="live" id="live">Live</span></div>
+      <div class="row between gtop"><button class="link" id="back">← r4box</button>${isPhone() ? `<h1 class="intop">${title}</h1>` : ''}<span class="live" id="live">Live</span></div>
       <div id="gtbar">${G.gtHTML || ''}</div>
       ${isPhone() ? '' : `<h1>${title}</h1>`}
       ${sub ? `<p class="muted gsub">${sub}</p>` : ''}

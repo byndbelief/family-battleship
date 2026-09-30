@@ -20,6 +20,8 @@
 // The host an organ gets: { cv, ctx, W, H, k, dpr, reduceMotion, S, banner, add, hurt, heal, over, sfx, ui, morphs }
 import { sb, me, signedIn, sfx, setGameTools, esc, names } from './common.js';
 import { makeCurve, stepCurve, drawMeter, meterText, NEWS, tally, ratingLine } from './chaos.js';
+import { palWidget } from './pals.js';
+import { resident, residentNow } from './studio.js';
 
 const SHELL_CSS = `
   .shud{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:flex-start;padding:8px 10px;pointer-events:none;font-weight:900;text-shadow:0 2px 4px #000c}
@@ -29,6 +31,7 @@ const SHELL_CSS = `
   .shud .hearts{font-size:14px;letter-spacing:1px}
   .chaosm{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
   .chaosm canvas{width:92px;height:34px;background:#0008;border-radius:8px}
+  .spal{position:absolute;left:6px;bottom:62px;width:72px;height:72px;pointer-events:none;filter:drop-shadow(0 4px 8px #000a)}
   .verb{position:absolute;left:10px;bottom:10px;display:flex;flex-direction:column;gap:4px;pointer-events:none;font-size:12px;font-weight:900;text-shadow:0 2px 4px #000c}
   .verb b{display:inline-block;padding:4px 9px;border-radius:99px;background:#0009;border:1px solid #ffffff33;color:#fff}
   .verb b.next{color:var(--gold,#F5C542);border-color:var(--gold,#F5C542);animation:vpulse 1s infinite alternate}
@@ -65,6 +68,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
       <div><div class="score" id="score">0</div><div class="hearts" id="hearts">❤️❤️❤️</div><div class="combo" id="combo"></div><div class="lvl" id="lvl"></div></div>
       <div class="chaosm"><canvas id="meter" width="184" height="68" aria-hidden="true"></canvas><span id="phase">calm</span></div>
     </div>
+    <canvas class="spal" id="spal" width="144" height="144" aria-hidden="true" hidden></canvas>
     <div class="verb" id="verb" hidden></div>
     <div class="oui" id="oui"></div>
     <div class="sbanner" id="banner" hidden></div>
@@ -73,11 +77,13 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   // ---------------------------------------------------------------- shared state
   const S = { score: 0, hearts: 3, combo: 0, comboT: 0, tally: {}, curve: makeCurve(), beatT: 0, beats: 0, over: false, how: null, time: 0, morphs: 0 };
   let active = null, prev = null, transition = null, tenure = 0, lastUsed = new Map(), running = false;
+  // 🎨 the resident pal sits in the corner and feels every beat (pals.js; who it is: the Design Studio)
+  const pal = palWidget($('spal'), { pal: residentNow(), s: 22, own: false, dpr: 2 }); resident().then((k) => pal.set({ pal: k }));
   const host = {
     cv, ctx, W, H: 640, k: 1, dpr: 1, reduceMotion, S, sfx, morphs,
     banner, add: (pts) => { S.score += Math.max(0, Math.round(pts)); },
     heal: (n = 1) => { S.hearts = Math.min(3, S.hearts + n); },
-    hurt: (how) => { S.hearts -= 1; S.combo = 0; S.comboT = 0; if (S.hearts <= 0) { over(how); return true; } return false; },
+    hurt: (how) => { S.hearts -= 1; S.combo = 0; S.comboT = 0; pal.hurt(); if (S.hearts <= 0) { over(how); return true; } return false; },
     over, ui: (html) => { $('oui').innerHTML = html || ''; return $('oui'); },
     organ: () => active?.key, activeBeat: () => active?.beat || 1,
   };
@@ -116,6 +122,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   // ---------------------------------------------------------------- the beat and the morphs
   function beat() {
     const ev = stepCurve(S.curve); S.beats += 1; tenure += 1; tally(ev, S.tally);
+    pal.set({ r: S.curve.r }); pal.react(ev);
     ev.crossed.forEach((p) => banner(p.name, p.say));
     if (ev.enteredWindow) banner(...NEWS.window);
     if (ev.mirror) banner(...NEWS.mirror);
@@ -169,11 +176,11 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     tenure = 0; prev = null; transition = null; lastUsed = new Map();
     organs.forEach((o) => o.start());
     active = organs[Math.floor(Math.random() * organs.length)]; active.enter(null, null); applyTheme();
-    $('over').hidden = true; running = true; sfx('click');
+    $('over').hidden = true; running = true; sfx('click'); pal.wake(); pal.set({ r: S.curve.r }); $('spal').hidden = false;
     banner(`${active.icon} ${active.name.toUpperCase()}`, morphs ? `${active.verb} · the curve will morph the world` : active.verb);
   }
   async function over(how) {
-    if (S.over) return; S.over = true; S.how = how; running = false; $('verb').hidden = true; host.ui('');
+    if (S.over) return; S.over = true; S.how = how; running = false; $('verb').hidden = true; host.ui(''); pal.sleep();
     const [t1, sub] = active.overText?.(how) || ['GAME OVER', ''];
     sfx(how === 'sleeps' ? 'fanfare' : 'lose');
     showOver(`<h2 style="color:#FF9A8A">${esc(t1)}</h2>${sub ? `<p class="muted small">${esc(sub)}</p>` : ''}<h2>${icon} ${S.score.toLocaleString()} points</h2><p class="muted small">saving…</p>`);

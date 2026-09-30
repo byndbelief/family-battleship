@@ -5,15 +5,15 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Game Room">
-  <title>Chaos Run · The Box</title>
+  <meta name="apple-mobile-web-app-title" content="r4box">
+  <title>Chaos Run · r4box</title>
   <meta name="theme-color" content="#0E0A1E">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Nunito:wght@600;800;900&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700;800&family=Sora:wght@400;600;800&display=swap">
   <style>
   /* The run wears whichever organ is live: the stage's --bg and --gold follow it (shell.js applyTheme). */
   :root{color-scheme:dark;--bg:#0E0A1E;--panel:#1A1433;--line:#3E3480;--ink:#F3F1FF;--muted:#BDB6E6;--gold:#F5C542;--bannerc:#FFE08A;
@@ -35,10 +35,11 @@
   #play.fs-on{position:fixed;inset:0;z-index:60;background:var(--bg);padding:0}
   #play.fs-on .stage{border-radius:0;height:100%}
   </style>
+  <link rel="stylesheet" href="theme.css">
 </head>
 <body>
 <div class="wrap">
-  <nav class="topnav gtop"><a href="./">← The Box</a><h1 class="intop">🧬 Chaos Run</h1></nav>
+  <nav class="topnav gtop"><a href="./">← r4box</a><h1 class="intop">🧬 Chaos Run</h1></nav>
   <section id="play"><div class="stage" id="stage"><canvas id="cv" aria-label="The run: worlds that morph into each other as the chaos curve says"></canvas></div></section>
 </div>
 <script type="module">
