@@ -637,3 +637,18 @@ img.hnav { object-fit: cover; background: #000; }
 .botstep b { min-width: 20px; text-align: center; font-variant-numeric: tabular-nums; }
 .botstep[hidden] { display: none; }
 
+
+/* 🌀 The Box on the wall: the lobby's hero (boxHero in app.js) and the Practice fold. */
+.boxhero { display: flex; flex-direction: column; gap: 10px; }
+.boxhero canvas { width: 100%; height: auto; aspect-ratio: 12 / 5; border-radius: 14px; background: #0B0918; display: block; box-shadow: inset 0 0 0 1px #ffffff14; }
+.boxwords h2 { color: #FFD77A; font-size: 26px; margin: 4px 0 0; }
+.boxwords p { color: #F3D9A6; margin: 4px 0 10px; }
+.enter { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 10px 22px; border-radius: 14px; background: #FFC857; color: #2A1600; font-weight: 900; font-size: 18px; text-decoration: none; box-shadow: 0 6px 18px #0006; }
+.enter.alt { background: #0000004d; color: #FFE7B0; border: 1.5px solid #FFC85799; font-size: 16px; }
+.enter:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+.practice > summary { list-style: none; cursor: pointer; }
+.practice > summary::-webkit-details-marker { display: none; }
+.practice[open] > summary .qgo { transform: rotate(90deg); }
+.practice .quickentry + .quickentry, .practice > summary + .quickentry { margin-top: 8px; }
+.practice[open] > .quickentry { margin-left: 14px; }
+@media (min-width: 1000px) { .lobby.lobhome .boxhero canvas { max-height: 320px; } }

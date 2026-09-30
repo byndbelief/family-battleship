@@ -1,6 +1,6 @@
 import { USERNAME_DOMAIN } from './config.js';
-import { rankOf, RANK_ICON, WEIGHTS } from './chaos.js';   // 🌀 the box
-import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence, jumpToNext, startOnline, online, agoText, setGameTools, themeTiles, forgetThemes, golfTheme, liveCountdown, overlayHost } from './common.js';
+import { rankOf, RANK_ICON, WEIGHTS, CHAOS, phaseOf } from './chaos.js';   // 🌀 the box
+import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence, jumpToNext, startOnline, online, agoText, setGameTools, themeTiles, forgetThemes, golfTheme, liveCountdown, overlayHost, bifurcation } from './common.js';
 import { holeName, holeWithAttack, holeWithTwists, drawHole, LW, LH, setCourse, setGolfTheme } from './golf-engine.js';
 import { THEMES, themeOf, vesselSVG } from './bs-themes.js';
 import { W as DW, H as DH, startXs, buildTop, setWorld, setTerrain } from './duel-engine.js';
@@ -388,14 +388,19 @@ async function lobby() {
   queueMicrotask(renderHere);
   view(`
     <div class="lobby${quick ? ' quickmode' : ' lobhome'}">
-      <div class="quickhead"><a href="#">← Game Room</a><h1>Quick play</h1><p class="muted">One game on its own, off the Route to Chaos. One of each kind per group of players at a time.</p></div>
+      <div class="quickhead"><a href="#">← Game Room</a><h1>Practice</h1><p class="muted">One game on its own, off the Route to Chaos. One of each kind per group of players at a time. It still counts toward your chaos rating.</p></div>
       <header class="row between gtop">
         <div class="stack lobhead"><span class="eyebrow">Family Game Room</span><h1>Ahoy, ${esc(me.username)}</h1></div>
         <div class="herenow" id="hereNow" aria-label="Who's here"></div>
       </header>
       <div class="lobmain">
       <section class="gthero" id="gtSec">
-        <div class="gthead"><span class="gtcup" aria-hidden="true">🌀</span><div><h2>Route to Chaos</h2><p class="small">One running Chaos per rival: surprise rounds of putts, duels, sea battles and cards, wilder as it goes. Win the most rounds for the crown, and the next Chaos starts on its own.</p></div></div>
+        <div class="boxhero">
+          <canvas id="boxHero" aria-label="The Box: the chaos curve's bifurcation diagram, with a live x walking it as r climbs"></canvas>
+          <div class="boxwords"><span class="eyebrow">The Box · chaos · symmetry · fractals · fibonacci</span><h2>Route to Chaos</h2>
+            <p class="small">Every game here runs on one curve, x → r·x·(1−x). A Chaos is rounds of the games against your rivals, wilder as r climbs; win the most rounds for the crown, and the next Chaos starts on its own. The games are won by playing Chaos.</p>
+            <div class="row" style="gap:10px;flex-wrap:wrap"><a class="enter" id="enterChaos" href="#start">Enter Chaos 🌀</a><a class="enter alt" href="run.html">🧬 Solo run</a></div></div>
+        </div>
         <details class="gtfold" id="gtFold"><summary class="gtlabel" id="gtLabel">➕ Start a rivalry</summary>
         <form class="gtstart" id="gtStart">
           <div class="choice">${others.map(([id, u]) => `<button type="button" class="chip" data-gopp="${esc(u)}" data-gid="${id}" aria-pressed="false" ${bots.has(id) ? 'data-bot hidden' : ''}>${esc(u)}</button>`).join('')}<span class="botstep" data-botstep="g" role="group" aria-label="How many robots"><span>🤖 Robots</span><button type="button" data-bs="-1" aria-label="One robot fewer">−</button><b aria-live="polite">0</b><button type="button" data-bs="1" aria-label="One more robot">+</button></span></div>
@@ -444,10 +449,11 @@ async function lobby() {
       </div>
       <div class="lobside">
       <a class="quickentry" href="#stats"><span class="qicons" aria-hidden="true">🏅</span><span><strong>Family scoreboard</strong><span class="muted small">All-time titles, wins, streaks and bragging rights</span></span><span class="qgo" aria-hidden="true">›</span></a>
-      <a class="quickentry" href="#quick"><span class="qicons" aria-hidden="true">⚓⛳💥</span><span><strong>Quick play</strong><span class="muted small">Battleship, Putt Post or Hilltop Duel on its own</span></span><span class="qgo" aria-hidden="true">›</span></a>
-      <a class="quickentry" href="squirrel.html"><span class="qicons" aria-hidden="true">🐿️📎🌀</span><span><strong>Squirrel Chaos</strong><span class="muted small">Solo arcade: staple the squirrels in a fractal forest before the chaos swarms</span></span><span class="qgo" aria-hidden="true">›</span></a>
-      <a class="quickentry" href="run.html"><span class="qicons" aria-hidden="true">🧬🌀</span><span><strong>Chaos Run</strong><span class="muted small">One run, many worlds: the curve morphs one game into the next</span></span><span class="qgo" aria-hidden="true">›</span></a>
-      <a class="quickentry" href="fractal.html"><span class="qicons" aria-hidden="true">🔺✨🌀</span><span><strong>Fractal Dash</strong><span class="muted small">Solo dash: jump and dash over a fractal ridge as the chaos curve climbs</span></span><span class="qgo" aria-hidden="true">›</span></a>
+      <details class="practice"><summary class="quickentry"><span class="qicons" aria-hidden="true">🎯</span><span><strong>Practice</strong><span class="muted small">One game on its own, off the Route to Chaos: it still feeds your chaos rating</span></span><span class="qgo" aria-hidden="true">›</span></summary>
+        <a class="quickentry" href="#quick"><span class="qicons" aria-hidden="true">⚓⛳💥🃏</span><span><strong>A game against someone</strong><span class="muted small">Battleship, Putt Post, Hilltop Duel or Chaos Cards</span></span><span class="qgo" aria-hidden="true">›</span></a>
+        <a class="quickentry" href="squirrel.html"><span class="qicons" aria-hidden="true">🐿️📎</span><span><strong>Squirrel Chaos</strong><span class="muted small">Solo: staple the squirrels in a fractal forest before the chaos swarms</span></span><span class="qgo" aria-hidden="true">›</span></a>
+        <a class="quickentry" href="fractal.html"><span class="qicons" aria-hidden="true">🔺✨</span><span><strong>Fractal Dash</strong><span class="muted small">Solo: jump and dash over a fractal ridge as the chaos curve climbs</span></span><span class="qgo" aria-hidden="true">›</span></a>
+      </details>
       <section class="stack">
         <div class="row between"><h2>Your games</h2><span class="row" style="gap:14px"><button type="button" class="link" id="gamesMore" hidden></button><span class="live" id="live">Live</span></span></div>
         <div id="games"><p class="muted">Loading games…</p></div>
@@ -462,6 +468,13 @@ async function lobby() {
       </div>
       </div>
     </div>`);
+  // 🌀 The Box on the wall: the bifurcation diagram with a live x walking it. Enter Chaos goes to your
+  // running Chaos's round when there is one (renderGauntlets sets it), else opens the start form.
+  if (!quick) boxHero(document.getElementById('boxHero'));
+  document.getElementById('enterChaos')?.addEventListener('click', (e) => {
+    const a = e.currentTarget; if (a.dataset.go) return;   // a running Chaos: the link goes to its round
+    e.preventDefault(); const fold = document.getElementById('gtFold'); fold.open = true; fold.scrollIntoView({ behavior: 'smooth', block: 'center' }); fold.querySelector('.chip:not([hidden])')?.focus();
+  });
   // Start a Gauntlet: pick 1-5 opponents and a length, go.
   const gchips = [...app.querySelectorAll('[data-gopp]')], gtGo = document.getElementById('gtGo');
   const gPicked = () => gchips.filter((c) => c.getAttribute('aria-pressed') === 'true');
@@ -785,9 +798,42 @@ addEventListener('online', paintUpLive);
 const groupKey = (players) => [...players].sort().join(',');
 let rivalGroups = new Set();
 function renderGauntlets(all) {
-  rivalGroups = new Set(all.filter((g) => g.status !== 'over').map((g) => groupKey(g.players)));
-  const fold = document.getElementById('gtFold');
-  if (fold) fold.open = true;
+  const live = all.filter((g) => g.status !== 'over');
+  rivalGroups = new Set(live.map((g) => groupKey(g.players)));
+  const fold = document.getElementById('gtFold'), btn = document.getElementById('enterChaos');
+  const mine = live.filter((g) => g.players.includes(me.id)).sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1))[0];
+  if (fold) fold.open = !mine;
+  if (btn) {
+    if (mine) { btn.dataset.go = '1'; btn.href = mine.current_kind === 'battleship' ? `#game=${mine.current_game}` : `${mine.current_kind}.html#game=${mine.current_game}`; btn.textContent = `Go to your Chaos › round ${mine.round} of ${mine.rounds}`; }
+    else { delete btn.dataset.go; btn.href = '#start'; btn.textContent = 'Enter Chaos 🌀'; }
+  }
+}
+// The Box, animated: the bifurcation diagram, a beat every quarter second walking x along the curve
+// as r climbs 2.9 → 4 and starts over, the window band, the golden cut, a golden spiral, a Sierpiński.
+function boxHero(cv) {
+  if (!cv) return;
+  const W = 720, H = 300; cv.width = W; cv.height = H; const c = cv.getContext('2d'), r0 = 2.8, r1 = 4;
+  const bif = bifurcation(W, H, r0, r1), Y = (v) => (1 - v) * (H - 1), Xr = (r) => ((r - r0) / (r1 - r0)) * (W - 1);
+  let x = 0.31, r = 2.9, acc = 0, last = 0, trail = [], n = 0;
+  const tri = (px, py, s, d) => { if (!d) { c.moveTo(px, py - s * 0.577); c.lineTo(px + s / 2, py + s * 0.289); c.lineTo(px - s / 2, py + s * 0.289); c.closePath(); return; } tri(px, py - s * 0.289, s / 2, d - 1); tri(px - s / 4, py + s * 0.144, s / 2, d - 1); tri(px + s / 4, py + s * 0.144, s / 2, d - 1); };
+  const step = (t) => {
+    if (!cv.isConnected) return;
+    const dt = last ? Math.min(0.1, (t - last) / 1000) : 0; last = t; acc += dt;
+    while (acc >= 0.25) { acc -= 0.25; n += 1; r = 2.9 + 0.02 * n; if (r > 4) { n = 0; r = 2.9; trail = []; x = 0.05 + Math.random() * 0.9; } x = r * x * (1 - x); if (x < 1e-6 || x > 1 - 1e-6) x = 0.5; trail.push([r, x]); if (trail.length > 70) trail.shift(); }
+    c.clearRect(0, 0, W, H); c.drawImage(bif, 0, 0);
+    c.fillStyle = '#C9B8FF22'; c.fillRect(Xr(CHAOS.WINDOW[0]), 0, Math.max(3, Xr(CHAOS.WINDOW[1]) - Xr(CHAOS.WINDOW[0])), H);
+    c.strokeStyle = '#FF5A4A66'; c.setLineDash([8, 6]); c.lineWidth = 2; c.beginPath(); c.moveTo(0, Y(CHAOS.PEAK)); c.lineTo(W, Y(CHAOS.PEAK)); c.stroke();
+    c.strokeStyle = '#F5C54266'; c.setLineDash([3, 7]); c.beginPath(); c.moveTo(0, Y(CHAOS.CUT)); c.lineTo(W, Y(CHAOS.CUT)); c.stroke(); c.setLineDash([]);
+    trail.forEach(([rr, xx], i) => { const lastDot = i === trail.length - 1; c.globalAlpha = lastDot ? 1 : 0.25 + (0.6 * i) / trail.length; c.fillStyle = xx > CHAOS.PEAK ? '#FF5A4A' : xx < CHAOS.GIFT ? '#3DD6C6' : '#fff'; c.beginPath(); c.arc(Xr(rr), Y(xx), lastDot ? 8 : 3.5, 0, 7); c.fill(); });
+    c.globalAlpha = 1; c.strokeStyle = '#ffffffcc'; c.lineWidth = 2; c.beginPath(); c.moveTo(Xr(r), 0); c.lineTo(Xr(r), H); c.stroke();
+    c.fillStyle = '#FFE08A'; c.font = '800 24px system-ui'; c.textAlign = 'left'; c.fillText(`${phaseOf(r).toUpperCase()}  ·  r ${r.toFixed(2)}`, 14, 34);
+    c.fillStyle = '#ffffff99'; c.font = '700 14px system-ui'; c.fillText('x → r·x·(1−x)', 14, 56);
+    // 🌻 a golden spiral, and 🔺 a Sierpiński triangle, in the corners
+    c.strokeStyle = '#F5C542aa'; c.lineWidth = 2; c.beginPath(); for (let th = 0; th <= Math.PI * 4.5; th += 0.1) { const rad = 2.2 * Math.pow(CHAOS.PHI, th / (Math.PI / 2)); const px = W - 74 + Math.cos(th) * rad, py = 64 + Math.sin(th) * rad; if (th === 0) c.moveTo(px, py); else c.lineTo(px, py); } c.stroke();
+    c.fillStyle = '#C9FFF888'; c.beginPath(); tri(W - 60, H - 40, 70, 3); c.fill();
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 
 // The Your move strip: one big card per game waiting on you, swipe (or ‹ ›) through them.

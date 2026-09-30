@@ -727,6 +727,16 @@ trophies "Chaos". Code, tables and RPCs keep the gauntlet names. The rounds walk
 `_chaos_curve` starts a round's game at n = (round − 1)·6, so round 1 is calm (r 2.90) and round 4 on
 opens in chaos. The server's messages (round news, champion, call-off, chaos-clock forfeits) say Chaos.
 
+### The Box on the wall: the home screen leads with Chaos (page only)
+The lobby's Route to Chaos card opens with `#boxHero` (`boxHero()` in app.js: the bifurcation diagram
+from `bifurcation()` (now exported from common.js) with a live x walking it a beat every 0.25 s as r
+climbs 2.9 → 4 and starts over, the window band, the peak and golden-cut lines, a golden spiral and a
+Sierpiński) and two buttons: **Enter Chaos 🌀** (`#enterChaos`: a running Chaos of yours → its round,
+set by `renderGauntlets`; else it opens the start form) and **🧬 Solo run** (run.html). The start form
+folds when you have a Chaos running. Quick play is now **Practice** (`details.practice` in the side,
+folded: a game against someone (#quick), Squirrel Chaos, Fractal Dash); the smoke test opens the fold
+first. The games are won by playing Chaos; Practice still feeds the chaos rating.
+
 ### 🧬 The shell, the organs and the Chaos Run (072)
 `web/shell.js` (`runShell({ organs, key, title, icon, intro, again })`) is the body every solo game wears;
 `web/organs/squirrel.js` and `web/organs/fractal.js` are the games as organs (the old `web/squirrel.js`

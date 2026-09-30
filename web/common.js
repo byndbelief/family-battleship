@@ -521,7 +521,7 @@ function drawCurveBtn() {
   pts.forEach((v, i) => { c.fillStyle = v > CURVE_T ? '#FF5A4A' : '#fff'; c.beginPath(); c.arc(X(i), Y(v), i === pts.length - 1 ? 5 : 3, 0, 7); c.fill(); });
 }
 let bifImg = null;
-function bifurcation(W, H, r0, r1) {   // drawn once: 1200 r's, 160 settled x's each
+export function bifurcation(W, H, r0, r1) {   // drawn once: 1200 r's, 160 settled x's each
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const c = cv.getContext('2d'), img = c.createImageData(W, H), d = img.data;
   for (let px = 0; px < W; px++) {
