@@ -3,6 +3,7 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
 import { SUPABASE_URL, SUPABASE_ANON_KEY, VAPID_PUBLIC_KEY } from './config.js';
 import { sfx, isMuted, setMuted } from './sfx.js';
+import { CHAOS } from './chaos.js';   // 🌀 the box: CHAOS.md
 export { sfx };
 import { THEMES, vesselSVG } from './bs-themes.js';
 
@@ -487,7 +488,7 @@ function showNews(fresh = false) {
 // move twists when x lands above 0.75. The 🌀 button draws x's recent values; tapped, it shows the
 // bifurcation diagram (itself a fractal: every split repeats the whole in miniature) with this game's r.
 let curve = null, curveKey = '', curveAt = 0;
-const CURVE_T = 0.75;
+const CURVE_T = CHAOS.PEAK;
 const curvePhase = (r) => (r < 3 ? ['Calm', 'x settles on one value below the line, so no twists yet']
   : r < 3.449 ? ['A rhythm of 2', 'x flips between two values: a twist every other move']
   : r < 3.544 ? ['A rhythm of 4', 'the curve split again: twists in a four-move beat']
@@ -541,10 +542,11 @@ function drawCurveBox() {
   const Y = (v) => (1 - v) * (H - 1), Xr = (r) => ((r - r0) / (r1 - r0)) * (W - 1);
   c.strokeStyle = '#FF5A4Acc'; c.lineWidth = 2; c.setLineDash([8, 6]); c.beginPath(); c.moveTo(0, Y(CURVE_T)); c.lineTo(W, Y(CURVE_T)); c.stroke(); c.setLineDash([]);
   c.fillStyle = '#FF5A4A'; c.font = '800 20px system-ui'; c.fillText('twist', 8, Y(CURVE_T) - 8);
+  c.fillStyle = '#C9B8FF33'; c.fillRect(Xr(CHAOS.WINDOW[0]), 0, Math.max(3, Xr(CHAOS.WINDOW[1]) - Xr(CHAOS.WINDOW[0])), H); c.fillStyle = '#C9B8FF'; c.font = '700 16px system-ui'; c.fillText('window ×3', Xr(CHAOS.WINDOW[0]) - 40, 22);   // 🔁 the period-3 window (the box)
   c.fillStyle = '#ffffff99'; c.font = '700 18px system-ui'; ['3', '3.449', '3.57', '4'].forEach((t) => { const x = Xr(+t); c.fillRect(x, H - 14, 2, 14); c.fillText(t === '3.57' ? 'chaos' : t, Math.min(W - 60, x + 5), H - 4); });
   // this game: r now, and x's last moves (older ones at the r they had then)
   const hist = curve.hist || [], n = curve.n;
-  hist.forEach((v, i) => { const r = Math.min(4, 2.9 + 0.04 * (n - hist.length + 1 + i)), last = i === hist.length - 1;
+  hist.forEach((v, i) => { const r = Math.min(CHAOS.RMAX, CHAOS.R0 + CHAOS.DR * (n - hist.length + 1 + i)), last = i === hist.length - 1;
     c.fillStyle = v > CURVE_T ? '#FF5A4A' : '#3DD6C6'; c.globalAlpha = last ? 1 : 0.35 + (0.5 * i) / hist.length; c.beginPath(); c.arc(Xr(r), Y(v), last ? 9 : 5, 0, 7); c.fill(); });
   c.globalAlpha = 1; c.strokeStyle = '#fff'; c.lineWidth = 2; c.beginPath(); c.moveTo(Xr(curve.r), 0); c.lineTo(Xr(curve.r), H); c.stroke();
 }
@@ -554,7 +556,7 @@ function toggleCurve() {
   const box = document.createElement('div'); box.id = 'curveBox'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-label', 'The chaos curve');
   box.innerHTML = `<h3>🌀 x → r·x·(1−x)</h3><p><span class="ph"></span>: <span class="say"></span>.</p>
     <canvas width="720" height="360" aria-label="The bifurcation diagram of the logistic map, with this game's place on it"></canvas>
-    <p class="num"></p><p class="small" style="font-size:12px;opacity:.7">Each move r climbs a little (2.9 → 4) and x takes one step. A move twists when x lands above the red line. The picture is every value x settles into for each r: watch it split in two, then four, then shatter, and zoom in anywhere in the mess to find the whole picture again.</p>`;
+    <p class="num"></p><p class="small" style="font-size:12px;opacity:.7">Each move r climbs a little (2.9 → 4) and x takes one step. A move twists when x lands above the red line, except in the violet window, where the chaos runs in threes. A move that lands on the mirror of the last (x ≈ 1 − x before) is ✨ symmetry: a drop. The picture is every value x settles into for each r: watch it split in two, then four, then shatter, and zoom in anywhere in the mess to find the whole picture again.</p>`;
   (document.querySelector('.fs-on') || document.body).appendChild(box);
   curveAt = 0; curveFor(toolsOpts?.chaos); drawCurveBox();
   const close = (ev) => { if (!box.contains(ev.target) && !ev.target.closest?.('.chaos')) { box.remove(); document.removeEventListener('pointerdown', close, true); } };

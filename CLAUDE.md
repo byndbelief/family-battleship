@@ -727,6 +727,20 @@ trophies "Chaos". Code, tables and RPCs keep the gauntlet names. The rounds walk
 `_chaos_curve` starts a round's game at n = (round − 1)·6, so round 1 is calm (r 2.90) and round 4 on
 opens in chaos. The server's messages (round news, champion, call-off, chaos-clock forfeits) say Chaos.
 
+### 🌀 THE BOX: the chaos standard (068, `CHAOS.md`, `web/chaos.js`)
+Read `CHAOS.md` before touching chaos in any game or writing a new one. One curve (r 2.9 → 4 by 0.04
+a beat; a beat = a move, or a solo game's tick), the same phase names and words, and seven events every
+game maps: peak (x > 0.75), big (> 0.93, a named twist), gold (> 0.97), gift (< 0.25), ✨ mirror
+(|x − (1 − x_prev)| < 0.02: f(x) = f(1−x)), ⚖️ balance (|x − (1 − 1/r)| < 0.01), 🔁 window (beats 24–26 as r
+passes 1 + √8: no twists, threes). `web/chaos.js` exports `CHAOS`, `makeCurve(n0, x0)`, `stepCurve(c)` →
+the events + `crossed` phases, `drawMeter`, `meterText`, `NEWS`; Squirrel Chaos and Fractal Dash use it
+(no local chaos numbers left; the mirror pays a crate + 250 / a heart or 300, the balance reloads +
+heals / fills the dash, the window spawns threes). The server's `_chaos_curve` (068) is the same curve
+for the multiplayer games: no twist in the window, the window and r = 4 announced, and `_chaos_mirror`
+in `_chaos_after_move` gives the mover a `_chaos_drop` on a mirror move. common.js takes `CURVE_T` and
+the bifurcation picture's r from `CHAOS`, and paints the window band. Test: scratch t_chaosbox (page vs
+server from one x0: first 10 steps within float32, same twists, the window on both, the phases in order).
+
 ### 🐿️ Squirrel Chaos: the dark side (page only)
 Four days now (`LEVELS = 4`; levels are "Day n"; `dark()` = (level−1)/3). Each day: the sky drains
 toward red-black (`draw`'s sky lerp + a tint over the forest + a red vignette from day 2), 👀 eyes blink

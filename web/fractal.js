@@ -6,6 +6,7 @@
 // Every 25 s the world zooms into a copy of itself, a depth deeper: faster, rougher, another colour.
 // Everything is played on this page; the score is saved with solo_submit (063, 066).
 import { sb, me, signedIn, sfx, setGameTools, esc, names } from './common.js';
+import { makeCurve, stepCurve, drawMeter, meterText, NEWS, phaseOf } from './chaos.js';   // 🌀 the box: CHAOS.md
 
 const $ = (id) => document.getElementById(id);
 const cv = $('fd'), ctx = cv.getContext('2d'), stage = $('stage');
@@ -54,32 +55,30 @@ function newGame() {
   game = { seed: Math.floor(Math.random() * 1e6), cam: 0, speed: 175, time: 0, dive: null, over: false, ko: false,
     py: 0, vy: 0, onGround: true, jumps: 0, dash: DASH_MAX, dashing: false, inv: 0,
     score: 0, dist: 0, shards: 0, combo: 0, comboT: 0, hearts: 3,
-    obs: [], parts: [], twist: null, twistAt: -9, dark: 0, curve: { x: 0.05 + Math.random() * 0.9, r: 2.85, n: 0, hist: [], beatT: 0 }, phase: 'calm', shake: 0, fog: 0 };
+    obs: [], parts: [], twist: null, twistAt: -9, dark: 0, curve: Object.assign(makeCurve(), { beatT: 0 }), phase: 'calm', shake: 0, fog: 0 };
   game.py = groundY(PX) - R;
   hud(); banner('FRACTAL DASH', 'tap to jump · hold to dash');
 }
-const phaseOf = (r) => (r < 3 ? 'calm' : r < 3.449 ? 'rhythm ×2' : r < 3.5699 ? 'rhythm ×4…' : 'CHAOS');
-// One beat of the chaos curve: r climbs, x hops, and what x lands on decides what's coming up the road.
+// One beat of the chaos curve (the box, CHAOS.md): what x lands on decides what's coming up the road.
 function chaosStep() {
-  const c = game.curve, r0 = c.r, x0 = c.x;
-  c.n += 1; c.r = Math.min(4, 2.85 + 0.03 * c.n);
-  c.x = c.r * c.x * (1 - c.x); if (c.x <= 1e-6 || c.x >= 1 - 1e-6) c.x = 0.5 + (Math.random() - 0.5) * 1e-3;
-  c.hist.push(c.x); if (c.hist.length > 24) c.hist.shift();
-  const ph = phaseOf(c.r);
-  if (ph !== game.phase) { game.phase = ph; banner(ph === 'CHAOS' ? 'CHAOS' : ph.toUpperCase(), ph === 'CHAOS' ? 'no rhythm left: anything can happen' : ph === 'calm' ? '' : 'the curve split: x → r·x·(1−x)'); sfx(ph === 'CHAOS' ? 'stinger' : 'tick'); }
-  // What comes: a peak (x > 0.75) is spikes, a big hop of x is a chasm as wide as the hop, a trough is
-  // shards. Calm (x settled, no hops) is a warm-up with a few shards; a rhythm is an obstacle a beat.
-  const ahead = game.cam + W + 60, x = c.x, d = Math.abs(x - x0);
-  if (x > 0.7) {
+  const ev = stepCurve(game.curve), c = game.curve, x = ev.x, d = ev.hop;
+  ev.crossed.forEach((p) => { game.phase = phaseOf(c.r); banner(p.name, p.say); sfx(p.name === 'CHAOS' ? 'stinger' : 'tick'); });
+  if (ev.enteredWindow) banner(...NEWS.window);
+  // What comes: a peak is spikes (with a chasm behind them deeper down), a big hop of x is a chasm as
+  // wide as the hop, a trough is shards. In the window everything comes in threes and nothing twists.
+  const ahead = game.cam + W + 60;
+  if (ev.window) { for (let i = 0; i < 3; i++) game.obs.push({ type: 'shard', x: ahead + i * 26, lift: 60 + i * 10, t: i }); if (c.n % 3 === 0) game.obs.push({ type: 'spike', x: ahead + 100, n: 3 }); }
+  else if (x > 0.7) {
     const n = 1 + Math.floor((x - 0.7) * 16); game.obs.push({ type: 'spike', x: ahead, n });
     if (x > 0.9 && depth >= 2) game.obs.push({ type: 'gap', x: ahead + n * 14 + 30, w: 50 + depth * 10 });   // deeper down, a chasm right behind the spikes
   }
   else if (d > 0.07) { const w = Math.min(170 + depth * 10, 50 + Math.floor(d * 170) + depth * 12); game.obs.push({ type: 'gap', x: ahead, w }); if (depth >= 3 && x > 0.5) game.obs.push({ type: 'spike', x: ahead + w + 26, n: 2 }); }
   else if (x < 0.35 || c.n % 3 === 0) { const n = 3 + Math.floor(Math.max(0, 0.35 - x) * 12); for (let i = 0; i < n; i++) game.obs.push({ type: 'shard', x: ahead + i * 22, lift: 40 + Math.sin(i / (n - 1) * Math.PI) * 70, t: i }); }
-  // A twist at the curve's peaks: from the rhythm of 4 on, and often once it's chaotic.
-  const peak = c.r >= 3.5699 ? 0.88 : 0.95;
-  if (x > peak && c.r >= 3.449 && !game.twist && game.time - (game.twistAt || -9) > 2.5) twist();
-  if (r0 < 4 && c.r >= 4) banner('r = 4', 'the top of the curve: full chaos');
+  // ✨ Symmetry in chaos: the mirror heals (or pays), the balance fills the dash.
+  if (ev.mirror) { banner(...NEWS.mirror); if (game.hearts < 3) game.hearts += 1; else game.shards += 300; for (let i = 0; i < 14; i++) game.parts.push({ x: game.cam + PX, y: game.py, vx: (Math.random() - 0.5) * 260, vy: (Math.random() - 0.8) * 260, t: 0, life: 0.6, c: '#C9B8FF' }); sfx('chime'); }
+  if (ev.balance) { banner(...NEWS.balance); game.dash = DASH_MAX; sfx('chime'); }
+  // A twist at the curve's peaks, from the rhythm of 4 on (never in the window).
+  if (ev.big && c.r >= 3.449 && !game.twist && game.time - (game.twistAt || -9) > 2.5) twist();
 }
 const TWISTS = [
   { k: 'gust', name: '💨 TAILWIND', sub: 'twice the speed for a few seconds', dur: 4 },
@@ -290,20 +289,16 @@ function draw(t) {
 }
 
 // ---------------------------------------------------------------- HUD, banners, panels
-const meter = $('meter'), mc = meter.getContext('2d');
+const meter = $('meter');
 function hud() {
   const g = game;
   $('score').textContent = g.score.toLocaleString();
   const hearts = '❤️'.repeat(Math.max(0, g.hearts)) + '🖤'.repeat(Math.max(0, 3 - g.hearts)); if ($('hearts').textContent !== hearts) $('hearts').textContent = hearts;
   $('combo').textContent = g.combo > 1 && g.comboT > 0 ? `COMBO ×${g.combo}` : '';
   $('lvl').textContent = `Depth ${depth} · ${Math.floor(g.dist / 10).toLocaleString()} m · ${Math.max(0, Math.ceil(depth * DEPTH_S - g.time))}s to the next dive`;
-  $('phase').textContent = `${phaseOf(g.curve.r)} · r ${g.curve.r.toFixed(2)}`;
+  $('phase').textContent = meterText(g.curve);
   $('dashfill').style.width = `${(g.dash / DASH_MAX) * 100}%`;
-  const hs = g.curve.hist, w = meter.width, h = meter.height;
-  mc.clearRect(0, 0, w, h);
-  mc.strokeStyle = '#FF5A4A99'; mc.setLineDash([5, 5]); mc.lineWidth = 2; mc.beginPath(); mc.moveTo(0, h - 0.75 * h); mc.lineTo(w, h - 0.75 * h); mc.stroke(); mc.setLineDash([]);
-  mc.strokeStyle = g.curve.r >= 3.5699 ? '#FF8A3D' : '#3DD6C6'; mc.lineWidth = 3; mc.beginPath();
-  hs.forEach((v, i) => mc[i ? 'lineTo' : 'moveTo']((i / 23) * (w - 8) + 4, h - 4 - v * (h - 8))); mc.stroke();
+  drawMeter(meter, g.curve);
 }
 let bannerT = null;
 function banner(title, sub) {

@@ -5,6 +5,7 @@
 // Each level ends by diving into the knothole of the middle tree, into a deeper, wilder forest.
 // Everything is played on this page; the score is saved with solo_submit (063).
 import { sb, me, signedIn, sfx, setGameTools, esc, names } from './common.js';
+import { makeCurve, stepCurve, drawMeter, meterText, NEWS, phaseOf } from './chaos.js';   // 🌀 the box: CHAOS.md
 
 const $ = (id) => document.getElementById(id);
 const cv = $('sq'), ctx = cv.getContext('2d'), stage = $('stage');
@@ -74,7 +75,7 @@ function newGame() {
   level = 1;
   forest = grow((Date.now() & 0xffffff) | 1, level);
   game = { score: 0, combo: 0, comboT: 0, ammo: AMMO, reloadT: 0, time: 0, stepT: 0, squirrels: [], staples: [], pins: [], fx: [], stuck: [], leaves: [],
-    curve: { r: 2.85, x: 0.2 + Math.random() * 0.6, n: 0, hist: [] }, twist: null, speed: 1, over: false, dive: null, hits: 0, shots: 0,
+    curve: makeCurve(), twist: null, speed: 1, over: false, dive: null, hits: 0, shots: 0,
     weapon: 'staple', arsenal: {}, hearts: 3, stun: 0, shake: 0, hitstop: 0, acorns: [], crates: [], crateT: 5, bombs: [], bolts: [],
     kept: [], whisperT: 9, glitch: 0, eye: { open: 0, blink: 0, blinkT: 4 }, stare: 0 };
   renderBar();
@@ -84,21 +85,20 @@ function newGame() {
 // ---------------------------------------------------------------- the chaos curve
 // Every 1.2 s the curve takes a step (r climbs 0.03 a step, from 2.85 to 4 by the middle of level 2):
 // the new x decides how many squirrels come, and above 0.93 a twist strikes.
-const phaseOf = (r) => (r < 3 ? 'calm' : r < 3.449 ? 'rhythm ×2' : r < 3.5699 ? 'rhythm ×4…' : 'CHAOS');
 function chaosStep() {
-  const c = game.curve;
-  c.n += 1; const was = c.r; c.r = Math.min(4, 2.85 + 0.03 * c.n);
-  c.x = c.r * c.x * (1 - c.x); if (c.x <= 1e-6 || c.x >= 1 - 1e-6) c.x = 0.5 + (Math.random() - 0.5) * 1e-3;
-  c.hist.push(c.x); if (c.hist.length > 24) c.hist.shift();
-  if (was < 3 && c.r >= 3) banner('RHYTHM ×2', 'the curve split in two');
-  else if (was < 3.449 && c.r >= 3.449) banner('RHYTHM ×4', 'period doubling…');
-  else if (was < 3.5699 && c.r >= 3.5699) banner('CHAOS', 'no rhythm left');
-  const n = c.x > 0.8 ? 3 : c.x > 0.6 ? 2 : c.x > 0.35 ? 1 : 0;
-  for (let i = 0; i < n; i++) spawn();
+  const ev = stepCurve(game.curve), c = game.curve;
+  ev.crossed.forEach((p) => banner(p.name, p.say));
+  if (ev.enteredWindow) banner(...NEWS.window);
+  // How many come: the higher x, the more. In the window they come in threes, little ones.
+  const n = ev.window ? 3 : ev.x > 0.8 ? 3 : ev.x > 0.6 ? 2 : ev.x > 0.35 ? 1 : 0;
+  for (let i = 0; i < n; i++) spawn(ev.window ? 1 : undefined);
   // 😠 They fight back: the wilder the curve, the more acorns come flying at your stapler.
-  if (c.x > 0.55 && game.acorns.length < 2 && Math.random() < 0.1 + 0.07 * level + (c.r >= 3.5699 ? 0.08 : 0)) throwAcorn();
-  if (c.x > 0.97) spawn(1, true);            // ✨ a golden one when x all but touches 1
-  else if (c.x > 0.93 && !game.twist) twist();
+  if (ev.x > 0.55 && !ev.window && game.acorns.length < 2 && Math.random() < 0.1 + 0.07 * level + (c.r >= 3.5699 ? 0.08 : 0)) throwAcorn();
+  // ✨ Symmetry in chaos: the mirror drops a crate and pays; the balance reloads and heals.
+  if (ev.mirror) { banner(...NEWS.mirror); dropCrate(); add(250, { x: W / 2, y: H * 0.42 }, '✨ SYMMETRY +250'); sfx('chime'); }
+  if (ev.balance) { banner(...NEWS.balance); game.ammo = AMMO; game.reloadT = 0; game.hearts = Math.min(3, game.hearts + 1); sfx('chime'); }
+  if (ev.gold) spawn(1, true);            // ✨ a golden one when x all but touches 1
+  else if (ev.big && !game.twist) twist();
 }
 const TWISTS = [
   ['🌪️ GUST', 'staples drift in the wind', 'gust'],
@@ -578,19 +578,15 @@ function drawStapler() {
 }
 
 // ---------------------------------------------------------------- HUD, banners, panels
-const meter = $('meter'), mc = meter.getContext('2d');
+const meter = $('meter');
 function hud() {
   const g = game;
   $('score').textContent = g.glitch > 0 && Math.random() < 0.3 ? String(g.score).replace(/\d/g, () => '▮▯▓▒░'[Math.floor(Math.random() * 5)]) : g.score.toLocaleString();
   const hearts = '❤️'.repeat(Math.max(0, g.hearts)) + '🖤'.repeat(Math.max(0, 3 - g.hearts)); if ($('hearts').textContent !== hearts) $('hearts').textContent = hearts;
   $('combo').textContent = g.combo > 1 && g.comboT > 0 ? `COMBO ×${g.combo}` : '';
   $('lvl').textContent = `Day ${level} of ${LEVELS} · ${Math.max(0, Math.ceil(level * LEVEL_S - g.time))}s${g.kept.length ? ` · 📎 ${g.kept.length} kept` : ''}`;
-  $('phase').textContent = `${phaseOf(g.curve.r)} · r ${g.curve.r.toFixed(2)}`;
-  const hs = g.curve.hist, w = meter.width, h = meter.height;
-  mc.clearRect(0, 0, w, h);
-  mc.strokeStyle = '#FF5A4A99'; mc.setLineDash([5, 5]); mc.lineWidth = 2; mc.beginPath(); mc.moveTo(0, h - 0.93 * h); mc.lineTo(w, h - 0.93 * h); mc.stroke(); mc.setLineDash([]);
-  mc.strokeStyle = g.curve.r >= 3.5699 ? '#FF8A3D' : '#3DD6C6'; mc.lineWidth = 3; mc.beginPath();
-  hs.forEach((v, i) => mc[i ? 'lineTo' : 'moveTo']((i / 23) * (w - 8) + 4, h - 4 - v * (h - 8))); mc.stroke();
+  $('phase').textContent = meterText(g.curve);
+  drawMeter(meter, g.curve);
 }
 let bannerT = null;
 function banner(title, sub) {
