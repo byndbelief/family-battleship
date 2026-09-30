@@ -1,5 +1,5 @@
 // Putt Post, live: turns and scores are saved on the server; putts replay for everyone.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, compactPack, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, dramaOn, face, livePresence, avatarOf, splash, jumpToNext, setGameTools, condenseTop, golfTheme, setGolfThemePref, liveCountdown } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, compactPack, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, dramaOn, face, livePresence, avatarOf, splash, jumpToNext, setGameTools, condenseTop, golfTheme, setGolfThemePref, liveCountdown, srv } from './common.js';
 import {
   BW, BH, LW, LH, COURSE, POWER, LONG, parOf, maxStrokes, setCourse, HOLES, R, CUP_R, tick, q20, q100, ATTACKS, holeWithAttack, holeWithTwists, twistsFor, CHIP_AIR, drawHole,
   inPoly, inRect, segDist, reduceMotion, setGolfTheme, holeName, flowTo,
@@ -31,6 +31,10 @@ let pack = [], magnetOn = false;   // backpack items; Magnet Cup active this hol
 // no cheating), and rivals' balls roll across your screen as ghosts streamed over the live channel.
 let liveOn = false, live = null, ghosts = {}, ballSentAt = 0;
 let liveGo = 0;   // live: putts wait for the countdown's GO (045)
+// Live: the next hole's start, set by the server when the last player finishes the hole before (065),
+// in this device's clock. goAt(): when putting (and the robots' holes) may begin.
+const holeGo = () => (G?.game.hole_go ? Date.parse(G.game.hole_go) - srv.offset : 0);
+const goAt = () => Math.max(liveGo, holeGo());
 
 const n = () => G.game.players.length;
 // Live: have I already played the hole everyone is on?
@@ -429,6 +433,12 @@ async function myTurnLive() {
   flowing = true;
   const { data: atk } = await sb.rpc('golf_my_attack', { p_game: G.game.id });
   curAttack = atk?.type || 0; curAttacker = atk?.attacker || null; attackFrom = 0;
+  // Everyone tees off together (065): the server set this hole's start when the last player finished
+  // the one before; count down to it (live_go answers with it), so nobody gets a head start.
+  if (holeGo() > Date.now() + 400 && n() > 1) {
+    liveGo = holeGo();
+    liveCountdown('golf', G.game.id, [`⛳ HOLE ${curHole() + 1}`, 'Everyone off together']).then((t) => { liveGo = t; });
+  }
   flowing = false;
   startTurn();
   if (!curAttack) $('tip').textContent = `⚔️ Live race! Everyone's on hole ${curHole() + 1} at once. Drag back and let go.`;
@@ -504,8 +514,6 @@ $('skip').onclick = () => { skipReplay = true; $('skip').hidden = true; };
 // ---------------------------------------------------------------- my turn
 async function myTurn() {
   flowing = true;
-  const prev = G.turns.find((x) => x.t === G.game.t - 1);
-  if (n() > 1 && prev && !prev.skipped && prev.player !== me.id && !G.acc.some((a) => a.t === prev.t)) await judge(prev);
   const { data: atk } = await sb.rpc('golf_my_attack', { p_game: G.game.id });
   curAttack = atk?.type || 0; curAttacker = atk?.attacker || null;
   flowing = false;
@@ -513,32 +521,6 @@ async function myTurn() {
 }
 function modal(html) { $('gate').hidden = false; $('gateCard').innerHTML = html; }
 function closeModal() { $('gate').hidden = true; }
-function judge(prev) {
-  return new Promise((resolve) => {
-    mode = 'judge';
-    modal(`<div style="font-size:44px;line-height:1">🔍</div><h2>Did ${who(prev.player)} cheat?</h2>
-      <p class="small muted">Hole ${prev.hole + 1}: they wrote down <strong>${prev.written}</strong>. Watch for a ball that jumps, a missing putt, or a count that doesn't add up.</p>
-      <button class="go" id="accuse">🚨 Call cheater!</button><button id="clean">👍 Looks clean</button><button class="link" id="again">Watch the replay again</button>
-      <p class="small muted">Right: they get +2 and a sneak attack drops into your backpack. Wrong: +1 stroke for you.</p>`);
-    $('again').onclick = async () => { closeModal(); await replayTurn(prev); resolve(judge(prev)); };
-    $('clean').onclick = () => { closeModal(); resolve(); };
-    $('accuse').onclick = async () => {
-      $('accuse').disabled = true;
-      const { data, error } = await sb.rpc('golf_call', { p_game: G.game.id });
-      if (error) { closeModal(); resolve(); return; }
-      nudge();
-      if (data.busted) {
-        bigText('<span class="busted">BUSTED!</span>', 2600); shake(); sfx('buzz');
-        modal(`<h2 style="color:#FF7A6E">🚨 Busted!</h2><p>${who(prev.player)} used ${[1, 2, 4].filter((k) => data.cheats & k).map((k) => CHEAT_NAMES[k]).join(', ')}.</p>
-          <p class="small muted">+${2 + (data.cheats & 4 ? 1 : 0)} strokes for them. A sneak attack dropped into your backpack.</p><button class="go" id="onward">Tee off</button>`);
-      } else {
-        modal(`<h2>😇 False alarm</h2><p>${who(prev.player)} played it straight.</p><p class="small muted">+1 stroke on your hole for the wild accusation.</p><button class="go" id="onward">Tee off</button>`);
-      }
-      await load(G.game.id); renderCard();
-      $('onward').onclick = () => { closeModal(); resolve(); };
-    };
-  });
-}
 function startTurn() {
   magnetOn = false;
   const h = H();
@@ -710,7 +692,7 @@ cv.addEventListener('pointerup', async (e) => {
   putt(a);
 });
 async function putt(a) {
-  if (liveOn && Date.now() < liveGo) { bigText('<span class="small-pop">Wait for GO!</span>', 900); sfx('buzz'); return; }
+  if (liveOn && Date.now() < goAt()) { bigText('<span class="small-pop">Wait for GO!</span>', 900); sfx('buzz'); return; }
   const sp = (0.6 + a.p * 10.4) * POWER * (curAttack === 5 ? 0.67 : 1);
   cam.hold = false;   // follow this putt (at the zoom you chose)
   const s = { x: q20(scene.ball.x), y: q20(scene.ball.y), vx: q100(a.dx * sp), vy: q100(a.dy * sp), chip: chipNext };
@@ -807,7 +789,7 @@ async function finishTurn(holed) {
   const { data, error } = await sb.rpc(wasLive ? 'golf_submit_live' : 'golf_submit_turn', { p_game: G.game.id, p_strokes: current.map(fromStroke), p_actual: strokes, p_cheats: cheatsUsed, p_holed: holed,
     ...(wasLive ? { p_attack_from: curAttack ? attackFrom : -1 } : {}) });
   if (error) { $('tip').textContent = `Couldn't save that hole: ${friendly(error)}`; if (wasLive) { mode = 'idle'; await load(G.game.id); decide(); } return; }
-  markSeen(t);
+  markSeen(t); if (wasLive) nudge();   // live: the others' pages refresh now, so a hole that just ended starts its countdown everywhere at once (065)
   $('tip').textContent = (holed ? `In the cup: ${scoreWord(strokes, par)}.` : `Picked up after ${strokes} strokes.`)
     + (data.earned ? ` ${data.earned > 1 ? `${data.earned} sneak attacks` : 'A sneak attack'} dropped into your backpack!` : '')
     + (cheatsUsed & 4 ? ` You wrote down ${data.written}. 🤫` : '') + (data.penalty ? ` (+${data.penalty} for the false accusation.)` : '');
@@ -896,18 +878,6 @@ async function robotTurn() {
   if (!error) { notify('golf', G.game.id); announceChaos({ gameId: G.game.id }); }
   $('tip').textContent = holed ? `${nm(bot).replace(/<[^>]+>/g, '')}: ${scoreWord(strokes, parOf(curHole()))}.` : '';
   await sleep(1200);
-  // Did it call cheater on the hole before?
-  await load(G.game.id);
-  const call = G.acc.find((a) => a.t === t - 1 && a.accuser === bot);
-  if (call) {
-    await new Promise((resolve) => {
-      if (call.busted) { bigText('<span class="busted">BUSTED!</span>', 2600); shake(); sfx('buzz'); }
-      modal(`<div style="font-size:44px;line-height:1">🤖</div><h2 ${call.busted ? 'style="color:#FF7A6E"' : ''}>"CHEATER DETECTED."</h2>
-        <p>${call.busted ? `It caught ${who(call.accused)}: ${[1, 2, 4].filter((k) => call.cheats & k).map((k) => CHEAT_NAMES[k]).join(', ')}.` : `…except ${who(call.accused)} played it straight. False alarm!`}</p>
-        <p class="small muted">${call.busted ? `+${2 + (call.cheats & 4 ? 1 : 0)} strokes on that hole.` : 'The robot takes +1 stroke on its next hole.'}</p><button class="go" id="onward">${call.busted ? 'Fine…' : 'Ha!'}</button>`);
-      $('onward').onclick = () => { closeModal(); resolve(); };
-    });
-  }
   flowing = false;
   decide();
 }
@@ -944,7 +914,7 @@ async function botLiveHole(bot) {
   let ball = { x: h.tee[0], y: h.tee[1] }, clock = 0, count = 0, holed = false;
   const strokes = [], still = () => liveOn && G.game.status === 'playing' && Math.floor(G.game.t / n()) === row;
   ghosts[bot] = { hole, x: ball.x, y: ball.y, at: Date.now() };
-  await sleep(Math.max(0, liveGo - Date.now()) + 1200 + Math.random() * 1200);   // the robot waits for GO too
+  await sleep(Math.max(0, goAt() - Date.now()) + 1200 + Math.random() * 1200);   // the robot waits for GO too (this hole's, 065)
   while (still() && count < maxStrokes(hole) && !holed) {
     await sleep(think * (0.7 + Math.random() * 0.6));
     if (!still()) break;
@@ -1042,7 +1012,8 @@ async function deleteGame() {
   let pending = false;
   const refresh = () => { if (pending) return; pending = true; setTimeout(async () => { pending = false; await load(id); renderCard(); announceChaos({ gameId: id });
     G.turns.forEach((x) => { if (ghosts[x.player] && Math.floor(x.t / n()) === Math.floor((G.game.t - 1) / n())) ghosts[x.player].holed = true; });
-    if (mode === 'idle' && !flowing) decide(); else if (liveOn && mode === 'idle') waitingLive();
+    if (G.game.status === 'over' && mode !== 'over' && !flowing) decide();   // over while you were aiming (or watching): the result, and what's next
+    else if (mode === 'idle' && !flowing) decide(); else if (liveOn && mode === 'idle') waitingLive();
     checkLiveAttack(); }, 200); };
   live = liveGame(`golf-${id}`, [
     { event: '*', table: 'golf_games', filter: `id=eq.${id}` },
@@ -1063,4 +1034,5 @@ async function deleteGame() {
   upNext(); setInterval(() => { if (!document.hidden) upNext(); }, 20000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) upNext(); });
   decide();
+  window.__golf = () => ({ mode, liveOn, liveGo, holeGo: holeGo(), goIn: goAt() - Date.now(), offset: srv.offset, t: G?.game.t, hole_go: G?.game.hole_go });   // test hook
 })();

@@ -77,7 +77,7 @@ username. A new account only becomes a robot once it's in `public.bots`.
   `common.js`, `live_here(kind, game)` on the server; never with the robot). Battleship: while
   everyone still afloat has the game open, tap any rival's square to fire one shot (`fire_live`,
   1.5 s enforced / 2 s on the page); the view stays on your board instead of jumping to each hit;
-  cheats work live, but the "call cheater" box is hidden (its penalties are about turns). Putt Post:
+  cheats work live; nobody calls cheater any more (065). Putt Post:
   everyone plays the current hole at once, each into their own turn slot (`golf_submit_live`; the
   slot is `hole row * n + player index`), rivals' balls show as ghosts with their face (broadcast
   `ball`), the hole moves on when all are in, first in the cup earns a sneak attack, and cheating is
@@ -726,6 +726,25 @@ Chaos ›"), a running one is "Chaos #n", the game-page bar "🌀 Route to Chaos
 trophies "Chaos". Code, tables and RPCs keep the gauntlet names. The rounds walk the logistic map's route:
 `_chaos_curve` starts a round's game at n = (round − 1)·6, so round 1 is calm (r 2.90) and round 4 on
 opens in chaos. The server's messages (round news, champion, call-off, chaos-clock forfeits) say Chaos.
+
+### Chaos rounds move on by themselves; Putt Post live holes start together (065)
+Why rounds stalled: Battleship (`index.html`) had no fallback poll (the other pages' `liveGame` checks
+every 5 s), so a page that missed the realtime event never learned the game was over, and its presence
+callback on "live battle over" only redrew. Now `openGame` polls `games` (updated_at/status/move) every
+5 s (`bsPoll`, cleared on leaving) and the live-over callback reloads. `jumpToNext` (common.js) retries
+the Chaos lookup for ~6 s, spends its once-per-device `next.jumped.<id>` key only once it has something
+to jump to, and mounts its floating banner inside the `.fs-on` element (native full screen on a phone
+shows nothing outside it: that was the missing "Coming next" countdown). Putt Post's refresh calls
+`decide()` when the game is over whatever mode the page is in (an aiming page used to sit there).
+Putt Post live: `golf_games.hole_go` (set by `_golf_submit` when the last player's turn ends a live
+hole: now + 6 s) is when the next hole goes for everyone; `live_go` answers with it, so `liveCountdown`
+counts down to it (`myTurnLive` runs one per hole: "⛳ HOLE n"), `goAt()` = max(liveGo, holeGo) gates
+putts and the robots' holes (`srv.offset` in common.js turns server time into the device's), and a live
+submit nudges the other pages so their countdown starts at once. Cheat call-outs are gone: no "Did X
+cheat?" judge step, no robot accusations (`golf_submit_bot_turn` patched), `golf_call` unused. A Chaos
+rolling into the next keeps `live_bot`. Test hook `window.__golf()`. Tests: scratch t_chaosjump (five
+rounds, both pages jump), t_bsjump / t_golfjump / t_dueljump (banner and countdown second by second),
+t_holego (hole_go set, countdown shown, early putt refused, robot waits).
 
 ### Route to Chaos card: only for starting one (page only)
 The lobby's Route to Chaos section no longer lists running Chaos matches (the per-rival cards with

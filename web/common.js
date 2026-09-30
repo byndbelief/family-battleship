@@ -781,22 +781,30 @@ export async function gauntletBar(gauntletId, gameId, meId, nameOf) {
 // `mount`: an element on the result screen to show it in ("Coming next"), instead of a floating banner.
 export async function jumpToNext(kind, game, meId, nameOf, wait = 3000, mount = null) {
   const key = `next.jumped.${game.id}`;
-  try { if (localStorage.getItem(key)) return; localStorage.setItem(key, '1'); } catch { return; }
+  try { if (localStorage.getItem(key)) return; } catch { return; }
   if (Date.now() - new Date(game.updated_at).getTime() > 600000) return;
   let target = null;
   if (game.gauntlet_id) {
-    const { data: gt } = await sb.from('gauntlets').select('*').eq('id', game.gauntlet_id).maybeSingle();
-    if (gt?.status === 'playing' && gt.current_game && gt.current_game !== game.id) target = { kind: gt.current_kind, id: gt.current_game, players: gt.players, label: `Round ${gt.round}` };
-    else if (gt?.status === 'over') {
-      const k = [...gt.players].sort().join(',');
-      const { data: nx } = await sb.from('gauntlets').select('*').eq('status', 'playing').order('created_at', { ascending: false }).limit(20);
-      const n = (nx ?? []).find((x) => [...x.players].sort().join(',') === k);
-      if (n?.current_game) target = { kind: n.current_kind, id: n.current_game, players: n.players, label: 'Next Chaos' };
+    // The next round is made in the same transaction that ends this one, but give it a few tries
+    // anyway: if this page's read lands early, the round shouldn't be lost for good.
+    for (let i = 0; i < 6 && !target; i++) {
+      if (i) await new Promise((r) => setTimeout(r, 1000));
+      const { data: gt } = await sb.from('gauntlets').select('*').eq('id', game.gauntlet_id).maybeSingle();
+      if (!gt) break;
+      if (gt.status === 'playing' && gt.current_game && gt.current_game !== game.id) target = { kind: gt.current_kind, id: gt.current_game, players: gt.players, label: `Round ${gt.round}` };
+      else if (gt.status === 'over') {
+        const k = [...gt.players].sort().join(',');
+        const { data: nx } = await sb.from('gauntlets').select('*').eq('status', 'playing').order('created_at', { ascending: false }).limit(20);
+        const n = (nx ?? []).find((x) => [...x.players].sort().join(',') === k);
+        if (n?.current_game) target = { kind: n.current_kind, id: n.current_game, players: n.players, label: 'Next Chaos' };
+      }
     }
   }
   if (!target) { const list = (await myTurns(meId)).filter((x) => x.id !== game.id); if (list.length) target = { ...list[0], label: 'Your move' }; }
   const canRematch = !game.gauntlet_id;
   if (!target && !canRematch) return;
+  // Only now is the jump "done" for this device: a look that found nothing to jump to doesn't spend it.
+  try { if (localStorage.getItem(key)) return; localStorage.setItem(key, '1'); } catch { return; }
   await new Promise((r) => setTimeout(r, wait));
   const go = (href) => {
     const u = new URL(href, location.href);
@@ -820,7 +828,8 @@ export async function jumpToNext(kind, game, meId, nameOf, wait = 3000, mount = 
     + '<span style="display:flex;gap:8px;margin-left:auto">' + (canRematch && target ? `<button type="button" data-nj="rematch" style="${btn};background:#F2C230;color:#2A2100">🔁 Rematch</button>` : '')
     + `<button type="button" data-nj="stay" style="${btn};background:#ffffff22;color:#fff">Stay here</button></span>`;
   if (inSpot) { const t = el.querySelector('span'); t.style.whiteSpace = 'normal'; t.style.overflow = 'visible'; }   // room to wrap on the result screen
-  (inSpot ? mount : document.body).appendChild(el);
+  // Full screen on a phone shows only the full-screen element: the banner goes inside it.
+  (inSpot ? mount : document.querySelector('.fs-on') || document.body).appendChild(el);
   let n = secs, iv = null;
   const stop = () => { clearInterval(iv); el.remove(); };
   const startRematch = async (btnEl) => {
@@ -936,9 +945,12 @@ export function splash(lines, { tone = 'gold', ms = 2200, sound = 'stinger', pas
 // (5 s after the last player arrived, corrected for this device's clock). Touches go through, so
 // you can line up while you wait. Resolves at once with GO in this device's Date.now() terms; the
 // page holds fire until then. solo (only robots to race): a quick local 3 s, nothing to sync.
+// srv.offset: the server's clock minus this device's, from the last live_go answer (065): a page
+// turns a server-side start time (like Putt Post's hole_go) into its own Date.now() terms with it.
+export const srv = { offset: 0 };
 export async function liveCountdown(kind, gameId, lines, { solo = false } = {}) {
   let go = Date.now() + 3000;
-  if (!solo) { try { const { data } = await sb.rpc('live_go', { p_kind: kind, p_game: gameId }); if (data?.go) go = data.go - (data.now - Date.now()); } catch {} }
+  if (!solo) { try { const { data } = await sb.rpc('live_go', { p_kind: kind, p_game: gameId }); if (data?.go) { srv.offset = data.now - Date.now(); go = data.go - srv.offset; } } catch {} }
   if (go < Date.now() + 400) { splash([...lines, 'GO!'], { ms: 1000, passThrough: true, sound: 'birdie' }); return Date.now(); }   // everyone else is already off
   go = Math.min(go, Date.now() + 6000);
   document.getElementById('dramaSplash')?.remove();

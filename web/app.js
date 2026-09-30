@@ -37,7 +37,7 @@ let sonarLoot = null;
 let triLoot = null;             // 🔺 armed Sierpiński Salvo: the next tap on the ocean is the triangle's top (060)           // next tap on an opponent's board spends this Sonar Ping
 // Live battle: while everyone still afloat has the game open there are no turns. Tap any rival's
 // square to fire, one shot at a time, whenever your guns have reloaded (bsPresence checks in).
-let bsPresence = null, liveBS = false;
+let bsPresence = null, liveBS = false, bsPoll = null;
 // Live volleys (053): tap squares to stage them; when the volley is full (3, or more after a Salvo or
 // a Frenzy) it goes off together (fire_live_volley), and the guns reload for 2 s while it flies.
 // "Fire now" lets a part volley go early. Staging a full volley while reloading fires it on reload.
@@ -101,6 +101,7 @@ function friendly(err) {
 function view(html) { setGameTools(null); app.innerHTML = html; }   // only a game view shows the toolbar again
 function setChannel(ch) {
   if (bsPresence) { bsPresence.stop(); bsPresence = null; liveBS = false; }
+  clearInterval(bsPoll); bsPoll = null;
   if (channel) sb.removeChannel(channel);
   channel = ch;
 }
@@ -1113,6 +1114,15 @@ async function openGame(id) {
   }
   let pending = false;
   const refresh = () => { if (pending) return; pending = true; setTimeout(async () => { pending = false; await loadGame(id); renderGame(); upNext(); }, 150); };
+  // A light check every few seconds too (like the other pages' liveGame), so the end of a game
+  // still lands when realtime drops a change: a Chaos round can't move on from a page that never
+  // learned it was over.
+  clearInterval(bsPoll);
+  bsPoll = setInterval(async () => {
+    if (document.hidden || !G || G.game.id !== id || pending) return;
+    const { data } = await sb.from('games').select('updated_at, status, move').eq('id', id).maybeSingle();
+    if (data && (data.updated_at !== G.game.updated_at || data.status !== G.game.status || data.move !== G.game.move)) refresh();
+  }, 5000);
   setChannel(sb.channel(`game-${id}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: `id=eq.${id}` }, refresh)
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shots', filter: `game_id=eq.${id}` }, refresh)
@@ -1122,7 +1132,7 @@ async function openGame(id) {
     liveBS = v; aims = { target: null, cells: new Set() }; peekMode = false; if (v) bsLiveSince = Date.now();
     if (G?.game.status !== 'playing') return renderGame();
     if (v) { stopShotClock(); bsGo = Date.now() + 3000; liveCountdown('battleship', G.game.id, ['⚔️ LIVE BATTLE', G.game.players.some((p) => bots.has(p)) ? 'You vs the robot' : "Everyone's here"], { solo: G.game.players.filter((p) => !bots.has(p)).length < 2 }).then((t) => { bsGo = t; }); }
-    else { aims = { target: null, cells: new Set() }; clearTimeout(volleyTimer); volleyTimer = null; note('Live battle over: back to taking turns.'); }
+    else { aims = { target: null, cells: new Set() }; clearTimeout(volleyTimer); volleyTimer = null; note('Live battle over: back to taking turns.'); return refresh(); }   // live often ends because the game did: reload, don't just redraw
     renderGame();
   });
   renderGame();
