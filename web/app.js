@@ -394,7 +394,7 @@ async function lobby() {
     <div class="lobby${quick ? ' quickmode' : ' lobhome'}">
       <div class="quickhead"><a href="#">← r4box</a><h1>Practice</h1><p class="muted">One game on its own, off the Route to Chaos. One of each kind per group of players at a time. It still counts toward your chaos rating.</p></div>
       <header class="row between gtop">
-        <div class="stack lobhead"><a class="r4mark" href="./"><i aria-hidden="true"></i>r4box<small>r = 4</small></a><h1>Ahoy, ${esc(me.username)}</h1></div>
+        <div class="stack lobhead"><a class="r4mark" href="./"><i aria-hidden="true"></i>r4box<small>r = 4</small></a><h1 id="greet">${esc(PAL[residentNow()].greet.replace('{name}', me.username))}</h1></div>
         <div class="herenow" id="hereNow" aria-label="Who's here"></div>
       </header>
       <div class="lobmain">
@@ -477,7 +477,7 @@ async function lobby() {
   // 🌀 The Box on the wall: the bifurcation diagram with a live x walking it. Enter Chaos goes to your
   // running Chaos's round when there is one (renderGauntlets sets it), else opens the start form.
   if (!quick) { const k0 = residentNow(); boxHero(document.getElementById('boxHero'), k0); const mini = palWidget(document.getElementById('palMini'), { pal: k0, s: 15, beat: 0.8, dpr: 2 }); document.getElementById('palName').textContent = PAL[k0].name; document.getElementById('palMind').textContent = `This is ${PAL[k0].name}'s mind.`;
-    resident().then((k) => { if (k !== k0 && document.getElementById('palMini')) { mini.set({ pal: k }); document.getElementById('palName').textContent = PAL[k].name; document.getElementById('palMind').textContent = `This is ${PAL[k].name}'s mind.`; boxHero(document.getElementById('boxHero'), k); }
+    resident().then((k) => { if (k !== k0 && document.getElementById('palMini')) { mini.set({ pal: k }); document.getElementById('palName').textContent = PAL[k].name; document.getElementById('palMind').textContent = `This is ${PAL[k].name}'s mind.`; document.getElementById('greet').textContent = PAL[k].greet.replace('{name}', me.username); document.documentElement.dataset.pal = k; boxHero(document.getElementById('boxHero'), k); }
       // 🧭 No companion yet: choose one first. Then 👋 meet it, once per device per companion (and any time at #meet).
       myCompanion().then((mine) => { if (!mine) return chooseCompanion(); let met = null; try { met = localStorage.getItem('r4.met'); } catch {} if (location.hash === '#meet' || met !== k) meetResident(k); }); }); }
   document.getElementById('enterChaos')?.addEventListener('click', (e) => {

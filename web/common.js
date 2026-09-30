@@ -6,6 +6,9 @@ import { sfx, isMuted, setMuted } from './sfx.js';
 import { drawPal, palWidget, PAL, PALS } from './pals.js';
 // 🎨 the resident (who lives in r4box; studio.js keeps it in localStorage). r4box is its mind: the curve
 // is its mood, so it shows up wherever the curve does: the 🌀 button, the curve box, a glitch, a calm.
+// 🎨 the room in its colours: data-pal on <html> drives theme.css (--pal, --pal-2, the motif)
+export function applyPalTheme(k = palKey()) { document.documentElement.dataset.pal = PAL[k] ? k : PALS[0].key; }
+applyPalTheme();
 export function palKey() { try { const k = localStorage.getItem('r4.pal'); if (k && PAL[k]) return k; } catch {} return PALS[0].key; }
 export const palName = () => PAL[palKey()].name;
 // This player's companion, kept in localStorage for the next page. Quiet on any failure: the last known one stands.
@@ -13,7 +16,7 @@ async function refreshResident() {
   try {
     const { data } = await sb.rpc('design_tally', { p_topic: 'resident' }); if (!Array.isArray(data)) return;
     const mine = data.find((r) => r.player === me.id)?.choice;   // 🧭 my companion (077); nothing picked yet: Fig house-sits
-    localStorage.setItem('r4.pal', mine && PAL[mine] ? mine : PALS[0].key);
+    localStorage.setItem('r4.pal', mine && PAL[mine] ? mine : PALS[0].key); applyPalTheme();
   } catch {}
 }
 // the mood a game's last move put the resident in, read off the curve row
@@ -112,7 +115,8 @@ const loaderEl = (() => {
     const P = 40, S = top - 2 * P, X = (v) => P + v * S, Y = (v) => top - P - v * S;
     c.strokeStyle = '#ffffff22'; c.lineWidth = 2; c.strokeRect(P, P, S, S);
     c.strokeStyle = '#ffffff55'; c.beginPath(); c.moveTo(X(0), Y(0)); c.lineTo(X(1), Y(1)); c.stroke();
-    c.strokeStyle = '#B9A6FF'; c.lineWidth = 4; c.beginPath();
+    let palKey0 = 'fig'; try { palKey0 = localStorage.getItem('r4.pal') || 'fig'; } catch {}
+    c.strokeStyle = PAL[palKey0]?.colour || '#B9A6FF'; c.lineWidth = 4; c.beginPath();   // the parabola in your companion's colour
     for (let i = 0; i <= 60; i++) { const v = i / 60; c[i ? 'lineTo' : 'moveTo'](X(v), Y(r * v * (1 - v))); } c.stroke();
     let x = 0.2; c.lineWidth = 2.5; c.beginPath(); c.moveTo(X(x), Y(0));
     for (let i = 0; i < 70; i++) { const y = r * x * (1 - x); c.lineTo(X(x), Y(y)); c.lineTo(X(y), Y(y)); x = y; }

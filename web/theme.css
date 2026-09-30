@@ -18,4 +18,26 @@ button.go, .enter { font-family: var(--display); font-weight: 700; letter-spacin
 /* the r4box word mark: a box glyph, then the word */
 .r4mark { display: inline-flex; align-items: center; gap: 8px; font-family: var(--display); font-weight: 800; letter-spacing: -.02em; color: var(--r4-ink); text-decoration: none; }
 .r4mark i { width: 1.05em; height: 1.05em; border-radius: 22%; background: conic-gradient(from 210deg, var(--teal), var(--violet), var(--gold), var(--hot), var(--teal)); box-shadow: inset 0 0 0 .18em var(--r4-bg), 0 0 14px #3DD6C655; }
+/* 🎨 Your companion colours the room (common.js sets data-pal from your pick): its two colours as --pal
+   and --pal-2, its pillar as a motif behind the home screen, and the chrome (the go buttons, the box's
+   border, the mark) in its colours. Game worlds keep their own colours; their buttons take yours. */
+:root[data-pal=fig] { --pal: #3DD6C6; --pal-2: #FF5A4A; --pal-ink: #062A26; }
+:root[data-pal=kit] { --pal: #B9A6FF; --pal-2: #C9FFF8; --pal-ink: #150F33; }
+:root[data-pal=bit] { --pal: #8B7BFF; --pal-2: #3DD6C6; --pal-ink: #150F33; }
+:root[data-pal=phi] { --pal: #9BE37A; --pal-2: #F5C542; --pal-ink: #10240A; }
+:root { --pal: #3DD6C6; --pal-2: #FF5A4A; --pal-ink: #062A26; }
+/* the home screen's motif: chaos streaks, mirrored glows, a grid of boxes, golden rings */
+:root[data-pal=fig] body:has(> #app) { background: repeating-linear-gradient(115deg, transparent 0 46px, #3DD6C60b 46px 48px), radial-gradient(900px 420px at 15% -10%, #0E4A4666, transparent 60%), radial-gradient(700px 380px at 100% 0%, #FF5A4A22, transparent 60%), var(--bg); background-attachment: fixed; }
+:root[data-pal=kit] body:has(> #app) { background: radial-gradient(520px 360px at 8% 12%, #B9A6FF2a, transparent 65%), radial-gradient(520px 360px at 92% 12%, #B9A6FF2a, transparent 65%), linear-gradient(90deg, transparent calc(50% - .5px), #C9FFF814 calc(50% - .5px), #C9FFF814 calc(50% + .5px), transparent calc(50% + .5px)), var(--bg); background-attachment: fixed; }
+:root[data-pal=bit] body:has(> #app) { background: repeating-linear-gradient(0deg, #8B7BFF0e 0 1px, transparent 1px 44px), repeating-linear-gradient(90deg, #8B7BFF0e 0 1px, transparent 1px 44px), radial-gradient(800px 400px at 50% -10%, #2A1F5E66, transparent 60%), var(--bg); background-attachment: fixed; }
+:root[data-pal=phi] body:has(> #app) { background: repeating-radial-gradient(circle at 88% 8%, #F5C54212 0 1.5px, transparent 1.5px 34px), radial-gradient(900px 420px at 15% -10%, #1F3A1466, transparent 60%), var(--bg); background-attachment: fixed; }
+/* the chrome in its colours */
+button.go, .enter, button.primary, .gtbtn, .pick, .upcard .upgo { background: var(--pal) !important; border-color: var(--pal) !important; color: var(--pal-ink) !important; box-shadow: 0 8px 24px color-mix(in srgb, var(--pal) 30%, transparent) !important; }
+.enter.alt { background: #ffffff0e !important; color: var(--r4-ink) !important; border: 1px solid #ffffff22 !important; box-shadow: none !important; }
+.topnav a:first-child, nav.gtop a:first-child { border-color: color-mix(in srgb, var(--pal) 45%, transparent); }
+.gthero::before { background: linear-gradient(120deg, var(--pal), color-mix(in srgb, var(--pal-2) 55%, transparent) 55%, var(--pal-2)) !important; }
+.boxhero canvas { box-shadow: 0 0 0 1px #ffffff12, 0 10px 30px #0008, 0 0 40px color-mix(in srgb, var(--pal) 25%, transparent) !important; }
+.meet-card canvas, .choose-card.picked canvas { box-shadow: 0 0 0 4px #ffffff10, 0 0 60px color-mix(in srgb, var(--pal) 30%, transparent) !important; }
+.eyebrow { color: var(--pal) !important; }
+.shud .combo, .sover h2:not([style]) { color: var(--pal-2); }
 .r4mark small { font-family: var(--body); font-weight: 800; font-size: .55em; letter-spacing: .12em; text-transform: uppercase; color: var(--r4-muted); align-self: flex-end; margin-bottom: .1em; }

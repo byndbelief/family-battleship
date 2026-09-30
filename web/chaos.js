@@ -97,6 +97,9 @@ export const NEWS = {
 };
 
 // The same meter in every HUD: the last beats of x, the red line at the peak, teal until chaos.
+// the meter's line takes your companion's colours (theme.css --pal / --pal-2), read once a second
+let meterC = null, meterAt = 0;
+function meterColours() { if (typeof document === 'undefined') return ['#3DD6C6', '#FF8A3D']; if (Date.now() - meterAt > 1000) { const cs = getComputedStyle(document.documentElement); meterC = [cs.getPropertyValue('--pal').trim() || '#3DD6C6', cs.getPropertyValue('--pal-2').trim() || '#FF8A3D']; meterAt = Date.now(); } return meterC; }
 export function drawMeter(canvas, c) {
   const mc = canvas.getContext('2d'), w = canvas.width, h = canvas.height, hs = c.hist;
   mc.clearRect(0, 0, w, h);
@@ -104,7 +107,7 @@ export function drawMeter(canvas, c) {
   mc.strokeStyle = '#FF5A4A99'; mc.setLineDash([5, 5]); mc.lineWidth = 2; mc.beginPath(); mc.moveTo(0, h - CHAOS.PEAK * h); mc.lineTo(w, h - CHAOS.PEAK * h); mc.stroke(); mc.setLineDash([]);
   mc.strokeStyle = '#F5C54266'; mc.setLineDash([2, 6]); mc.lineWidth = 1.5; mc.beginPath(); mc.moveTo(0, h - CHAOS.CUT * h); mc.lineTo(w, h - CHAOS.CUT * h); mc.stroke(); mc.setLineDash([]);   // 🌻 the golden cut
   if (isFib(c.n)) { mc.fillStyle = '#F5C542'; mc.font = '900 11px system-ui'; mc.textAlign = 'right'; mc.fillText('F', w - 4, 12); }
-  mc.strokeStyle = c.r >= 3.5699 ? '#FF8A3D' : '#3DD6C6'; mc.lineWidth = 3; mc.beginPath();
+  const [calmC, hotC] = meterColours(); mc.strokeStyle = c.r >= 3.5699 ? hotC : calmC; mc.lineWidth = 3; mc.beginPath();
   hs.forEach((v, i) => mc[i ? 'lineTo' : 'moveTo']((i / (CHAOS.HIST - 1)) * (w - 8) + 4, h - 4 - v * (h - 8))); mc.stroke();
 }
 // 🌀 The chaos rating (071): keeping score is also about how you play the curve. A game tallies the

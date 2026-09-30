@@ -15,7 +15,7 @@ export async function tally(topic) {
 export async function vote(topic, choice) {
   const { data, error } = await sb.rpc('design_vote', { p_topic: topic, p_choice: choice });
   if (error) throw error;
-  if (topic === TOPIC_RESIDENT) { residentP = null; try { localStorage.setItem('r4.pal', choice); } catch {} }   // a new companion: forget the cached one
+  if (topic === TOPIC_RESIDENT) { residentP = null; try { localStorage.setItem('r4.pal', choice); } catch {} document.documentElement.dataset.pal = choice; }   // a new companion: forget the cached one, recolour the room
   return data || [];
 }
 // The leader: most votes; a tie goes to whoever reached that count first.

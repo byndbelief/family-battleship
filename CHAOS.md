@@ -171,7 +171,11 @@ the curve whose tail is the bifurcation diagram; 🟪 Bit, the box itself; 🐌 
 spiral for a shell; 🦋 Kit, the butterfly effect, its wings the diagram and its mirror. All four read the
 nine events: a peak is a jump, big a wobble, gold turns them gold, a gift is happy eyes, the mirror flips
 them, balance a halo, the window three of something, the golden cut lights their bead, a Fibonacci beat a
-wink; past 3.57 their eyes spiral. **r4box is the resident's mind**: the curve is its mood and the games are what it dreams, so the leader
+wink; past 3.57 their eyes spiral. **Your companion colours the room**: its two colours are the go buttons, the box's border and the
+meter's line on every page; its pillar is the motif behind the home screen (Fig's chaos streaks, Kit's
+mirrored glows, Bit's grid of boxes, Phi's golden rings); it greets you in its own voice. The games keep
+their worlds; their buttons take your colours.
+**r4box is the resident's mind**: the curve is its mood and the games are what it dreams, so the leader
 is wherever the curve is. It rides the live x in the lobby's box and on every game page's 🌀 button and
 curve box (in the mood the last move put it in), rides the loader, sits in the corner of every solo game
 feeling the shell's beat, takes a breath at every calm, and blinks through every glitch, dizzy.

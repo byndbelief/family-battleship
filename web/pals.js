@@ -109,7 +109,7 @@ function branch(ctx, s, x0, y0, ang, len, d, f, t, chaos, base) {
 // ---------------------------------------------------------------- the four
 export const PALS = [
   {
-    key: 'fig', name: 'Fig', icon: '🟢', colour: C.teal, pillar: 'chaos', pillarIcon: '🌀', boosts: ['peak', 'big', 'gold', 'r4'],
+    key: 'fig', name: 'Fig', icon: '🟢', colour: C.teal, colour2: C.hot, ink: '#062A26', greet: 'Ready to get wild, {name}?', pillar: 'chaos', pillarIcon: '🌀', boosts: ['peak', 'big', 'gold', 'r4'],
     perk: 'Lives for the peaks: every peak, big beat, golden beat and r = 4 you meet counts double.',
     tag: 'A drop of the curve with a forking tail. The wild one.',
     story: 'Fig is made of the chaos curve. Its tail is the bifurcation diagram: one tail while the curve is calm, forking into two, four, eight as r climbs, and a frayed cloud in chaos. The gold bead on its antenna is the golden cut. Named for Feigenbaum, whose constant says how fast the tail forks.',
@@ -131,7 +131,7 @@ export const PALS = [
     },
   },
   {
-    key: 'bit', name: 'Bit', icon: '🟪', colour: C.lilac, pillar: 'fractals', pillarIcon: '🔁', boosts: ['window', 'phase'],
+    key: 'bit', name: 'Bit', icon: '🟪', colour: C.lilac, colour2: C.teal, ink: '#150F33', greet: 'Boxes in boxes, {name}.', pillar: 'fractals', pillarIcon: '🔁', boosts: ['window', 'phase'],
     perk: 'A box inside a box inside a box: every phase the curve crosses and every beat of the window counts double.',
     tag: 'The box itself, with a screen for a face. The fractal one.',
     story: 'Bit is r4box: a little box that woke up. Its screen shows its eyes and, for a mouth, the chaos meter: the last few beats of x, live. Its antenna is a spring with a bead on top. In chaos the screen fills with static and the corners burn; in the window it shows ×3.',
@@ -171,7 +171,7 @@ export const PALS = [
     },
   },
   {
-    key: 'phi', name: 'Phi', icon: '🐌', colour: C.moss, pillar: 'geometry', pillarIcon: '🌻', boosts: ['golden', 'fib'],
+    key: 'phi', name: 'Phi', icon: '🐌', colour: C.moss, colour2: C.gold, ink: '#10240A', greet: 'Slow and golden, {name}.', pillar: 'geometry', pillarIcon: '🌻', boosts: ['golden', 'fib'],
     perk: 'Counts in Fibonacci: every golden cut and every Fibonacci beat counts double.',
     tag: 'A snail whose shell is a golden spiral. The geometric one.',
     story: 'Phi carries the golden ratio on its back: a shell that grows by φ = 1.618 every quarter turn, the spiral the Fibonacci numbers draw. Slow and sleepy while the curve is calm, the shell spins as r climbs and blurs in chaos. Eyes on stalks, so it can look both ways at once.',
@@ -204,7 +204,7 @@ export const PALS = [
     },
   },
   {
-    key: 'kit', name: 'Kit', icon: '🦋', colour: C.violet, pillar: 'symmetry', pillarIcon: '✨', boosts: ['mirror', 'balance'],
+    key: 'kit', name: 'Kit', icon: '🦋', colour: C.violet, colour2: C.mint, ink: '#150F33', greet: 'Mirror, mirror, {name}.', pillar: 'symmetry', pillarIcon: '✨', boosts: ['mirror', 'balance'],
     perk: 'Sees the mirror in everything: every mirror and every balance counts double.',
     tag: 'A butterfly whose wings are the curve, mirrored. The symmetric one.',
     story: "Kit is the butterfly effect. Its two wings are the bifurcation diagram and its mirror image, the symmetry hidden in the chaos: f(x) = f(1−x). Its wings beat to the curve's rhythm, twice, four times, then a blur, and both antennae carry a gold bead. The Strange Attractor rank is named for it.",

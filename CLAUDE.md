@@ -795,6 +795,12 @@ sits in the corner of every solo game (`#spal` in the shell: `react` on every be
 `sleep` at game over). `resident()` caches the key in localStorage `r4.pal`, and `residentNow()` reads
 that synchronously for the loader and the sign-in screen (which run before or without a session).
 The topic mechanism is generic: a second question is another topic string and its own page section.
+**Companion themes.** common.js sets `data-pal` on `<html>` from the pick (`applyPalTheme()`, at module
+load and after `refreshResident`; studio.js on a vote; the lobby when `resident()` resolves).
+`theme.css` maps it: `--pal`, `--pal-2`, `--pal-ink` per pal, a motif on `body:has(> #app)` (the lobby
+only, so game worlds keep their backgrounds), and the chrome (`button.go`, `.enter`, `.primary`,
+`.gtbtn`, `.pick`, the box's gradient border, eyebrows) in `--pal`. `drawMeter` reads `--pal`/`--pal-2`
+once a second; the loader's parabola is the pal's colour; the lobby greeting is `PAL[k].greet`.
 **Companions (077).** The vote became a pick: `design_votes` topic `resident` is each player's own
 companion (`picked()` in studio.js, imported as `myCompanion` in app.js because the lobby has its own
 `picked()` for chips; `resident()` and common.js's `palKey()` now mean *my* companion, Fig until
