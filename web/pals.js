@@ -1,7 +1,9 @@
-// 🎨 THE PALS — who lives in r4box. Four of them, one for each pillar of the box (chaos, symmetry,
-// fractals, geometry); each player picks a COMPANION in the Design Studio (studio.html) to go on chaos
-// adventures with: it lives in their lobby's box, rides the loader, sits in every solo game's corner
-// reacting to the beat, and doubles its pillar's events in their chaos rating (077).
+// 🎨 FIG — who lives in r4box. One creature with four personalities, one per pillar of the box (chaos,
+// symmetry, fractals, geometry); each player picks the Fig they go on chaos adventures with in the
+// Design Studio (studio.html): it lives in their lobby's box, rides the loader, sits in every solo
+// game's corner reacting to the beat, doubles its pillar's events in their rating (077) and bends the
+// curve's edges for them (079). The keys (fig, kit, bit, phi) are the four's old names and stay, for
+// the server and the saved picks.
 //
 // Every pal reads the same nine events as every game (CHAOS.md) and has a face for each:
 //   peak: a jump · big: a wobble · gold: goes gold with sparkles · gift: happy eyes
@@ -107,126 +109,86 @@ function branch(ctx, s, x0, y0, ang, len, d, f, t, chaos, base) {
 }
 
 // ---------------------------------------------------------------- the four
+// ---------------------------------------------------------------- Fig, in four personalities
+// One creature, four moods, one per pillar of the box. Fig carries a bit of every one: the forking
+// tail (chaos), a pair of mirror wings (symmetry), a box on its back with a box inside (fractals) and a
+// golden spiral on its belly (geometry). The personality you go with takes the lead: its feature grows,
+// its colour tints the body, its way of moving shows.
+const MODE_COL = { chaos: C.hot, symmetry: C.violet, fractals: C.lilac, geometry: C.gold };
+function drawFig(ctx, o, F, m) {
+  const { s, t } = o, { chaos, f, gold, mood, pulse, speed } = F, lead = (k) => (m === k ? 1 : 0.42);
+  const body = gold > 0.3 ? C.gold : mix(C.teal, MODE_COL[m], m === 'chaos' ? 0.18 : 0.3);
+  // 🦋 the mirror wings, behind: two halves, each the other's reflection
+  const wk = lead('symmetry'), flap = m === 'symmetry' ? 0.55 + 0.45 * Math.cos(t * speed * 1.2) : 0.75 + 0.1 * Math.sin(t * 2);
+  for (const dir of [-1, 1]) {
+    ctx.save(); ctx.translate(-s * 0.15, -s * 0.25); ctx.scale(dir * flap, 1); ctx.globalAlpha = o.alpha * (m === 'symmetry' ? 0.95 : 0.55);
+    const wing = m === 'symmetry' ? C.violet : mix(C.violet, C.teal, 0.45);
+    for (const [ang, len] of [[-1.2, 1.3], [-0.7, 1.25], [-0.2, 1.0], [0.25, 0.7]]) branch(ctx, s * (0.6 + 0.5 * wk), s * 0.1, 0, ang, s * len * 0.8 * wk, 0, Math.max(1, Math.min(f, 2)), t, chaos, wing);
+    ctx.restore();
+  }
+  // 🌀 the tail: the bifurcation diagram; the wild one's frays even in calm
+  const tails = mood === 'window' ? 3 : 1, fk = m === 'chaos' ? Math.max(f, 2) : f, fray = m === 'chaos' && f >= 2 ? 4 : fk;
+  for (let k = 0; k < tails; k++) { ctx.save(); ctx.rotate((k - (tails - 1) / 2) * 0.45); branch(ctx, s * (m === 'chaos' ? 1 : 0.85), -s * 0.7, s * 0.1, Math.PI + 0.25 - Math.sin(t * (m === 'chaos' ? 5 : 2)) * 0.12, s * (m === 'chaos' ? 1.0 : 0.9), 0, fray, t, chaos || m === 'chaos', m === 'chaos' ? mix(body, C.hot, 0.35) : body); ctx.restore(); }
+  // the antenna and the gold bead (the golden cut)
+  const ax = -s * 0.15, ay = -s * 0.85, bx = ax - s * 0.35 - Math.sin(t * 2.2) * s * 0.05, by = ay - s * 0.8;
+  ctx.strokeStyle = body; ctx.lineWidth = s * 0.14; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.quadraticCurveTo(ax - s * 0.05, ay - s * 0.55, bx, by); ctx.stroke();
+  bead(ctx, s, bx, by, F);
+  // 🟪 the box on its back (a box inside the box), over the shoulder
+  { const bk = lead('fractals'), bw = s * 0.5 * (0.75 + 0.6 * bk), bx0 = s * 0.45, by0 = -s * 0.92 - (bw - s * 0.43) * 0.5;
+    ctx.save(); ctx.translate(bx0, by0); ctx.rotate(0.18 + Math.sin(t * 1.7) * 0.04);
+    ctx.fillStyle = m === 'fractals' ? C.lilac : mix(C.lilac, body, 0.5); ctx.shadowColor = C.lilac; ctx.shadowBlur = s * (m === 'fractals' ? 0.7 : 0.15);
+    ctx.beginPath(); ctx.roundRect(-bw / 2, -bw / 2, bw, bw, bw * 0.18); ctx.fill(); ctx.shadowBlur = 0;
+    ctx.fillStyle = C.deep; ctx.beginPath(); ctx.roundRect(-bw * 0.36, -bw * 0.36, bw * 0.72, bw * 0.72, bw * 0.12); ctx.fill();   // the box's screen: a box inside
+    ctx.strokeStyle = m === 'fractals' ? C.mint : rgba(C.mint, 0.5); ctx.lineWidth = Math.max(1, bw * 0.06); ctx.beginPath(); ctx.roundRect(-bw * 0.2, -bw * 0.2, bw * 0.4, bw * 0.4, bw * 0.06); ctx.stroke();
+    if (m === 'fractals') { ctx.beginPath(); ctx.roundRect(-bw * 0.08, -bw * 0.08, bw * 0.16, bw * 0.16, bw * 0.02); ctx.stroke(); }   // …and one inside that
+    if (m === 'fractals' && chaos && !gold) { for (let i = 0; i < 14; i++) { ctx.fillStyle = i % 3 ? '#ffffff33' : rgba(C.hot, 0.5); ctx.fillRect(-bw * 0.36 + ((i * 7919 + Math.floor(t * 30) * 104729) % 1000) / 1000 * bw * 0.72, -bw * 0.36 + ((i * 6007 + Math.floor(t * 30) * 15485863) % 1000) / 1000 * bw * 0.72, bw * 0.08, bw * 0.04); } }
+    ctx.restore(); }
+  // the body
+  ctx.fillStyle = body; ctx.shadowColor = chaos ? C.hot : MODE_COL[m]; ctx.shadowBlur = s * (chaos ? 0.6 : 0.45);
+  ctx.beginPath(); ctx.ellipse(0, 0, s, s * 0.95, 0, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
+  if (chaos && !gold) { ctx.strokeStyle = rgba(C.hot, 0.7); ctx.lineWidth = s * 0.08; ctx.beginPath(); ctx.ellipse(0, 0, s * 0.96, s * 0.91, 0, 0, 7); ctx.stroke(); }
+  ctx.fillStyle = 'rgba(255,255,255,.28)'; ctx.beginPath(); ctx.ellipse(-s * 0.3, -s * 0.38, s * 0.32, s * 0.2, -0.6, 0, 7); ctx.fill();
+  // 🌻 the golden spiral on its belly: φ every quarter turn
+  { const gk = lead('geometry'), cx = -s * 0.2, cy = s * 0.42, spin = m === 'geometry' ? t * speed * 0.25 : 0;
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(spin); ctx.strokeStyle = m === 'geometry' ? C.gold : rgba(C.gold, 0.55); ctx.lineWidth = s * (m === 'geometry' ? 0.09 : 0.06);
+    ctx.shadowColor = C.gold; ctx.shadowBlur = m === 'geometry' ? s * (0.4 + 0.4 * pulse) : 0; ctx.beginPath();
+    for (let th = 0; th <= Math.PI * 4.2; th += 0.14) { const rad = s * 0.03 * gk * Math.pow(CHAOS.PHI, th / (Math.PI / 2)); if (rad > s * 0.5 * gk) break; const px = Math.cos(th) * rad, py = Math.sin(th) * rad; th === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); }
+    ctx.stroke(); ctx.restore(); }
+  halo(ctx, s, -s * 1.45, F);
+  // the face: the boxy one's eyes are pixels
+  if (m === 'fractals' && !o.asleep && !blinking(t, o.asleep) && mood !== 'gift' && !(chaos && !gold)) {
+    for (const [ex, k] of [[s * 0.05, 0], [s * 0.55, 1]]) { const closed = (mood === 'fib' && k === 1) || (mood === 'gold' && pulse > 0.5 && k === 0); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(ex, -s * 0.12, s * 0.24, 0, 7); ctx.fill(); ctx.fillStyle = C.ink; if (closed) ctx.fillRect(ex - s * 0.16, -s * 0.15, s * 0.32, s * 0.06); else ctx.fillRect(ex - s * 0.06 + (o.hurt ? 0 : s * 0.05), -s * 0.2, s * 0.17, s * 0.17); if (o.hurt) { ctx.fillRect(ex - s * 0.2, -s * 0.44 + k * s * 0.05, s * 0.4, s * 0.06); } }
+  } else { eye(ctx, s, s * 0.05, -s * 0.12, s * 0.24, 0, F); eye(ctx, s, s * 0.55, -s * 0.12, s * 0.24, 1, F); }
+  mouth(ctx, s, s * 0.3, s * 0.28, s * 0.28, F);
+}
 export const PALS = [
   {
-    key: 'fig', name: 'Fig', icon: '🟢', colour: C.teal, colour2: C.hot, ink: '#062A26', greet: 'Ready to get wild, {name}?', pillar: 'chaos', pillarIcon: '🌀', boosts: ['peak', 'big', 'gold', 'r4'],
+    key: 'fig', name: 'Wild Fig', mode: 'chaos', icon: '🌀', colour: C.teal, colour2: C.hot, ink: '#062A26', greet: 'Ready to get wild, {name}?', pillar: 'chaos', pillarIcon: '🌀', boosts: ['peak', 'big', 'gold', 'r4'],
     perk: 'Peaks come sooner for you: x above 0.68 twists, not 0.75. More chaos, and every peak, big beat, golden beat and r = 4 counts double.',
-    tag: 'A drop of the curve with a forking tail. The wild one.',
-    story: 'Fig is made of the chaos curve. Its tail is the bifurcation diagram: one tail while the curve is calm, forking into two, four, eight as r climbs, and a frayed cloud in chaos. The gold bead on its antenna is the golden cut. Named for Feigenbaum, whose constant says how fast the tail forks.',
-    draw(ctx, o, F) {
-      const { s, t } = o, { chaos, f, gold, mood } = F;
-      const body = gold > 0.3 ? C.gold : C.teal;
-      const tails = mood === 'window' ? 3 : 1;
-      for (let k = 0; k < tails; k++) { ctx.save(); ctx.rotate((k - (tails - 1) / 2) * 0.45); branch(ctx, s, -s * 0.7, s * 0.1, Math.PI + 0.25 - Math.sin(t * 2) * 0.12, s * 1.1, 0, f, t, chaos, body); ctx.restore(); }
-      const ax = -s * 0.15, ay = -s * 0.85, bx = ax - s * 0.35 - Math.sin(t * 2.2) * s * 0.05, by = ay - s * 0.8;
-      ctx.strokeStyle = body; ctx.lineWidth = s * 0.14; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.quadraticCurveTo(ax - s * 0.05, ay - s * 0.55, bx, by); ctx.stroke();
-      bead(ctx, s, bx, by, F);
-      ctx.fillStyle = body; ctx.shadowColor = chaos ? C.hot : C.teal; ctx.shadowBlur = s * (chaos ? 0.6 : 0.4);
-      ctx.beginPath(); ctx.ellipse(0, 0, s, s * 0.95, 0, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
-      if (chaos && !gold) { ctx.strokeStyle = rgba(C.hot, 0.7); ctx.lineWidth = s * 0.08; ctx.beginPath(); ctx.ellipse(0, 0, s * 0.96, s * 0.91, 0, 0, 7); ctx.stroke(); }
-      ctx.fillStyle = 'rgba(255,255,255,.28)'; ctx.beginPath(); ctx.ellipse(-s * 0.3, -s * 0.38, s * 0.32, s * 0.2, -0.6, 0, 7); ctx.fill();
-      halo(ctx, s, -s * 1.45, F);
-      eye(ctx, s, s * 0.05, -s * 0.12, s * 0.24, 0, F); eye(ctx, s, s * 0.55, -s * 0.12, s * 0.24, 1, F);
-      mouth(ctx, s, s * 0.3, s * 0.28, s * 0.28, F);
-    },
+    tag: 'Fig with the wind up: the tail frays, the peaks call.',
+    story: 'Fig is made of the chaos curve, and this is Fig with the wind up. Its tail is the bifurcation diagram, and in this mood it frays into the cloud even while the curve is calm. It lives for the peaks: the top of the curve, r = 4, is home. Named for Feigenbaum, whose constant says how fast the tail forks.',
+    draw(ctx, o, F) { drawFig(ctx, o, F, 'chaos'); },
   },
   {
-    key: 'bit', name: 'Bit', icon: '🟪', colour: C.lilac, colour2: C.teal, ink: '#150F33', greet: 'Boxes in boxes, {name}.', pillar: 'fractals', pillarIcon: '🔁', boosts: ['window', 'phase'],
-    perk: 'The window lasts 7 beats for you, not 3: a longer rhythm of 3 where nothing twists. Every phase crossed and every window beat counts double.',
-    tag: 'The box itself, with a screen for a face. The fractal one.',
-    story: 'Bit is r4box: a little box that woke up. Its screen shows its eyes and, for a mouth, the chaos meter: the last few beats of x, live. Its antenna is a spring with a bead on top. In chaos the screen fills with static and the corners burn; in the window it shows ×3.',
-    draw(ctx, o, F) {
-      const { s, t, r } = o, { chaos, gold, mood, pulse, f } = F, w = s * 1.9, h = s * 1.7, rr = s * 0.3;
-      const body = gold > 0.3 ? C.gold : C.lilac;
-      // the spring antenna, and the bead
-      ctx.strokeStyle = body; ctx.lineWidth = s * 0.1; ctx.beginPath();
-      const coils = 5, top = -h / 2 - s * 0.9 + Math.sin(t * 3) * s * 0.06;
-      for (let i = 0; i <= coils * 12; i++) { const p = i / (coils * 12); const px = Math.sin(p * coils * Math.PI * 2) * s * 0.16 + Math.sin(t * 2.5) * s * 0.1 * p, py = -h / 2 + (top + h / 2) * p; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
-      ctx.stroke(); bead(ctx, s, Math.sin(t * 2.5) * s * 0.1, top - s * 0.12, F);
-      // the box
-      ctx.fillStyle = body; ctx.shadowColor = chaos ? C.hot : C.lilac; ctx.shadowBlur = s * (chaos ? 1 : 0.4);
-      ctx.beginPath(); ctx.roundRect(-w / 2, -h / 2, w, h, rr); ctx.fill(); ctx.shadowBlur = 0;
-      if (chaos) { ctx.strokeStyle = rgba(C.hot, 0.5 + 0.4 * Math.abs(Math.sin(t * 9))); ctx.lineWidth = s * 0.1; ctx.beginPath(); ctx.roundRect(-w / 2, -h / 2, w, h, rr); ctx.stroke(); }
-      // feet
-      ctx.fillStyle = mix(body, C.deep, 0.35); ctx.beginPath(); ctx.roundRect(-w * 0.36, h / 2 - s * 0.05, s * 0.4, s * 0.22, s * 0.1); ctx.roundRect(w * 0.14, h / 2 - s * 0.05, s * 0.4, s * 0.22, s * 0.1); ctx.fill();
-      // the screen
-      const sw = w * 0.78, sh = h * 0.66, sx = -sw / 2, sy = -sh / 2 - s * 0.05;
-      ctx.fillStyle = C.deep; ctx.beginPath(); ctx.roundRect(sx, sy, sw, sh, s * 0.18); ctx.fill();
-      ctx.save(); ctx.beginPath(); ctx.roundRect(sx, sy, sw, sh, s * 0.18); ctx.clip();
-      if (chaos && !gold) { for (let i = 0; i < 40; i++) { const px = sx + ((i * 7919 + Math.floor(t * 30) * 104729) % 1000) / 1000 * sw, py = sy + ((i * 6007 + Math.floor(t * 30) * 15485863) % 1000) / 1000 * sh; ctx.fillStyle = i % 3 ? '#ffffff22' : rgba(C.hot, 0.5); ctx.fillRect(px, py, s * 0.12, s * 0.06); } }
-      if (mood === 'window') { ctx.fillStyle = C.violet; ctx.font = `900 ${s * 0.5}px system-ui`; ctx.textAlign = 'center'; ctx.fillText('×3', 0, sy + sh * 0.85); }
-      // eyes as pixels: two blocks, blinking; the mouth is the meter, the last 10 beats of x
-      const Fp = { ...F, ink: C.mint };
-      const px = (ex, k) => { const closed = o.asleep || blinking(t, o.asleep) || mood === 'gift' || (mood === 'fib' && k === 1); ctx.fillStyle = Fp.ink;
-        if (closed) { ctx.fillRect(ex - s * 0.16, sy + sh * 0.36, s * 0.32, s * 0.07); return; }
-        if (chaos && !gold) { ctx.strokeStyle = Fp.ink; ctx.lineWidth = s * 0.06; ctx.beginPath(); for (let a = 0; a < Math.PI * 4; a += 0.4) { const q = (a / (Math.PI * 4)) * s * 0.18; a ? ctx.lineTo(ex + Math.cos(a + t * 6) * q, sy + sh * 0.36 + Math.sin(a + t * 6) * q) : ctx.moveTo(ex, sy + sh * 0.36); } ctx.stroke(); return; }
-        const big = mood === 'big' ? 1.4 : 1; ctx.fillRect(ex - s * 0.12 * big + (o.hurt ? 0 : s * 0.04), sy + sh * 0.26 - (big - 1) * s * 0.1, s * 0.24 * big, s * 0.24 * big);
-        if (o.hurt) { ctx.fillRect(ex - s * 0.18, sy + sh * 0.14 + k * s * 0.05, s * 0.36, s * 0.06); } };
-      px(-sw * 0.22, 0); px(sw * 0.22, 1);
-      ctx.strokeStyle = gold > 0.3 ? C.gold : chaos ? C.hot : C.teal; ctx.lineWidth = s * 0.07; ctx.beginPath();
-      const N = 10; for (let i = 0; i <= N; i++) { const q = i / N; let xv = 0.3; const rr2 = Math.min(4, r + (q - 1) * 0.3); for (let j = 0; j < 8 + i; j++) xv = rr2 * xv * (1 - xv); const mx = sx + sw * 0.15 + q * sw * 0.7, my = o.asleep ? sy + sh * 0.75 : mood === 'big' ? sy + sh * 0.6 + Math.sin(q * Math.PI) * s * 0.3 : sy + sh * 0.85 - xv * sh * 0.32; i ? ctx.lineTo(mx, my) : ctx.moveTo(mx, my); }
-      if (o.hurt) { ctx.beginPath(); ctx.arc(0, sy + sh * 0.95, s * 0.22, Math.PI * 1.15, Math.PI * 1.85); }
-      ctx.stroke(); ctx.restore();
-      halo(ctx, s, -h / 2 - s * 1.35, F);
-    },
-  },
-  {
-    key: 'phi', name: 'Phi', icon: '🐌', colour: C.moss, colour2: C.gold, ink: '#10240A', greet: 'Slow and golden, {name}.', pillar: 'geometry', pillarIcon: '🌻', boosts: ['golden', 'fib'],
-    perk: 'A wide golden cut (0.03, not 0.012) and double luck on Fibonacci beats. Every golden cut and Fibonacci beat counts double.',
-    tag: 'A snail whose shell is a golden spiral. The geometric one.',
-    story: 'Phi carries the golden ratio on its back: a shell that grows by φ = 1.618 every quarter turn, the spiral the Fibonacci numbers draw. Slow and sleepy while the curve is calm, the shell spins as r climbs and blurs in chaos. Eyes on stalks, so it can look both ways at once.',
-    draw(ctx, o, F) {
-      const { s, t } = o, { chaos, gold, mood, pulse, speed } = F;
-      const body = gold > 0.3 ? C.gold : C.moss;
-      // the foot
-      ctx.fillStyle = body; ctx.shadowColor = chaos ? C.hot : C.moss; ctx.shadowBlur = s * 0.4;
-      ctx.beginPath(); ctx.moveTo(-s * 1.2, s * 0.55); ctx.quadraticCurveTo(-s * 1.3, s * 0.1, -s * 0.7, s * 0.05); ctx.lineTo(s * 0.6, -s * 0.15); ctx.quadraticCurveTo(s * 1.25, -s * 0.2, s * 1.2, s * 0.35); ctx.quadraticCurveTo(s * 1.1, s * 0.62, s * 0.6, s * 0.62); ctx.lineTo(-s * 0.9, s * 0.62); ctx.closePath(); ctx.fill(); ctx.shadowBlur = 0;
-      // the shell: a golden spiral, spinning faster as r climbs
-      const cx = -s * 0.35, cy = -s * 0.35, spin = t * speed * 0.35;
-      ctx.save(); ctx.translate(cx, cy); ctx.rotate(spin);
-      ctx.fillStyle = gold ? C.gold : chaos ? mix(C.peach, C.hot, 0.35) : C.peach; ctx.shadowColor = C.gold; ctx.shadowBlur = s * (0.3 + (mood === 'golden' ? pulse : gold) * 1.2);
-      ctx.beginPath(); ctx.arc(0, 0, s * 0.85, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
-      ctx.strokeStyle = C.deep; ctx.lineWidth = s * 0.09; ctx.beginPath();
-      for (let th = 0; th <= Math.PI * 4.6; th += 0.12) { const rad = s * 0.055 * Math.pow(CHAOS.PHI, th / (Math.PI / 2)); if (rad > s * 0.85) break; const px = Math.cos(th) * rad, py = Math.sin(th) * rad; th === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); }
-      ctx.stroke();
-      if (mood === 'window') { ctx.fillStyle = C.violet; for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(Math.cos(i * 2.09) * s * 0.55, Math.sin(i * 2.09) * s * 0.55, s * 0.12, 0, 7); ctx.fill(); } }
-      ctx.restore();
-      // the head and the eye stalks
-      const hx = s * 0.75, hy = s * 0.1, wob = chaos ? Math.sin(t * 11) * 0.3 : Math.sin(t * 2) * 0.08;
-      ctx.fillStyle = body; ctx.beginPath(); ctx.arc(hx, hy, s * 0.42, 0, 7); ctx.fill();
-      const stalk = (dx, lean, k) => { const tx = hx + dx + Math.sin(lean + wob) * s * 0.55, ty = hy - s * 0.3 - Math.cos(lean + wob) * s * 0.75;
-        ctx.strokeStyle = body; ctx.lineWidth = s * 0.14; ctx.beginPath(); ctx.moveTo(hx + dx * 0.5, hy - s * 0.2); ctx.quadraticCurveTo(hx + dx, hy - s * 0.6, tx, ty); ctx.stroke();
-        ctx.fillStyle = body; ctx.beginPath(); ctx.arc(tx, ty, s * 0.27, 0, 7); ctx.fill(); eye(ctx, s, tx, ty, s * 0.2, k, F); return [tx, ty]; };
-      stalk(-s * 0.15, -0.35, 0); const [bx, by] = stalk(s * 0.25, 0.3, 1);
-      if (mood === 'golden') bead(ctx, s * 0.6, bx, by - s * 0.4, F);
-      mouth(ctx, s * 0.8, hx + s * 0.05, hy + s * 0.15, s * 0.16, F);
-      halo(ctx, s, -s * 1.5, F);
-    },
-  },
-  {
-    key: 'kit', name: 'Kit', icon: '🦋', colour: C.violet, colour2: C.mint, ink: '#150F33', greet: 'Mirror, mirror, {name}.', pillar: 'symmetry', pillarIcon: '✨', boosts: ['mirror', 'balance'],
+    key: 'kit', name: 'Mirror Fig', mode: 'symmetry', icon: '✨', colour: C.violet, colour2: C.mint, ink: '#150F33', greet: 'Mirror, mirror, {name}.', pillar: 'symmetry', pillarIcon: '✨', boosts: ['mirror', 'balance'],
     perk: 'A wide mirror (0.05, not 0.02) and a wide balance (0.03): symmetry finds you more often, and every mirror and balance counts double.',
-    tag: 'A butterfly whose wings are the curve, mirrored. The symmetric one.',
-    story: "Kit is the butterfly effect. Its two wings are the bifurcation diagram and its mirror image, the symmetry hidden in the chaos: f(x) = f(1−x). Its wings beat to the curve's rhythm, twice, four times, then a blur, and both antennae carry a gold bead. The Strange Attractor rank is named for it.",
-    draw(ctx, o, F) {
-      const { s, t } = o, { chaos, f, gold, mood, speed } = F;
-      const flap = 0.55 + 0.45 * Math.cos(t * speed * 1.2), body = gold > 0.3 ? C.gold : C.violet;
-      const wing = (dir) => { ctx.save(); ctx.scale(dir * flap, 1);
-        const base = gold ? C.gold : chaos ? C.hot : C.violet;
-        ctx.globalAlpha = o.alpha * 0.9;
-        for (const [ang, len] of [[-0.9, 1.5], [-0.35, 1.7], [0.35, 1.4], [0.95, 1.1]]) branch(ctx, s, s * 0.15, 0, ang, s * len * 0.55, 0, Math.max(1, f), t, chaos, base);
-        ctx.globalAlpha = o.alpha; ctx.restore(); };
-      wing(1); wing(-1);
-      if (mood === 'window') { ctx.globalAlpha = o.alpha * 0.35; ctx.save(); ctx.scale(1.35, 1.35); wing(1); wing(-1); ctx.restore(); ctx.globalAlpha = o.alpha; }
-      // the body and the antennae
-      ctx.fillStyle = body; ctx.shadowColor = chaos ? C.hot : C.violet; ctx.shadowBlur = s * 0.4;
-      ctx.beginPath(); ctx.ellipse(0, s * 0.15, s * 0.3, s * 0.95, 0, 0, 7); ctx.fill(); ctx.shadowBlur = 0;
-      ctx.fillStyle = body; ctx.beginPath(); ctx.arc(0, -s * 0.75, s * 0.42, 0, 7); ctx.fill();
-      for (const d of [-1, 1]) { const bx = d * s * 0.45 + Math.sin(t * 2.3 + d) * s * 0.05, by = -s * 1.75; ctx.strokeStyle = body; ctx.lineWidth = s * 0.1; ctx.beginPath(); ctx.moveTo(d * s * 0.15, -s * 1.05); ctx.quadraticCurveTo(d * s * 0.2, -s * 1.5, bx, by); ctx.stroke(); bead(ctx, s * 0.8, bx, by, F); }
-      eye(ctx, s, -s * 0.16, -s * 0.8, s * 0.15, 0, F); eye(ctx, s, s * 0.16, -s * 0.8, s * 0.15, 1, F);
-      mouth(ctx, s * 0.55, 0, -s * 0.55, s * 0.12, F);
-      halo(ctx, s, -s * 2.1, F);
-    },
+    tag: 'Fig with its wings out: two halves, each the other’s reflection.',
+    story: 'Fig with its wings out. Each wing is the bifurcation diagram, and the other is its mirror image: f(x) = f(1 − x), the symmetry hidden in the chaos. They beat to the curve’s rhythm, twice, four times, then a blur. This Fig notices when a beat lands where the last one would have, reflected.',
+    draw(ctx, o, F) { drawFig(ctx, o, F, 'symmetry'); },
+  },
+  {
+    key: 'bit', name: 'Boxy Fig', mode: 'fractals', icon: '🔁', colour: C.lilac, colour2: C.teal, ink: '#150F33', greet: 'Boxes in boxes, {name}.', pillar: 'fractals', pillarIcon: '🔁', boosts: ['window', 'phase'],
+    perk: 'The window lasts 7 beats for you, not 3: a longer rhythm of 3 where nothing twists. Every phase crossed and every window beat counts double.',
+    tag: 'Fig with the box on its back: a box that holds a box that holds…',
+    story: 'Fig with the box on its back. The box is r4box, and its screen shows a smaller box, which shows a smaller one: zoom in anywhere and the whole thing is there again, the way every split of the curve repeats the whole in miniature. This Fig sees in pixels and loves the window, the rhythm of 3 inside the chaos.',
+    draw(ctx, o, F) { drawFig(ctx, o, F, 'fractals'); },
+  },
+  {
+    key: 'phi', name: 'Golden Fig', mode: 'geometry', icon: '🌻', colour: C.moss, colour2: C.gold, ink: '#10240A', greet: 'Slow and golden, {name}.', pillar: 'geometry', pillarIcon: '🌻', boosts: ['golden', 'fib'],
+    perk: 'A wide golden cut (0.03, not 0.012) and double luck on Fibonacci beats. Every golden cut and Fibonacci beat counts double.',
+    tag: 'Fig with the spiral on its belly: φ every quarter turn.',
+    story: 'Fig with the spiral on its belly, a golden spiral that grows by φ = 1.618 every quarter turn, the shape the Fibonacci numbers draw. Slow and sure, this Fig turns the spiral as r climbs and waits for the golden cut, x = 0.618, and for the beats that count 1, 1, 2, 3, 5, 8…',
+    draw(ctx, o, F) { drawFig(ctx, o, F, 'geometry'); },
   },
 ];
 export const PAL = Object.fromEntries(PALS.map((p) => [p.key, p]));

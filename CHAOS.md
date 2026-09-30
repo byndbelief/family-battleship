@@ -160,10 +160,15 @@ a breather before the curve comes back:
 
 The 🌀 button shows 🧘 and the moves left while a game is held.
 
-## The pals (who lives in r4box): your companion
+## Fig (who lives in r4box), in four personalities
 
-Four live in r4box (`web/pals.js`), one for each pillar of the box, and each player picks one in the
-Design Studio (`studio.html`) to go on chaos adventures with. A companion **doubles its pillar's events
+Fig lives in r4box (`web/pals.js`). One creature, and it carries a bit of every pillar: the forking
+tail (chaos), a pair of mirror wings (symmetry), a box on its back with a box inside (fractals) and a
+golden spiral on its belly (geometry). Fig has four personalities, one per pillar, and each player picks
+the Fig they go on chaos adventures with in the Design Studio (`studio.html`): Wild Fig, Mirror Fig,
+Boxy Fig, Golden Fig. The chosen one's feature takes the lead in the drawing, its colour tints the body,
+and it moves its way (the wild one's tail frays even in calm; the boxy one sees in pixels; the golden
+one turns its spiral). Their old keys (fig, kit, bit, phi) stay in the code and the saved picks. A companion **doubles its pillar's events
 in your chaos rating** (a 🧭 bond row beside each, 077) **and bends the curve's edges for you** (079,
 `EDGES` in chaos.js, `_chaos_edge` on the server): Fig's peak line is 0.68 not 0.75 (your moves twist
 more often); Kit's mirror is 0.05 wide not 0.02 and its balance 0.03; Bit's window lasts 7 beats

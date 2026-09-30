@@ -536,7 +536,7 @@ body.glitch.glitch-phi{animation:r4spiral 1.1s steps(1) 1}
   (document.querySelector('.fs-on') || document.body).appendChild(gp);
   const w = palWidget(gp, { pal, s: 48, own: false, r0: 4, dpr: 2 }); w.hurt();
   document.getElementById('glitchTag')?.remove();
-  const tag = document.createElement('div'); tag.id = 'glitchTag'; tag.textContent = who ? `${who}'s ${PAL[pal].name}` : PAL[pal].name; gp.after(tag);   // whose companion this is
+  const tag = document.createElement('div'); tag.id = 'glitchTag'; tag.textContent = who ? `${who}'s ${PAL[pal].name}` : PAL[pal].name; gp.after(tag);   // whose Fig this is
   setTimeout(() => { w.stop(); gp.remove(); tag.remove(); }, ms);
   const until = Date.now() + ms;
   window.dispatchEvent(new CustomEvent('chaosglitch', { detail: { until, pal, who } }));

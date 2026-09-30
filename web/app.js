@@ -331,7 +331,7 @@ function loginView(msg) {
         <div><button class="primary" type="submit">Sign in</button></div>
       </form>
     </div>`);
-  { const k = residentNow(); palWidget(document.getElementById('palHi'), { pal: k, s: 40, beat: 0.8, dpr: 2 }); document.getElementById('palSay').textContent = `Hi, I'm ${PAL[k].name}. I live in r4box. ${PAL[k].tag}`; }
+  { const k = residentNow(); palWidget(document.getElementById('palHi'), { pal: k, s: 40, beat: 0.8, dpr: 2 }); document.getElementById('palSay').textContent = `Hi, I'm Fig. I live in r4box. ${PAL[k].tag}`; }
   document.getElementById('login').addEventListener('submit', async (e) => {
     e.preventDefault();
     const user = document.getElementById('user').value.trim().toLowerCase();
@@ -404,7 +404,7 @@ async function lobby() {
           <div class="boxwords"><span class="eyebrow">The Box · chaos · symmetry · fractals · fibonacci</span><h2>Route to Chaos</h2>
             <p class="small"><span id="palMind">This is Fig's mind.</span> Every game here runs on one curve, x → r·x·(1−x): its mood. A Chaos is rounds of the games against your rivals, wilder as r climbs; win the most rounds for the crown, and the next Chaos starts on its own. The games are won by playing Chaos.</p>
             <div class="row" style="gap:10px;flex-wrap:wrap"><a class="enter" id="enterChaos" href="#start">Enter Chaos 🌀</a><a class="enter alt" href="run.html">🧬 Solo run</a></div>
-            <a class="meet" id="meetPal" href="studio.html"><canvas id="palMini" width="88" height="88" aria-hidden="true"></canvas><span><b id="palName">…</b><small>your companion · change in the Design Studio ›</small></span></a></div>
+            <a class="meet" id="meetPal" href="studio.html"><canvas id="palMini" width="88" height="88" aria-hidden="true"></canvas><span><b id="palName">…</b><small>your Fig · change in the Design Studio ›</small></span></a></div>
         </div>
         <details class="gtfold" id="gtFold"><summary class="gtlabel" id="gtLabel">➕ Start a rivalry</summary>
         <form class="gtstart" id="gtStart">
@@ -454,7 +454,7 @@ async function lobby() {
       </div>
       <div class="lobside">
       <a class="quickentry" href="#stats"><span class="qicons" aria-hidden="true">🏅</span><span><strong>Family scoreboard</strong><span class="muted small">All-time titles, wins, streaks and bragging rights</span></span><span class="qgo" aria-hidden="true">›</span></a>
-      <a class="quickentry" href="studio.html"><span class="qicons" aria-hidden="true">🎨</span><span><strong>Design Studio</strong><span class="muted small">Who lives in r4box? Poke the four and pick one</span></span><span class="qgo" aria-hidden="true">›</span></a>
+      <a class="quickentry" href="studio.html"><span class="qicons" aria-hidden="true">🎨</span><span><strong>Design Studio</strong><span class="muted small">Fig's four personalities: poke them and pick yours</span></span><span class="qgo" aria-hidden="true">›</span></a>
       <details class="practice"><summary class="quickentry"><span class="qicons" aria-hidden="true">🎯</span><span><strong>Practice</strong><span class="muted small">One game on its own, off the Route to Chaos: it still feeds your chaos rating</span></span><span class="qgo" aria-hidden="true">›</span></summary>
         <a class="quickentry" href="#quick"><span class="qicons" aria-hidden="true">⚓⛳💥🃏</span><span><strong>A game against someone</strong><span class="muted small">Battleship, Putt Post, Hilltop Duel or Chaos Cards</span></span><span class="qgo" aria-hidden="true">›</span></a>
         <a class="quickentry" href="squirrel.html"><span class="qicons" aria-hidden="true">🐿️📎</span><span><strong>Squirrel Chaos</strong><span class="muted small">Solo: staple the squirrels in a fractal forest before the chaos swarms</span></span><span class="qgo" aria-hidden="true">›</span></a>
@@ -476,8 +476,8 @@ async function lobby() {
     </div>`);
   // 🌀 The Box on the wall: the bifurcation diagram with a live x walking it. Enter Chaos goes to your
   // running Chaos's round when there is one (renderGauntlets sets it), else opens the start form.
-  if (!quick) { const k0 = residentNow(); boxHero(document.getElementById('boxHero'), k0); const mini = palWidget(document.getElementById('palMini'), { pal: k0, s: 15, beat: 0.8, dpr: 2 }); document.getElementById('palName').textContent = PAL[k0].name; document.getElementById('palMind').textContent = `This is ${PAL[k0].name}'s mind.`;
-    resident().then((k) => { if (k !== k0 && document.getElementById('palMini')) { mini.set({ pal: k }); document.getElementById('palName').textContent = PAL[k].name; document.getElementById('palMind').textContent = `This is ${PAL[k].name}'s mind.`; document.getElementById('greet').textContent = PAL[k].greet.replace('{name}', me.username); document.documentElement.dataset.pal = k; boxHero(document.getElementById('boxHero'), k); }
+  if (!quick) { const k0 = residentNow(); boxHero(document.getElementById('boxHero'), k0); const mini = palWidget(document.getElementById('palMini'), { pal: k0, s: 15, beat: 0.8, dpr: 2 }); document.getElementById('palName').textContent = PAL[k0].name; document.getElementById('palMind').textContent = "This is Fig's mind.";
+    resident().then((k) => { if (k !== k0 && document.getElementById('palMini')) { mini.set({ pal: k }); document.getElementById('palName').textContent = PAL[k].name; document.getElementById('palMind').textContent = "This is Fig's mind."; document.getElementById('greet').textContent = PAL[k].greet.replace('{name}', me.username); document.documentElement.dataset.pal = k; boxHero(document.getElementById('boxHero'), k); }
       // 🧭 No companion yet: choose one first. Then 👋 meet it, once per device per companion (and any time at #meet).
       myCompanion().then((mine) => { if (!mine) return chooseCompanion(); let met = null; try { met = localStorage.getItem('r4.met'); } catch {} if (location.hash === '#meet' || met !== k) meetResident(k); }); }); }
   document.getElementById('enterChaos')?.addEventListener('click', (e) => {
@@ -823,8 +823,8 @@ function chooseCompanion() {
   document.getElementById('meetOv')?.remove();
   const el = document.createElement('div'); el.id = 'meetOv'; el.className = 'meet-ov'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Choose a companion');
   el.innerHTML = `<div class="meet-card choose">
-      <span class="eyebrow">Who lives in r4box</span><h2>Who goes with you?</h2>
-      <p class="small">Four live in r4box, one for each pillar of the box. Pick a companion for your chaos adventures: it rides every game with you and <b>doubles its own pillar's events in your chaos rating</b>. You can change your mind in the Design Studio.</p>
+      <span class="eyebrow">Fig lives in r4box</span><h2>Which Fig goes with you?</h2>
+      <p class="small">Fig has four personalities, one for each pillar of the box. Pick the one you go on chaos adventures with: it bends the curve's edges its way and <b>doubles its own pillar's events in your chaos rating</b>. You can change your mind in the Design Studio.</p>
       <div class="choose-grid">${PALS.map((p) => `<button type="button" class="choose-card" data-choose="${p.key}" style="--c:${p.colour}">
         <canvas width="220" height="220" aria-hidden="true"></canvas><b>${esc(p.name)}</b><span class="pillar">${p.pillarIcon} ${esc(p.pillar)}</span><small>${esc(p.perk)}</small></button>`).join('')}</div></div>`;
   document.body.appendChild(el);
@@ -845,16 +845,16 @@ function meetResident(k) {
   const el = document.createElement('div'); el.id = 'meetOv'; el.className = 'meet-ov'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', `Meet ${P.name}`);
   el.innerHTML = `<div class="meet-card">
       <canvas id="meetCv" width="520" height="520" aria-hidden="true"></canvas>
-      <span class="eyebrow">Who lives in r4box</span>
+      <span class="eyebrow">Fig lives in r4box</span>
       <h2>Meet ${esc(P.name)}</h2>
       <p class="meet-tag">${esc(P.tag)}</p>
       <p class="small"><b>${P.pillarIcon} ${esc(P.pillar)}.</b> ${esc(P.perk)}</p>
       <p class="muted small">${esc(P.story)}</p>
-      <p class="small"><b>r4box is ${esc(P.name)}'s mind.</b> The chaos curve, x → r·x·(1−x), is its mood, and every move you make in any game is a beat of it. Poke a beat and watch:</p>
+      <p class="small"><b>r4box is Fig's mind.</b> The chaos curve, x → r·x·(1−x), is its mood, and every move you make in any game is a beat of it. Poke a beat and watch:</p>
       <div class="meet-pokes">
         <button type="button" data-m="peak">⚡ a peak</button><button type="button" data-m="mirror">✨ the mirror</button><button type="button" data-m="golden">🌻 the golden cut</button><button type="button" data-m="calm">🧘 a calm</button><button type="button" data-m="chaos">🌀 chaos</button>
       </div>
-      <p class="muted small">You'll find it riding the 🌀 button in every game, in the corner of every solo run, taking a breath in every calm and blinking through every glitch. Want a different companion? Change it in the Design Studio.</p>
+      <p class="muted small">You'll find it riding the 🌀 button in every game, in the corner of every solo run, taking a breath in every calm and blinking through every glitch. Want a different Fig? Change it in the Design Studio.</p>
       <div class="row" style="gap:10px"><button type="button" class="enter" id="meetGo">Let's go 🌀</button><a class="enter alt" href="studio.html">🎨 Design Studio</a></div>
     </div>`;
   document.body.appendChild(el);

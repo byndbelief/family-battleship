@@ -795,6 +795,12 @@ sits in the corner of every solo game (`#spal` in the shell: `react` on every be
 `sleep` at game over). `resident()` caches the key in localStorage `r4.pal`, and `residentNow()` reads
 that synchronously for the loader and the sign-in screen (which run before or without a session).
 The topic mechanism is generic: a second question is another topic string and its own page section.
+**One Fig, four personalities.** On 2026-09-30 the four pals became Fig's four personalities (Wild,
+Mirror, Boxy, Golden: chaos, symmetry, fractals, geometry). `pals.js` draws them all with one
+`drawFig(ctx, o, F, mode)` that carries every feature (tail, wings, box, spiral) and leads with the
+mode's; the four `PALS` entries keep their keys (`fig`, `kit`, `bit`, `phi`) so the server functions,
+`design_votes`, `EDGES`, themes and glitches are untouched, and `name` is 'Wild Fig' etc. so every
+"Meet X" / "X takes a breath" / "dad's X" reads right; copy that means the creature says Fig.
 **Companion edges (079).** `EDGES`/`edgesOf(pal)` in chaos.js; `stepCurve(c, { pal })` and `inWindow(n, pal)`
 use them (the shell passes `pal.pal`); `drawMeter` reads `data-pal` for the peak line and Phi's gold
 band; `EDGE_SAY` is the run's opening banner. Server: `_chaos_edge(pal, what)` and `_chaos_mover()`
