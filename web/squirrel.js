@@ -11,7 +11,13 @@ const cv = $('sq'), ctx = cv.getContext('2d'), stage = $('stage');
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const W = 400;                    // the forest is 400 across; its height follows the screen's shape
 let H = 640, k = 1, dpr = 1;
-const LEVELS = 3, LEVEL_S = 30, AMMO = 12, RELOAD_S = 1.1, MAX_SQ = 16;
+const LEVELS = 4, LEVEL_S = 30, AMMO = 12, RELOAD_S = 1.1, MAX_SQ = 16;
+// 🌘 The dark side. Each day is darker than the last: the sky drains, eyes open in the trees, the
+// pinned ones stay, the picture tears, and something in the knothole starts to wake. Day 4 it does.
+const dark = () => Math.min(1, (level - 1) / 3);   // 0 on day 1, 1 on day 4
+const WHISPERS = ['they remember', 'the stapler was never yours', 'it counts them too', 'do not look at the knot', 'one more day',
+  'the little ones do not split. they multiply', 'you are inside the knot already', 'it likes the sound', 'the trees grew around something',
+  'every staple is a promise', 'they are not running from you', 'r → 4. then what', 'it has your face', 'keep going. it wants you to'];
 const rng = (seed) => { let x = (seed >>> 0) || 1; return () => { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; }; };
 
 // ---------------------------------------------------------------- sizing
@@ -55,7 +61,9 @@ function grow(seed, lvl) {
   const tips = segs.filter((s) => !s.kids.length);
   const mid = trunks[1];
   const knot = { x: mid.x1 + (mid.x2 - mid.x1) * 0.55, y: mid.y1 + (mid.y2 - mid.y1) * 0.55 };
-  return { seed, H, ground, segs, trunks, tips, knot, hue: [34, 28, 22, 16][Math.min(3, lvl - 1)] };
+  // 👀 eyes in the dark: pairs that blink open between the branches, more each day
+  const eyes = []; for (let i = 0; i < (lvl - 1) * 7; i++) eyes.push({ x: 20 + r() * (W - 40), y: 80 + r() * (ground - 160), ph: r() * 6.28, rate: 0.6 + r() * 0.8, gap: 5 + r() * 3 });
+  return { seed, H, ground, segs, trunks, tips, knot, eyes, hue: [34, 28, 22, 16][Math.min(3, lvl - 1)] };
 }
 const posOn = (s, t) => ({ x: s.x1 + (s.x2 - s.x1) * t, y: s.y1 + (s.y2 - s.y1) * t });
 
@@ -67,9 +75,10 @@ function newGame() {
   forest = grow((Date.now() & 0xffffff) | 1, level);
   game = { score: 0, combo: 0, comboT: 0, ammo: AMMO, reloadT: 0, time: 0, stepT: 0, squirrels: [], staples: [], pins: [], fx: [], stuck: [], leaves: [],
     curve: { r: 2.85, x: 0.2 + Math.random() * 0.6, n: 0, hist: [] }, twist: null, speed: 1, over: false, dive: null, hits: 0, shots: 0,
-    weapon: 'staple', arsenal: {}, hearts: 3, stun: 0, shake: 0, hitstop: 0, acorns: [], crates: [], crateT: 5, bombs: [], bolts: [] };
+    weapon: 'staple', arsenal: {}, hearts: 3, stun: 0, shake: 0, hitstop: 0, acorns: [], crates: [], crateT: 5, bombs: [], bolts: [],
+    kept: [], whisperT: 9, glitch: 0, eye: { open: 0, blink: 0, blinkT: 4 }, stare: 0 };
   renderBar();
-  banner('LEVEL 1', 'Staple the littlest ones. The big ones split!');
+  banner('DAY 1', 'Staple the littlest ones. The big ones split!');
 }
 
 // ---------------------------------------------------------------- the chaos curve
@@ -97,10 +106,18 @@ const TWISTS = [
   ['⚡ FRENZY', 'squirrels at double speed', 'frenzy'],
   ['🍂 LEAF STORM', 'can you see them?', 'leaves'],
 ];
+const DARK_TWISTS = [   // from day 2 on, and more likely the darker it gets
+  ['👁️ THEY STARE', 'do not move', 'stare'],
+  ['🌑 BLACKOUT', 'only their eyes', 'blackout'],
+  ['📻 STATIC', 'the picture tears', 'static'],
+];
 function twist() {
-  const [title, sub, kind] = TWISTS[Math.floor(Math.random() * TWISTS.length)];
+  const pool = Math.random() < dark() * 0.8 ? DARK_TWISTS : TWISTS;
+  const [title, sub, kind] = pool[Math.floor(Math.random() * pool.length)];
   game.twist = { kind, until: game.time + 6, wind: (Math.random() < 0.5 ? -1 : 1) * 70 };
-  banner(title, sub); sfx('twist');
+  banner(title, sub); sfx(pool === DARK_TWISTS ? 'gasp' : 'twist');
+  if (kind === 'stare') { game.stare = 1.6; game.squirrels.forEach((sq) => { sq.angry = 8; }); }
+  if (kind === 'static') game.glitch = 6;
   if (kind === 'stampede') for (let i = 0; i < 6; i++) spawn(1);
   dropCrate();   // every twist drops a crate too
   if (kind === 'leaves') for (let i = 0; i < 60; i++) game.leaves.push({ x: Math.random() * W, y: -Math.random() * H, vx: 20 + Math.random() * 40, vy: 40 + Math.random() * 50, r: 5 + Math.random() * 7, a: Math.random() * 6 });
@@ -127,9 +144,10 @@ const sqPos = (sq) => {
   return { x, y };
 };
 function moveSquirrel(sq, dt) {
+  if (game.stare > 0) return;   // 👁️ frozen, every eye on you
   if (sq.hop) { sq.hop.t += dt; if (sq.hop.t >= sq.hop.dur) sq.hop = null; return; }
   const len = Math.hypot(sq.seg.x2 - sq.seg.x1, sq.seg.y2 - sq.seg.y1) || 1;
-  const frenzy = game.twist?.kind === 'frenzy' ? 2 : 1;
+  const frenzy = game.twist?.kind === 'frenzy' || game.twist?.kind === 'stare' ? 2 : 1;   // after the stare, they come
   sq.t += (sq.dir * sq.spd * game.speed * frenzy * dt) / len;
   if (sq.t >= 1) {   // top of this branch: on up a child, or back down
     if (sq.seg.kids.length && Math.random() < 0.85) { sq.seg = sq.seg.kids[Math.floor(Math.random() * sq.seg.kids.length)]; sq.t = 0; }
@@ -322,19 +340,22 @@ function endLevel() {
 }
 function nextLevel() {
   level += 1; game.speed *= 1.15;
+  game.kept = game.kept.map((p) => ({ ...p, x: 20 + Math.random() * (W - 40), y: 90 + Math.random() * (H - 200) }));   // they came along
   forest = grow((forest.seed * 16807 + level) >>> 0 || 1, level);
   game.squirrels = []; game.stuck = []; game.pins = []; game.leaves = []; game.twist = null; game.ammo = AMMO; game.reloadT = 0; game.acorns = []; game.crates = []; game.bombs = []; game.bolts = []; game.stun = 0;
   game.dive = { t: 0, dur: reduceMotion ? 0.01 : 1.2, phase: 'out' };
   game.hearts = Math.min(3, game.hearts + 1);   // a breather: one heart back
-  banner(`LEVEL ${level}`, 'deeper in: a forest inside the knot · ❤️ +1');
+  game.eye = { open: 0, blink: 0, blinkT: 4 }; game.glitch = 0; game.stare = 0;
+  const sub = ['', 'deeper in · something is watching · ❤️ +1', 'the eyes are open · ❤️ +1', 'IT WAKES'][Math.min(3, level - 1)];
+  banner(`DAY ${level}`, sub); if (level >= 4) { sfx('stinger'); sfx('heartbeat'); }
 }
 async function finish() {
-  game.over = true; sfx('fanfare');
+  game.over = true; sfx(game.ko ? 'lose' : 'fanfare');
   const acc = game.shots ? Math.round((100 * game.hits) / game.shots) : 0;
   showOver(`<h2>🐿️ ${game.score.toLocaleString()} points</h2><p class="muted">${game.hits} hits from ${game.shots} staples (${acc}%) · chaos reached r = ${game.curve.r.toFixed(2)}</p><p class="muted small">Saving…</p>`, true);
   const { data, error } = await sb.rpc('solo_submit', { p_game: 'squirrel', p_score: game.score, p_level: level });
   const board = data?.top?.length ? `<ol class="board">${data.top.map((r, i) => `<li class="${r.player === me.id ? 'me' : ''}"><span>${i + 1}. ${esc(r.name)}</span><b>${r.score.toLocaleString()}</b></li>`).join('')}</ol>` : '';
-  showOver(`${game.ko ? '<h2 style="color:#FF7A6E">💫 KNOCKED OUT</h2><p class="muted small">Too many acorns to the head.</p>' : ''}<h2>🐿️ ${game.score.toLocaleString()} points</h2>${data?.record ? '<p style="color:var(--gold);font-weight:900">🏆 Your new best!</p>' : data ? `<p class="muted">Your best: ${data.best.toLocaleString()}</p>` : ''}
+  showOver(`${game.ko ? '<h2 style="color:#FF7A6E">💫 KNOCKED OUT</h2><p class="muted small">Too many acorns to the head. The forest keeps your staples.</p>' : level >= LEVELS ? '<h2 style="color:#C9B8FF">🌘 IT SLEEPS AGAIN</h2><p class="muted small">For now. It counted every one.</p>' : ''}<h2>🐿️ ${game.score.toLocaleString()} points</h2>${data?.record ? '<p style="color:var(--gold);font-weight:900">🏆 Your new best!</p>' : data ? `<p class="muted">Your best: ${data.best.toLocaleString()}</p>` : ''}
     <p class="muted small">${game.hits} hits from ${game.shots} staples (${acc}%) · chaos reached r = ${game.curve.r.toFixed(2)}</p>
     ${error ? `<p class="small" style="color:#FF9A7A">Couldn't save: ${esc(error.message || '')}</p>` : ''}${board}
     <button class="go" id="again">Play again</button>`, true);
@@ -363,6 +384,14 @@ function update(dt) {
   if (g.time >= level * LEVEL_S) return endLevel();
   if (g.stun > 0) g.stun -= dt;
   if (g.shake > 0) g.shake = Math.max(0, g.shake - dt);
+  if (g.stare > 0) g.stare -= dt;
+  // 🌘 the dark side: whispers, tears in the picture, and the eye in the knot
+  g.whisperT -= dt;
+  if (g.whisperT <= 0) { g.whisperT = Math.max(3.5, 15 - level * 3.2) + Math.random() * 4; if (level >= 2) { g.fx.push({ kind: 'whisper', x: 40 + Math.random() * (W - 80), y: 120 + Math.random() * (H - 260), text: WHISPERS[Math.floor(Math.random() * WHISPERS.length)], life: 4.5, tf: 4.5 }); if (level >= 3) sfx('heartbeat'); } }
+  if (g.glitch > 0) g.glitch -= dt;
+  else if (Math.random() < dt * (0.02 * level + (g.curve.r >= 3.5699 ? 0.04 : 0) + (level >= 4 ? 0.12 : 0))) g.glitch = 0.12 + Math.random() * 0.25;
+  if (level >= 4) { g.eye.open = Math.min(1, g.eye.open + dt / 3); g.eye.blinkT -= dt; if (g.eye.blinkT <= 0) { g.eye.blinkT = 3 + Math.random() * 4; g.eye.blink = 0.22; } if (g.eye.blink > 0) g.eye.blink -= dt; }
+  g.kept.forEach((p) => { p.tw = Math.max(0, p.tw - dt); if (Math.random() < dt * (0.05 + dark() * 0.4)) p.tw = 0.4; });
   // 🔩 hold to fire (the nail gun)
   if (hold && g.weapon === 'nail' && (g.nailT = (g.nailT || 0) - dt) <= 0) { g.nailT = 0.09; fire(hold.x, hold.y); }
   g.crateT -= dt * (1 + g.curve.x); if (g.crateT <= 0) { g.crateT = 7 + Math.random() * 5; dropCrate(); }
@@ -380,9 +409,9 @@ function update(dt) {
   if (g.comboT > 0) g.comboT -= dt;
   g.squirrels.forEach((sq) => moveSquirrel(sq, sq.daze > 0 ? dt * 0.35 : dt));
   g.staples = g.staples.filter((s) => { s.t += dt; if (s.t >= s.tf) { land(s); return false; } return true; });
-  g.pins.forEach((p) => { p.t += dt; }); g.pins = g.pins.filter((p) => { if (p.t > 0.9) { burst(p.x, p.y, p.gold ? ['#F5C542', '#FFF3C4'] : ['#C98B4A', '#8A5A2B', '#F2E3C0'], 16); return false; } return true; });
+  g.pins.forEach((p) => { p.t += dt; }); g.pins = g.pins.filter((p) => { if (p.t > 0.9) { burst(p.x, p.y, p.gold ? ['#F5C542', '#FFF3C4'] : ['#C98B4A', '#8A5A2B', '#F2E3C0'], 16); if (!p.gold) { g.kept.push({ x: p.x, y: p.y, face: p.face, tw: 0 }); if (g.kept.length > 40) g.kept.shift(); } return false; } return true; });
   g.stuck.forEach((s) => { s.life -= dt; }); g.stuck = g.stuck.filter((s) => s.life > 0);
-  g.fx.forEach((f) => { f.life -= dt; if (f.kind === 'dot' || f.kind === 'tuft') { f.x += f.vx * dt; f.y += f.vy * dt; f.vy += (f.kind === 'tuft' ? 160 : 300) * dt; f.a = (f.a || 0) + dt * 5; } else if (f.kind === 'ring') f.r += (f.R - f.r) * Math.min(1, dt * 14); else f.y -= 30 * dt; });
+  g.fx.forEach((f) => { f.life -= dt; if (f.kind === 'whisper') return; if (f.kind === 'dot' || f.kind === 'tuft') { f.x += f.vx * dt; f.y += f.vy * dt; f.vy += (f.kind === 'tuft' ? 160 : 300) * dt; f.a = (f.a || 0) + dt * 5; } else if (f.kind === 'ring') f.r += (f.R - f.r) * Math.min(1, dt * 14); else f.y -= 30 * dt; });
   g.fx = g.fx.filter((f) => f.life > 0);
   g.leaves.forEach((l) => { l.x += l.vx * dt; l.y += l.vy * dt; l.a += dt * 3; if (l.y > H + 10) { l.y = -10; l.x = Math.random() * W; } });
   if (g.twist?.kind !== 'leaves') g.leaves = g.leaves.filter((l) => l.y > 0 && l.y < H);
@@ -401,15 +430,22 @@ function draw(t) {
     else { z = 0.04 + 0.96 * s; fade = 1 - s; }   // the new forest grows out of a dot: the knot's inside
   }
   const sky = ctx.createLinearGradient(0, 0, 0, cv.height);
-  sky.addColorStop(0, `hsl(${forest.hue + 190} 40% 18%)`); sky.addColorStop(0.6, `hsl(${forest.hue} 55% 28%)`); sky.addColorStop(1, '#2A1C10');
+  const d = game ? dark() : 0;
+  sky.addColorStop(0, `hsl(${forest.hue + 190 + d * 150} ${40 - d * 25}% ${18 - d * 14}%)`); sky.addColorStop(0.6, `hsl(${forest.hue - d * 20} ${55 - d * 30}% ${28 - d * 20}%)`); sky.addColorStop(1, d > 0.9 ? '#1A0308' : '#2A1C10');
   ctx.fillStyle = sky; ctx.fillRect(0, 0, cv.width, cv.height);
   const sh = game && !reduceMotion ? (game.shake || 0) * 14 : 0, sx = (Math.random() - 0.5) * sh, sy = (Math.random() - 0.5) * sh;
   ctx.setTransform(k * z, 0, 0, k * z, (W / 2) * k - fx * k * z + sx * k, (H / 2) * k - fy * k * z + sy * k);
   drawForest(t);
   if (game) {
+    if (d > 0) { ctx.fillStyle = `rgba(8,2,6,${d * 0.5})`; ctx.fillRect(-W, -H, W * 3, H * 3); }   // the day drains
+    drawEyes(t);
+    // 📎 the kept: every little one you pinned, still there, twitching now and then (in unison on day 4)
+    game.kept.forEach((p) => { ctx.save(); ctx.globalAlpha = 0.55; if (p.tw > 0 || (level >= 4 && Math.sin(t / 420) > 0.92)) ctx.translate((Math.random() - 0.5) * 3, 0); drawSquirrel(p.x, p.y, 1, p.face, false, 0, true); drawStaple(p.x - p.face * 8, p.y + 4, 0.3, 1); ctx.restore(); });
+    if (game.twist?.kind === 'blackout') { ctx.fillStyle = '#020104'; ctx.fillRect(-W, -H, W * 3, H * 3); const st = STAPLER(), fl = game.staples.length ? 0.9 : 0.25; const gl = ctx.createRadialGradient(st.x, st.y - 10, 4, st.x, st.y - 10, 90); gl.addColorStop(0, `rgba(255,220,160,${fl})`); gl.addColorStop(1, 'rgba(255,220,160,0)'); ctx.fillStyle = gl; ctx.fillRect(0, 0, W, H); }
     game.stuck.forEach((s) => drawStaple(s.x, s.y, s.a, Math.min(1, s.life)));
     game.crates.forEach((c) => drawCrate(c, t));
-    game.squirrels.forEach((sq) => { const p = sqPos(sq); drawSquirrel(p.x, p.y, sq.size, sq.face, sq.gold, t / 120 + sq.wig, false, sq.angry > 0);
+    game.squirrels.forEach((sq) => { const p = sqPos(sq); if (game.twist?.kind !== 'blackout') drawSquirrel(p.x, p.y, sq.size, sq.face, sq.gold, t / 120 + sq.wig, false, sq.angry > 0);
+      if (level >= 3 || game.twist?.kind === 'blackout' || game.stare > 0) { const s = RAD[sq.size] / 10; ctx.save(); ctx.fillStyle = game.stare > 0 ? '#FF2A2A' : '#FF5A3A'; ctx.shadowColor = '#FF3A2A'; ctx.shadowBlur = 8; ctx.beginPath(); ctx.arc(p.x + sq.face * 8.6 * s, p.y - 6 * s, 1.4 * s, 0, 7); ctx.fill(); ctx.restore(); }
       if (sq.daze > 0) { ctx.fillStyle = '#FFE08A'; ctx.font = '10px system-ui'; ctx.textAlign = 'center'; for (let i = 0; i < 3; i++) { const a = t / 180 + i * 2.1; ctx.fillText('✦', p.x + Math.cos(a) * RAD[sq.size], p.y - RAD[sq.size] - 4 + Math.sin(a) * 3); } } });
     game.acorns.forEach((a) => drawAcorn(acornPos(a), a.spin));
     game.bombs.forEach((b) => { const e = b.t / b.tf, x = b.x0 + (b.x - b.x0) * e, y = b.y0 + (b.y - b.y0) * e - Math.sin(e * Math.PI) * 90; ctx.font = '20px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🧨', x, y); ctx.textBaseline = 'alphabetic'; });
@@ -423,12 +459,16 @@ function draw(t) {
       if (f.kind === 'dot') { ctx.fillStyle = f.c; ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, 7); ctx.fill(); }
       else if (f.kind === 'tuft') { ctx.strokeStyle = f.c; ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(f.x, f.y, 4, f.a, f.a + 2.4); ctx.stroke(); }
       else if (f.kind === 'ring') { ctx.strokeStyle = '#FFC857'; ctx.lineWidth = 6 * f.life * 2; ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, 7); ctx.stroke(); ctx.fillStyle = '#FF8A3D44'; ctx.fill(); }
+      else if (f.kind === 'whisper') { const e = 1 - f.life / f.tf, a = Math.sin(Math.min(1, e) * Math.PI) * (0.35 + dark() * 0.4); ctx.globalAlpha = a; ctx.font = 'italic 600 13px Georgia, serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#E8D8FF'; ctx.letterSpacing = '3px'; ctx.fillText(f.text, f.x + (game.glitch > 0 ? (Math.random() - 0.5) * 6 : 0), f.y); ctx.letterSpacing = '0px'; }
       else { ctx.font = f.big ? '400 22px Bungee, Impact, sans-serif' : '900 15px Nunito, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = f.col || '#FFE08A'; ctx.strokeStyle = '#3A1D00'; ctx.lineWidth = f.big ? 5 : 3; ctx.strokeText(f.text, f.x, f.y); ctx.fillText(f.text, f.x, f.y); }
     });
     ctx.globalAlpha = 1;
     game.leaves.forEach((l) => { ctx.save(); ctx.translate(l.x, l.y); ctx.rotate(l.a); ctx.fillStyle = '#D9822B'; ctx.beginPath(); ctx.ellipse(0, 0, l.r, l.r * 0.55, 0, 0, 7); ctx.fill(); ctx.restore(); });
     if (game.twist?.kind === 'gust') { ctx.strokeStyle = '#ffffff44'; ctx.lineWidth = 2; for (let i = 0; i < 12; i++) { const y = (i * 57) % H, x = ((t / 4) * Math.sign(game.twist.wind) + i * 97) % (W + 60); ctx.beginPath(); ctx.moveTo(x - 30, y); ctx.lineTo(x, y); ctx.stroke(); } }
     drawStapler();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (d > 0.3) { const vg = ctx.createRadialGradient(cv.width / 2, cv.height / 2, cv.height * 0.35, cv.width / 2, cv.height / 2, cv.height * 0.75); vg.addColorStop(0, 'rgba(60,0,10,0)'); vg.addColorStop(1, `rgba(40,0,8,${(d - 0.3) * 0.9 + (level >= 4 ? 0.2 * Math.sin(t / 500) : 0)})`); ctx.fillStyle = vg; ctx.fillRect(0, 0, cv.width, cv.height); }
+    if (game.glitch > 0 && !reduceMotion) drawGlitch();
   }
   if (fade > 0) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = `rgba(20,12,6,${fade * 0.9})`; ctx.fillRect(0, 0, cv.width, cv.height); }
 }
@@ -443,9 +483,44 @@ function drawForest(t) {
     const sway = reduceMotion ? 0 : Math.sin(t / 900 + i) * 2;
     for (let j = 0; j < 3; j++) { ctx.fillStyle = `hsl(${f.hue + j * 8 + (i % 3) * 5} 70% ${38 + j * 7}%)`; ctx.beginPath(); ctx.arc(s.x2 + sway + (j - 1) * 5, s.y2 - j * 3, 9 - j * 2, 0, 7); ctx.fill(); }
   });
-  // the knothole in the middle trunk: where the next forest is
-  const kn = f.knot; ctx.fillStyle = '#1B1109'; ctx.beginPath(); ctx.ellipse(kn.x, kn.y, 6, 9, 0, 0, 7); ctx.fill();
-  ctx.strokeStyle = '#8A6238'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(kn.x, kn.y, 7.5, 10.5, 0, 0, 7); ctx.stroke();
+  // the knothole in the middle trunk: where the next forest is. Day 4: it's an eye, and it's open.
+  const kn = f.knot, big = game && level >= 4 ? game.eye.open : 0;
+  if (big > 0) {
+    const op = big * (game.eye.blink > 0 ? Math.max(0.05, game.eye.blink / 0.22 < 0.5 ? game.eye.blink / 0.11 : 2 - game.eye.blink / 0.11) : 1);
+    const rx = 6 + 30 * big, ry = (9 + 14 * big) * op;
+    const look = hold || STAPLER(), dx = Math.max(-1, Math.min(1, (look.x - kn.x) / 200)), dy = Math.max(-1, Math.min(1, (look.y - kn.y) / 300));
+    ctx.fillStyle = '#EDE6DA'; ctx.beginPath(); ctx.ellipse(kn.x, kn.y, rx, ry, 0, 0, 7); ctx.fill();
+    ctx.save(); ctx.beginPath(); ctx.ellipse(kn.x, kn.y, rx, ry, 0, 0, 7); ctx.clip();
+    ctx.fillStyle = '#7A1A1A'; ctx.beginPath(); ctx.arc(kn.x + dx * rx * 0.45, kn.y + dy * ry * 0.4, 11 * big, 0, 7); ctx.fill();
+    ctx.fillStyle = '#0A0204'; ctx.beginPath(); ctx.arc(kn.x + dx * rx * 0.45, kn.y + dy * ry * 0.4, 5.5 * big, 0, 7); ctx.fill();
+    ctx.fillStyle = '#ffffffaa'; ctx.beginPath(); ctx.arc(kn.x + dx * rx * 0.45 - 3, kn.y + dy * ry * 0.4 - 3, 1.8, 0, 7); ctx.fill();
+    for (let i = 0; i < 7; i++) { ctx.strokeStyle = '#B23A3A66'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(kn.x + (i - 3) * 9, kn.y - ry); ctx.lineTo(kn.x + (i - 3) * 12 + (i % 2) * 4, kn.y + ry); ctx.stroke(); }
+    ctx.restore();
+    ctx.strokeStyle = '#3A1A10'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(kn.x, kn.y, rx + 1, ry + 1, 0, 0, 7); ctx.stroke();
+  } else {
+    ctx.fillStyle = '#1B1109'; ctx.beginPath(); ctx.ellipse(kn.x, kn.y, 6, 9, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#8A6238'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(kn.x, kn.y, 7.5, 10.5, 0, 0, 7); ctx.stroke();
+    if (game && level >= 2 && Math.sin(t / 1300) > 0.85) { ctx.fillStyle = '#FF3A2A'; ctx.beginPath(); ctx.arc(kn.x + 1.5, kn.y - 1, 1.6, 0, 7); ctx.fill(); }   // something peeks
+  }
+}
+// 👀 The eyes in the dark: pairs that open between the branches, blink, and are gone.
+function drawEyes(t) {
+  if (!forest.eyes.length) return;
+  forest.eyes.forEach((e) => {
+    const c = Math.sin(t / 1000 * e.rate + e.ph); if (c < 0.35) return;
+    const op = Math.min(1, (c - 0.35) / 0.2);
+    ctx.save(); ctx.globalAlpha = op * (0.5 + dark() * 0.5); ctx.fillStyle = level >= 4 ? '#FF3A2A' : '#FFE08A'; ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 6;
+    ctx.beginPath(); ctx.ellipse(e.x - e.gap / 2, e.y, 2.2, 1.4 * op, 0, 0, 7); ctx.ellipse(e.x + e.gap / 2, e.y, 2.2, 1.4 * op, 0, 0, 7); ctx.fill(); ctx.restore();
+  });
+}
+// 📻 A tear in the picture: slices of the frame slip sideways, colours split, static crackles.
+function drawGlitch() {
+  const w = cv.width, h = cv.height, n = 3 + Math.floor(Math.random() * 5);
+  for (let i = 0; i < n; i++) { const y = Math.floor(Math.random() * h), sh = 4 + Math.floor(Math.random() * h * 0.08), dx = Math.floor((Math.random() - 0.5) * w * 0.12); ctx.drawImage(cv, 0, y, w, sh, dx, y, w, sh); }
+  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.25; ctx.drawImage(cv, 6 * dpr, 0); ctx.restore();
+  ctx.fillStyle = '#ffffff'; for (let i = 0; i < 120; i++) { ctx.globalAlpha = Math.random() * 0.35; ctx.fillRect(Math.random() * w, Math.random() * h, 2 * dpr, 2 * dpr); }
+  ctx.globalAlpha = 1;
+  if (Math.random() < 0.08) { ctx.globalCompositeOperation = 'difference'; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.globalCompositeOperation = 'source-over'; }   // a frame inverts
 }
 // A cartoon squirrel: body, head, a bushy curled tail (a spiral), sized 1-3. Pinned: flailing, 📎.
 function drawCrate(c, t) {
@@ -506,10 +581,10 @@ function drawStapler() {
 const meter = $('meter'), mc = meter.getContext('2d');
 function hud() {
   const g = game;
-  $('score').textContent = g.score.toLocaleString();
+  $('score').textContent = g.glitch > 0 && Math.random() < 0.3 ? String(g.score).replace(/\d/g, () => '▮▯▓▒░'[Math.floor(Math.random() * 5)]) : g.score.toLocaleString();
   const hearts = '❤️'.repeat(Math.max(0, g.hearts)) + '🖤'.repeat(Math.max(0, 3 - g.hearts)); if ($('hearts').textContent !== hearts) $('hearts').textContent = hearts;
   $('combo').textContent = g.combo > 1 && g.comboT > 0 ? `COMBO ×${g.combo}` : '';
-  $('lvl').textContent = `Level ${level} of ${LEVELS} · ${Math.max(0, Math.ceil(level * LEVEL_S - g.time))}s`;
+  $('lvl').textContent = `Day ${level} of ${LEVELS} · ${Math.max(0, Math.ceil(level * LEVEL_S - g.time))}s${g.kept.length ? ` · 📎 ${g.kept.length} kept` : ''}`;
   $('phase').textContent = `${phaseOf(g.curve.r)} · r ${g.curve.r.toFixed(2)}`;
   const hs = g.curve.hist, w = meter.width, h = meter.height;
   mc.clearRect(0, 0, w, h);
@@ -544,7 +619,7 @@ cv.addEventListener('pointermove', (e) => { if (hold) hold = toWorld(e); });
 ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => cv.addEventListener(ev, () => { hold = null; }));
 addEventListener('keydown', (e) => { if ((e.key === 'r' || e.key === 'R') && game && !game.over) reload(); });
 
-window.__sq = () => game && ({ score: game.score, level, hearts: game.hearts, weapon: game.weapon, arsenal: { ...game.arsenal }, crates: game.crates.map((c) => ({ x: c.x, y: c.y, w: c.w })), acorns: game.acorns.map(acornPos), ammo: game.ammo, dive: !!game.dive, over: game.over, r: game.curve.r,
+window.__sq = () => game && ({ score: game.score, level, kept: game.kept.length, glitch: game.glitch, eye: game.eye.open, twist: game.twist?.kind || null, stare: game.stare, whispers: game.fx.filter((f) => f.kind === 'whisper').length, skipTo: (l) => { level = l - 1; game.time = level * LEVEL_S; }, forceTwist: (k) => { game.twist = { kind: k, until: game.time + 6, wind: 70 }; if (k === 'stare') game.stare = 1.6; if (k === 'static') game.glitch = 6; }, hearts: game.hearts, weapon: game.weapon, arsenal: { ...game.arsenal }, crates: game.crates.map((c) => ({ x: c.x, y: c.y, w: c.w })), acorns: game.acorns.map(acornPos), ammo: game.ammo, dive: !!game.dive, over: game.over, r: game.curve.r,
   squirrels: game.squirrels.map((sq) => ({ ...sqPos(sq), size: sq.size, hop: !!sq.hop })), W, H });   // for tests: read-only
 // ---------------------------------------------------------------- start
 (async () => {
@@ -558,9 +633,10 @@ window.__sq = () => game && ({ score: game.score, level, hearts: game.hearts, we
   const board = Object.entries(best).slice(0, 5);
   showOver(`<h2>🐿️ Squirrel Chaos</h2>
     <p>Tap to fire the stapler. Staple a big squirrel and it <b>splits in two</b>; only the littlest ones get pinned, and score (more for a quick combo).</p>
-    <p class="muted small">They come to the beat of the chaos curve, x → r·x·(1−x): calm, then a rhythm, then chaos, with twists at its peaks and a ✨ golden squirrel when x nearly touches 1. Three levels, each deeper inside the last tree's knothole. Tap the stapler (or R) to reload.</p>
+    <p class="muted small">They come to the beat of the chaos curve, x → r·x·(1−x): calm, then a rhythm, then chaos, with twists at its peaks and a ✨ golden squirrel when x nearly touches 1. Four days, each deeper inside the last tree's knothole. Tap the stapler (or R) to reload.</p>
     ${board.length ? `<ol class="board">${board.map(([p, s], i) => `<li class="${p === me.id ? 'me' : ''}"><span>${i + 1}. ${esc(names[p] ?? '?')}</span><b>${s.toLocaleString()}</b></li>`).join('')}</ol>` : ''}
     <p class="muted small">📦 Shoot the crates for a 🔩 nail gun, 💥 shotgun, 🧨 tack bombs, ⚡ a chain stapler or the 🌀 chaos cannon. And watch out: angry squirrels throw acorns. Shoot them down, or three bonks and you're out.</p>
+    <p class="muted small">Four days. It gets darker the deeper you go: the pinned ones stay, the trees watch, and something in the knothole is waking. 13+: creepy, not gory.</p>
     <button class="go" id="again">Start 🐿️</button>`, true);
   requestAnimationFrame(loop);
 })();
