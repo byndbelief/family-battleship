@@ -729,7 +729,7 @@ opens in chaos. The server's messages (round news, champion, call-off, chaos-clo
 
 ### 🧘 Calm within the chaos (074)
 A category of games that need a think, with a breather built into the box (`CHAOS.md` § Calm):
-`CALM` in `chaos.js` names the kinds (`golf`, `cards`) and the run organs (`putt`, `hilltop`), and
+`CALM` in `chaos.js` names the kinds (`golf`, `cards`, `duel` since 075) and the run organs (`putt`, `hilltop`), and
 `isCalm(key)`. Server: `chaos_curve.hold` (8 for a calm kind at insert); while `hold > 0`,
 `_chaos_curve` walks x, keeps n and r, returns false (no twist), decrements, and posts the 🧘 event
 at the start and the 😎 one on the last held move (074 rewrites the whole function; 068's body plus

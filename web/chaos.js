@@ -48,7 +48,7 @@ export const CHAOS = Object.freeze({
 // climb, nothing twists; x still walks so gifts still land), then: here comes that chaos curve again.
 // Server kinds hold HOLD moves (074); run organs hold RUN_HOLD beats (shell.js); WARN beats before
 // the end the warning goes up. The between-round jump into a calm game waits BREATH seconds.
-export const CALM = Object.freeze({ kinds: ['golf', 'cards'], organs: ['putt', 'hilltop'], HOLD: 8, RUN_HOLD: 10, WARN: 3, BREATH: 12 });
+export const CALM = Object.freeze({ kinds: ['golf', 'cards', 'duel'], organs: ['putt', 'hilltop'], HOLD: 8, RUN_HOLD: 10, WARN: 3, BREATH: 12 });
 export const isCalm = (key) => CALM.kinds.includes(key) || CALM.organs.includes(key);
 export const phaseOf = (r) => (r < 3 ? 'calm' : r < 3.449 ? 'rhythm ×2' : r < 3.5699 ? 'rhythm ×4…' : 'CHAOS');
 export const inWindow = (n) => n >= CHAOS.WINDOW_N[0] && n <= CHAOS.WINDOW_N[1];   // by beat, so a 0.04 step can't skip it

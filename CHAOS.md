@@ -132,7 +132,7 @@ putts a cup on a green of fractal bumps; a fractal ridge that craters, and tanks
 ## 🧘 Calm within the chaos
 
 Some games need a think: a putt lined up, a hand planned. Those are the **calm category** (`CALM` in
-`chaos.js`: the kinds Putt Post and Chaos Cards; the run organs Putt and Hilltop), and the box gives them
+`chaos.js`: the kinds Putt Post, Chaos Cards and Hilltop Duel; the run organs Putt and Hilltop), and the box gives them
 a breather before the curve comes back:
 
 - **A hold.** A calm game's curve starts held: for its first **8 moves** (a run organ: **10 beats**)

@@ -352,7 +352,7 @@ const KIND_NAME = { battleship: 'Battleship', golf: 'Putt Post', duel: 'Hilltop 
 const KIND_BLURB = {
   battleship: 'Hide your fleet, hunt theirs. Peeking is allowed.',
   golf: '🧘 Calm within the chaos: 18 wild holes, sneak attacks and mulligans.',
-  duel: 'Tanks on hills. Mind the wind. Up to 4 in a free-for-all.',
+  duel: '🧘 Calm within the chaos: tanks on hills. Mind the wind. Up to 4 in a free-for-all.',
   cards: '🧘 Calm within the chaos: match colours, dump your hand. Chaos cards and card storms.',
   gauntlet: 'A best-of series of random games. Winner takes the crown.',
 };
@@ -377,7 +377,7 @@ function wireBotStep(key, chips, room, onChange) {
     onChange(); syncBotStep(key, chips);
   }));
 }
-const KIND_WHO = { battleship: '2–3 players', golf: 'Solo or up to 4 · 🧘 calm', duel: '2–4 players', cards: '2–4 players · 🧘 calm', gauntlet: '2–4 players · 3, 5 or 7 rounds' };
+const KIND_WHO = { battleship: '2–3 players', golf: 'Solo or up to 4 · 🧘 calm', duel: '2–4 players · 🧘 calm', cards: '2–4 players · 🧘 calm', gauntlet: '2–4 players · 3, 5 or 7 rounds' };
 
 async function lobby() {
   G = null;
