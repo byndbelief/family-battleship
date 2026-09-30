@@ -505,6 +505,10 @@ body.glitch{animation:r4tear 1.1s steps(1) 1}
 body.glitch .card > b,body.glitch .card > small{font-size:0!important}body.glitch .card > b::after{content:var(--glitch-icon,'🐿️');font-size:26px;line-height:1}
 @keyframes r4mirror{0%,100%{transform:none;filter:none}12%,68%{transform:scaleX(-1);filter:hue-rotate(40deg)}80%{transform:none;filter:invert(1)}}
 body.glitch.glitch-kit{animation:r4mirror 1.1s steps(1) 1}
+@keyframes r4unmirror{0%,100%{transform:translate(-50%,-50%)}12%,68%{transform:translate(-50%,-50%) scaleX(-1)}}
+@keyframes r4unmirrorTag{0%,100%{transform:translate(-50%,86px)}12%,68%{transform:translate(-50%,86px) scaleX(-1)}}
+body.glitch-kit #glitchPal{animation:r4blink .18s steps(2) infinite,r4unmirror 1.1s steps(1) 1}
+body.glitch-kit #glitchTag{animation:r4unmirrorTag 1.1s steps(1) 1}
 @keyframes r4zoom{0%{transform:none}20%{transform:scale(1.08);filter:contrast(1.5)}45%{transform:scale(.94)}70%{transform:scale(1.04);filter:contrast(1.5) hue-rotate(90deg)}100%{transform:none;filter:none}}
 body.glitch.glitch-bit{animation:r4zoom 1.1s steps(1) 1}
 @keyframes r4spiral{0%{transform:none;filter:none}25%{transform:rotate(-6deg) scale(1.03);filter:sepia(.7) saturate(2.2)}55%{transform:rotate(5deg) scale(1.02);filter:sepia(.7) saturate(2.2) hue-rotate(-20deg)}100%{transform:none;filter:none}}
