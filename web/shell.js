@@ -19,9 +19,9 @@
 //   endStats() → text  debug()?
 // The host an organ gets: { cv, ctx, W, H, k, dpr, reduceMotion, S, banner, add, hurt, heal, over, sfx, ui, morphs }
 import { sb, me, signedIn, sfx, setGameTools, esc, names } from './common.js';
-import { makeCurve, stepCurve, drawMeter, meterText, NEWS, tally, ratingLine, CALM, isCalm, CHAOS, EDGE_SAY } from './chaos.js';
+import { makeCurve, stepCurve, drawMeter, meterText, NEWS, tally, ratingLine, CALM, isCalm, CHAOS, MOOD_SAY, MOOD_NAME, WEIGHTS } from './chaos.js';
 import { palWidget, PAL } from './pals.js';
-import { resident, residentNow } from './studio.js';
+import { applyPalTheme } from './common.js';
 
 const SHELL_CSS = `
   .shud{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:flex-start;padding:8px 10px;pointer-events:none;font-weight:900;text-shadow:0 2px 4px #000c}
@@ -82,16 +82,16 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   let calm = 0;
   // ⚡ a glitch: seconds left of the flicker a held peak sets off (the theme is another organ's meanwhile)
   let glitchT = 0;
-  function glitchRun() { if (S.over) return; glitchT = 1.1; const others = organs.filter((o) => o !== active && o.theme); const th = others[Math.floor(Math.random() * others.length)]; if (th) applyTheme(th.theme); active.glitch?.(true, pal.pal); pal.hurt(); sfx('buzz'); banner(NEWS.glitch[0], `${PAL[pal.pal].name}'s mind flickers: nothing changed. Probably.`); }
+  function glitchRun() { if (S.over) return; glitchT = 1.1; const others = organs.filter((o) => o !== active && o.theme); const th = others[Math.floor(Math.random() * others.length)]; if (th) applyTheme(th.theme); active.glitch?.(true, S.curve.mood); pal.hurt(); sfx('buzz'); banner(NEWS.glitch[0], `${PAL[S.curve.mood || 'calm'].name}'s mind flickers: nothing changed. Probably.`); }
   function tear() {   // slices of the frame shoved sideways, and a colour band, for the glitch's life
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
     for (let i = 0; i < 5; i++) { const y = Math.random() * cv.height, h = (6 + Math.random() * 34) * host.dpr, dx = (Math.random() < 0.5 ? -1 : 1) * (6 + Math.random() * 18) * host.dpr; ctx.drawImage(cv, 0, y, cv.width, h, dx, y, cv.width, h); }
     ctx.globalCompositeOperation = 'difference'; ctx.globalAlpha = 0.35; ctx.fillStyle = ['#3DD6C6', '#FF5A4A', '#B9A6FF'][Math.floor(Math.random() * 3)]; ctx.fillRect(0, Math.random() * cv.height, cv.width, (4 + Math.random() * 20) * host.dpr);
     ctx.restore();
   }
-  const openCalm = () => { if (!isCalm(active?.key)) { calm = 0; return; } calm = CALM.RUN_HOLD; banner(`🧘 ${PAL[pal.pal].name.toUpperCase()} TAKES A BREATH`, `calm within the chaos: r holds and nothing twists · ${calm} beats`); pal.force('gift', 1.6); };
+  const openCalm = () => { if (!isCalm(active?.key)) { calm = 0; return; } calm = CALM.RUN_HOLD; banner('🧘 FIG TAKES A BREATH', `calm within the chaos: r holds and nothing twists · ${calm} beats`); pal.force('gift', 1.6); };
   // 🎨 the resident pal sits in the corner and feels every beat (pals.js; who it is: the Design Studio)
-  const pal = palWidget($('spal'), { pal: residentNow(), s: 22, own: false, dpr: 2 }); resident().then((k) => pal.set({ pal: k }));
+  const pal = palWidget($('spal'), { pal: 'calm', s: 22, own: false, dpr: 2 });   // 🟢 Fig, in the run's mood
   const host = {
     cv, ctx, W, H: 640, k: 1, dpr: 1, reduceMotion, S, sfx, morphs,
     banner, add: (pts) => { S.score += Math.max(0, Math.round(pts)); },
@@ -135,9 +135,12 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   // ---------------------------------------------------------------- the beat and the morphs
   function beat() {
     const held = calm > 0;
-    const ev = stepCurve(S.curve, { hold: held, pal: pal.pal }); S.beats += 1; tenure += 1; tally(ev, S.tally);   // 🧭 your companion's edges
+    const ev = stepCurve(S.curve, { hold: held }); S.beats += 1; tenure += 1; tally(ev, S.tally);
+    // 🟢 Fig's mood moved: say so, recolour the room, and its pillar's events pay double (the bond, in points)
+    if (ev.moodChanged) { banner(`🟢 ${MOOD_NAME[ev.mood]}`, MOOD_SAY[ev.mood]); applyPalTheme(ev.mood); }
+    { const B = PAL[ev.mood]?.boosts || []; let bond = 0; for (const k of B) { if (k === 'r4' ? ev.crossed.some((p) => p.name === 'r = 4') : k === 'phase' ? ev.crossed.length > 0 : ev[k]) bond += WEIGHTS[k] || 0; } if (bond) S.tally.bond = (S.tally.bond || 0) + bond; }
     if (held) { calm -= 1; if (calm === CALM.WARN) { banner(...NEWS.again); sfx('tick'); } else if (ev.glitch) glitchRun(); }
-    pal.set({ r: S.curve.r }); pal.react(ev);
+    pal.set({ r: S.curve.r, mood: ev.mood }); pal.react(ev);
     ev.crossed.forEach((p) => banner(p.name, p.say));
     if (ev.enteredWindow) banner(...NEWS.window);
     if (ev.mirror) banner(...NEWS.mirror);
@@ -192,9 +195,8 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     tenure = 0; prev = null; transition = null; lastUsed = new Map();
     organs.forEach((o) => o.start());
     active = organs[Math.floor(Math.random() * organs.length)]; active.enter(null, null); applyTheme(); calm = 0;
-    $('over').hidden = true; running = true; sfx('click'); pal.wake(); pal.set({ r: S.curve.r }); $('spal').hidden = false;
+    $('over').hidden = true; running = true; sfx('click'); pal.wake(); pal.set({ r: S.curve.r, mood: 'calm' }); applyPalTheme('calm'); $('spal').hidden = false;
     banner(`${active.icon} ${active.name.toUpperCase()}`, morphs ? `${active.verb} · the curve will morph the world` : active.verb);
-    setTimeout(() => { if (running && !S.over) banner(`🧭 ${PAL[pal.pal].name.toUpperCase()} RIDES WITH YOU`, EDGE_SAY[pal.pal]); }, 2000);   // what your companion bends
     if (isCalm(active.key)) setTimeout(() => { if (running && !S.over && active && isCalm(active.key)) openCalm(); }, 1800);
   }
   async function over(how) {
@@ -220,7 +222,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => cv.addEventListener(ev, fwd('up')));
   addEventListener('keydown', (e) => { if (running && !S.over) active?.keydown?.(e); });
   addEventListener('keyup', (e) => { if (running && !S.over) active?.keyup?.(e); });
-  window.__shell = () => ({ organ: active?.key, prev: prev?.key, calm, glitch: glitchT > 0, theme: stage.style.getPropertyValue('--bg'), score: S.score, hearts: S.hearts, combo: S.combo, beats: S.beats, morphs: S.morphs, r: S.curve.r, n: S.curve.n, window: S.curve.window, over: S.over, tenure, running, transition: !!transition,
+  window.__shell = () => ({ organ: active?.key, prev: prev?.key, calm, glitch: glitchT > 0, mood: S.curve.mood, theme: stage.style.getPropertyValue('--bg'), score: S.score, hearts: S.hearts, combo: S.combo, beats: S.beats, morphs: S.morphs, r: S.curve.r, n: S.curve.n, window: S.curve.window, over: S.over, tenure, running, transition: !!transition,
     tally: { ...S.tally }, force: (why) => { if (why === 'glitch') return glitchRun(); const to = why === 'mirror' && prev ? prev : nextOrgan(); morphTo(to, why); }, over: S.over, end: (how) => over(how), hurt: () => host.hurt('test') });
   // ---------------------------------------------------------------- go
   (async () => {

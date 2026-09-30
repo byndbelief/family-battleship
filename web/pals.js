@@ -114,10 +114,13 @@ function branch(ctx, s, x0, y0, ang, len, d, f, t, chaos, base) {
 // tail (chaos), a pair of mirror wings (symmetry), a box on its back with a box inside (fractals) and a
 // golden spiral on its belly (geometry). The personality you go with takes the lead: its feature grows,
 // its colour tints the body, its way of moving shows.
-const MODE_COL = { chaos: C.hot, symmetry: C.violet, fractals: C.lilac, geometry: C.gold };
+const MODE_COL = { calm: C.teal, chaos: C.hot, symmetry: C.violet, fractals: C.lilac, geometry: C.gold };
+export const MODE_OF = { calm: 'calm', fig: 'chaos', kit: 'symmetry', bit: 'fractals', phi: 'geometry' };   // mood key → the feature that leads
 function drawFig(ctx, o, F, m) {
-  const { s, t } = o, { chaos, f, gold, mood, pulse, speed } = F, lead = (k) => (m === k ? 1 : 0.42);
-  const body = gold > 0.3 ? C.gold : mix(C.teal, MODE_COL[m], m === 'chaos' ? 0.18 : 0.3);
+  const { s, t } = o, { chaos, f, gold, mood, pulse, speed } = F, W = o.w, lead = (k) => (W ? 0.42 + 0.58 * (W[k] || 0) : m === k ? 1 : 0.42);
+  const tint = W ? Object.entries(W).sort((a, b) => b[1] - a[1])[0] : null, mk = tint && tint[1] > 0.5 ? tint[0] : m;   // the mood that leads right now
+  m = mk === 'calm' ? 'calm' : mk;
+  const body = gold > 0.3 ? C.gold : m === 'calm' ? C.teal : mix(C.teal, MODE_COL[m], m === 'chaos' ? 0.18 : 0.3);
   // 🦋 the mirror wings, behind: two halves, each the other's reflection
   const wk = lead('symmetry'), flap = m === 'symmetry' ? 0.55 + 0.45 * Math.cos(t * speed * 1.2) : 0.75 + 0.1 * Math.sin(t * 2);
   for (const dir of [-1, 1]) {
@@ -192,12 +195,13 @@ export const PALS = [
   },
 ];
 export const PAL = Object.fromEntries(PALS.map((p) => [p.key, p]));
+PAL.calm = { ...PALS[0], key: 'calm', name: 'Fig', mode: 'calm', icon: '🟢', colour: C.teal, colour2: C.hot, tag: 'Fig, settled: a bit of everything.', draw(ctx, o, F) { drawFig(ctx, o, F, 'calm'); } };   // Fig between moods
 
 // One frame of a pal. x, y: its centre. s: its size (a body radius). t: seconds. r: where the curve
 // is. mood / mp: the mood and how far through it (0..1). face: 1 looks right, -1 left.
 export function drawPal(key, ctx, opts) {
   const o = { s: 24, t: 0, r: 2.9, mood: null, mp: 0, face: 1, hurt: false, asleep: false, alpha: 1, ...opts };
-  const pal = PAL[key] || PALS[0], F = { ...feel(o), hurt: o.hurt, asleep: o.asleep, alpha: o.alpha, mood: o.mood, mp: o.mp, t: o.t };
+  const pal = PAL[key] || PAL.calm, F = { ...feel(o), hurt: o.hurt, asleep: o.asleep, alpha: o.alpha, mood: o.mood, mp: o.mp, t: o.t };
   ctx.save(); ctx.globalAlpha = o.alpha; ctx.translate(o.x, o.y + F.bob - F.hop); ctx.scale(F.fc, 1); ctx.scale(1 / F.sy, F.sy);
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   pal.draw(ctx, o, F);
@@ -207,25 +211,28 @@ export function drawPal(key, ctx, opts) {
 
 // A pal living on its own canvas. Own beat (default) or driven from outside (own: false, then call
 // set({ r }) and react(ev) yourself). Returns { react, set, hurt, sleep, wake, stop, pal }.
-export function palWidget(cv, { pal = 'fig', s = 26, beat = 0.7, own = true, face = 1, r0 = null, dpr = Math.min(2, devicePixelRatio || 1) } = {}) {
+export function palWidget(cv, { pal = 'calm', s = 26, beat = 0.7, own = true, face = 1, r0 = null, lockMood = false, dpr = Math.min(2, devicePixelRatio || 1) } = {}) {
   const ctx = cv.getContext('2d');
   const W = cv.width / dpr, H = cv.height / dpr;
   let curve = makeCurve(), r = r0 ?? curve.r, mood = null, moodT = 0, moodDur = 1, hurtT = 0, asleep = false, acc = 0, last = 0, stopped = false, key = pal, ownB = own;
+  // 🟢 the personality: weights per feature, eased toward the mood's (lockMood: stays on `pal`, for the Studio)
+  const w = { chaos: 0.42, symmetry: 0.42, fractals: 0.42, geometry: 0.42 }; let target = key;
   const st = { react, set, hurt, sleep, wake, stop, get mood() { return mood; }, get r() { return r; }, get pal() { return key; }, force };
   function react(ev) { const m = palMood(ev); if (m) { [mood, moodDur] = m; moodT = 0; } }
   function force(m, dur = 1.4) { mood = m; moodDur = dur; moodT = 0; }
-  function set(o) { if (o.r != null) r = o.r; if (o.face != null) face = o.face; if (o.pal) key = o.pal; if (o.own != null) ownB = o.own; }
+  function set(o) { if (o.r != null) r = o.r; if (o.face != null) face = o.face; if (o.pal) { key = o.pal; target = o.pal; } if (o.mood && !lockMood) { key = o.mood; target = o.mood; } if (o.own != null) ownB = o.own; }
   function hurt() { hurtT = 1.2; }
   function sleep() { asleep = true; } function wake() { asleep = false; mood = null; }
   function stop() { stopped = true; }
   function frame(t) {
     if (stopped || !cv.isConnected) return;
     const dt = last ? Math.min(0.1, (t - last) / 1000) : 0; last = t;
-    if (ownB && !asleep) { acc += dt; while (acc >= beat) { acc -= beat; const ev = stepCurve(curve); r = curve.r; if (curve.r >= 4 - 1e-9 && Math.random() < 0.03) curve = makeCurve(); react(ev); } }
+    if (ownB && !asleep) { acc += dt; while (acc >= beat) { acc -= beat; const ev = stepCurve(curve); r = curve.r; if (curve.r >= 4 - 1e-9 && Math.random() < 0.03) curve = makeCurve(); react(ev); if (!lockMood) { key = curve.mood; target = curve.mood; } } }
+    for (const k of Object.keys(w)) { const goal = MODE_OF[target] === k ? 1 : 0; w[k] += (goal - w[k]) * Math.min(1, dt * 3); }
     if (mood) { moodT += dt; if (moodT >= moodDur) mood = null; }
     if (hurtT > 0) hurtT -= dt;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
-    drawPal(key, ctx, { x: W * 0.5, y: H * 0.56, s, t: t / 1000, r, mood, mp: mood ? moodT / moodDur : 0, face, hurt: hurtT > 0, asleep });
+    drawPal(key, ctx, { x: W * 0.5, y: H * 0.56, s, t: t / 1000, r, mood, mp: mood ? moodT / moodDur : 0, face, hurt: hurtT > 0, asleep, w });
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);

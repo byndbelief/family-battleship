@@ -4,21 +4,14 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY, VAPID_PUBLIC_KEY } from './config.js';
 import { sfx, isMuted, setMuted } from './sfx.js';
 import { drawPal, palWidget, PAL, PALS } from './pals.js';
-// 🎨 the resident (who lives in r4box; studio.js keeps it in localStorage). r4box is its mind: the curve
-// is its mood, so it shows up wherever the curve does: the 🌀 button, the curve box, a glitch, a calm.
-// 🎨 the room in its colours: data-pal on <html> drives theme.css (--pal, --pal-2, the motif)
-export function applyPalTheme(k = palKey()) { document.documentElement.dataset.pal = PAL[k] ? k : PALS[0].key; }
+// 🟢 Fig lives in r4box and goes with everyone; its MOOD is the game's (chaos_curve.mood, or the run's
+// curve), one of calm / fig (wild) / kit (mirror) / bit (boxy) / phi (golden). data-pal on <html> holds
+// the mood of the moment and drives theme.css (--pal, --pal-2, the motif): the room changes with Fig.
+export function applyPalTheme(k = 'calm') { document.documentElement.dataset.pal = PAL[k] ? k : 'calm'; }
 applyPalTheme();
-export function palKey() { try { const k = localStorage.getItem('r4.pal'); if (k && PAL[k]) return k; } catch {} return PALS[0].key; }
-export const palName = () => PAL[palKey()].name;
-// This player's companion, kept in localStorage for the next page. Quiet on any failure: the last known one stands.
-async function refreshResident() {
-  try {
-    const { data } = await sb.rpc('design_tally', { p_topic: 'resident' }); if (!Array.isArray(data)) return;
-    const mine = data.find((r) => r.player === me.id)?.choice;   // 🧭 my companion (077); nothing picked yet: Fig house-sits
-    localStorage.setItem('r4.pal', mine && PAL[mine] ? mine : PALS[0].key); applyPalTheme();
-  } catch {}
-}
+export const moodNow = () => document.documentElement.dataset.pal || 'calm';
+export function palKey() { return moodNow(); }   // the mood of the moment (kept for callers)
+export const palName = () => 'Fig';
 // the mood a game's last move put the resident in, read off the curve row
 function curveMood(cv) { const h = cv?.hist || [], x = h[h.length - 1], x0 = h[h.length - 2]; if (x == null) return null; if (cv.hold > 0) return 'gift'; if (x > CHAOS.GOLD) return 'gold'; if (x0 != null && Math.abs(x - (1 - x0)) < CHAOS.MIRROR) return 'mirror'; if (Math.abs(x - CHAOS.CUT) < CHAOS.CUT_TOL) return 'golden'; if (x > CHAOS.PEAK) return 'peak'; if (x < CHAOS.GIFT) return 'gift'; return null; }
 import { CHAOS, CALM, isCalm } from './chaos.js';   // 🌀 the box: CHAOS.md
@@ -115,14 +108,12 @@ const loaderEl = (() => {
     const P = 40, S = top - 2 * P, X = (v) => P + v * S, Y = (v) => top - P - v * S;
     c.strokeStyle = '#ffffff22'; c.lineWidth = 2; c.strokeRect(P, P, S, S);
     c.strokeStyle = '#ffffff55'; c.beginPath(); c.moveTo(X(0), Y(0)); c.lineTo(X(1), Y(1)); c.stroke();
-    let palKey0 = 'fig'; try { palKey0 = localStorage.getItem('r4.pal') || 'fig'; } catch {}
-    c.strokeStyle = PAL[palKey0]?.colour || '#B9A6FF'; c.lineWidth = 4; c.beginPath();   // the parabola in your companion's colour
+    c.strokeStyle = '#B9A6FF'; c.lineWidth = 4; c.beginPath();
     for (let i = 0; i <= 60; i++) { const v = i / 60; c[i ? 'lineTo' : 'moveTo'](X(v), Y(r * v * (1 - v))); } c.stroke();
     let x = 0.2; c.lineWidth = 2.5; c.beginPath(); c.moveTo(X(x), Y(0));
     for (let i = 0; i < 70; i++) { const y = r * x * (1 - x); c.lineTo(X(x), Y(y)); c.lineTo(X(y), Y(y)); x = y; }
     c.strokeStyle = r >= 3.5699 ? '#FF8A3Dcc' : '#3DD6C6cc'; c.stroke();
-    let palKey = 'fig'; try { palKey = localStorage.getItem('r4.pal') || 'fig'; } catch {}
-    drawPal(palKey, c, { x: X(x), y: Y(x), s: 20, t: now / 1000, r, face: 1 });   // the resident rides the cobweb
+    drawPal(r >= 3.5699 ? 'fig' : 'calm', c, { x: X(x), y: Y(x), s: 20, t: now / 1000, r, face: 1 });   // Fig rides the cobweb, wild once it's chaos
     // the diagram, and where r is on it
     c.drawImage(bif, 0, top + 10); c.fillStyle = '#fff'; c.fillRect(Math.min(W - 3, k * W), top + 6, 3, 228);
     el.querySelector('.lr').textContent = `r = ${r.toFixed(2)} · ${r < 3 ? 'calm' : r < 3.449 ? 'a rhythm of 2' : r < 3.5699 ? '4, 8, 16…' : 'chaos'}`;
@@ -398,7 +389,6 @@ export async function signedIn() {
   (botRows ?? []).forEach((b) => bots.add(b.profile_id));
   me.id = session.user.id; me.username = names[me.id];
   startOnline(me.username);
-  refreshResident();   // 🎨 who lives in r4box, so a game page opened first on a fresh device still shows the right one
   // Join realtime as this player (not anonymously), or row-level security hides every change.
   try { await sb.realtime.setAuth(session.access_token); } catch {}
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
@@ -483,7 +473,7 @@ async function announceChaosNow(filter) {
   data = (data || []).filter((e) => !chaosShown.has(e.id)); data.forEach((e) => chaosShown.add(e.id));
   if (!data.length) return [];
   const gl = data.find((e) => String(e.kind).startsWith('glitch'));   // ⚡ somebody's companion leaks through a calm: the page flickers their way
-  if (gl) glitch(1100, { pal: String(gl.kind).split(':')[1] || palKey(), who: gl.actor ? names[gl.actor] || null : null });
+  if (gl) glitch(1100, { pal: String(gl.kind).split(':')[1] || moodNow(), who: gl.actor ? names[gl.actor] || null : null });
   await sb.rpc('chaos_seen', { p_ids: data.map((e) => e.id) });
   // In a game, news doesn't pop up over the board (unless Settings says so): it waits in the 🔔.
   if (onGamePage() && !pref('gamePopups', false)) { data.forEach((e) => news.unshift(e)); newsUnread += data.length; showNews(true); return data; }
@@ -500,8 +490,8 @@ async function announceChaosNow(filter) {
 // cards do it in CSS). Nothing in the rules changes. Reduced motion: only the theme swap.
 const WORLDS = [['#0F2A22', '#18433A'], ['#15122E', '#231F4A'], ['#0B2A22', '#0F3A2D'], ['#14200E', '#1E2E15'], ['#0B0A1F', '#161433'], ['#0A1626', '#12243A']];
 let glitchTimer = null;
-export function glitch(ms = 1100, { pal = palKey(), who = null } = {}) {
-  pal = PAL[pal] ? pal : palKey();
+export function glitch(ms = 1100, { pal = moodNow(), who = null } = {}) {
+  pal = PAL[pal] ? pal : 'calm';
   if (!document.getElementById('glitchCss')) {
     const st = document.createElement('style'); st.id = 'glitchCss';
     st.textContent = `@keyframes r4tear{0%{filter:none;transform:none}8%{filter:hue-rotate(160deg) saturate(2.2) contrast(1.4);transform:translate(-4px,1px)}18%{filter:invert(1) hue-rotate(60deg);transform:translate(5px,-2px) skewX(-2deg)}28%{filter:none;transform:none}52%{filter:hue-rotate(-120deg) saturate(3);transform:translate(3px,0)}62%{filter:contrast(2) brightness(1.3);transform:translate(-3px,2px) skewX(2deg)}72%,100%{filter:none;transform:none}}
@@ -536,7 +526,7 @@ body.glitch.glitch-phi{animation:r4spiral 1.1s steps(1) 1}
   (document.querySelector('.fs-on') || document.body).appendChild(gp);
   const w = palWidget(gp, { pal, s: 48, own: false, r0: 4, dpr: 2 }); w.hurt();
   document.getElementById('glitchTag')?.remove();
-  const tag = document.createElement('div'); tag.id = 'glitchTag'; tag.textContent = who ? `${who}'s ${PAL[pal].name}` : PAL[pal].name; gp.after(tag);   // whose Fig this is
+  const tag = document.createElement('div'); tag.id = 'glitchTag'; tag.textContent = who ? `${who}'s move · ${PAL[pal].name}` : PAL[pal].name; gp.after(tag);   // whose move, and Fig's mood
   setTimeout(() => { w.stop(); gp.remove(); tag.remove(); }, ms);
   const until = Date.now() + ms;
   window.dispatchEvent(new CustomEvent('chaosglitch', { detail: { until, pal, who } }));
@@ -573,9 +563,10 @@ async function curveFor(c) {
   if (key !== curveKey) { curveKey = key; curve = null; curveAt = 0; }
   if (Date.now() - curveAt < 1500) return drawCurveBtn();
   curveAt = Date.now();
-  const { data } = await sb.from('chaos_curve').select('n, r, x, hist, hold').eq('game_id', c.id).maybeSingle();
+  const { data } = await sb.from('chaos_curve').select('n, r, x, hist, hold, mood').eq('game_id', c.id).maybeSingle();
   if (curveKey !== key) return;
-  curve = data || { n: 0, r: 2.9, x: null, hist: [] };
+  curve = data || { n: 0, r: 2.9, x: null, hist: [], mood: 'calm' };
+  applyPalTheme(curve.mood || 'calm');   // 🟢 the room follows Fig's mood in this game
   drawCurveBtn(); if (document.getElementById('curveBox')) drawCurveBox();
 }
 function drawCurveBtn() {
@@ -591,7 +582,7 @@ function drawCurveBtn() {
   c.strokeStyle = curve.r >= 3.5699 ? '#FF8A3D' : '#3DD6C6'; c.lineWidth = 3; c.lineJoin = 'round'; c.beginPath();
   pts.forEach((v, i) => c[i ? 'lineTo' : 'moveTo'](X(i), Y(v))); c.stroke();
   pts.forEach((v, i) => { if (i === pts.length - 1) return; c.fillStyle = v > CURVE_T ? '#FF5A4A' : '#fff'; c.beginPath(); c.arc(X(i), Y(v), 3, 0, 7); c.fill(); });
-  drawPal(palKey(), c, { x: X(pts.length - 1) - 4, y: Y(pts[pts.length - 1]), s: 8, t: performance.now() / 1000, r: curve.r, mood: curveMood(curve), mp: 0.5, face: 1 });   // the resident rides the last move
+  drawPal(curve.mood || 'calm', c, { x: X(pts.length - 1) - 4, y: Y(pts[pts.length - 1]), s: 8, t: performance.now() / 1000, r: curve.r, mood: curveMood(curve), mp: 0.5, face: 1 });   // Fig, in this game's mood, rides the last move
   if (curve.hold > 0) { c.fillStyle = '#C9FFF8'; c.font = '800 13px system-ui'; c.textAlign = 'left'; c.textBaseline = 'top'; c.fillText(`🧘${curve.hold}`, 4, 3); }   // 🧘 held: moves before r climbs again
 }
 let bifImg = null;
@@ -608,7 +599,7 @@ export function bifurcation(W, H, r0, r1) {   // drawn once: 1200 r's, 160 settl
 function drawCurveBox() {
   const box = document.getElementById('curveBox'); if (!box || !curve) return;
   const [ph, say] = curvePhase(curve.r), W = 720, H = 360, r0 = 2.8, r1 = 4;
-  box.querySelector('.ph').textContent = ph; box.querySelector('.say').textContent = `${say}. This is ${palName()}'s mind: every move you make is a beat of it`;
+  box.querySelector('.ph').textContent = ph; box.querySelector('.say').textContent = `${say}. This is Fig's mind: every move you make is a beat of it${curve.mood && curve.mood !== 'calm' ? `, and right now it's ${PAL[curve.mood].name}` : ''}`;
   box.querySelector('.num').textContent = curve.hold > 0 ? `🧘 Calm within the chaos: r holds at ${curve.r.toFixed(2)} for ${curve.hold} more move${curve.hold === 1 ? '' : 's'}, and nothing twists. Then here comes that chaos curve again.` : curve.n ? `Move ${curve.n} · r = ${curve.r.toFixed(2)} · x = ${curve.x.toFixed(3)}${curve.x > CURVE_T ? ' → twist!' : ''}` : 'No moves yet: r starts at 2.90.';
   const cv = box.querySelector('canvas'), c = cv.getContext('2d');
   bifImg = bifImg || bifurcation(W, H, r0, r1);
@@ -623,7 +614,7 @@ function drawCurveBox() {
   hist.forEach((v, i) => { const r = Math.min(CHAOS.RMAX, CHAOS.R0 + CHAOS.DR * (n - hist.length + 1 + i)), last = i === hist.length - 1;
     c.fillStyle = v > CURVE_T ? '#FF5A4A' : '#3DD6C6'; c.globalAlpha = last ? 1 : 0.35 + (0.5 * i) / hist.length; c.beginPath(); c.arc(Xr(r), Y(v), last ? 9 : 5, 0, 7); c.fill(); });
   c.globalAlpha = 1; c.strokeStyle = '#fff'; c.lineWidth = 2; c.beginPath(); c.moveTo(Xr(curve.r), 0); c.lineTo(Xr(curve.r), H); c.stroke();
-  if (hist.length) drawPal(palKey(), c, { x: Xr(curve.r), y: Y(hist[hist.length - 1]), s: 16, t: performance.now() / 1000, r: curve.r, mood: curveMood(curve), mp: 0.5, face: 1 });   // the resident, where this game is in its mind
+  if (hist.length) drawPal(curve.mood || 'calm', c, { x: Xr(curve.r), y: Y(hist[hist.length - 1]), s: 16, t: performance.now() / 1000, r: curve.r, mood: curveMood(curve), mp: 0.5, face: 1 });   // Fig, where this game is in its mind
 }
 function toggleCurve() {
   const open = document.getElementById('curveBox');

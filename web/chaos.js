@@ -51,42 +51,56 @@ export const CHAOS = Object.freeze({
 // GLITCH: while held, a beat whose x lands above it is a ⚡ glitch: the rules don't change, the world flickers.
 export const CALM = Object.freeze({ kinds: ['golf', 'cards', 'duel'], organs: ['putt', 'hilltop'], HOLD: 8, RUN_HOLD: 10, WARN: 3, BREATH: 12, GLITCH: 0.7 });
 export const isCalm = (key) => CALM.kinds.includes(key) || CALM.organs.includes(key);
-// 🧭 YOUR COMPANION BENDS THE CURVE'S EDGES for you (079; the server's _chaos_edge says the same):
-//   Fig (chaos): the peak line sits at 0.68, not 0.75: peaks come sooner, twists come more often.
-//   Kit (symmetry): the mirror is wide, 0.05 not 0.02, and balance 0.03 not 0.01.
-//   Bit (fractals): the window lasts 7 beats (22–28), not 3: a longer rhythm of 3, nothing twists.
-//   Phi (geometry): the golden cut is wide, 0.03 not 0.012, and Fibonacci luck is doubled.
+// 🟢 FIG'S MOOD BENDS THE CURVE'S EDGES (079/080; the server's _chaos_edge says the same). The mood is
+// the curve's own (moodOf, below), the same rule on the server, so everyone at a table sees one Fig:
+//   Wild Fig (fig, chaos): the peak line sits at 0.68, not 0.75: peaks come sooner, twists more often.
+//   Mirror Fig (kit, symmetry): the mirror is wide, 0.05 not 0.02, and balance 0.03 not 0.01.
+//   Boxy Fig (bit, fractals): the window lasts 7 beats (22–28), not 3: a longer rhythm of 3.
+//   Golden Fig (phi, geometry): the golden cut is wide, 0.03 not 0.012, and Fibonacci luck is doubled.
+//   calm: the plain edges.
 export const EDGES = Object.freeze({
+  calm: { PEAK: CHAOS.PEAK, MIRROR: CHAOS.MIRROR, BALANCE: CHAOS.BALANCE, CUT_TOL: CHAOS.CUT_TOL, WINDOW_N: CHAOS.WINDOW_N, FIB_LUCK: 1 },
   fig: { PEAK: 0.68, MIRROR: CHAOS.MIRROR, BALANCE: CHAOS.BALANCE, CUT_TOL: CHAOS.CUT_TOL, WINDOW_N: CHAOS.WINDOW_N, FIB_LUCK: 1 },
   kit: { PEAK: CHAOS.PEAK, MIRROR: 0.05, BALANCE: 0.03, CUT_TOL: CHAOS.CUT_TOL, WINDOW_N: CHAOS.WINDOW_N, FIB_LUCK: 1 },
   bit: { PEAK: CHAOS.PEAK, MIRROR: CHAOS.MIRROR, BALANCE: CHAOS.BALANCE, CUT_TOL: CHAOS.CUT_TOL, WINDOW_N: [22, 28], FIB_LUCK: 1 },
   phi: { PEAK: CHAOS.PEAK, MIRROR: CHAOS.MIRROR, BALANCE: CHAOS.BALANCE, CUT_TOL: 0.03, WINDOW_N: CHAOS.WINDOW_N, FIB_LUCK: 2 },
 });
-export const edgesOf = (pal) => EDGES[pal] || EDGES.fig;
-export const EDGE_SAY = Object.freeze({
-  fig: 'peaks come sooner: x above 0.68 twists (not 0.75)', kit: 'a wide mirror (0.05) and a wide balance (0.03)',
-  bit: 'a long window: the rhythm of 3 lasts 7 beats, nothing twists', phi: 'a wide golden cut (0.03) and double Fibonacci luck',
+export const edgesOf = (mood) => EDGES[mood] || EDGES.calm;
+export const MOOD_HOLD = 3;   // beats a mood lasts after what set it off
+// What this beat's events do to Fig's mood: golden things → Golden Fig, symmetry → Mirror Fig, the window
+// or a split → Boxy Fig, a peak → Wild Fig. Nothing: the mood runs out and Fig settles (wild in chaos).
+export function moodOf(ev) {
+  if (ev.golden || ev.gold || ev.fib) return 'phi';
+  if (ev.mirror || ev.balance) return 'kit';
+  if (ev.enteredWindow || ev.crossed.length) return 'bit';
+  if (ev.peak || ev.big) return 'fig';
+  return null;
+}
+export const MOOD_NAME = Object.freeze({ calm: 'FIG', fig: 'WILD FIG', kit: 'MIRROR FIG', bit: 'BOXY FIG', phi: 'GOLDEN FIG' });
+export const MOOD_SAY = Object.freeze({
+  calm: 'Fig settles: the plain edges', fig: 'Fig goes wild: peaks come at 0.68, twists come sooner', kit: 'Fig mirrors: a wide mirror (0.05) and balance (0.03)',
+  bit: 'Fig boxes up: the window runs 7 beats, nothing twists', phi: 'Fig turns golden: a wide golden cut (0.03), double Fibonacci luck',
 });
 export const phaseOf = (r) => (r < 3 ? 'calm' : r < 3.449 ? 'rhythm ×2' : r < 3.5699 ? 'rhythm ×4…' : 'CHAOS');
-export const inWindow = (n, pal = null) => { const w = pal ? edgesOf(pal).WINDOW_N : CHAOS.WINDOW_N; return n >= w[0] && n <= w[1]; };   // by beat, so a 0.04 step can't skip it
+export const inWindow = (n, mood = 'calm') => { const w = edgesOf(mood).WINDOW_N; return n >= w[0] && n <= w[1]; };   // by beat, so a 0.04 step can't skip it
 export const fixedPoint = (r) => 1 - 1 / r;
 export const isFib = (n) => CHAOS.FIB.includes(n);
 export const fibMult = (k) => CHAOS.FIB[Math.max(0, Math.min(CHAOS.FIB.length - 1, k))];   // F(k): combo k pays F(k) times (k = 1 → 1, 2 → 2, 3 → 3, 4 → 5 …)
 
 // A curve, `n0` beats along (a Chaos round starts (round − 1)·6 in). x0 random unless given.
 export function makeCurve(n0 = 0, x0 = null) {
-  return { n: n0, r: Math.min(CHAOS.RMAX, CHAOS.R0 + CHAOS.DR * n0), x: x0 ?? 0.05 + Math.random() * 0.9, hist: [], window: false };
+  return { n: n0, r: Math.min(CHAOS.RMAX, CHAOS.R0 + CHAOS.DR * n0), x: x0 ?? 0.05 + Math.random() * 0.9, hist: [], window: false, mood: 'calm', moodLeft: 0 };
 }
 // One beat. Returns the events the game acts on.
-export function stepCurve(c, { hold = false, pal = null } = {}) {   // hold: 🧘 x walks but r stays (no beat counted); pal: 🧭 whose edges
-  const x0 = c.x, r0 = c.r, E = edgesOf(pal || c.pal);
+export function stepCurve(c, { hold = false } = {}) {   // hold: 🧘 x walks but r stays (no beat counted)
+  const x0 = c.x, r0 = c.r, m0 = c.mood || 'calm', E = edgesOf(m0);   // this beat is judged by the mood Fig was in
   if (!hold) { c.n += 1; c.r = Math.min(CHAOS.RMAX, CHAOS.R0 + CHAOS.DR * c.n); }
   let x = c.r * x0 * (1 - x0);
   if (x <= 1e-9 || x >= 1 - 1e-9) x = 0.5 + (Math.random() - 0.5) * 1e-3;   // stuck on 0 or 1: a butterfly flaps
   c.x = x; c.hist.push(x); if (c.hist.length > CHAOS.HIST) c.hist.shift();
-  const win = inWindow(c.n, pal || c.pal), enteredWindow = win && !c.window; c.window = win;
+  const win = inWindow(c.n, m0), enteredWindow = win && !c.window; c.window = win;
   const crossed = CHAOS.PHASES.filter(([at]) => r0 < at && c.r >= at).map(([, name, say]) => ({ name, say }));
-  return {
+  const ev = {
     x, r: c.r, n: c.n, hop: Math.abs(x - x0), held: hold, glitch: hold && x > CALM.GLITCH,
     peak: x > E.PEAK && !win && !hold,
     big: x > CHAOS.BIG && !win && !hold,
@@ -100,6 +114,13 @@ export function stepCurve(c, { hold = false, pal = null } = {}) {   // hold: �
     luck: E.FIB_LUCK,   // 🧭 Phi: Fibonacci beats pay double luck
     crossed,   // phases crossed this beat (usually none, at most a few), newest last
   };
+  // 🟢 Fig's mood after this beat (the same rule as the server's _chaos_curve)
+  const nm = moodOf(ev);
+  if (nm) { c.mood = nm; c.moodLeft = MOOD_HOLD; }
+  else if (c.moodLeft > 0) { c.moodLeft -= 1; if (c.moodLeft === 0) c.mood = c.r >= CHAOS.PHASES[3][0] ? 'fig' : 'calm'; }
+  else if (c.r >= CHAOS.PHASES[3][0] && c.mood === 'calm') c.mood = 'fig';
+  ev.mood = c.mood; ev.moodChanged = c.mood !== m0;
+  return ev;
 }
 export const NEWS = {
   mirror: ['✨ SYMMETRY', 'x landed on the mirror of the beat before: f(x) = f(1−x)'],
@@ -117,9 +138,8 @@ export const NEWS = {
 // the meter's line takes your companion's colours (theme.css --pal / --pal-2), read once a second
 let meterC = null, meterAt = 0;
 function meterColours() { if (typeof document === 'undefined') return ['#3DD6C6', '#FF8A3D']; if (Date.now() - meterAt > 1000) { const cs = getComputedStyle(document.documentElement); meterC = [cs.getPropertyValue('--pal').trim() || '#3DD6C6', cs.getPropertyValue('--pal-2').trim() || '#FF8A3D']; meterAt = Date.now(); } return meterC; }
-const palAttr = () => (typeof document === 'undefined' ? null : document.documentElement.dataset.pal || null);
 export function drawMeter(canvas, c) {
-  const E = edgesOf(c.pal || palAttr());
+  const E = edgesOf(c.mood || 'calm');
   const mc = canvas.getContext('2d'), w = canvas.width, h = canvas.height, hs = c.hist;
   mc.clearRect(0, 0, w, h);
   if (c.window) { mc.fillStyle = '#C9B8FF22'; mc.fillRect(0, 0, w, h); }

@@ -10,9 +10,7 @@ const q = (s) => execSync(`psql -h ${DIR} -p ${PORT} -U postgres -d game -At -c 
   const dad = q("select id from profiles where username='dad_commander'"), out = {};
   const p = await open(b, dad, 'dad_commander', '', { mobile: true });
   await p.waitForSelector('#gtStart', { state: 'attached', timeout: 30000 });
-  await p.waitForTimeout(1500);   // 🧭 no companion yet: pick one; 👋 the welcome shows once per device: dismiss it
-  if (await p.$('[data-choose]')) { await p.tap('[data-choose="fig"]'); await p.waitForTimeout(1500); }
-  if (await p.$('#meetGo')) await p.tap('#meetGo');
+  await p.waitForTimeout(1500); if (await p.$('#meetGo')) await p.tap('#meetGo');   // 👋 Meet Fig shows once per device: dismiss it
   await p.tap('details.practice > summary');   // Practice is folded on the home screen (the Box leads)
   await p.tap('a.quickentry[href="#quick"]'); await p.waitForSelector('.lobby.quickmode .ncard[data-kind=duel]');
   out.quickScreen = await p.$$eval('.ncard', (e) => e.filter((x) => x.checkVisibility()).length);

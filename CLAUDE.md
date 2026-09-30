@@ -795,6 +795,19 @@ sits in the corner of every solo game (`#spal` in the shell: `react` on every be
 `sleep` at game over). `resident()` caches the key in localStorage `r4.pal`, and `residentNow()` reads
 that synchronously for the loader and the sign-in screen (which run before or without a session).
 The topic mechanism is generic: a second question is another topic string and its own page section.
+**Fig's mood is the curve's (080).** No picks any more: `design_votes` and `_chaos_companion` are
+unused (left in place); `studio.js` is gone; the chooser is gone; `meetFig()` is the welcome (`r4.met`
+= 'fig4'). `chaos_curve.mood` / `mood_left`; `_chaos_curve` is rewritten whole (hold, glitch owner,
+edges and mood in one body): the beat is judged by the mood before it (`m0`), then `nm` from the same
+rule as `moodOf` in chaos.js (golden/gold/fib → phi, mirror/balance → kit, window entered/phase crossed →
+bit, peak/big → fig; else the mood runs out over 3 moves and settles calm, or wild past 3.57).
+`_chaos_mark` doubles by `_chaos_mood(p_game)` and accepts a `bond` event as points (the run's tally
+hands its bonus in); `_chaos_mirror`/`_chaos_golden`/`_chaos_mark_move` read the row's mood. Pages:
+`makeCurve()` carries `mood`/`moodLeft`, `stepCurve` updates them and reports `ev.mood` /
+`ev.moodChanged`; the shell banners the change, `applyPalTheme(ev.mood)` recolours the room, and adds
+the mood's boosted events to `S.tally.bond`; `curveFor` recolours a game page from the row's mood;
+`palWidget` eases feature weights (`w`) toward the mood (`lockMood` for the Studio's four); `PAL.calm`
+is Fig between moods; the glitch kind is `glitch:<mood>`.
 **One Fig, four personalities.** On 2026-09-30 the four pals became Fig's four personalities (Wild,
 Mirror, Boxy, Golden: chaos, symmetry, fractals, geometry). `pals.js` draws them all with one
 `drawFig(ctx, o, F, mode)` that carries every feature (tail, wings, box, spiral) and leads with the

@@ -1,7 +1,7 @@
 import { USERNAME_DOMAIN } from './config.js';
 import { rankOf, RANK_ICON, WEIGHTS, CHAOS, phaseOf, makeCurve, stepCurve } from './chaos.js';   // 🌀 the box
-import { PAL, PALS, drawPal, palWidget, palMood } from './pals.js';   // 🎨 who lives in r4box
-import { resident, residentNow, picked as myCompanion, vote, TOPIC_RESIDENT } from './studio.js';
+import { PAL, PALS, drawPal, palWidget, palMood } from './pals.js';
+import { applyPalTheme } from './common.js';   // 🟢 Fig, who lives in r4box, in four moods
 import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence, jumpToNext, startOnline, online, agoText, setGameTools, themeTiles, forgetThemes, golfTheme, liveCountdown, overlayHost, bifurcation } from './common.js';
 import { holeName, holeWithAttack, holeWithTwists, drawHole, LW, LH, setCourse, setGolfTheme } from './golf-engine.js';
 import { THEMES, themeOf, vesselSVG } from './bs-themes.js';
@@ -331,7 +331,7 @@ function loginView(msg) {
         <div><button class="primary" type="submit">Sign in</button></div>
       </form>
     </div>`);
-  { const k = residentNow(); palWidget(document.getElementById('palHi'), { pal: k, s: 40, beat: 0.8, dpr: 2 }); document.getElementById('palSay').textContent = `Hi, I'm Fig. I live in r4box. ${PAL[k].tag}`; }
+  { palWidget(document.getElementById('palHi'), { pal: 'calm', s: 40, beat: 0.8, dpr: 2 }); document.getElementById('palSay').textContent = "Hi, I'm Fig. I live in r4box. Four personalities, one curve: come and see."; }
   document.getElementById('login').addEventListener('submit', async (e) => {
     e.preventDefault();
     const user = document.getElementById('user').value.trim().toLowerCase();
@@ -394,7 +394,7 @@ async function lobby() {
     <div class="lobby${quick ? ' quickmode' : ' lobhome'}">
       <div class="quickhead"><a href="#">← r4box</a><h1>Practice</h1><p class="muted">One game on its own, off the Route to Chaos. One of each kind per group of players at a time. It still counts toward your chaos rating.</p></div>
       <header class="row between gtop">
-        <div class="stack lobhead"><a class="r4mark" href="./"><i aria-hidden="true"></i>r4box<small>r = 4</small></a><h1 id="greet">${esc(PAL[residentNow()].greet.replace('{name}', me.username))}</h1></div>
+        <div class="stack lobhead"><a class="r4mark" href="./"><i aria-hidden="true"></i>r4box<small>r = 4</small></a><h1 id="greet">${esc(PALS[Math.floor(Date.now() / 3600000) % PALS.length].greet.replace('{name}', me.username))}</h1></div>
         <div class="herenow" id="hereNow" aria-label="Who's here"></div>
       </header>
       <div class="lobmain">
@@ -404,7 +404,7 @@ async function lobby() {
           <div class="boxwords"><span class="eyebrow">The Box · chaos · symmetry · fractals · fibonacci</span><h2>Route to Chaos</h2>
             <p class="small"><span id="palMind">This is Fig's mind.</span> Every game here runs on one curve, x → r·x·(1−x): its mood. A Chaos is rounds of the games against your rivals, wilder as r climbs; win the most rounds for the crown, and the next Chaos starts on its own. The games are won by playing Chaos.</p>
             <div class="row" style="gap:10px;flex-wrap:wrap"><a class="enter" id="enterChaos" href="#start">Enter Chaos 🌀</a><a class="enter alt" href="run.html">🧬 Solo run</a></div>
-            <a class="meet" id="meetPal" href="studio.html"><canvas id="palMini" width="88" height="88" aria-hidden="true"></canvas><span><b id="palName">…</b><small>your Fig · change in the Design Studio ›</small></span></a></div>
+            <a class="meet" id="meetPal" href="studio.html"><canvas id="palMini" width="88" height="88" aria-hidden="true"></canvas><span><b id="palName">…</b><small>lives here · meet its four personalities ›</small></span></a></div>
         </div>
         <details class="gtfold" id="gtFold"><summary class="gtlabel" id="gtLabel">➕ Start a rivalry</summary>
         <form class="gtstart" id="gtStart">
@@ -454,7 +454,7 @@ async function lobby() {
       </div>
       <div class="lobside">
       <a class="quickentry" href="#stats"><span class="qicons" aria-hidden="true">🏅</span><span><strong>Family scoreboard</strong><span class="muted small">All-time titles, wins, streaks and bragging rights</span></span><span class="qgo" aria-hidden="true">›</span></a>
-      <a class="quickentry" href="studio.html"><span class="qicons" aria-hidden="true">🎨</span><span><strong>Design Studio</strong><span class="muted small">Fig's four personalities: poke them and pick yours</span></span><span class="qgo" aria-hidden="true">›</span></a>
+      <a class="quickentry" href="studio.html"><span class="qicons" aria-hidden="true">🎨</span><span><strong>Design Studio</strong><span class="muted small">Fig's four personalities, live: poke them</span></span><span class="qgo" aria-hidden="true">›</span></a>
       <details class="practice"><summary class="quickentry"><span class="qicons" aria-hidden="true">🎯</span><span><strong>Practice</strong><span class="muted small">One game on its own, off the Route to Chaos: it still feeds your chaos rating</span></span><span class="qgo" aria-hidden="true">›</span></summary>
         <a class="quickentry" href="#quick"><span class="qicons" aria-hidden="true">⚓⛳💥🃏</span><span><strong>A game against someone</strong><span class="muted small">Battleship, Putt Post, Hilltop Duel or Chaos Cards</span></span><span class="qgo" aria-hidden="true">›</span></a>
         <a class="quickentry" href="squirrel.html"><span class="qicons" aria-hidden="true">🐿️📎</span><span><strong>Squirrel Chaos</strong><span class="muted small">Solo: staple the squirrels in a fractal forest before the chaos swarms</span></span><span class="qgo" aria-hidden="true">›</span></a>
@@ -476,10 +476,14 @@ async function lobby() {
     </div>`);
   // 🌀 The Box on the wall: the bifurcation diagram with a live x walking it. Enter Chaos goes to your
   // running Chaos's round when there is one (renderGauntlets sets it), else opens the start form.
-  if (!quick) { const k0 = residentNow(); boxHero(document.getElementById('boxHero'), k0); const mini = palWidget(document.getElementById('palMini'), { pal: k0, s: 15, beat: 0.8, dpr: 2 }); document.getElementById('palName').textContent = PAL[k0].name; document.getElementById('palMind').textContent = "This is Fig's mind.";
-    resident().then((k) => { if (k !== k0 && document.getElementById('palMini')) { mini.set({ pal: k }); document.getElementById('palName').textContent = PAL[k].name; document.getElementById('palMind').textContent = "This is Fig's mind."; document.getElementById('greet').textContent = PAL[k].greet.replace('{name}', me.username); document.documentElement.dataset.pal = k; boxHero(document.getElementById('boxHero'), k); }
-      // 🧭 No companion yet: choose one first. Then 👋 meet it, once per device per companion (and any time at #meet).
-      myCompanion().then((mine) => { if (!mine) return chooseCompanion(); let met = null; try { met = localStorage.getItem('r4.met'); } catch {} if (location.hash === '#meet' || met !== k) meetResident(k); }); }); }
+  if (!quick) {
+    boxHero(document.getElementById('boxHero'));
+    palWidget(document.getElementById('palMini'), { pal: 'calm', s: 15, beat: 0.8, dpr: 2 });   // 🟢 Fig, changing moods on its own curve
+    document.getElementById('palName').textContent = 'Fig'; document.getElementById('palMind').textContent = "This is Fig's mind.";
+    // 👋 Meet Fig: once per device (and any time at #meet)
+    let met = null; try { met = localStorage.getItem('r4.met'); } catch {}
+    if (location.hash === '#meet' || met !== 'fig4') meetFig();
+  }
   document.getElementById('enterChaos')?.addEventListener('click', (e) => {
     const a = e.currentTarget; if (a.dataset.go) return;   // a running Chaos: the link goes to its round
     e.preventDefault(); const fold = document.getElementById('gtFold'); fold.open = true; fold.scrollIntoView({ behavior: 'smooth', block: 'center' }); fold.querySelector('.chip:not([hidden])')?.focus();
@@ -817,63 +821,38 @@ function renderGauntlets(all) {
     else { delete btn.dataset.go; btn.href = '#start'; btn.textContent = 'Enter Chaos 🌀'; }
   }
 }
-// 🧭 CHOOSE A COMPANION: the first time you sign in with nobody picked, the four of them, one per pillar
-// of the box; pick who goes with you (design_votes, topic 'resident'). Then you meet it.
-function chooseCompanion() {
+// 👋 MEET FIG: the welcome the first time a device meets Fig, and at #meet. One Fig, four personalities,
+// which the curve brings out during play; the pokes here bring each one out by hand.
+const MOOD_WHEN = { fig: 'when a peak or a big beat lands, and all through chaos', kit: 'after a mirror or a balance', bit: 'entering the window, or when the curve splits', phi: 'after a golden cut, a golden beat or a Fibonacci beat' };
+function meetFig() {
   document.getElementById('meetOv')?.remove();
-  const el = document.createElement('div'); el.id = 'meetOv'; el.className = 'meet-ov'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Choose a companion');
-  el.innerHTML = `<div class="meet-card choose">
-      <span class="eyebrow">Fig lives in r4box</span><h2>Which Fig goes with you?</h2>
-      <p class="small">Fig has four personalities, one for each pillar of the box. Pick the one you go on chaos adventures with: it bends the curve's edges its way and <b>doubles its own pillar's events in your chaos rating</b>. You can change your mind in the Design Studio.</p>
-      <div class="choose-grid">${PALS.map((p) => `<button type="button" class="choose-card" data-choose="${p.key}" style="--c:${p.colour}">
-        <canvas width="220" height="220" aria-hidden="true"></canvas><b>${esc(p.name)}</b><span class="pillar">${p.pillarIcon} ${esc(p.pillar)}</span><small>${esc(p.perk)}</small></button>`).join('')}</div></div>`;
-  document.body.appendChild(el);
-  const widgets = PALS.map((p) => palWidget(el.querySelector(`[data-choose="${p.key}"] canvas`), { pal: p.key, s: 26, beat: 0.9, dpr: 2 }));
-  el.querySelectorAll('[data-choose]').forEach((b) => b.addEventListener('click', async () => {
-    const k = b.dataset.choose; el.querySelectorAll('[data-choose]').forEach((x) => { x.disabled = true; }); b.classList.add('picked');
-    try { await vote(TOPIC_RESIDENT, k); } catch (err) { note(friendly(err), 'error'); el.querySelectorAll('[data-choose]').forEach((x) => { x.disabled = false; }); return; }
-    try { localStorage.setItem('r4.pal', k); } catch {}
-    widgets.forEach((w) => w.stop()); el.remove(); sfx('fanfare');
-    lobby();   // the box, the chip and the hero are its now, and the lobby's own flow shows the meet card (nothing met yet)
-  }));
-}
-// 👋 MEET THE COMPANION: the welcome the first time a device meets the one you picked (or whenever you
-// change it), and at #meet. r4box is its mind; the pokes let you feel it react.
-function meetResident(k) {
-  document.getElementById('meetOv')?.remove();
-  const P = PAL[k];
-  const el = document.createElement('div'); el.id = 'meetOv'; el.className = 'meet-ov'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', `Meet ${P.name}`);
+  const el = document.createElement('div'); el.id = 'meetOv'; el.className = 'meet-ov'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Meet Fig');
   el.innerHTML = `<div class="meet-card">
       <canvas id="meetCv" width="520" height="520" aria-hidden="true"></canvas>
       <span class="eyebrow">Fig lives in r4box</span>
-      <h2>Meet ${esc(P.name)}</h2>
-      <p class="meet-tag">${esc(P.tag)}</p>
-      <p class="small"><b>${P.pillarIcon} ${esc(P.pillar)}.</b> ${esc(P.perk)}</p>
-      <p class="muted small">${esc(P.story)}</p>
-      <p class="small"><b>r4box is Fig's mind.</b> The chaos curve, x → r·x·(1−x), is its mood, and every move you make in any game is a beat of it. Poke a beat and watch:</p>
-      <div class="meet-pokes">
-        <button type="button" data-m="peak">⚡ a peak</button><button type="button" data-m="mirror">✨ the mirror</button><button type="button" data-m="golden">🌻 the golden cut</button><button type="button" data-m="calm">🧘 a calm</button><button type="button" data-m="chaos">🌀 chaos</button>
-      </div>
-      <p class="muted small">You'll find it riding the 🌀 button in every game, in the corner of every solo run, taking a breath in every calm and blinking through every glitch. Want a different Fig? Change it in the Design Studio.</p>
+      <h2>Meet Fig</h2>
+      <p class="meet-tag">Made of the chaos curve, x → r·x·(1−x). r4box is its mind, and every move you make in any game is a beat of it.</p>
+      <p class="small">Fig goes with everyone, and it has <b>four personalities</b> that the curve brings out as you play. Each one bends the curve its way and pays double for its own kind of beat. Poke one:</p>
+      <div class="meet-pokes">${PALS.map((p) => `<button type="button" data-mood="${p.key}">${p.pillarIcon} ${esc(p.name)}</button>`).join('')}<button type="button" data-mood="calm">🟢 settle</button></div>
+      <ul class="moods">${PALS.map((p) => `<li><b>${p.pillarIcon} ${esc(p.name)}</b> · <span class="muted">${esc(MOOD_WHEN[p.key])}.</span> ${esc(p.perk)}</li>`).join('')}</ul>
+      <p class="muted small">You'll see which Fig you're with in the corner of every game, in the room's colours, and in what leaks through a glitch.</p>
       <div class="row" style="gap:10px"><button type="button" class="enter" id="meetGo">Let's go 🌀</button><a class="enter alt" href="studio.html">🎨 Design Studio</a></div>
     </div>`;
   document.body.appendChild(el);
-  const w = palWidget(document.getElementById("meetCv"), { pal: k, s: 60, beat: 0.9, dpr: 2 });
+  const w = palWidget(document.getElementById('meetCv'), { pal: 'calm', s: 60, beat: 0.9, own: false, r0: 3.2, dpr: 2 });
   el.querySelector('.meet-pokes').addEventListener('click', (e) => {
-    const b = e.target.closest('[data-m]'); if (!b) return; const m = b.dataset.m;
-    if (m === 'calm') { w.set({ own: false, r: 2.9 }); w.force('gift', 1.8); setTimeout(() => w.set({ own: true }), 1800); }
-    else if (m === 'chaos') { w.set({ own: false, r: 4 }); w.force('big', 1.4); setTimeout(() => w.set({ own: true }), 2200); }
-    else w.force(m, m === 'peak' ? 0.9 : 1.6);
-    sfx('click');
+    const b = e.target.closest('[data-mood]'); if (!b) return; const m = b.dataset.mood;
+    w.set({ mood: m, r: m === 'fig' ? 3.9 : 3.2 }); w.force(m === 'fig' ? 'peak' : m === 'kit' ? 'mirror' : m === 'bit' ? 'window' : m === 'phi' ? 'golden' : 'gift', 1.6); sfx('click');
+    el.querySelectorAll('[data-mood]').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
   });
-  const close = () => { try { localStorage.setItem('r4.met', k); } catch {} w.stop(); el.remove(); if (location.hash === '#meet') history.replaceState(null, '', './'); };
+  const close = () => { try { localStorage.setItem('r4.met', 'fig4'); } catch {} w.stop(); el.remove(); if (location.hash === '#meet') history.replaceState(null, '', './'); };
   document.getElementById('meetGo').onclick = close;
   el.addEventListener('click', (e) => { if (e.target === el) close(); });
 }
 // The Box, animated: the bifurcation diagram, a beat every 0.4 s walking x along the curve as r climbs
 // 2.9 → 4 and starts over, the window band, the golden cut, a golden spiral, a Sierpiński, and the
 // resident pal (pals.js, chosen in the Design Studio) as the live x.
-function boxHero(cv, pal = 'fig') {
+function boxHero(cv) {
   if (!cv) return;
   const W = 720, H = 300; cv.width = W; cv.height = H; const c = cv.getContext('2d'), r0 = 2.8, r1 = 4;
   const bif = bifurcation(W, H, r0, r1), Y = (v) => (1 - v) * (H - 1), Xr = (r) => ((r - r0) / (r1 - r0)) * (W - 1);
@@ -882,7 +861,7 @@ function boxHero(cv, pal = 'fig') {
   const step = (t) => {
     if (!cv.isConnected) return;
     const dt = last ? Math.min(0.1, (t - last) / 1000) : 0; last = t; acc += dt;
-    while (acc >= 0.4) { acc -= 0.4; if (curve.n >= 36) { curve = makeCurve(); trail = []; } const ev = stepCurve(curve); trail.push([curve.r, curve.x]); if (trail.length > 70) trail.shift(); const m = palMood(ev); if (m) { [mood, moodDur] = m; moodT = 0; } }
+    while (acc >= 0.4) { acc -= 0.4; if (curve.n >= 36) { curve = makeCurve(); trail = []; } const ev = stepCurve(curve); trail.push([curve.r, curve.x]); if (trail.length > 70) trail.shift(); const m = palMood(ev); if (m) { [mood, moodDur] = m; moodT = 0; } if (ev.moodChanged) applyPalTheme(ev.mood); }   // 🟢 the room follows Fig's mood
     if (mood) { moodT += dt; if (moodT >= moodDur) mood = null; }
     const r = curve.r;
     c.clearRect(0, 0, W, H); c.drawImage(bif, 0, 0);
@@ -897,7 +876,7 @@ function boxHero(cv, pal = 'fig') {
     c.strokeStyle = '#F5C542aa'; c.lineWidth = 2; c.beginPath(); for (let th = 0; th <= Math.PI * 4.5; th += 0.1) { const rad = 2.2 * Math.pow(CHAOS.PHI, th / (Math.PI / 2)); const px = W - 74 + Math.cos(th) * rad, py = 64 + Math.sin(th) * rad; if (th === 0) c.moveTo(px, py); else c.lineTo(px, py); } c.stroke();
     c.fillStyle = '#C9FFF888'; c.beginPath(); tri(W - 60, H - 40, 70, 3); c.fill();
     // the resident rides the curve: the live x is the pal, in the mood the beat put it in
-    if (trail.length) drawPal(pal, c, { x: Xr(r), y: Y(curve.x), s: 15, t: t / 1000, r, mood, mp: mood ? moodT / moodDur : 0, face: 1 });
+    if (trail.length) drawPal(curve.mood || 'calm', c, { x: Xr(r), y: Y(curve.x), s: 15, t: t / 1000, r, mood, mp: mood ? moodT / moodDur : 0, face: 1 });   // Fig, in the mood this beat put it in
     requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
@@ -1111,8 +1090,7 @@ async function statsView() {
   const ps = data.players || [];
   const who = (p) => `${p.bot ? '🤖 ' : ''}${p.id === me.id ? 'You' : esc(p.username)}`;
   if (data.since) document.getElementById('since').textContent = `All-time, since ${new Date(data.since).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })}`;
-  const { data: dvRows } = await sb.from('design_votes').select('player, choice').eq('topic', TOPIC_RESIDENT);   // 🧭 everyone's companion, for the board
-  const chaosBoard = chaosRatingsHTML(ratings || [], who, Object.fromEntries((dvRows || []).map((r) => [r.player, r.choice])));
+  const chaosBoard = chaosRatingsHTML(ratings || [], who);
   if (!ps.some((p) => p.played || p.gauntlets || p.holes)) { body.innerHTML = chaosBoard + '<p class="muted">No finished games yet. The board fills up as you play.</p>'; return; }
   const pct = (w, n) => (n ? `${Math.round((w / n) * 100)}%` : '–');
   const medal = ['🥇', '🥈', '🥉'];
@@ -1169,14 +1147,14 @@ async function statsView() {
 
 // 🌀 The chaos ratings (071): every game feeds them. A player's rating is the sum of the box's events
 // their moves and beats have met; their rank is a phase of the curve.
-const EVENT_LABEL = { peak: 'peaks', gift: 'gifts', fib: 'Fibonacci beats', phase: 'phases crossed', big: 'twists', window: 'window beats', balance: 'balances', mirror: 'mirrors', golden: 'golden cuts', gold: 'golden beats', r4: 'r = 4', bond: '🧭 companion bonus' };
+const EVENT_LABEL = { peak: 'peaks', gift: 'gifts', fib: 'Fibonacci beats', phase: 'phases crossed', big: 'twists', window: 'window beats', balance: 'balances', mirror: 'mirrors', golden: 'golden cuts', gold: 'golden beats', r4: 'r = 4', bond: "🟢 Fig's bonus" };
 function chaosRatingsHTML(rows, who, pals = {}) {
   const rated = rows.filter((r) => r.rating > 0);
   if (!rated.length) return `<section class="card"><h2>🌀 Chaos ratings</h2><p class="muted small">Every game feeds this: play the curve (mirrors, golden cuts, the window, peaks…) and your rating climbs through the phases, Calm to Strange Attractor.</p></section>`;
   const medal = ['🥇', '🥈', '🥉'];
   const top = (r) => Object.entries(r.counts || {}).sort((a, b) => (WEIGHTS[b[0]] || 0) * b[1] - (WEIGHTS[a[0]] || 0) * a[1]).slice(0, 3).map(([k, n]) => `${n} ${EVENT_LABEL[k] || k}`).join(' · ');
   return `<section class="card"><h2>🌀 Chaos ratings</h2><ul class="pack">${rated.map((r, i) => `<li><span class="big">${RANK_ICON[r.rank] || '🌀'}</span><span><strong>${medal[i] || ''} ${who({ id: r.player, username: r.name })}${PAL[pals[r.player]] ? ` <span title="goes with ${esc(PAL[pals[r.player]].name)}">${PAL[pals[r.player]].icon}</span>` : ''} · ${r.rating} · ${esc(r.rank)}</strong><br><span class="muted small">${top(r) || 'just started'}${r.next ? ` · ${r.next - r.rating} to ${rankOf(r.next)}` : ''}${r.week ? ` · +${r.week} this week` : ''}</span></span></li>`).join('')}</ul>
-    <p class="muted small">How you play the curve, in every game: peaks and twists met, mirrors (x on 1 − x before), golden cuts (x on 1/φ), balances, window beats, Fibonacci beats, phases crossed; your 🧭 companion doubles its pillar's. Ranks: Calm · Rhythm ×2 (60) · Rhythm ×4 (160) · Cascade (320) · Chaos (640) · Strange Attractor (1280).</p></section>`;
+    <p class="muted small">How you play the curve, in every game: peaks and twists met, mirrors (x on 1 − x before), golden cuts (x on 1/φ), balances, window beats, Fibonacci beats, phases crossed; Fig's mood of the moment pays its own kind double. Ranks: Calm · Rhythm ×2 (60) · Rhythm ×4 (160) · Cascade (320) · Chaos (640) · Strange Attractor (1280).</p></section>`;
 }
 
 // ---------------------------------------------------------------- a player's trophy case (#player=<id>)

@@ -162,32 +162,25 @@ The 🌀 button shows 🧘 and the moves left while a game is held.
 
 ## Fig (who lives in r4box), in four personalities
 
-Fig lives in r4box (`web/pals.js`). One creature, and it carries a bit of every pillar: the forking
-tail (chaos), a pair of mirror wings (symmetry), a box on its back with a box inside (fractals) and a
-golden spiral on its belly (geometry). Fig has four personalities, one per pillar, and each player picks
-the Fig they go on chaos adventures with in the Design Studio (`studio.html`): Wild Fig, Mirror Fig,
-Boxy Fig, Golden Fig. The chosen one's feature takes the lead in the drawing, its colour tints the body,
-and it moves its way (the wild one's tail frays even in calm; the boxy one sees in pixels; the golden
-one turns its spiral). Their old keys (fig, kit, bit, phi) stay in the code and the saved picks. A companion **doubles its pillar's events
-in your chaos rating** (a 🧭 bond row beside each, 077) **and bends the curve's edges for you** (079,
-`EDGES` in chaos.js, `_chaos_edge` on the server): Fig's peak line is 0.68 not 0.75 (your moves twist
-more often); Kit's mirror is 0.05 wide not 0.02 and its balance 0.03; Bit's window lasts 7 beats
-(22–28) not 3; Phi's golden cut is 0.03 wide not 0.012 and its Fibonacci luck is doubled. The meter
-draws your own peak line and golden band, and a run opens with what your companion bends: 🟢 Fig · chaos (peaks, big, golden beats,
-r = 4) · 🦋 Kit · symmetry (mirrors, balances) · 🟪 Bit · fractals (phases crossed, the window) · 🐌 Phi ·
-geometry (golden cuts, Fibonacci beats). The four: 🟢 Fig, a drop of
-the curve whose tail is the bifurcation diagram; 🟪 Bit, the box itself; 🐌 Phi, a snail with a golden
-spiral for a shell; 🦋 Kit, the butterfly effect, its wings the diagram and its mirror. All four read the
-nine events: a peak is a jump, big a wobble, gold turns them gold, a gift is happy eyes, the mirror flips
-them, balance a halo, the window three of something, the golden cut lights their bead, a Fibonacci beat a
-wink; past 3.57 their eyes spiral. **Your companion colours the room**: its two colours are the go buttons, the box's border and the
-meter's line on every page; its pillar is the motif behind the home screen (Fig's chaos streaks, Kit's
-mirrored glows, Bit's grid of boxes, Phi's golden rings); it greets you in its own voice. The games keep
-their worlds; their buttons take your colours.
-**r4box is the resident's mind**: the curve is its mood and the games are what it dreams, so the leader
-is wherever the curve is. It rides the live x in the lobby's box and on every game page's 🌀 button and
-curve box (in the mood the last move put it in), rides the loader, sits in the corner of every solo game
-feeling the shell's beat, takes a breath at every calm, and blinks through every glitch, dizzy.
+Fig lives in r4box (`web/pals.js`) and goes with everyone: nobody picks a companion. One creature that
+carries a bit of every pillar (the forking tail, a pair of mirror wings, a box on its back with a box
+inside, a golden spiral on its belly), and **four personalities the curve brings out during play**. The
+mood is the curve's own, the same rule on the server (`_chaos_curve`, 080) and in the pages
+(`moodOf` in `chaos.js`), so everyone at a table sees one Fig:
+
+| after a beat with… | Fig becomes | which bends the edges | and pays double for |
+|---|---|---|---|
+| a golden cut, a golden beat or a Fibonacci beat | 🌻 **Golden Fig** | golden cut 0.03 wide (not 0.012), Fibonacci luck ×2 | golden cuts, Fibonacci beats |
+| a mirror or a balance | ✨ **Mirror Fig** | mirror 0.05 wide (not 0.02), balance 0.03 (not 0.01) | mirrors, balances |
+| entering the window, or a phase crossed | 🔁 **Boxy Fig** | the window runs 7 beats (22–28), not 3 | window beats, phases crossed |
+| a peak or a big beat | 🌀 **Wild Fig** | the peak line at 0.68 (not 0.75) | peaks, big and golden beats, r = 4 |
+
+A mood holds **3 beats**, then Fig settles: calm below r = 3.57 (the plain edges), wild above. A beat is
+judged by the mood Fig was in when it began. The double is a `bond` row in the ledger (the run hands
+its bond in as points). You see which Fig you're with in the corner of every solo game (the drawing
+blends toward the mood), on every game's 🌀 button and curve box, in the room's colours (`data-pal`
+follows the mood: teal, red, violet, lilac, gold), in a banner when the mood moves, and in what leaks
+through a glitch (a glitch wears the mood of the moment, and names whose move let it out).
 
 ## A new game must
 

@@ -60,65 +60,41 @@
 <body>
 <div class="wrap">
   <nav class="topnav gtop"><a href="./">← r4box</a><h1>🎨 Design Studio</h1></nav>
-  <p class="lead">Fig lives in r4box, and Fig has four personalities, one for each pillar of the box: chaos, symmetry, fractals, geometry. r4box is Fig's mind: the chaos curve is its mood and the games are what it dreams. <b>Pick the Fig you go with</b>: it lives in your box on the home screen, rides every game's 🌀 button and the loading screen, sits in the corner of every solo game, takes a breath in every calm, blinks through every glitch, bends the curve's edges its way and <b>doubles its own pillar's events in your chaos rating</b>. Poke a beat below and watch all four feel it at once.</p>
-  <div class="who" id="who">Counting the votes…</div>
+  <p class="lead">Fig lives in r4box. r4box is Fig's mind: the chaos curve, x → r·x·(1−x), is its mood and the games are what it dreams. Fig goes with everyone, and it has <b>four personalities</b>, one for each pillar of the box, that the curve brings out as you play: a peak makes it wild, a mirror makes it mirror, the window boxes it up, a golden cut turns it golden. Each one bends the curve its way and pays double for its own kind of beat. Here they are side by side, held in place so you can poke them; in a game, Fig moves between them on its own.</p>
+  <div class="who" id="who">🟢 Fig · one creature, four moods, the same nine events.</div>
   <div class="beats" id="beats"><span class="lbl">Poke a beat</span>
     <button data-m="peak">⚡ peak</button><button data-m="big">💥 big</button><button data-m="gold">🌟 gold</button><button data-m="gift">🎁 gift</button><button data-m="mirror">✨ mirror</button><button data-m="balance">⚖️ balance</button><button data-m="window">🔁 window</button><button data-m="golden">🌻 golden</button><button data-m="fib">🌻 fib</button><button data-m="hurt">🤕 hurt</button><button data-m="sleep" aria-pressed="false">💤 sleep</button>
     <label class="range">r <input type="range" id="rr" min="2.9" max="4" step="0.01" value="2.9"><output id="ro">2.90 · calm</output><button type="button" id="rfree" aria-pressed="true" class="small">▶ let it run</button></label>
   </div>
   <div class="pals" id="pals"></div>
-  <p class="small"><a href="./#meet">👋 Meet your Fig again</a></p>
-  <p class="muted small">Each Fig doubles its pillar's events in your rating (as a 🧭 companion bonus on the scoreboard). Every one has a face for all nine events of the box (CHAOS.md): a peak is a jump, big a wobble, gold turns it gold, a gift is happy eyes, the mirror flips it, balance is a halo, the window makes three of something, the golden cut lights its bead, a Fibonacci beat is a wink. Past r = 3.57 the eyes spiral. You can change your companion any time.</p>
+  <p class="small"><a href="./#meet">👋 Meet Fig again</a></p>
+  <p class="muted small">Every mood has a face for all nine events of the box (CHAOS.md): a peak is a jump, big a wobble, gold turns it gold, a gift is happy eyes, the mirror flips it, balance is a halo, the window makes three of something, the golden cut lights its bead, a Fibonacci beat is a wink. Past r = 3.57 the eyes spiral.</p>
 </div>
 <script type="module">
-  import { signedIn, me, avatar, names, esc, setGameTools } from './common.js';
-  import { PALS } from './pals.js';
-  import { palWidget } from './pals.js';
+  import { signedIn, esc, setGameTools } from './common.js';
+  import { PALS, palWidget } from './pals.js';
   import { phaseOf } from './chaos.js';
-  import { tally, vote, leader, TOPIC_RESIDENT } from './studio.js';
+  const WHEN = { fig: 'a peak or a big beat, and all through chaos', kit: 'a mirror or a balance', bit: 'entering the window, or a split of the curve', phi: 'a golden cut, a golden beat or a Fibonacci beat' };
   if (await signedIn()) {
     setGameTools(null);
     const box = document.getElementById('pals');
     box.innerHTML = PALS.map((p) => `<article class="pal" data-pal="${p.key}" style="--c:${p.colour}">
         <canvas width="440" height="440" aria-label="${esc(p.name)}, live"></canvas>
-        <h2><i aria-hidden="true"></i>${esc(p.name)} <span class="pillar">${p.pillarIcon} ${esc(p.pillar)}</span></h2><p class="small">${esc(p.tag)}</p><p class="small perk">${esc(p.perk)}</p>
+        <h2><i aria-hidden="true"></i>${esc(p.name)} <span class="pillar">${p.pillarIcon} ${esc(p.pillar)}</span></h2><p class="small">${esc(p.tag)}</p>
+        <p class="small"><b>Shows up after</b> ${esc(WHEN[p.key])}.</p><p class="small perk">${esc(p.perk)}</p>
         <details><summary>The story</summary><p>${esc(p.story)}</p></details>
-        <div class="voters" data-v="${p.key}"></div>
-        <button class="pick" data-pick="${p.key}" aria-pressed="false">Go with ${esc(p.name)}</button>
       </article>`).join('');
-    const widgets = PALS.map((p) => palWidget(box.querySelector(`[data-pal="${p.key}"] canvas`), { pal: p.key, s: 48, beat: 0.8, dpr: 2 }));
-    // one curve for all four: the first widget's r drives the others, so their moods and tails agree
+    const widgets = PALS.map((p) => palWidget(box.querySelector(`[data-pal="${p.key}"] canvas`), { pal: p.key, s: 48, beat: 0.8, dpr: 2, lockMood: true }));
     const ro = document.getElementById('ro'), rr = document.getElementById('rr'), rfree = document.getElementById('rfree');
     let free = true;
     setInterval(() => { if (free) { rr.value = widgets[0].r.toFixed(2); widgets.slice(1).forEach((w) => w.set({ r: widgets[0].r })); } ro.value = `${(+rr.value).toFixed(2)} · ${phaseOf(+rr.value)}`; }, 120);
     rr.addEventListener('input', () => { free = false; rfree.setAttribute('aria-pressed', 'false'); widgets.forEach((w) => w.set({ own: false, r: +rr.value })); });
     rfree.addEventListener('click', () => { free = true; rfree.setAttribute('aria-pressed', 'true'); widgets.forEach((w) => w.set({ own: true })); });
     document.getElementById('beats').addEventListener('click', (e) => {
-      const b = e.target.closest('[data-m]'); if (!b) return;
-      const m = b.dataset.m;
+      const b = e.target.closest('[data-m]'); if (!b) return; const m = b.dataset.m;
       if (m === 'hurt') widgets.forEach((w) => w.hurt());
       else if (m === 'sleep') { const on = b.getAttribute('aria-pressed') !== 'true'; b.setAttribute('aria-pressed', String(on)); widgets.forEach((w) => (on ? w.sleep() : w.wake())); }
       else widgets.forEach((w) => w.force(m, m === 'peak' ? 0.9 : 1.6));
-    });
-    // votes
-    const render = (rows) => {
-      const lead = leader(rows), c = {}; rows.forEach((r) => { c[r.choice] = (c[r.choice] || 0) + 1; });
-      const mine = rows.find((r) => r.player === me.id)?.choice;
-      PALS.forEach((p) => {
-        const art = box.querySelector(`[data-pal="${p.key}"]`); art.classList.toggle('lead', rows.length > 1 && lead === p.key); art.classList.toggle('mine', mine === p.key);
-        art.querySelector('.pick').setAttribute('aria-pressed', String(mine === p.key)); art.querySelector('.pick').textContent = mine === p.key ? `✓ You go with ${p.name}` : `Go with ${p.name}`;
-        art.querySelector('.voters').innerHTML = (c[p.key] ? `<span class="n">goes with ${c[p.key]}</span>` : '<span class="n muted">nobody yet</span>') + rows.filter((r) => r.choice === p.key).map((r) => avatar({ username: r.name }, 'face')).join('');
-      });
-      const L = PALS.find((p) => p.key === lead);
-      const M = PALS.find((p) => p.key === mine);
-      document.getElementById('who').innerHTML = (M ? `You go with <b>${esc(M.name)}</b> ${M.pillarIcon} ${esc(M.pillar)}.` : 'You haven\u2019t picked your Fig yet: Wild Fig is house-sitting.') + (rows.length > 1 ? ` Family favourite: <b>${esc(L.name)}</b> (${c[lead]} of ${rows.length}).` : '');
-    };
-    render(await tally(TOPIC_RESIDENT));
-    box.addEventListener('click', async (e) => {
-      const b = e.target.closest('[data-pick]'); if (!b) return;
-      b.disabled = true;
-      try { render(await vote(TOPIC_RESIDENT, b.dataset.pick)); widgets[PALS.findIndex((p) => p.key === b.dataset.pick)]?.force('gold', 1.6); } catch (err) { document.getElementById('who').textContent = `Couldn't save that: ${err.message || err}`; }
-      b.disabled = false;
     });
   }
 </script>
