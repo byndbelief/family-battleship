@@ -5,7 +5,7 @@
 // Each level ends by diving into the knothole of the middle tree, into a deeper, wilder forest.
 // Everything is played on this page; the score is saved with solo_submit (063).
 import { sb, me, signedIn, sfx, setGameTools, esc, names } from './common.js';
-import { makeCurve, stepCurve, drawMeter, meterText, NEWS, phaseOf, fibMult } from './chaos.js';   // 🌀 the box: CHAOS.md
+import { makeCurve, stepCurve, drawMeter, meterText, NEWS, phaseOf, fibMult, tally, ratingLine } from './chaos.js';   // 🌀 the box: CHAOS.md
 
 const $ = (id) => document.getElementById(id);
 const cv = $('sq'), ctx = cv.getContext('2d'), stage = $('stage');
@@ -77,7 +77,7 @@ function newGame() {
   game = { score: 0, combo: 0, comboT: 0, ammo: AMMO, reloadT: 0, time: 0, stepT: 0, squirrels: [], staples: [], pins: [], fx: [], stuck: [], leaves: [],
     curve: makeCurve(), twist: null, speed: 1, over: false, dive: null, hits: 0, shots: 0,
     weapon: 'staple', arsenal: {}, hearts: 3, stun: 0, shake: 0, hitstop: 0, acorns: [], crates: [], crateT: 5, bombs: [], bolts: [],
-    kept: [], whisperT: 9, glitch: 0, eye: { open: 0, blink: 0, blinkT: 4 }, stare: 0 };
+    kept: [], whisperT: 9, glitch: 0, eye: { open: 0, blink: 0, blinkT: 4 }, stare: 0, tally: {} };
   renderBar();
   banner('DAY 1', 'Staple the littlest ones. The big ones split!');
 }
@@ -86,7 +86,7 @@ function newGame() {
 // Every 1.2 s the curve takes a step (r climbs 0.03 a step, from 2.85 to 4 by the middle of level 2):
 // the new x decides how many squirrels come, and above 0.93 a twist strikes.
 function chaosStep() {
-  const ev = stepCurve(game.curve), c = game.curve;
+  const ev = stepCurve(game.curve), c = game.curve; tally(ev, game.tally);   // 🌀 the chaos rating
   ev.crossed.forEach((p) => banner(p.name, p.say));
   if (ev.enteredWindow) banner(...NEWS.window);
   // How many come: the higher x, the more. In the window they come in threes, little ones.
@@ -356,10 +356,11 @@ async function finish() {
   game.over = true; sfx(game.ko ? 'lose' : 'fanfare');
   const acc = game.shots ? Math.round((100 * game.hits) / game.shots) : 0;
   showOver(`<h2>🐿️ ${game.score.toLocaleString()} points</h2><p class="muted">${game.hits} hits from ${game.shots} staples (${acc}%) · chaos reached r = ${game.curve.r.toFixed(2)}</p><p class="muted small">Saving…</p>`, true);
-  const { data, error } = await sb.rpc('solo_submit', { p_game: 'squirrel', p_score: game.score, p_level: level });
+  const { data, error } = await sb.rpc('solo_submit', { p_game: 'squirrel', p_score: game.score, p_level: level, p_events: game.tally });
   const board = data?.top?.length ? `<ol class="board">${data.top.map((r, i) => `<li class="${r.player === me.id ? 'me' : ''}"><span>${i + 1}. ${esc(r.name)}</span><b>${r.score.toLocaleString()}</b></li>`).join('')}</ol>` : '';
   showOver(`${game.ko ? '<h2 style="color:#FF7A6E">💫 KNOCKED OUT</h2><p class="muted small">Too many acorns to the head. The forest keeps your staples.</p>' : level >= LEVELS ? '<h2 style="color:#C9B8FF">🌘 IT SLEEPS AGAIN</h2><p class="muted small">For now. It counted every one.</p>' : ''}<h2>🐿️ ${game.score.toLocaleString()} points</h2>${data?.record ? '<p style="color:var(--gold);font-weight:900">🏆 Your new best!</p>' : data ? `<p class="muted">Your best: ${data.best.toLocaleString()}</p>` : ''}
     <p class="muted small">${game.hits} hits from ${game.shots} staples (${acc}%) · chaos reached r = ${game.curve.r.toFixed(2)}</p>
+    ${data?.chaos ? `<p class="small">${ratingLine(data.chaos)}</p>` : ''}
     ${error ? `<p class="small" style="color:#FF9A7A">Couldn't save: ${esc(error.message || '')}</p>` : ''}${board}
     <button class="go" id="again">Play again</button>`, true);
 }

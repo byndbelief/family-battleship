@@ -84,6 +84,22 @@ The last 24 beats of x, a red dashed line at the peak (0.75), teal until chaos t
 violet wash while in the window; the label `phase · r x.xx` (`window ×3` inside the window).
 `drawMeter(canvas, curve)` and `meterText(curve)` draw it.
 
+## Keeping score: the chaos rating
+
+Every game feeds one rating per player, kept beside the game scores. A move (or a solo beat) that meets
+an event of the box is marked in `chaos_ledger` with the event's weight, and the rating is the sum:
+
+| event | peak | gift | fib | phase crossed | big | window | balance | mirror | golden | gold | r = 4 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| points | 1 | 1 | 2 | 2 | 3 | 4 | 5 | 8 | 8 | 10 | 10 |
+
+Ranks are the phases of the curve: 🌱 Calm · 🎵 Rhythm ×2 (60) · 🎶 Rhythm ×4 (160) · 🌊 Cascade (320) ·
+🌀 Chaos (640) · 🦋 Strange Attractor (1280). The family scoreboard shows the board (`chaos_ratings()`);
+a solo game's end screen shows what the run earned (`solo_submit` takes the game's `tally`); multiplayer
+moves are marked on the server (`_chaos_mark_move`, from `_chaos_after_move` and `card_play`). Robots
+don't rate. `tally(ev, t)` in `chaos.js` counts a beat's events; the weights in `WEIGHTS` mirror
+`_chaos_weight`.
+
 ## A new game must
 
 1. `import { makeCurve, stepCurve, drawMeter, meterText, NEWS } from './chaos.js'` (solo) or call

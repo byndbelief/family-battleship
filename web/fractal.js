@@ -6,7 +6,7 @@
 // Every 25 s the world zooms into a copy of itself, a depth deeper: faster, rougher, another colour.
 // Everything is played on this page; the score is saved with solo_submit (063, 066).
 import { sb, me, signedIn, sfx, setGameTools, esc, names } from './common.js';
-import { makeCurve, stepCurve, drawMeter, meterText, NEWS, phaseOf, fibMult, CHAOS } from './chaos.js';   // 🌀 the box: CHAOS.md
+import { makeCurve, stepCurve, drawMeter, meterText, NEWS, phaseOf, fibMult, CHAOS, tally, ratingLine } from './chaos.js';   // 🌀 the box: CHAOS.md
 
 const $ = (id) => document.getElementById(id);
 const cv = $('fd'), ctx = cv.getContext('2d'), stage = $('stage');
@@ -55,13 +55,13 @@ function newGame() {
   game = { seed: Math.floor(Math.random() * 1e6), cam: 0, speed: 175, time: 0, dive: null, over: false, ko: false,
     py: 0, vy: 0, onGround: true, jumps: 0, dash: DASH_MAX, dashing: false, inv: 0,
     score: 0, dist: 0, shards: 0, combo: 0, comboT: 0, hearts: 3,
-    obs: [], parts: [], twist: null, twistAt: -9, dark: 0, curve: Object.assign(makeCurve(), { beatT: 0 }), phase: 'calm', shake: 0, fog: 0 };
+    obs: [], parts: [], twist: null, twistAt: -9, dark: 0, curve: Object.assign(makeCurve(), { beatT: 0 }), phase: 'calm', tally: {}, shake: 0, fog: 0 };
   game.py = groundY(PX) - R;
   hud(); banner('FRACTAL DASH', 'tap to jump · hold to dash');
 }
 // One beat of the chaos curve (the box, CHAOS.md): what x lands on decides what's coming up the road.
 function chaosStep() {
-  const ev = stepCurve(game.curve), c = game.curve, x = ev.x, d = ev.hop;
+  const ev = stepCurve(game.curve), c = game.curve, x = ev.x, d = ev.hop; tally(ev, game.tally);   // 🌀 the chaos rating
   ev.crossed.forEach((p) => { game.phase = phaseOf(c.r); banner(p.name, p.say); sfx(p.name === 'CHAOS' ? 'stinger' : 'tick'); });
   if (ev.enteredWindow) banner(...NEWS.window);
   // What comes: a peak is spikes (with a chasm behind them deeper down), a big hop of x is a chasm as
@@ -202,10 +202,11 @@ function dive() {
 async function finish() {
   const g = game; g.over = true; sfx('lose');
   showOver(`<h2>🔺 ${g.score.toLocaleString()} points</h2><p class="muted">saving…</p>`);
-  const { data, error } = await sb.rpc('solo_submit', { p_game: 'fractal', p_score: g.score, p_level: Math.min(99, depth) });
+  const { data, error } = await sb.rpc('solo_submit', { p_game: 'fractal', p_score: g.score, p_level: Math.min(99, depth), p_events: g.tally });
   const board = data?.top?.length ? `<ol class="board">${data.top.map((r, i) => `<li class="${r.player === me.id ? 'me' : ''}"><span>${i + 1}. ${esc(r.name)}</span><b>${r.score.toLocaleString()}</b></li>`).join('')}</ol>` : '';
   showOver(`<h2 style="color:#FF7A6E">${g.ko === 'fell' ? '🕳️ INTO THE DEEP' : g.ko === 'zapped' ? '⚡ ZAPPED' : '💥 SPIKED'}</h2><h2>🔺 ${g.score.toLocaleString()} points</h2>${data?.record ? '<p style="color:var(--gold)">🏆 Your new best!</p>' : data ? `<p class="muted small">Your best: ${data.best.toLocaleString()}</p>` : ''}
     <p class="muted small">${Math.floor(g.dist / 10).toLocaleString()} m at depth ${depth} · ${g.shards.toLocaleString()} from shards · chaos reached r = ${g.curve.r.toFixed(2)}</p>
+    ${data?.chaos ? `<p class="small">${ratingLine(data.chaos)}</p>` : ''}
     ${error ? `<p class="small" style="color:#FF9A7A">Couldn't save: ${esc(error.message || '')}</p>` : ''}${board}
     <button class="go" id="again">Dash again</button>`, true);
 }

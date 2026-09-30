@@ -97,4 +97,20 @@ export function drawMeter(canvas, c) {
   mc.strokeStyle = c.r >= 3.5699 ? '#FF8A3D' : '#3DD6C6'; mc.lineWidth = 3; mc.beginPath();
   hs.forEach((v, i) => mc[i ? 'lineTo' : 'moveTo']((i / (CHAOS.HIST - 1)) * (w - 8) + 4, h - 4 - v * (h - 8))); mc.stroke();
 }
+// 🌀 The chaos rating (071): keeping score is also about how you play the curve. A game tallies the
+// events its beats meet (tally(ev, t)); a solo game hands the tally to solo_submit, the server marks
+// its own moves. The weights and ranks here mirror _chaos_weight / _chaos_rank.
+export const WEIGHTS = Object.freeze({ peak: 1, gift: 1, fib: 2, phase: 2, big: 3, window: 4, balance: 5, mirror: 8, golden: 8, gold: 10, r4: 10 });
+export const RANKS = [[1280, 'Strange Attractor'], [640, 'Chaos'], [320, 'Cascade'], [160, 'Rhythm ×4'], [60, 'Rhythm ×2'], [0, 'Calm']];
+export const rankOf = (rating) => RANKS.find(([at]) => rating >= at)[1];
+export const RANK_ICON = { Calm: '🌱', 'Rhythm ×2': '🎵', 'Rhythm ×4': '🎶', Cascade: '🌊', Chaos: '🌀', 'Strange Attractor': '🦋' };
+export function tally(ev, t = {}) {
+  ['peak', 'gift', 'fib', 'big', 'window', 'balance', 'mirror', 'golden', 'gold'].forEach((k) => { if (ev[k]) t[k] = (t[k] || 0) + 1; });
+  ev.crossed.forEach((p) => { const k = p.name === 'r = 4' ? 'r4' : 'phase'; t[k] = (t[k] || 0) + 1; });
+  return t;
+}
+export const tallyPoints = (t) => Object.entries(t).reduce((a, [k, n]) => a + (WEIGHTS[k] || 0) * n, 0);
+// The line under a solo game's score: what the run earned, and where the player stands now.
+export const ratingLine = (ch) => (ch ? `🌀 Chaos rating +${ch.gained} → <b>${ch.rating}</b> · ${RANK_ICON[ch.rank] || ''} ${ch.rank}${ch.next ? ` · ${ch.next - ch.rating} to ${rankOf(ch.next)}` : ''}` : '');
+
 export const meterText = (c) => `${c.window ? 'window ×3' : phaseOf(c.r)} · r ${c.r.toFixed(2)}`;

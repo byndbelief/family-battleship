@@ -746,6 +746,13 @@ server from one x0: first 10 steps within float32, same twists, the window on bo
 server's `_chaos_fib`/`_chaos_golden` drop loot in `_chaos_after_move` and `card_play`; the meter shows
 the golden-cut line and an F. Shapes shrink by φ (Squirrel branches 0.618, Fractal ranges 233/144/89).
 Nine events now; CHAOS.md has the fractals and Fibonacci sections.
+🌀 The chaos rating (071): keeping score is also about the curve. `chaos_ledger` (player, kind, game_id,
+event, pts) is fed by `_chaos_mark_move` after every multiplayer move (`_chaos_after_move`, `card_play`)
+and by `solo_submit(…, p_events)` with a solo game's `tally` (chaos.js `tally(ev, t)`); weights in
+`_chaos_weight` / `WEIGHTS` (peak 1 … mirror/golden 8, gold/r4 10); ranks in `_chaos_rank` / `RANKS`
+(Calm, Rhythm ×2 at 60, Rhythm ×4 160, Cascade 320, Chaos 640, Strange Attractor 1280). `chaos_ratings()`
+is the board (`chaosRatingsHTML` at the top of the family scoreboard); `chaos_rating_of(id)`; solo end
+screens show `ratingLine(data.chaos)`. Robots don't rate. Test: scratch t_rating.
 
 ### 🐿️ Squirrel Chaos: the dark side (page only)
 Four days now (`LEVELS = 4`; levels are "Day n"; `dark()` = (level−1)/3). Each day: the sky drains

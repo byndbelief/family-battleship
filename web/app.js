@@ -1,4 +1,5 @@
 import { USERNAME_DOMAIN } from './config.js';
+import { rankOf, RANK_ICON, WEIGHTS } from './chaos.js';   // 🌀 the box
 import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence, jumpToNext, startOnline, online, agoText, setGameTools, themeTiles, forgetThemes, golfTheme, liveCountdown, overlayHost } from './common.js';
 import { holeName, holeWithAttack, holeWithTwists, drawHole, LW, LH, setCourse, setGolfTheme } from './golf-engine.js';
 import { THEMES, themeOf, vesselSVG } from './bs-themes.js';
@@ -989,14 +990,15 @@ async function statsView() {
       <div class="statshead"><a href="#">← Game Room</a><h1>🏅 Family scoreboard</h1><p class="muted" id="since">All-time</p></div>
       <div id="statsBody" class="stack" style="gap:18px"><p class="muted">Counting…</p></div>
     </div>`);
-  const { data, error } = await sb.rpc('family_stats');
+  const [{ data, error }, { data: ratings }] = await Promise.all([sb.rpc('family_stats'), sb.rpc('chaos_ratings')]);
   const body = document.getElementById('statsBody');
   if (!body) return;
   if (error) { body.innerHTML = `<p class="error">Couldn't load the scoreboard: ${esc(friendly(error))}</p>`; return; }
   const ps = data.players || [];
   const who = (p) => `${p.bot ? '🤖 ' : ''}${p.id === me.id ? 'You' : esc(p.username)}`;
   if (data.since) document.getElementById('since').textContent = `All-time, since ${new Date(data.since).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })}`;
-  if (!ps.some((p) => p.played || p.gauntlets || p.holes)) { body.innerHTML = '<p class="muted">No finished games yet. The board fills up as you play.</p>'; return; }
+  const chaosBoard = chaosRatingsHTML(ratings || [], who);
+  if (!ps.some((p) => p.played || p.gauntlets || p.holes)) { body.innerHTML = chaosBoard + '<p class="muted">No finished games yet. The board fills up as you play.</p>'; return; }
   const pct = (w, n) => (n ? `${Math.round((w / n) * 100)}%` : '–');
   const medal = ['🥇', '🥈', '🥉'];
   const ranked = ps.filter((p) => p.played || p.gauntlets);
@@ -1040,6 +1042,7 @@ async function statsView() {
   // Desktop: standings and every stat on the left, hall of fame and head to head beside them.
   body.innerHTML = `
     <div class="smain">
+    ${chaosBoard}
     <section class="stack" style="gap:10px"><h2>Standings</h2><div class="scards">${cards}</div></section>
     <section class="card sall"><h2>📊 Every stat</h2>${table}</section>
     </div>
@@ -1047,6 +1050,18 @@ async function statsView() {
     ${awards ? `<section class="card"><h2>🏛️ Hall of fame</h2><ul class="pack">${awards}</ul></section>` : ''}
     ${h2h ? `<section class="card"><h2>⚔️ Head to head</h2><ul class="h2h">${h2h}</ul><p class="muted small">One-on-one games, Chaos rounds included.</p></section>` : ''}
     </div>`;
+}
+
+// 🌀 The chaos ratings (071): every game feeds them. A player's rating is the sum of the box's events
+// their moves and beats have met; their rank is a phase of the curve.
+const EVENT_LABEL = { peak: 'peaks', gift: 'gifts', fib: 'Fibonacci beats', phase: 'phases crossed', big: 'twists', window: 'window beats', balance: 'balances', mirror: 'mirrors', golden: 'golden cuts', gold: 'golden beats', r4: 'r = 4' };
+function chaosRatingsHTML(rows, who) {
+  const rated = rows.filter((r) => r.rating > 0);
+  if (!rated.length) return `<section class="card"><h2>🌀 Chaos ratings</h2><p class="muted small">Every game feeds this: play the curve (mirrors, golden cuts, the window, peaks…) and your rating climbs through the phases, Calm to Strange Attractor.</p></section>`;
+  const medal = ['🥇', '🥈', '🥉'];
+  const top = (r) => Object.entries(r.counts || {}).sort((a, b) => (WEIGHTS[b[0]] || 0) * b[1] - (WEIGHTS[a[0]] || 0) * a[1]).slice(0, 3).map(([k, n]) => `${n} ${EVENT_LABEL[k] || k}`).join(' · ');
+  return `<section class="card"><h2>🌀 Chaos ratings</h2><ul class="pack">${rated.map((r, i) => `<li><span class="big">${RANK_ICON[r.rank] || '🌀'}</span><span><strong>${medal[i] || ''} ${who({ id: r.player, username: r.name })} · ${r.rating} · ${esc(r.rank)}</strong><br><span class="muted small">${top(r) || 'just started'}${r.next ? ` · ${r.next - r.rating} to ${rankOf(r.next)}` : ''}${r.week ? ` · +${r.week} this week` : ''}</span></span></li>`).join('')}</ul>
+    <p class="muted small">How you play the curve, in every game: peaks and twists met, mirrors (x on 1 − x before), golden cuts (x on 1/φ), balances, window beats, Fibonacci beats, phases crossed. Ranks: Calm · Rhythm ×2 (60) · Rhythm ×4 (160) · Cascade (320) · Chaos (640) · Strange Attractor (1280).</p></section>`;
 }
 
 // ---------------------------------------------------------------- a player's trophy case (#player=<id>)
