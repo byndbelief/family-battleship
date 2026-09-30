@@ -1,7 +1,7 @@
 import { USERNAME_DOMAIN } from './config.js';
 import { rankOf, RANK_ICON, WEIGHTS, CHAOS, phaseOf, makeCurve, stepCurve } from './chaos.js';   // 🌀 the box
-import { PAL, drawPal, palWidget, palMood } from './pals.js';   // 🎨 who lives in r4box
-import { resident, residentNow } from './studio.js';
+import { PAL, PALS, drawPal, palWidget, palMood } from './pals.js';   // 🎨 who lives in r4box
+import { resident, residentNow, picked as myCompanion, vote, TOPIC_RESIDENT } from './studio.js';
 import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence, jumpToNext, startOnline, online, agoText, setGameTools, themeTiles, forgetThemes, golfTheme, liveCountdown, overlayHost, bifurcation } from './common.js';
 import { holeName, holeWithAttack, holeWithTwists, drawHole, LW, LH, setCourse, setGolfTheme } from './golf-engine.js';
 import { THEMES, themeOf, vesselSVG } from './bs-themes.js';
@@ -404,7 +404,7 @@ async function lobby() {
           <div class="boxwords"><span class="eyebrow">The Box · chaos · symmetry · fractals · fibonacci</span><h2>Route to Chaos</h2>
             <p class="small"><span id="palMind">This is Fig's mind.</span> Every game here runs on one curve, x → r·x·(1−x): its mood. A Chaos is rounds of the games against your rivals, wilder as r climbs; win the most rounds for the crown, and the next Chaos starts on its own. The games are won by playing Chaos.</p>
             <div class="row" style="gap:10px;flex-wrap:wrap"><a class="enter" id="enterChaos" href="#start">Enter Chaos 🌀</a><a class="enter alt" href="run.html">🧬 Solo run</a></div>
-            <a class="meet" id="meetPal" href="studio.html"><canvas id="palMini" width="88" height="88" aria-hidden="true"></canvas><span><b id="palName">…</b><small>lives in r4box · vote in the Design Studio ›</small></span></a></div>
+            <a class="meet" id="meetPal" href="studio.html"><canvas id="palMini" width="88" height="88" aria-hidden="true"></canvas><span><b id="palName">…</b><small>your companion · change in the Design Studio ›</small></span></a></div>
         </div>
         <details class="gtfold" id="gtFold"><summary class="gtlabel" id="gtLabel">➕ Start a rivalry</summary>
         <form class="gtstart" id="gtStart">
@@ -478,9 +478,8 @@ async function lobby() {
   // running Chaos's round when there is one (renderGauntlets sets it), else opens the start form.
   if (!quick) { const k0 = residentNow(); boxHero(document.getElementById('boxHero'), k0); const mini = palWidget(document.getElementById('palMini'), { pal: k0, s: 15, beat: 0.8, dpr: 2 }); document.getElementById('palName').textContent = PAL[k0].name; document.getElementById('palMind').textContent = `This is ${PAL[k0].name}'s mind.`;
     resident().then((k) => { if (k !== k0 && document.getElementById('palMini')) { mini.set({ pal: k }); document.getElementById('palName').textContent = PAL[k].name; document.getElementById('palMind').textContent = `This is ${PAL[k].name}'s mind.`; boxHero(document.getElementById('boxHero'), k); }
-      // 👋 Meet the resident: once per device per resident (and any time at #meet)
-      let met = null; try { met = localStorage.getItem('r4.met'); } catch {}
-      if (location.hash === '#meet' || met !== k) meetResident(k); }); }
+      // 🧭 No companion yet: choose one first. Then 👋 meet it, once per device per companion (and any time at #meet).
+      myCompanion().then((mine) => { if (!mine) return chooseCompanion(); let met = null; try { met = localStorage.getItem('r4.met'); } catch {} if (location.hash === '#meet' || met !== k) meetResident(k); }); }); }
   document.getElementById('enterChaos')?.addEventListener('click', (e) => {
     const a = e.currentTarget; if (a.dataset.go) return;   // a running Chaos: the link goes to its round
     e.preventDefault(); const fold = document.getElementById('gtFold'); fold.open = true; fold.scrollIntoView({ behavior: 'smooth', block: 'center' }); fold.querySelector('.chip:not([hidden])')?.focus();
@@ -818,8 +817,28 @@ function renderGauntlets(all) {
     else { delete btn.dataset.go; btn.href = '#start'; btn.textContent = 'Enter Chaos 🌀'; }
   }
 }
-// 👋 MEET THE RESIDENT: the welcome the first time a device meets whoever lives in r4box (or whenever
-// the vote changes who that is), and at #meet. r4box is its mind; the four pokes let you feel it react.
+// 🧭 CHOOSE A COMPANION: the first time you sign in with nobody picked, the four of them, one per pillar
+// of the box; pick who goes with you (design_votes, topic 'resident'). Then you meet it.
+function chooseCompanion() {
+  document.getElementById('meetOv')?.remove();
+  const el = document.createElement('div'); el.id = 'meetOv'; el.className = 'meet-ov'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Choose a companion');
+  el.innerHTML = `<div class="meet-card choose">
+      <span class="eyebrow">Who lives in r4box</span><h2>Who goes with you?</h2>
+      <p class="small">Four live in r4box, one for each pillar of the box. Pick a companion for your chaos adventures: it rides every game with you and <b>doubles its own pillar's events in your chaos rating</b>. You can change your mind in the Design Studio.</p>
+      <div class="choose-grid">${PALS.map((p) => `<button type="button" class="choose-card" data-choose="${p.key}" style="--c:${p.colour}">
+        <canvas width="220" height="220" aria-hidden="true"></canvas><b>${esc(p.name)}</b><span class="pillar">${p.pillarIcon} ${esc(p.pillar)}</span><small>${esc(p.perk)}</small></button>`).join('')}</div></div>`;
+  document.body.appendChild(el);
+  const widgets = PALS.map((p) => palWidget(el.querySelector(`[data-choose="${p.key}"] canvas`), { pal: p.key, s: 26, beat: 0.9, dpr: 2 }));
+  el.querySelectorAll('[data-choose]').forEach((b) => b.addEventListener('click', async () => {
+    const k = b.dataset.choose; el.querySelectorAll('[data-choose]').forEach((x) => { x.disabled = true; }); b.classList.add('picked');
+    try { await vote(TOPIC_RESIDENT, k); } catch (err) { note(friendly(err), 'error'); el.querySelectorAll('[data-choose]').forEach((x) => { x.disabled = false; }); return; }
+    try { localStorage.setItem('r4.pal', k); } catch {}
+    widgets.forEach((w) => w.stop()); el.remove(); sfx('fanfare');
+    lobby();   // the box, the chip and the hero are its now, and the lobby's own flow shows the meet card (nothing met yet)
+  }));
+}
+// 👋 MEET THE COMPANION: the welcome the first time a device meets the one you picked (or whenever you
+// change it), and at #meet. r4box is its mind; the pokes let you feel it react.
 function meetResident(k) {
   document.getElementById('meetOv')?.remove();
   const P = PAL[k];
@@ -829,12 +848,13 @@ function meetResident(k) {
       <span class="eyebrow">Who lives in r4box</span>
       <h2>Meet ${esc(P.name)}</h2>
       <p class="meet-tag">${esc(P.tag)}</p>
+      <p class="small"><b>${P.pillarIcon} ${esc(P.pillar)}.</b> ${esc(P.perk)}</p>
       <p class="muted small">${esc(P.story)}</p>
       <p class="small"><b>r4box is ${esc(P.name)}'s mind.</b> The chaos curve, x → r·x·(1−x), is its mood, and every move you make in any game is a beat of it. Poke a beat and watch:</p>
       <div class="meet-pokes">
         <button type="button" data-m="peak">⚡ a peak</button><button type="button" data-m="mirror">✨ the mirror</button><button type="button" data-m="golden">🌻 the golden cut</button><button type="button" data-m="calm">🧘 a calm</button><button type="button" data-m="chaos">🌀 chaos</button>
       </div>
-      <p class="muted small">You'll find it riding the 🌀 button in every game, in the corner of every solo run, taking a breath in every calm and blinking through every glitch. If you'd rather someone else lived here, the family votes in the Design Studio.</p>
+      <p class="muted small">You'll find it riding the 🌀 button in every game, in the corner of every solo run, taking a breath in every calm and blinking through every glitch. Want a different companion? Change it in the Design Studio.</p>
       <div class="row" style="gap:10px"><button type="button" class="enter" id="meetGo">Let's go 🌀</button><a class="enter alt" href="studio.html">🎨 Design Studio</a></div>
     </div>`;
   document.body.appendChild(el);
@@ -1091,7 +1111,8 @@ async function statsView() {
   const ps = data.players || [];
   const who = (p) => `${p.bot ? '🤖 ' : ''}${p.id === me.id ? 'You' : esc(p.username)}`;
   if (data.since) document.getElementById('since').textContent = `All-time, since ${new Date(data.since).toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' })}`;
-  const chaosBoard = chaosRatingsHTML(ratings || [], who);
+  const { data: dvRows } = await sb.from('design_votes').select('player, choice').eq('topic', TOPIC_RESIDENT);   // 🧭 everyone's companion, for the board
+  const chaosBoard = chaosRatingsHTML(ratings || [], who, Object.fromEntries((dvRows || []).map((r) => [r.player, r.choice])));
   if (!ps.some((p) => p.played || p.gauntlets || p.holes)) { body.innerHTML = chaosBoard + '<p class="muted">No finished games yet. The board fills up as you play.</p>'; return; }
   const pct = (w, n) => (n ? `${Math.round((w / n) * 100)}%` : '–');
   const medal = ['🥇', '🥈', '🥉'];
@@ -1148,14 +1169,14 @@ async function statsView() {
 
 // 🌀 The chaos ratings (071): every game feeds them. A player's rating is the sum of the box's events
 // their moves and beats have met; their rank is a phase of the curve.
-const EVENT_LABEL = { peak: 'peaks', gift: 'gifts', fib: 'Fibonacci beats', phase: 'phases crossed', big: 'twists', window: 'window beats', balance: 'balances', mirror: 'mirrors', golden: 'golden cuts', gold: 'golden beats', r4: 'r = 4' };
-function chaosRatingsHTML(rows, who) {
+const EVENT_LABEL = { peak: 'peaks', gift: 'gifts', fib: 'Fibonacci beats', phase: 'phases crossed', big: 'twists', window: 'window beats', balance: 'balances', mirror: 'mirrors', golden: 'golden cuts', gold: 'golden beats', r4: 'r = 4', bond: '🧭 companion bonus' };
+function chaosRatingsHTML(rows, who, pals = {}) {
   const rated = rows.filter((r) => r.rating > 0);
   if (!rated.length) return `<section class="card"><h2>🌀 Chaos ratings</h2><p class="muted small">Every game feeds this: play the curve (mirrors, golden cuts, the window, peaks…) and your rating climbs through the phases, Calm to Strange Attractor.</p></section>`;
   const medal = ['🥇', '🥈', '🥉'];
   const top = (r) => Object.entries(r.counts || {}).sort((a, b) => (WEIGHTS[b[0]] || 0) * b[1] - (WEIGHTS[a[0]] || 0) * a[1]).slice(0, 3).map(([k, n]) => `${n} ${EVENT_LABEL[k] || k}`).join(' · ');
-  return `<section class="card"><h2>🌀 Chaos ratings</h2><ul class="pack">${rated.map((r, i) => `<li><span class="big">${RANK_ICON[r.rank] || '🌀'}</span><span><strong>${medal[i] || ''} ${who({ id: r.player, username: r.name })} · ${r.rating} · ${esc(r.rank)}</strong><br><span class="muted small">${top(r) || 'just started'}${r.next ? ` · ${r.next - r.rating} to ${rankOf(r.next)}` : ''}${r.week ? ` · +${r.week} this week` : ''}</span></span></li>`).join('')}</ul>
-    <p class="muted small">How you play the curve, in every game: peaks and twists met, mirrors (x on 1 − x before), golden cuts (x on 1/φ), balances, window beats, Fibonacci beats, phases crossed. Ranks: Calm · Rhythm ×2 (60) · Rhythm ×4 (160) · Cascade (320) · Chaos (640) · Strange Attractor (1280).</p></section>`;
+  return `<section class="card"><h2>🌀 Chaos ratings</h2><ul class="pack">${rated.map((r, i) => `<li><span class="big">${RANK_ICON[r.rank] || '🌀'}</span><span><strong>${medal[i] || ''} ${who({ id: r.player, username: r.name })}${PAL[pals[r.player]] ? ` <span title="goes with ${esc(PAL[pals[r.player]].name)}">${PAL[pals[r.player]].icon}</span>` : ''} · ${r.rating} · ${esc(r.rank)}</strong><br><span class="muted small">${top(r) || 'just started'}${r.next ? ` · ${r.next - r.rating} to ${rankOf(r.next)}` : ''}${r.week ? ` · +${r.week} this week` : ''}</span></span></li>`).join('')}</ul>
+    <p class="muted small">How you play the curve, in every game: peaks and twists met, mirrors (x on 1 − x before), golden cuts (x on 1/φ), balances, window beats, Fibonacci beats, phases crossed; your 🧭 companion doubles its pillar's. Ranks: Calm · Rhythm ×2 (60) · Rhythm ×4 (160) · Cascade (320) · Chaos (640) · Strange Attractor (1280).</p></section>`;
 }
 
 // ---------------------------------------------------------------- a player's trophy case (#player=<id>)

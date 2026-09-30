@@ -156,9 +156,13 @@ a breather before the curve comes back:
 
 The 🌀 button shows 🧘 and the moves left while a game is held.
 
-## The pals (who lives in r4box)
+## The pals (who lives in r4box): your companion
 
-Four candidates (`web/pals.js`), chosen by vote in the Design Studio (`studio.html`): 🟢 Fig, a drop of
+Four live in r4box (`web/pals.js`), one for each pillar of the box, and each player picks one in the
+Design Studio (`studio.html`) to go on chaos adventures with. A companion **doubles its pillar's events
+in your chaos rating** (a 🧭 bond row beside each, 077): 🟢 Fig · chaos (peaks, big, golden beats,
+r = 4) · 🦋 Kit · symmetry (mirrors, balances) · 🟪 Bit · fractals (phases crossed, the window) · 🐌 Phi ·
+geometry (golden cuts, Fibonacci beats). The four: 🟢 Fig, a drop of
 the curve whose tail is the bifurcation diagram; 🟪 Bit, the box itself; 🐌 Phi, a snail with a golden
 spiral for a shell; 🦋 Kit, the butterfly effect, its wings the diagram and its mirror. All four read the
 nine events: a peak is a jump, big a wobble, gold turns them gold, a gift is happy eyes, the mirror flips

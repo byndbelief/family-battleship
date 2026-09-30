@@ -788,6 +788,15 @@ sits in the corner of every solo game (`#spal` in the shell: `react` on every be
 `sleep` at game over). `resident()` caches the key in localStorage `r4.pal`, and `residentNow()` reads
 that synchronously for the loader and the sign-in screen (which run before or without a session).
 The topic mechanism is generic: a second question is another topic string and its own page section.
+**Companions (077).** The vote became a pick: `design_votes` topic `resident` is each player's own
+companion (`picked()` in studio.js, imported as `myCompanion` in app.js because the lobby has its own
+`picked()` for chips; `resident()` and common.js's `palKey()` now mean *my* companion, Fig until
+picked; `leader()` only names the family favourite in the Studio). Each pal carries `pillar`,
+`pillarIcon`, `boosts` and `perk`; the server's `_chaos_mark` adds a `bond` row worth the same points
+when the event is in `_chaos_boosts(_chaos_companion(player))`, so counts stay true and the bonus
+shows as 🧭 on the board (`chaosRatingsHTML(rows, who, pals)` also shows each player's companion
+icon). First sign-in with no pick: `chooseCompanion()` (four cards, `[data-choose]`) then the meet
+card; the smoke test picks Fig.
 **Meet the resident** (`meetResident(k)` in app.js): a welcome overlay (`#meetOv`, styles `.meet-ov`) the
 first time a device meets the current resident (localStorage `r4.met` holds the key it last met, so a
 change of resident shows it again) and at `#meet` (the Studio links there); a live pal with five pokes

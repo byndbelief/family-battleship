@@ -110,7 +110,7 @@ export function drawMeter(canvas, c) {
 // 🌀 The chaos rating (071): keeping score is also about how you play the curve. A game tallies the
 // events its beats meet (tally(ev, t)); a solo game hands the tally to solo_submit, the server marks
 // its own moves. The weights and ranks here mirror _chaos_weight / _chaos_rank.
-export const WEIGHTS = Object.freeze({ peak: 1, gift: 1, fib: 2, phase: 2, big: 3, window: 4, balance: 5, mirror: 8, golden: 8, gold: 10, r4: 10 });
+export const WEIGHTS = Object.freeze({ peak: 1, gift: 1, fib: 2, phase: 2, big: 3, window: 4, balance: 5, mirror: 8, golden: 8, gold: 10, r4: 10, bond: 1 });   // bond: the companion's bonus (077), in points
 export const RANKS = [[1280, 'Strange Attractor'], [640, 'Chaos'], [320, 'Cascade'], [160, 'Rhythm ×4'], [60, 'Rhythm ×2'], [0, 'Calm']];
 export const rankOf = (rating) => RANKS.find(([at]) => rating >= at)[1];
 export const RANK_ICON = { Calm: '🌱', 'Rhythm ×2': '🎵', 'Rhythm ×4': '🎶', Cascade: '🌊', Chaos: '🌀', 'Strange Attractor': '🦋' };

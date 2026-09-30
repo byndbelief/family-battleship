@@ -8,14 +8,12 @@ import { drawPal, palWidget, PAL, PALS } from './pals.js';
 // is its mood, so it shows up wherever the curve does: the 🌀 button, the curve box, a glitch, a calm.
 export function palKey() { try { const k = localStorage.getItem('r4.pal'); if (k && PAL[k]) return k; } catch {} return PALS[0].key; }
 export const palName = () => PAL[palKey()].name;
-// The vote's leader (same rule as studio.js: most votes, ties to whoever reached the count first), kept in
-// localStorage for the next page. Quiet on any failure: the last known resident stands.
+// This player's companion, kept in localStorage for the next page. Quiet on any failure: the last known one stands.
 async function refreshResident() {
   try {
     const { data } = await sb.rpc('design_tally', { p_topic: 'resident' }); if (!Array.isArray(data)) return;
-    const c = {}, at = {}; data.forEach((r) => { c[r.choice] = (c[r.choice] || 0) + 1; at[r.choice] = r.at; });
-    const best = Object.entries(c).filter(([k]) => PAL[k]).sort((a, b) => b[1] - a[1] || String(at[a[0]]).localeCompare(String(at[b[0]])))[0];
-    localStorage.setItem('r4.pal', best ? best[0] : PALS[0].key);
+    const mine = data.find((r) => r.player === me.id)?.choice;   // 🧭 my companion (077); nothing picked yet: Fig house-sits
+    localStorage.setItem('r4.pal', mine && PAL[mine] ? mine : PALS[0].key);
   } catch {}
 }
 // the mood a game's last move put the resident in, read off the curve row

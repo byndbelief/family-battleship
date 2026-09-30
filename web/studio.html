@@ -32,10 +32,12 @@
   .pals{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:14px}
   .pal{display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:20px;background:var(--panel);border:2px solid var(--line);position:relative;transition:transform .15s,border-color .15s,box-shadow .15s}
   .pal.mine{border-color:var(--gold);box-shadow:0 0 0 3px #F5C54233,0 14px 34px #0006}
-  .pal.lead::before{content:'🏆 leading';position:absolute;top:-11px;left:14px;padding:2px 10px;border-radius:99px;background:var(--gold);color:#2A2100;font-size:12px;font-weight:800}
+  .pal.lead::before{content:'⭐ family favourite';position:absolute;top:-11px;left:14px;padding:2px 10px;border-radius:99px;background:var(--gold);color:#2A2100;font-size:12px;font-weight:800}
   .pal canvas{width:100%;height:auto;aspect-ratio:1;border-radius:14px;background:radial-gradient(circle at 50% 60%,#1C1640,#0B0918 75%);display:block}
   .pal h2{font-size:22px;margin:0;display:flex;align-items:center;gap:8px}
   .pal h2 i{width:12px;height:12px;border-radius:50%;background:var(--c);box-shadow:0 0 10px var(--c)}
+  .pal h2 .pillar{margin-left:auto;font:800 11px/1 var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--violet)}
+  .pal .perk{color:var(--mint)}
   .pal details{font-size:14px;color:var(--muted)}
   .pal details summary{cursor:pointer;font-weight:700;color:var(--ink);list-style:none}
   .pal details summary::-webkit-details-marker{display:none}
@@ -58,7 +60,7 @@
 <body>
 <div class="wrap">
   <nav class="topnav gtop"><a href="./">← r4box</a><h1>🎨 Design Studio</h1></nav>
-  <p class="lead">Who lives in r4box? Four of them want the job. r4box is their mind: the chaos curve is their mood and the games are what they dream. Poke a beat below and watch every one of them feel it at once. Then pick yours. <b>The one with the most votes moves in</b>: it lives in the box on the home screen, rides every game's 🌀 button and the loading screen, sits in the corner of every solo game, takes a breath in every calm, and blinks through every glitch.</p>
+  <p class="lead">Four live in r4box, one for each pillar of the box: chaos, symmetry, fractals, geometry. r4box is their mind: the chaos curve is their mood and the games are what they dream. <b>Pick a companion</b> to go on chaos adventures with: it lives in your box on the home screen, rides every game's 🌀 button and the loading screen, sits in the corner of every solo game, takes a breath in every calm, blinks through every glitch, and <b>doubles its own pillar's events in your chaos rating</b>. Poke a beat below and watch all four feel it at once.</p>
   <div class="who" id="who">Counting the votes…</div>
   <div class="beats" id="beats"><span class="lbl">Poke a beat</span>
     <button data-m="peak">⚡ peak</button><button data-m="big">💥 big</button><button data-m="gold">🌟 gold</button><button data-m="gift">🎁 gift</button><button data-m="mirror">✨ mirror</button><button data-m="balance">⚖️ balance</button><button data-m="window">🔁 window</button><button data-m="golden">🌻 golden</button><button data-m="fib">🌻 fib</button><button data-m="hurt">🤕 hurt</button><button data-m="sleep" aria-pressed="false">💤 sleep</button>
@@ -66,7 +68,7 @@
   </div>
   <div class="pals" id="pals"></div>
   <p class="small"><a href="./#meet">👋 Meet the resident again</a></p>
-  <p class="muted small">Every pal has a face for all nine events of the box (CHAOS.md): a peak is a jump, big a wobble, gold turns it gold, a gift is happy eyes, the mirror flips it, balance is a halo, the window makes three of something, the golden cut lights its bead, a Fibonacci beat is a wink. Past r = 3.57 the eyes spiral. Ties go to whoever got there first. You can change your vote any time.</p>
+  <p class="muted small">Each companion doubles its pillar's events in your rating (as a 🧭 companion bonus on the scoreboard). Every pal has a face for all nine events of the box (CHAOS.md): a peak is a jump, big a wobble, gold turns it gold, a gift is happy eyes, the mirror flips it, balance is a halo, the window makes three of something, the golden cut lights its bead, a Fibonacci beat is a wink. Past r = 3.57 the eyes spiral. You can change your companion any time.</p>
 </div>
 <script type="module">
   import { signedIn, me, avatar, names, esc, setGameTools } from './common.js';
@@ -79,10 +81,10 @@
     const box = document.getElementById('pals');
     box.innerHTML = PALS.map((p) => `<article class="pal" data-pal="${p.key}" style="--c:${p.colour}">
         <canvas width="440" height="440" aria-label="${esc(p.name)}, live"></canvas>
-        <h2><i aria-hidden="true"></i>${esc(p.name)}</h2><p class="small">${esc(p.tag)}</p>
+        <h2><i aria-hidden="true"></i>${esc(p.name)} <span class="pillar">${p.pillarIcon} ${esc(p.pillar)}</span></h2><p class="small">${esc(p.tag)}</p><p class="small perk">${esc(p.perk)}</p>
         <details><summary>The story</summary><p>${esc(p.story)}</p></details>
         <div class="voters" data-v="${p.key}"></div>
-        <button class="pick" data-pick="${p.key}" aria-pressed="false">Pick ${esc(p.name)}</button>
+        <button class="pick" data-pick="${p.key}" aria-pressed="false">Go with ${esc(p.name)}</button>
       </article>`).join('');
     const widgets = PALS.map((p) => palWidget(box.querySelector(`[data-pal="${p.key}"] canvas`), { pal: p.key, s: 48, beat: 0.8, dpr: 2 }));
     // one curve for all four: the first widget's r drives the others, so their moods and tails agree
@@ -103,12 +105,13 @@
       const lead = leader(rows), c = {}; rows.forEach((r) => { c[r.choice] = (c[r.choice] || 0) + 1; });
       const mine = rows.find((r) => r.player === me.id)?.choice;
       PALS.forEach((p) => {
-        const art = box.querySelector(`[data-pal="${p.key}"]`); art.classList.toggle('lead', rows.length > 0 && lead === p.key); art.classList.toggle('mine', mine === p.key);
-        art.querySelector('.pick').setAttribute('aria-pressed', String(mine === p.key)); art.querySelector('.pick').textContent = mine === p.key ? `✓ Your pick: ${p.name}` : `Pick ${p.name}`;
-        art.querySelector('.voters').innerHTML = (c[p.key] ? `<span class="n">${c[p.key]} vote${c[p.key] === 1 ? '' : 's'}</span>` : '<span class="n muted">no votes yet</span>') + rows.filter((r) => r.choice === p.key).map((r) => avatar({ username: r.name }, 'face')).join('');
+        const art = box.querySelector(`[data-pal="${p.key}"]`); art.classList.toggle('lead', rows.length > 1 && lead === p.key); art.classList.toggle('mine', mine === p.key);
+        art.querySelector('.pick').setAttribute('aria-pressed', String(mine === p.key)); art.querySelector('.pick').textContent = mine === p.key ? `✓ You go with ${p.name}` : `Go with ${p.name}`;
+        art.querySelector('.voters').innerHTML = (c[p.key] ? `<span class="n">goes with ${c[p.key]}</span>` : '<span class="n muted">nobody yet</span>') + rows.filter((r) => r.choice === p.key).map((r) => avatar({ username: r.name }, 'face')).join('');
       });
       const L = PALS.find((p) => p.key === lead);
-      document.getElementById('who').innerHTML = rows.length ? `Right now <b>${esc(L.name)}</b> lives in r4box, with ${c[lead]} of ${rows.length} vote${rows.length === 1 ? '' : 's'}.${mine ? '' : ' You haven’t picked yet.'}` : `No votes yet: <b>${esc(L.name)}</b> is house-sitting until someone picks.`;
+      const M = PALS.find((p) => p.key === mine);
+      document.getElementById('who').innerHTML = (M ? `You go with <b>${esc(M.name)}</b> ${M.pillarIcon} ${esc(M.pillar)}.` : 'You haven\u2019t picked a companion yet: Fig is house-sitting.') + (rows.length > 1 ? ` Family favourite: <b>${esc(L.name)}</b> (${c[lead]} of ${rows.length}).` : '');
     };
     render(await tally(TOPIC_RESIDENT));
     box.addEventListener('click', async (e) => {
