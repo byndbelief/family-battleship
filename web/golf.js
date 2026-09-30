@@ -1,4 +1,4 @@
-// Putt Post, live: turns and scores are saved on the server; putts replay for everyone.
+// Putt Post, live: turns and scores are saved on the server.
 import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, compactPack, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, noteMirror, note, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, dramaOn, face, livePresence, avatarOf, splash, jumpToNext, setGameTools, condenseTop, golfTheme, setGolfThemePref, liveCountdown, srv } from './common.js';
 import {
   BW, BH, LW, LH, COURSE, POWER, LONG, parOf, maxStrokes, setCourse, HOLES, R, CUP_R, tick, q20, q100, ATTACKS, holeWithAttack, holeWithTwists, twistsFor, CHIP_AIR, drawHole,
@@ -19,12 +19,12 @@ const cv = $('course'), ctx = cv.getContext('2d');
 
 // ---------------------------------------------------------------- state
 let G = null;              // { game, turns, players, acc, secrets, best }
-let scene = {}, mode = 'idle', strokes = 0, current = [], skipReplay = false;
+let scene = {}, mode = 'idle', strokes = 0, current = [];
 let curAttack = 0, curAttacker = null;   // sneak attack in effect for the hole being played
 // Live race (040): an attack can land mid-hole; attackFrom is the putt it starts on (0: the whole hole).
 let attackFrom = 0, liveAtkCheck = null;
 let cheatsUsed = 0, lastStroke = null, drag = null;
-let flowing = false;       // a replay, judging, robot or turn flow is running
+let flowing = false;       // a robot or turn flow is running
 let afterPanel = false;    // the "plant an attack" panel after my hole is open
 let pack = [], magnetOn = false;   // backpack items; Magnet Cup active this hole
 // Live race: while everyone has the game open, all play the current hole at once (no turn order,
@@ -200,7 +200,7 @@ function camStep(now) {
   if (view) return;   // a finger's on it
   const k = reduceMotion ? 1 : 0.14;
   cam.z += (zp - cam.z) * k; if (Math.abs(zp - cam.z) < 0.003) cam.z = zp;
-  const follow = !cam.hold || cam.over || ['rolling', 'replay', 'bot'].includes(mode);   // a view you set holds, but a rolling ball is followed
+  const follow = !cam.hold || cam.over || ['rolling', 'bot'].includes(mode);   // a view you set holds, but a rolling ball is followed
   const [tx, ty] = follow ? camClamp(fx, fy, cam.z) : [cam.x, cam.y];
   cam.x += (tx - cam.x) * (reduceMotion ? 1 : 0.2); cam.y += (ty - cam.y) * (reduceMotion ? 1 : 0.2);
   [cam.x, cam.y] = camClamp(cam.x, cam.y, cam.z);
@@ -285,13 +285,13 @@ function roll(stroke, h, speed = 2) {
   return new Promise((done) => {
     const b = { x: stroke.x, y: stroke.y, vx: stroke.vx, vy: stroke.vy, ticks: 0, clock: scene.clock || 0, air: stroke.chip ? CHIP_AIR : 0 };
     scene.ball = b; scene.trail = []; scene.bumpLit = scene.bumpLit || [];
-    const quiet = skipReplay && mode === 'replay';
+    const quiet = false;
     if (!quiet) sfx('putt', { power: Math.hypot(b.vx, b.vy) / 8 });
     let lastClack = 0;
     const step = () => {
       // Will it drop? Half speed while the ball creeps up on the cup.
       const nearCup = !quiet && !reduceMotion && dramaOn() && Math.hypot(b.x - h.cup[0], b.y - h.cup[1]) < 50 && Math.hypot(b.vx, b.vy) < 3;
-      const per = skipReplay && mode === 'replay' ? 400 : nearCup ? 1 : speed;
+      const per = nearCup ? 1 : speed;
       for (let i = 0; i < per; i++) {
         const ev = tick(b, h);
         if (!quiet && ev === 'wall' && performance.now() - lastClack > 70) { lastClack = performance.now(); sfx('clack'); }
@@ -313,9 +313,9 @@ function roll(stroke, h, speed = 2) {
   });
 }
 function afterStroke(ev, b, h, sx, sy) {
-  if (ev === 'cup') { if (!(skipReplay && mode === 'replay')) { sfx('cup'); sfx('cheer', { delay: 0.2 }); } b.hidden = true; scene.flagOut = true; burst(h.cup[0], h.cup[1], ['#F2C14E', '#fff', '#E4572E', '#7FD3F7'], 60, 0.04); return { holed: true, penalty: 0 }; }
-  if (ev === 'water') { if (!(skipReplay && mode === 'replay')) sfx('plunk'); burst(b.x, b.y, ['#BFE9FF', '#fff', '#3FA7E0'], 30, 0.08); b.x = sx; b.y = sy; b.vx = b.vy = 0; return { holed: false, penalty: 1 }; }
-  if (!(skipReplay && mode === 'replay') && (b.lip || Math.hypot(b.x - h.cup[0], b.y - h.cup[1]) < (h.cupR || CUP_R) * 2.2)) {
+  if (ev === 'cup') { { sfx('cup'); sfx('cheer', { delay: 0.2 }); } b.hidden = true; scene.flagOut = true; burst(h.cup[0], h.cup[1], ['#F2C14E', '#fff', '#E4572E', '#7FD3F7'], 60, 0.04); return { holed: true, penalty: 0 }; }
+  if (ev === 'water') { sfx('plunk'); burst(b.x, b.y, ['#BFE9FF', '#fff', '#3FA7E0'], 30, 0.08); b.x = sx; b.y = sy; b.vx = b.vy = 0; return { holed: false, penalty: 1 }; }
+  if ((b.lip || Math.hypot(b.x - h.cup[0], b.y - h.cup[1]) < (h.cupR || CUP_R) * 2.2)) {
     bigText(`<span class="small-pop">${b.lip ? 'Lipped out!' : 'Ooooh!'}</span>`, 1400); sfx('gasp');
   }
   b.x = q20(b.x); b.y = q20(b.y); b.vx = b.vy = 0; return { holed: false, penalty: 0 };
@@ -481,35 +481,6 @@ function setLive(v) {
   }
 }
 
-// Plays back a saved turn.
-async function replayTurn(tu) {
-  flowing = true;
-  // Hit mid-hole in a live race (040): the plain hole until the attack's putt.
-  const from = tu.attack ? tu.attack_from || 0 : 0, hA = magnetize(holeAt(tu.hole, tu.attack, tu.t), tu.boost === 1);
-  const h0 = from ? magnetize(holeAt(tu.hole, 0, tu.t), tu.boost === 1) : hA;
-  let h = h0;
-  mode = 'replay'; skipReplay = false; scene = { hole: h, hi: tu.hole, fx: [], clock: 0, ball: { x: h.tee[0], y: h.tee[1] } };
-  camIntro(holeKey(tu.hole));
-  setHud(tu.hole, tu.player, 0, true);
-  const atk = (tu.attack ? `, while hit by ${ATTACKS[tu.attack].name}${from ? ` from putt ${from + 1}` : ''}` : '') + (tu.boost ? ' (with a 🧲 Magnet Cup)' : '');
-  $('tip').textContent = `Watching ${who(tu.player).replace(/<[^>]+>/g, '')} on hole ${tu.hole + 1}: ${tu.written} on the card${atk}.`;
-  $('skip').hidden = false;
-  let count = 0;
-  for (const [k, raw] of tu.strokes.entries()) {
-    const s = toStroke(raw);
-    if (k === from && h !== hA) { h = hA; scene.hole = h; if (!skipReplay) { shake(); bigText(`<span class="small-pop">${ATTACKS[tu.attack].icon} ${ATTACKS[tu.attack].name}!</span>`, 1400); await sleep(600); } }
-    scene.ball = { x: s.x, y: s.y, clock: scene.clock }; scene.flagOut = false;
-    if (!skipReplay) await sleep(350);
-    const { ev, b } = await roll(s, h);
-    const r = afterStroke(ev, b, h, s.x, s.y); count += 1 + r.penalty; $('strokes').textContent = count;
-    if (r.holed && !skipReplay) celebrate(count, parOf(tu.hole));
-    if (!skipReplay) await sleep(r.holed && count === 1 ? 2600 : 500);
-  }
-  $('skip').hidden = true;
-  if (!skipReplay) await sleep(700);
-  flowing = false;
-}
-$('skip').onclick = () => { skipReplay = true; $('skip').hidden = true; };
 
 // ---------------------------------------------------------------- my turn
 async function myTurn() {
@@ -567,7 +538,7 @@ function syncPutbar() {
   if (!G) return;
   const playing = G.game.status === 'playing' && !['over', 'done'].includes(mode), show = !touchUI() && playing && locked;   // touch: the pop-up Putt instead
   const ready = locked && mode === 'aim';
-  const label = ready ? 'Putt!' : mode === 'aim' ? '👆 Drag back on the course to aim' : mode === 'rolling' ? 'Rolling…' : mode === 'replay' ? 'Watching…'
+  const label = ready ? 'Putt!' : mode === 'aim' ? '👆 Drag back on the course to aim' : mode === 'rolling' ? 'Rolling…'
     : mode === 'bot' ? '🤖 Robot putting…' : liveOn ? 'Waiting…' : `${who(curPlayer()).replace(/<[^>]+>/g, '')}${curPlayer() === me.id ? 'r turn' : "'s turn"}`;
   const key = `${show}|${ready}|${label}`;
   if (key === putbarKey) return;

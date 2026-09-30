@@ -730,8 +730,9 @@ opens in chaos. The server's messages (round news, champion, call-off, chaos-clo
 ### Putt Post: no replay of finished holes (page only)
 `decide()` no longer replays the previous player's hole before your turn, nor the last hole before the
 result screen: the replay was there for calling cheater (gone in 065). It marks the turns seen and goes
-straight to your turn / the result. `replayTurn` stays (unused by the flow). Test: scratch t_noreplay
-(after the other player's hole, the page is in aim mode within ~200 ms, no gate).
+straight to your turn / the result. The replay code is gone too (`replayTurn`, the Skip replay button,
+`skipReplay`, mode `'replay'`). Test: scratch t_noreplay (after the other player's hole, the page is in
+aim mode within ~300 ms, no gate).
 
 ### Effects show in full screen (page only)
 Native full screen shows only the full-screen element, so overlays added to `<body>` (Battleship's `#fx`
