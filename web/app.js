@@ -402,7 +402,7 @@ async function lobby() {
         <div class="boxhero">
           <canvas id="boxHero" aria-label="The Box: the chaos curve's bifurcation diagram, with a live x walking it as r climbs"></canvas>
           <div class="boxwords"><span class="eyebrow">The Box · chaos · symmetry · fractals · fibonacci</span><h2>Route to Chaos</h2>
-            <p class="small">Every game here runs on one curve, x → r·x·(1−x). A Chaos is rounds of the games against your rivals, wilder as r climbs; win the most rounds for the crown, and the next Chaos starts on its own. The games are won by playing Chaos.</p>
+            <p class="small"><span id="palMind">This is Fig's mind.</span> Every game here runs on one curve, x → r·x·(1−x): its mood. A Chaos is rounds of the games against your rivals, wilder as r climbs; win the most rounds for the crown, and the next Chaos starts on its own. The games are won by playing Chaos.</p>
             <div class="row" style="gap:10px;flex-wrap:wrap"><a class="enter" id="enterChaos" href="#start">Enter Chaos 🌀</a><a class="enter alt" href="run.html">🧬 Solo run</a></div>
             <a class="meet" id="meetPal" href="studio.html"><canvas id="palMini" width="88" height="88" aria-hidden="true"></canvas><span><b id="palName">…</b><small>lives in r4box · vote in the Design Studio ›</small></span></a></div>
         </div>
@@ -476,8 +476,8 @@ async function lobby() {
     </div>`);
   // 🌀 The Box on the wall: the bifurcation diagram with a live x walking it. Enter Chaos goes to your
   // running Chaos's round when there is one (renderGauntlets sets it), else opens the start form.
-  if (!quick) { const k0 = residentNow(); boxHero(document.getElementById('boxHero'), k0); const mini = palWidget(document.getElementById('palMini'), { pal: k0, s: 15, beat: 0.8, dpr: 2 }); document.getElementById('palName').textContent = PAL[k0].name;
-    resident().then((k) => { if (k !== k0 && document.getElementById('palMini')) { mini.set({ pal: k }); document.getElementById('palName').textContent = PAL[k].name; boxHero(document.getElementById('boxHero'), k); } }); }
+  if (!quick) { const k0 = residentNow(); boxHero(document.getElementById('boxHero'), k0); const mini = palWidget(document.getElementById('palMini'), { pal: k0, s: 15, beat: 0.8, dpr: 2 }); document.getElementById('palName').textContent = PAL[k0].name; document.getElementById('palMind').textContent = `This is ${PAL[k0].name}'s mind.`;
+    resident().then((k) => { if (k !== k0 && document.getElementById('palMini')) { mini.set({ pal: k }); document.getElementById('palName').textContent = PAL[k].name; document.getElementById('palMind').textContent = `This is ${PAL[k].name}'s mind.`; boxHero(document.getElementById('boxHero'), k); } }); }
   document.getElementById('enterChaos')?.addEventListener('click', (e) => {
     const a = e.currentTarget; if (a.dataset.go) return;   // a running Chaos: the link goes to its round
     e.preventDefault(); const fold = document.getElementById('gtFold'); fold.open = true; fold.scrollIntoView({ behavior: 'smooth', block: 'center' }); fold.querySelector('.chip:not([hidden])')?.focus();

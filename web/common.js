@@ -3,7 +3,23 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
 import { SUPABASE_URL, SUPABASE_ANON_KEY, VAPID_PUBLIC_KEY } from './config.js';
 import { sfx, isMuted, setMuted } from './sfx.js';
-import { drawPal } from './pals.js';
+import { drawPal, palWidget, PAL, PALS } from './pals.js';
+// 🎨 the resident (who lives in r4box; studio.js keeps it in localStorage). r4box is its mind: the curve
+// is its mood, so it shows up wherever the curve does: the 🌀 button, the curve box, a glitch, a calm.
+export function palKey() { try { const k = localStorage.getItem('r4.pal'); if (k && PAL[k]) return k; } catch {} return PALS[0].key; }
+export const palName = () => PAL[palKey()].name;
+// The vote's leader (same rule as studio.js: most votes, ties to whoever reached the count first), kept in
+// localStorage for the next page. Quiet on any failure: the last known resident stands.
+async function refreshResident() {
+  try {
+    const { data } = await sb.rpc('design_tally', { p_topic: 'resident' }); if (!Array.isArray(data)) return;
+    const c = {}, at = {}; data.forEach((r) => { c[r.choice] = (c[r.choice] || 0) + 1; at[r.choice] = r.at; });
+    const best = Object.entries(c).filter(([k]) => PAL[k]).sort((a, b) => b[1] - a[1] || String(at[a[0]]).localeCompare(String(at[b[0]])))[0];
+    localStorage.setItem('r4.pal', best ? best[0] : PALS[0].key);
+  } catch {}
+}
+// the mood a game's last move put the resident in, read off the curve row
+function curveMood(cv) { const h = cv?.hist || [], x = h[h.length - 1], x0 = h[h.length - 2]; if (x == null) return null; if (cv.hold > 0) return 'gift'; if (x > CHAOS.GOLD) return 'gold'; if (x0 != null && Math.abs(x - (1 - x0)) < CHAOS.MIRROR) return 'mirror'; if (Math.abs(x - CHAOS.CUT) < CHAOS.CUT_TOL) return 'golden'; if (x > CHAOS.PEAK) return 'peak'; if (x < CHAOS.GIFT) return 'gift'; return null; }
 import { CHAOS, CALM, isCalm } from './chaos.js';   // 🌀 the box: CHAOS.md
 export { sfx };
 import { THEMES, vesselSVG } from './bs-themes.js';
@@ -380,6 +396,7 @@ export async function signedIn() {
   (botRows ?? []).forEach((b) => bots.add(b.profile_id));
   me.id = session.user.id; me.username = names[me.id];
   startOnline(me.username);
+  refreshResident();   // 🎨 who lives in r4box, so a game page opened first on a fresh device still shows the right one
   // Join realtime as this player (not anonymously), or row-level security hides every change.
   try { await sb.realtime.setAuth(session.access_token); } catch {}
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
@@ -486,7 +503,8 @@ export function glitch(ms = 1100) {
     st.textContent = `@keyframes r4tear{0%{filter:none;transform:none}8%{filter:hue-rotate(160deg) saturate(2.2) contrast(1.4);transform:translate(-4px,1px)}18%{filter:invert(1) hue-rotate(60deg);transform:translate(5px,-2px) skewX(-2deg)}28%{filter:none;transform:none}52%{filter:hue-rotate(-120deg) saturate(3);transform:translate(3px,0)}62%{filter:contrast(2) brightness(1.3);transform:translate(-3px,2px) skewX(2deg)}72%,100%{filter:none;transform:none}}
 body.glitch{animation:r4tear 1.1s steps(1) 1}
 body.glitch .card > b,body.glitch .card > small{font-size:0!important}body.glitch .card > b::after{content:'🐿️';font-size:26px;line-height:1}
-@media (prefers-reduced-motion:reduce){body.glitch{animation:none}}`;
+@keyframes r4blink{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){body.glitch{animation:none}#glitchPal{animation:none}}`;
     document.head.appendChild(st);
   }
   const cur = getComputedStyle(document.documentElement).getPropertyValue('--bg').trim().toLowerCase();
@@ -495,6 +513,13 @@ body.glitch .card > b,body.glitch .card > small{font-size:0!important}body.glitc
   ['--bg', '--panel', '--paper', '--bg-2', '--felt'].forEach((v) => root.setProperty(v, v === '--bg' || v === '--bg-2' ? bg : panel));
   document.body.classList.remove('glitch'); void document.body.offsetWidth; document.body.classList.add('glitch');
   sfx('buzz');
+  // the resident blinks through, dizzy: it's its mind glitching
+  document.getElementById('glitchPal')?.remove();
+  const gp = document.createElement('canvas'); gp.id = 'glitchPal'; gp.width = 320; gp.height = 320; gp.setAttribute('aria-hidden', 'true');
+  gp.style.cssText = 'position:fixed;left:50%;top:38%;width:160px;height:160px;transform:translate(-50%,-50%);z-index:96;pointer-events:none;filter:drop-shadow(0 8px 20px #000c);animation:r4blink .18s steps(2) infinite';
+  (document.querySelector('.fs-on') || document.body).appendChild(gp);
+  const w = palWidget(gp, { pal: palKey(), s: 48, own: false, r0: 4, dpr: 2 }); w.hurt();
+  setTimeout(() => { w.stop(); gp.remove(); }, ms);
   const until = Date.now() + ms;
   window.dispatchEvent(new CustomEvent('chaosglitch', { detail: { until } }));
   clearTimeout(glitchTimer);
@@ -547,7 +572,8 @@ function drawCurveBtn() {
   const X = (i) => 6 + (i * (W - 12)) / Math.max(1, pts.length - 1), Y = (v) => H - 6 - v * (H - 12);
   c.strokeStyle = curve.r >= 3.5699 ? '#FF8A3D' : '#3DD6C6'; c.lineWidth = 3; c.lineJoin = 'round'; c.beginPath();
   pts.forEach((v, i) => c[i ? 'lineTo' : 'moveTo'](X(i), Y(v))); c.stroke();
-  pts.forEach((v, i) => { c.fillStyle = v > CURVE_T ? '#FF5A4A' : '#fff'; c.beginPath(); c.arc(X(i), Y(v), i === pts.length - 1 ? 5 : 3, 0, 7); c.fill(); });
+  pts.forEach((v, i) => { if (i === pts.length - 1) return; c.fillStyle = v > CURVE_T ? '#FF5A4A' : '#fff'; c.beginPath(); c.arc(X(i), Y(v), 3, 0, 7); c.fill(); });
+  drawPal(palKey(), c, { x: X(pts.length - 1) - 4, y: Y(pts[pts.length - 1]), s: 8, t: performance.now() / 1000, r: curve.r, mood: curveMood(curve), mp: 0.5, face: 1 });   // the resident rides the last move
   if (curve.hold > 0) { c.fillStyle = '#C9FFF8'; c.font = '800 13px system-ui'; c.textAlign = 'left'; c.textBaseline = 'top'; c.fillText(`🧘${curve.hold}`, 4, 3); }   // 🧘 held: moves before r climbs again
 }
 let bifImg = null;
@@ -564,7 +590,7 @@ export function bifurcation(W, H, r0, r1) {   // drawn once: 1200 r's, 160 settl
 function drawCurveBox() {
   const box = document.getElementById('curveBox'); if (!box || !curve) return;
   const [ph, say] = curvePhase(curve.r), W = 720, H = 360, r0 = 2.8, r1 = 4;
-  box.querySelector('.ph').textContent = ph; box.querySelector('.say').textContent = say;
+  box.querySelector('.ph').textContent = ph; box.querySelector('.say').textContent = `${say}. This is ${palName()}'s mind: every move you make is a beat of it`;
   box.querySelector('.num').textContent = curve.hold > 0 ? `🧘 Calm within the chaos: r holds at ${curve.r.toFixed(2)} for ${curve.hold} more move${curve.hold === 1 ? '' : 's'}, and nothing twists. Then here comes that chaos curve again.` : curve.n ? `Move ${curve.n} · r = ${curve.r.toFixed(2)} · x = ${curve.x.toFixed(3)}${curve.x > CURVE_T ? ' → twist!' : ''}` : 'No moves yet: r starts at 2.90.';
   const cv = box.querySelector('canvas'), c = cv.getContext('2d');
   bifImg = bifImg || bifurcation(W, H, r0, r1);
@@ -579,6 +605,7 @@ function drawCurveBox() {
   hist.forEach((v, i) => { const r = Math.min(CHAOS.RMAX, CHAOS.R0 + CHAOS.DR * (n - hist.length + 1 + i)), last = i === hist.length - 1;
     c.fillStyle = v > CURVE_T ? '#FF5A4A' : '#3DD6C6'; c.globalAlpha = last ? 1 : 0.35 + (0.5 * i) / hist.length; c.beginPath(); c.arc(Xr(r), Y(v), last ? 9 : 5, 0, 7); c.fill(); });
   c.globalAlpha = 1; c.strokeStyle = '#fff'; c.lineWidth = 2; c.beginPath(); c.moveTo(Xr(curve.r), 0); c.lineTo(Xr(curve.r), H); c.stroke();
+  if (hist.length) drawPal(palKey(), c, { x: Xr(curve.r), y: Y(hist[hist.length - 1]), s: 16, t: performance.now() / 1000, r: curve.r, mood: curveMood(curve), mp: 0.5, face: 1 });   // the resident, where this game is in its mind
 }
 function toggleCurve() {
   const open = document.getElementById('curveBox');

@@ -788,6 +788,11 @@ sits in the corner of every solo game (`#spal` in the shell: `react` on every be
 `sleep` at game over). `resident()` caches the key in localStorage `r4.pal`, and `residentNow()` reads
 that synchronously for the loader and the sign-in screen (which run before or without a session).
 The topic mechanism is generic: a second question is another topic string and its own page section.
+**r4box is the resident's mind** (the curve its mood): common.js reads the key itself (`palKey()`,
+localStorage `r4.pal`, since it can't import studio.js) and draws the pal on the 🌀 button and in the
+curve box at the last move (`curveMood(curve)` reads the mood off `hist`/`hold`), pops it up dizzy in
+the middle of every `glitch()` (`#glitchPal`, a driven `palWidget` at r = 4 with `hurt()`), and the
+shell names it in the calm banner and hurts it on a run glitch.
 
 **Fresh start (2026-09-30).** All game data was wiped on production with `tools/sql/fresh-start.sql`
 (truncates every table but `profiles`, `bots`, `push_subscriptions`, resets Battleship themes and
