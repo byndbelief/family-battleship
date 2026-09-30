@@ -737,7 +737,8 @@ the events + `crossed` phases, `drawMeter`, `meterText`, `NEWS`; Squirrel Chaos 
 (no local chaos numbers left; the mirror pays a crate + 250 / a heart or 300, the balance reloads +
 heals / fills the dash, the window spawns threes). The server's `_chaos_curve` (068) is the same curve
 for the multiplayer games: no twist in the window, the window and r = 4 announced, and `_chaos_mirror`
-in `_chaos_after_move` gives the mover a `_chaos_drop` on a mirror move. common.js takes `CURVE_T` and
+in `_chaos_after_move` gives the mover a `_chaos_drop` on a mirror move; `card_play` does the same for Chaos
+Cards (069), so all four multiplayer games pay the mirror. common.js takes `CURVE_T` and
 the bifurcation picture's r from `CHAOS`, and paints the window band. Test: scratch t_chaosbox (page vs
 server from one x0: first 10 steps within float32, same twists, the window on both, the phases in order).
 
