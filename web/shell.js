@@ -19,7 +19,7 @@
 //   endStats() → text  debug()?
 // The host an organ gets: { cv, ctx, W, H, k, dpr, reduceMotion, S, banner, add, hurt, heal, over, sfx, ui, morphs }
 import { sb, me, signedIn, sfx, setGameTools, esc, names } from './common.js';
-import { makeCurve, stepCurve, drawMeter, meterText, NEWS, tally, ratingLine, CALM, isCalm, CHAOS } from './chaos.js';
+import { makeCurve, stepCurve, drawMeter, meterText, NEWS, tally, ratingLine, CALM, isCalm, CHAOS, EDGE_SAY } from './chaos.js';
 import { palWidget, PAL } from './pals.js';
 import { resident, residentNow } from './studio.js';
 
@@ -135,7 +135,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   // ---------------------------------------------------------------- the beat and the morphs
   function beat() {
     const held = calm > 0;
-    const ev = stepCurve(S.curve, { hold: held }); S.beats += 1; tenure += 1; tally(ev, S.tally);
+    const ev = stepCurve(S.curve, { hold: held, pal: pal.pal }); S.beats += 1; tenure += 1; tally(ev, S.tally);   // 🧭 your companion's edges
     if (held) { calm -= 1; if (calm === CALM.WARN) { banner(...NEWS.again); sfx('tick'); } else if (ev.glitch) glitchRun(); }
     pal.set({ r: S.curve.r }); pal.react(ev);
     ev.crossed.forEach((p) => banner(p.name, p.say));
@@ -194,6 +194,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     active = organs[Math.floor(Math.random() * organs.length)]; active.enter(null, null); applyTheme(); calm = 0;
     $('over').hidden = true; running = true; sfx('click'); pal.wake(); pal.set({ r: S.curve.r }); $('spal').hidden = false;
     banner(`${active.icon} ${active.name.toUpperCase()}`, morphs ? `${active.verb} · the curve will morph the world` : active.verb);
+    setTimeout(() => { if (running && !S.over) banner(`🧭 ${PAL[pal.pal].name.toUpperCase()} RIDES WITH YOU`, EDGE_SAY[pal.pal]); }, 2000);   // what your companion bends
     if (isCalm(active.key)) setTimeout(() => { if (running && !S.over && active && isCalm(active.key)) openCalm(); }, 1800);
   }
   async function over(how) {

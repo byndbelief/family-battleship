@@ -795,6 +795,13 @@ sits in the corner of every solo game (`#spal` in the shell: `react` on every be
 `sleep` at game over). `resident()` caches the key in localStorage `r4.pal`, and `residentNow()` reads
 that synchronously for the loader and the sign-in screen (which run before or without a session).
 The topic mechanism is generic: a second question is another topic string and its own page section.
+**Companion edges (079).** `EDGES`/`edgesOf(pal)` in chaos.js; `stepCurve(c, { pal })` and `inWindow(n, pal)`
+use them (the shell passes `pal.pal`); `drawMeter` reads `data-pal` for the peak line and Phi's gold
+band; `EDGE_SAY` is the run's opening banner. Server: `_chaos_edge(pal, what)` and `_chaos_mover()`
+(the 078 setting); `_chaos_mirror`/`_chaos_golden` read the mover's width themselves, so their call
+sites didn't change; `_chaos_curve`'s window and return line, `_chaos_mark_move`'s window, peak and
+balance, and both Fibonacci-luck rolls are patched in place. Test: a battleship curve with x set so the
+next landing is 0.747 twists for a Fig mover and not for a Phi mover.
 **Companion themes.** common.js sets `data-pal` on `<html>` from the pick (`applyPalTheme()`, at module
 load and after `refreshResident`; studio.js on a vote; the lobby when `resident()` resolves).
 `theme.css` maps it: `--pal`, `--pal-2`, `--pal-ink` per pal, a motif on `body:has(> #app)` (the lobby

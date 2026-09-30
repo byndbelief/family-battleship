@@ -164,7 +164,11 @@ The 🌀 button shows 🧘 and the moves left while a game is held.
 
 Four live in r4box (`web/pals.js`), one for each pillar of the box, and each player picks one in the
 Design Studio (`studio.html`) to go on chaos adventures with. A companion **doubles its pillar's events
-in your chaos rating** (a 🧭 bond row beside each, 077): 🟢 Fig · chaos (peaks, big, golden beats,
+in your chaos rating** (a 🧭 bond row beside each, 077) **and bends the curve's edges for you** (079,
+`EDGES` in chaos.js, `_chaos_edge` on the server): Fig's peak line is 0.68 not 0.75 (your moves twist
+more often); Kit's mirror is 0.05 wide not 0.02 and its balance 0.03; Bit's window lasts 7 beats
+(22–28) not 3; Phi's golden cut is 0.03 wide not 0.012 and its Fibonacci luck is doubled. The meter
+draws your own peak line and golden band, and a run opens with what your companion bends: 🟢 Fig · chaos (peaks, big, golden beats,
 r = 4) · 🦋 Kit · symmetry (mirrors, balances) · 🟪 Bit · fractals (phases crossed, the window) · 🐌 Phi ·
 geometry (golden cuts, Fibonacci beats). The four: 🟢 Fig, a drop of
 the curve whose tail is the bifurcation diagram; 🟪 Bit, the box itself; 🐌 Phi, a snail with a golden
