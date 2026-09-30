@@ -732,14 +732,20 @@ opens in chaos. The server's messages (round news, champion, call-off, chaos-clo
 Sierpiński triangle dashing right over a ridge of 5-octave value noise (`groundY`, seeded per run and
 depth; the small octaves scale with `rough()`, which climbs with depth and the chaos curve's r). Tap =
 jump (double jump in the air), hold ≥170 ms = dash (×1.8 speed, phases through spikes, meter `dash`
-of 1.4 s, refills on the ground); keys Space/↑/W and Shift/→. The chaos curve beats every 0.8 s
-(r = min(4, 2.85 + 0.02·n)): a peak x > 0.75 spawns spikes, a hop |Δx| > 0.08 a chasm as wide as the
-hop (≤150), a trough x < 0.35 (or every 3rd calm beat) an arc of shards; a peak x > 0.96 in chaos
-starts a twist (tailwind, fog, quake, shard rain, low gravity). Spikes and falling cost a heart (3;
-+1 per depth); every 25 s a dive (zoom-in) to the next depth with a new palette, seed and speed. Score =
+of 1.4 s, refills on the ground at 0.7/s); keys Space/↑/W and Shift/→. The chaos curve beats every
+0.7 s (r = min(4, 2.85 + 0.03·n)): a peak x > 0.7 spawns spikes (+ a chasm behind them at depth ≥ 2
+when x > 0.9), a hop |Δx| > 0.07 a chasm as wide as the hop (≤170 + 10·depth; + 2 spikes after it at
+depth ≥ 3), a trough x < 0.35 (or every 3rd calm beat) an arc of shards. A peak (x > 0.95 from the
+rhythm of 4, x > 0.88 in chaos, 2.5 s apart) starts one of 11 twists: tailwind, fog, quake, shard rain,
+low gravity, ⚡ lightning (marked strikes, `bolt` obstacles), blackout (radial dark), mirror (the canvas
+flips, HUD stays), spike storm, trampoline (landings bounce), lead boots (short jumps). Speed 190 +
+60·(depth−1) + 2.2·s, cap 640. Spikes, bolts and falling cost a heart (3; +1 per depth); every 22 s a
+dive (zoom-in) to the next depth with a new palette, seed and speed. Score =
 m/10 + shards (50 × combo ≤ 8). Saved with `solo_submit('fractal', score, depth)`; 066 widens
 solo_scores' game check to ('squirrel', 'fractal'). Test hook `window.__fd()` (state, `jump`, `hurt`,
-`gyAt`). Test: scratch t_fractal (auto-plays 30 s, all three obstacle kinds, dash, death saves a row).
+`gyAt`, `force(twist)`). Tests: scratch t_fractal (auto-plays 30 s, all three obstacle kinds, dash, death
+saves a row; the naive bot now dies before the first dive, which is the intended difficulty), t_fdtwists
+(forces each twist in turn, no errors).
 
 ### Putt Post: no replay of finished holes (page only)
 `decide()` no longer replays the previous player's hole before your turn, nor the last hole before the
