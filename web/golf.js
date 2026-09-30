@@ -388,8 +388,7 @@ async function decide() {
   renderCard();
   const prev = G.turns.find((x) => x.t === g.t - 1);
   if (g.status === 'over') {
-    const last = [...G.turns].reverse().find((x) => !x.skipped);
-    if (last && last.player !== me.id && last.t > seenT()) { await replayTurn(last); markSeen(last.t); }
+    if (G.turns.length) markSeen(Math.max(...G.turns.map((x) => x.t)));   // no replay of the last hole (066): straight to the result
     return showFinal();
   }
   // Live race: no replays, no turn order. Play the hole if you haven't, else watch the others.
@@ -398,8 +397,9 @@ async function decide() {
     if (!myHoleDone()) return myTurnLive();
     return waitingLive();
   }
-  // Watch the last player's hole if you haven't yet.
-  if (prev && !prev.skipped && prev.player !== me.id && prev.t > seenT()) { await replayTurn(prev); markSeen(prev.t); if (G.game.t !== g.t) return decide(); }
+  // No replay of the last player's hole (it was there for calling cheater, which is gone): the
+  // scorecard has their score, and your turn starts at once.
+  if (prev && prev.t > seenT()) markSeen(prev.t);
   const cur = curPlayer();
   if (cur === me.id) return myTurn();
   if (isBot(cur)) {

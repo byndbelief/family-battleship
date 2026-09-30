@@ -727,6 +727,12 @@ trophies "Chaos". Code, tables and RPCs keep the gauntlet names. The rounds walk
 `_chaos_curve` starts a round's game at n = (round − 1)·6, so round 1 is calm (r 2.90) and round 4 on
 opens in chaos. The server's messages (round news, champion, call-off, chaos-clock forfeits) say Chaos.
 
+### Putt Post: no replay of finished holes (page only)
+`decide()` no longer replays the previous player's hole before your turn, nor the last hole before the
+result screen: the replay was there for calling cheater (gone in 065). It marks the turns seen and goes
+straight to your turn / the result. `replayTurn` stays (unused by the flow). Test: scratch t_noreplay
+(after the other player's hole, the page is in aim mode within ~200 ms, no gate).
+
 ### Effects show in full screen (page only)
 Native full screen shows only the full-screen element, so overlays added to `<body>` (Battleship's `#fx`
 canvas with shells, explosions and fireworks, the 🌪️/🐙 seabeasts and kraken arms, stamps, banners,
