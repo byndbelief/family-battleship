@@ -1,6 +1,6 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
-import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, liveCountdown, shotClock, stopShotClock, chaosClock, dramaOn, face, jumpToNext, setGameTools, condenseTop, compactPack } from './common.js';
+import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, liveCountdown, shotClock, stopShotClock, chaosClock, dramaOn, face, jumpToNext, setGameTools, condenseTop, compactPack, overlayHost } from './common.js';
 import { MULTI, W, H, CRATER_R, BERTHA_R, rng, buildTop as buildTopN, applyCrater, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, startXs, zones, aimDir, digCut, coveredAt, ceilAt, TUN, setWorld, setTerrain, droneX, droneAim, droneY, DRONE_STEP, setMoon, moonAt } from './duel-engine.js';
 
 const $ = (id) => document.getElementById(id);
@@ -524,7 +524,7 @@ function hitDrama(before, after) {
   if (big >= 25) {
     stamp('DIRECT<br>HIT!', drops[mi] === big ? 'red' : '', 1600); sfx('flash', { delay: 0.05 });
     navigator.vibrate?.([60, 40, 140]);
-    if (!reduceMotion) { const f = document.createElement('div'); f.style.cssText = 'position:fixed;inset:0;z-index:58;background:#fff;pointer-events:none;opacity:.85;transition:opacity .35s'; document.body.appendChild(f); requestAnimationFrame(() => { f.style.opacity = '0'; }); setTimeout(() => f.remove(), 400); }
+    if (!reduceMotion) { const f = document.createElement('div'); f.style.cssText = 'position:fixed;inset:0;z-index:58;background:#fff;pointer-events:none;opacity:.85;transition:opacity .35s'; overlayHost().appendChild(f); requestAnimationFrame(() => { f.style.opacity = '0'; }); setTimeout(() => f.remove(), 400); }
   } else if (drops[mi] > 0) stamp(`−${drops[mi]}`, 'red', 1400);
   else stamp(`Hit! −${big}`, '', 1400);
 }
@@ -539,7 +539,7 @@ function endDrama(g) {
   sfx(won ? 'fanfare' : 'lose', { delay: 0.9 });
   jumpToNext('duel', g, me.id, (p) => (bots.has(p) ? '🤖 ' : '') + (names[p] ?? G?.names?.[p] ?? 'someone'), 2600, $('nextSlot'));
 }
-function stamp(text, tone = '', ms = 2400) { const el = document.createElement('div'); el.className = `stamp ${tone}`; el.innerHTML = `<span>${text}</span>`; document.body.appendChild(el); setTimeout(() => el.remove(), ms); }
+function stamp(text, tone = '', ms = 2400) { const el = document.createElement('div'); el.className = `stamp ${tone}`; el.innerHTML = `<span>${text}</span>`; overlayHost().appendChild(el); setTimeout(() => el.remove(), ms); }
 
 // Flies a shell along its path, then blows up where the server says it landed.
 // Flies a shot (every shell of it: a cluster bomb makes three), then, for a replay, sets off the

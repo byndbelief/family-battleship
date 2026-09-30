@@ -727,6 +727,14 @@ trophies "Chaos". Code, tables and RPCs keep the gauntlet names. The rounds walk
 `_chaos_curve` starts a round's game at n = (round − 1)·6, so round 1 is calm (r 2.90) and round 4 on
 opens in chaos. The server's messages (round news, champion, call-off, chaos-clock forfeits) say Chaos.
 
+### Effects show in full screen (page only)
+Native full screen shows only the full-screen element, so overlays added to `<body>` (Battleship's `#fx`
+canvas with shells, explosions and fireworks, the 🌪️/🐙 seabeasts and kraken arms, stamps, banners,
+the quake vignette, splashes, the live countdown, the danger pulse, Hilltop's flash) were invisible on a
+phone in full screen. `overlayHost()` in common.js (`.fs-on` element or body) is where they go now, and
+`fsHost` moves the long-lived ones (`gameTools`, `fx`, `dangerV`, `dramaSplash`, `nextJump`) across when
+full screen toggles. Never `document.body.appendChild` a game overlay. Test: scratch t_fsfx.
+
 ### Chaos rounds move on by themselves; Putt Post live holes start together (065)
 Why rounds stalled: Battleship (`index.html`) had no fallback poll (the other pages' `liveGame` checks
 every 5 s), so a page that missed the realtime event never learned the game was over, and its presence

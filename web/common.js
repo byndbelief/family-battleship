@@ -28,9 +28,13 @@ function fsLabels() {
 }
 // Native full screen puts the game area on the browser's top layer, above everything else in the
 // page whatever its z-index, so the toolbar and Settings ride inside it while it's on.
+// overlayHost(): where a page's overlays go. In native full screen only the full-screen element is
+// shown, so anything added to <body> (a splash, Battleship's effects canvas, a kraken, a stamp) is
+// invisible until it's put inside it. fsHost moves the long-lived ones over when full screen toggles.
+export const overlayHost = () => document.querySelector('.fs-on') || document.body;
 function fsHost() {
-  const host = document.querySelector('.fs-on') || document.body;
-  ['gameTools'].forEach((id) => { const el = document.getElementById(id); if (el && el.parentElement !== host) host.appendChild(el); });
+  const host = overlayHost();
+  ['gameTools', 'fx', 'dangerV', 'dramaSplash', 'nextJump'].forEach((id) => { const el = document.getElementById(id); if (el && el.parentElement !== host) host.appendChild(el); });
 }
 function fsSync() { fsHost(); fsLabels(); fit(); dispatchEvent(new Event('resize')); }   // fit: the toolbar is slimmer in full screen
 export function fsExit() {
@@ -829,7 +833,7 @@ export async function jumpToNext(kind, game, meId, nameOf, wait = 3000, mount = 
     + `<button type="button" data-nj="stay" style="${btn};background:#ffffff22;color:#fff">Stay here</button></span>`;
   if (inSpot) { const t = el.querySelector('span'); t.style.whiteSpace = 'normal'; t.style.overflow = 'visible'; }   // room to wrap on the result screen
   // Full screen on a phone shows only the full-screen element: the banner goes inside it.
-  (inSpot ? mount : document.querySelector('.fs-on') || document.body).appendChild(el);
+  (inSpot ? mount : overlayHost()).appendChild(el);
   let n = secs, iv = null;
   const stop = () => { clearInterval(iv); el.remove(); };
   const startRematch = async (btnEl) => {
@@ -937,7 +941,7 @@ export function splash(lines, { tone = 'gold', ms = 2200, sound = 'stinger', pas
   el.setAttribute('role', 'status');
   el.innerHTML = lines.map((l, i) => `<span class="dl dl${i}" style="animation-delay:${i * 180}ms">${l}</span>`).join('');
   el.onclick = () => el.remove();
-  document.body.appendChild(el);
+  overlayHost().appendChild(el);
   if (sound) sfx(sound);
   setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 350); }, ms);
 }
@@ -956,7 +960,7 @@ export async function liveCountdown(kind, gameId, lines, { solo = false } = {}) 
   document.getElementById('dramaSplash')?.remove();
   const el = document.createElement('div'); el.id = 'dramaSplash'; el.className = 'drama drama-gold pass'; el.setAttribute('role', 'status');
   el.innerHTML = lines.map((l, i) => `<span class="dl dl${i}" style="animation-delay:${i * 150}ms">${l}</span>`).join('') + '<span class="dl dlcd">…</span>';
-  document.body.appendChild(el); sfx('stinger');
+  overlayHost().appendChild(el); sfx('stinger');
   let last = null;
   const step = () => {
     if (!el.isConnected) return;
@@ -982,7 +986,7 @@ export function danger(on) {
   if (!on) { v?.remove(); clearInterval(dangerTimer); dangerTimer = null; return; }
   if (v) return;
   v = document.createElement('div'); v.id = 'dangerV'; v.setAttribute('aria-hidden', 'true');
-  document.body.appendChild(v);
+  overlayHost().appendChild(v);
   sfx('heartbeat'); dangerTimer = setInterval(() => { if (!document.hidden) sfx('heartbeat'); }, 1300);
 }
 // The first time you open a Gauntlet round: which round, which game, and what's at stake.

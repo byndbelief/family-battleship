@@ -1,5 +1,5 @@
 import { USERNAME_DOMAIN } from './config.js';
-import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence, jumpToNext, startOnline, online, agoText, setGameTools, themeTiles, forgetThemes, golfTheme, liveCountdown } from './common.js';
+import { sb, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, fsButton, fsRefresh, fsExit, nextUpChip, isPhone, note, gauntletBar, splash, danger, onHold, onTaps, rumour, shotClock, stopShotClock, chaosClock, chaosIn, gauntletRounds, openSettings, avatar, face, livePresence, jumpToNext, startOnline, online, agoText, setGameTools, themeTiles, forgetThemes, golfTheme, liveCountdown, overlayHost } from './common.js';
 import { holeName, holeWithAttack, holeWithTwists, drawHole, LW, LH, setCourse, setGolfTheme } from './golf-engine.js';
 import { THEMES, themeOf, vesselSVG } from './bs-themes.js';
 import { W as DW, H as DH, startXs, buildTop, setWorld, setTerrain } from './duel-engine.js';
@@ -185,13 +185,13 @@ const fx = (() => {
 function stamp(text, tone = '', ms = 2400) {
   if (!text) return;
   const el = document.createElement('div'); el.className = `stamp ${tone}`; el.innerHTML = `<span>${text}</span>`;
-  document.body.appendChild(el); setTimeout(() => el.remove(), ms);
+  overlayHost().appendChild(el); setTimeout(() => el.remove(), ms);
 }
-function banner(text) { const el = document.createElement('div'); el.className = 'banner'; el.innerHTML = `<span>${text}</span>`; document.body.appendChild(el); setTimeout(() => el.remove(), 1900); }
+function banner(text) { const el = document.createElement('div'); el.className = 'banner'; el.innerHTML = `<span>${text}</span>`; overlayHost().appendChild(el); setTimeout(() => el.remove(), 1900); }
 function quake(red) {
   if (reduceMotion) return;
   document.body.classList.remove('quake'); void document.body.offsetWidth; document.body.classList.add('quake');
-  if (red) { const v = document.createElement('div'); v.className = 'vignette'; document.body.appendChild(v); setTimeout(() => v.remove(), 800); }
+  if (red) { const v = document.createElement('div'); v.className = 'vignette'; overlayHost().appendChild(v); setTimeout(() => v.remove(), 800); }
 }
 const cellEl = (owner, i) => app.querySelector(`[data-o="${isShared() ? OCEAN : owner}"][data-i="${i}"]`);
 const centerOf = (el) => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
@@ -247,8 +247,8 @@ function animateShots(newShots) {
     setTimeout(() => {
       if (!liveBS) showBoard(s.target);
       const el = cellEl(s.target, s.cell);
-      if (el && !reduceMotion) { const [x, y] = centerOf(el), m = document.createElement('div'); m.className = `seabeast ${s.chaos}`; m.textContent = s.chaos === 'kraken' ? '🐙' : '🌪️'; m.style.left = `${x}px`; m.style.top = `${y}px`; document.body.appendChild(m); setTimeout(() => m.remove(), 1300);
-        if (s.chaos === 'kraken') { const t = krakenArms(s.cell); t.style.left = `${x}px`; t.style.top = `${y}px`; document.body.appendChild(t); setTimeout(() => t.remove(), 1500); } }
+      if (el && !reduceMotion) { const [x, y] = centerOf(el), m = document.createElement('div'); m.className = `seabeast ${s.chaos}`; m.textContent = s.chaos === 'kraken' ? '🐙' : '🌪️'; m.style.left = `${x}px`; m.style.top = `${y}px`; overlayHost().appendChild(m); setTimeout(() => m.remove(), 1300);
+        if (s.chaos === 'kraken') { const t = krakenArms(s.cell); t.style.left = `${x}px`; t.style.top = `${y}px`; overlayHost().appendChild(t); setTimeout(() => t.remove(), 1500); } }
       if (k === 0) sfx(s.chaos === 'kraken' ? 'thud' : 'whistle', { dur: 0.6 });
       setTimeout(() => revealShot(s), reduceMotion ? 0 : 450);
     }, (reduceMotion ? 0 : 300) + k * 320);
