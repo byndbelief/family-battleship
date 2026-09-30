@@ -1,5 +1,6 @@
 // Hilltop Duel, live. The shooter's browser flies the shell; the server records where it
 // landed and the damage, and the other player watches it replay.
+import { drawPal } from './pals.js';
 import { sb, me, bots, signedIn, esc, nm, friendly, notify, ITEMS, backpack, useLoot, announceChaos, backpackBarHTML, sfx, liveGame, nudge, nextUpChip, names, gauntletBar, isPhone, note, noteMirror, splash, danger, liveCountdown, shotClock, stopShotClock, chaosClock, dramaOn, face, jumpToNext, setGameTools, condenseTop, compactPack, overlayHost } from './common.js';
 import { MULTI, W, H, CRATER_R, BERTHA_R, rng, buildTop as buildTopN, applyCrater, windFor, tankPos, simulate, damage, WEAPONS, simulateWeapon, weaponCraters, weaponDamage, craterCount, railAngle, startXs, zones, aimDir, digCut, coveredAt, ceilAt, TUN, setWorld, setTerrain, droneX, droneAim, droneY, DRONE_STEP, setMoon, moonAt } from './duel-engine.js';
 
@@ -70,7 +71,7 @@ const restAngle = (p, X) => (multi() ? (X[p] < W / 2 ? 45 : 135) : 45);
 const cv = $('cv');
 let ctx = cv.getContext('2d');   // swapped for the tank cam's while it draws (drawTankCam)
 // ⚡ a glitch (common.js): until this time, every tank is drawn as a squirrel
-let glitchUntil = 0; addEventListener('chaosglitch', (e) => { glitchUntil = e.detail.until; });
+let glitchUntil = 0, glitchPal = 'fig'; addEventListener('chaosglitch', (e) => { glitchUntil = e.detail.until; glitchPal = e.detail.pal || 'fig'; });
 // The camera (4+ tanks, where the field is wide and the tanks small): zoom 1-3× around a point of
 // the battlefield (x, y). Pinch or the wheel to zoom, one finger pans when you're not aiming, and a
 // shell in the air pulls the view along with it. At 1× it's the whole field, exactly as before.
@@ -330,7 +331,7 @@ function draw(t) {
     ctx.strokeStyle = '#0B0A1E'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(0, -14); ctx.lineTo(bx, by); ctx.stroke();   // barrel: dark edge
     ctx.strokeStyle = col; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(0, -14); ctx.lineTo(bx, by); ctx.stroke();
     const body = () => { ctx.beginPath(); ctx.arc(0, -12, 8, Math.PI, 0); ctx.closePath(); ctx.roundRect(-16, -10, 32, 10, 4); };
-    if (Date.now() < glitchUntil) { ctx.font = '30px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.save(); ctx.scale(bx < 0 ? -1 : 1, 1); ctx.fillText('🐿️', 0, -8); ctx.restore(); }   // ⚡ glitch: a squirrel where the tank was
+    if (Date.now() < glitchUntil) drawPal(glitchPal, ctx, { x: 0, y: -12, s: 11, t: performance.now() / 1000, r: 4, face: bx < 0 ? -1 : 1 });   // ⚡ glitch: the glitcher's companion where the tank was
     else {
     if (!out) { ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = 14; ctx.fillStyle = col; body(); ctx.fill(); ctx.restore(); }
     ctx.fillStyle = col; body(); ctx.fill();

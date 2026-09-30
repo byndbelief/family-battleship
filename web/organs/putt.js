@@ -6,6 +6,7 @@
 // cut gilds the cup (500), the window sets three cups (sink any), a Fibonacci beat is a free putt.
 // Twists: 💨 wind, 🧊 ice (no friction), 🌊 ripple (the green heaves), 🕳️ tiny cup.
 import { fibMult } from '../chaos.js';
+import { drawPal } from '../pals.js';
 
 const W = 400, R = 6, CUP_R = 11, PUTTS = 5;
 const TWISTS = [
@@ -117,7 +118,7 @@ function draw(t) {
   if (b) {
     if (g.guide > 0 && g.cups[0]) { ctx.strokeStyle = '#FFE08Acc'; ctx.setLineDash([6, 6]); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(g.cups[0].x, g.cups[0].y); ctx.stroke(); ctx.setLineDash([]); }
     if (drag && !moving()) { const dx = drag.x - drag.x0, dy = drag.y - drag.y0, d = Math.min(150, Math.hypot(dx, dy)), a = Math.atan2(dy, dx); ctx.strokeStyle = `rgba(255,${230 - d},120,0.9)`; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - Math.cos(a) * d * 0.8, b.y - Math.sin(a) * d * 0.8); ctx.stroke(); }
-    if (g.glitch) { ctx.font = `${R * 3}px system-ui,sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🐿️', b.x, b.y); }   // ⚡ glitch: the ball is a squirrel
+    if (g.glitch) { drawPal(g.glitchPal || 'fig', ctx, { x: b.x, y: b.y, s: R * 1.1, t: performance.now() / 1000, r: 4 }); }   // ⚡ glitch: the ball is your companion
     else { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(b.x, b.y, R, 0, 7); ctx.fill(); ctx.fillStyle = '#00000033'; ctx.beginPath(); ctx.arc(b.x + 2, b.y + 2, R - 2, 0, 7); ctx.fill(); }
   }
   ctx.restore();
@@ -129,7 +130,7 @@ function draw(t) {
 const organ = {
   key: 'putt', name: 'Putt', icon: '⛳', verb: 'drag back and let go to putt', beat: 1.0,
   theme: { bg: '#1E3A1A', gold: '#F5C542', bannerc: '#FFE08A' },
-  glitch(on) { if (g) g.glitch = on; },
+  glitch(on, pal) { if (g) { g.glitch = on; g.glitchPal = pal; } },
   init(h) { host = h; ctx = h.ctx; S = h.S; sfx = h.sfx; window.__pt = organ.debug; },
   start() { newGame(); },
   enter(from) { if (!g) newGame(); host.ui(''); drag = null; if (from) { g.v = { x: 0, y: 0 }; } },

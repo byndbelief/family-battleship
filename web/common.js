@@ -478,7 +478,8 @@ async function announceChaosNow(filter) {
   let { data } = await q;
   data = (data || []).filter((e) => !chaosShown.has(e.id)); data.forEach((e) => chaosShown.add(e.id));
   if (!data.length) return [];
-  if (data.some((e) => e.kind === 'glitch')) glitch();   // ⚡ the chaos leaks through a calm: the page flickers
+  const gl = data.find((e) => String(e.kind).startsWith('glitch'));   // ⚡ somebody's companion leaks through a calm: the page flickers their way
+  if (gl) glitch(1100, { pal: String(gl.kind).split(':')[1] || palKey(), who: gl.actor ? names[gl.actor] || null : null });
   await sb.rpc('chaos_seen', { p_ids: data.map((e) => e.id) });
   // In a game, news doesn't pop up over the board (unless Settings says so): it waits in the 🔔.
   if (onGamePage() && !pref('gamePopups', false)) { data.forEach((e) => news.unshift(e)); newsUnread += data.length; showNews(true); return data; }
@@ -495,12 +496,20 @@ async function announceChaosNow(filter) {
 // cards do it in CSS). Nothing in the rules changes. Reduced motion: only the theme swap.
 const WORLDS = [['#0F2A22', '#18433A'], ['#15122E', '#231F4A'], ['#0B2A22', '#0F3A2D'], ['#14200E', '#1E2E15'], ['#0B0A1F', '#161433'], ['#0A1626', '#12243A']];
 let glitchTimer = null;
-export function glitch(ms = 1100) {
+export function glitch(ms = 1100, { pal = palKey(), who = null } = {}) {
+  pal = PAL[pal] ? pal : palKey();
   if (!document.getElementById('glitchCss')) {
     const st = document.createElement('style'); st.id = 'glitchCss';
     st.textContent = `@keyframes r4tear{0%{filter:none;transform:none}8%{filter:hue-rotate(160deg) saturate(2.2) contrast(1.4);transform:translate(-4px,1px)}18%{filter:invert(1) hue-rotate(60deg);transform:translate(5px,-2px) skewX(-2deg)}28%{filter:none;transform:none}52%{filter:hue-rotate(-120deg) saturate(3);transform:translate(3px,0)}62%{filter:contrast(2) brightness(1.3);transform:translate(-3px,2px) skewX(2deg)}72%,100%{filter:none;transform:none}}
 body.glitch{animation:r4tear 1.1s steps(1) 1}
-body.glitch .card > b,body.glitch .card > small{font-size:0!important}body.glitch .card > b::after{content:'🐿️';font-size:26px;line-height:1}
+body.glitch .card > b,body.glitch .card > small{font-size:0!important}body.glitch .card > b::after{content:var(--glitch-icon,'🐿️');font-size:26px;line-height:1}
+@keyframes r4mirror{0%,100%{transform:none;filter:none}12%,68%{transform:scaleX(-1);filter:hue-rotate(40deg)}80%{transform:none;filter:invert(1)}}
+body.glitch.glitch-kit{animation:r4mirror 1.1s steps(1) 1}
+@keyframes r4zoom{0%{transform:none}20%{transform:scale(1.08);filter:contrast(1.5)}45%{transform:scale(.94)}70%{transform:scale(1.04);filter:contrast(1.5) hue-rotate(90deg)}100%{transform:none;filter:none}}
+body.glitch.glitch-bit{animation:r4zoom 1.1s steps(1) 1}
+@keyframes r4spiral{0%{transform:none;filter:none}25%{transform:rotate(-6deg) scale(1.03);filter:sepia(.7) saturate(2.2)}55%{transform:rotate(5deg) scale(1.02);filter:sepia(.7) saturate(2.2) hue-rotate(-20deg)}100%{transform:none;filter:none}}
+body.glitch.glitch-phi{animation:r4spiral 1.1s steps(1) 1}
+#glitchTag{position:fixed;left:50%;top:38%;transform:translate(-50%,86px);z-index:96;pointer-events:none;padding:4px 12px;border-radius:99px;background:#0B0918dd;color:#fff;font:800 13px/1.2 system-ui,sans-serif;white-space:nowrap;border:1px solid #ffffff33}
 @keyframes r4blink{50%{opacity:.25}}
 @media (prefers-reduced-motion:reduce){body.glitch{animation:none}#glitchPal{animation:none}}`;
     document.head.appendChild(st);
@@ -509,19 +518,22 @@ body.glitch .card > b,body.glitch .card > small{font-size:0!important}body.glitc
   const pick = WORLDS.filter(([bg]) => bg.toLowerCase() !== cur), [bg, panel] = pick[Math.floor(Math.random() * pick.length)];
   const root = document.documentElement.style;
   ['--bg', '--panel', '--paper', '--bg-2', '--felt'].forEach((v) => root.setProperty(v, v === '--bg' || v === '--bg-2' ? bg : panel));
-  document.body.classList.remove('glitch'); void document.body.offsetWidth; document.body.classList.add('glitch');
+  document.body.classList.remove('glitch', 'glitch-fig', 'glitch-kit', 'glitch-bit', 'glitch-phi'); void document.body.offsetWidth; document.body.classList.add('glitch', `glitch-${pal}`);
+  root.setProperty('--glitch-icon', `'${PAL[pal].icon}'`);
   sfx('buzz');
   // the resident blinks through, dizzy: it's its mind glitching
   document.getElementById('glitchPal')?.remove();
   const gp = document.createElement('canvas'); gp.id = 'glitchPal'; gp.width = 320; gp.height = 320; gp.setAttribute('aria-hidden', 'true');
   gp.style.cssText = 'position:fixed;left:50%;top:38%;width:160px;height:160px;transform:translate(-50%,-50%);z-index:96;pointer-events:none;filter:drop-shadow(0 8px 20px #000c);animation:r4blink .18s steps(2) infinite';
   (document.querySelector('.fs-on') || document.body).appendChild(gp);
-  const w = palWidget(gp, { pal: palKey(), s: 48, own: false, r0: 4, dpr: 2 }); w.hurt();
-  setTimeout(() => { w.stop(); gp.remove(); }, ms);
+  const w = palWidget(gp, { pal, s: 48, own: false, r0: 4, dpr: 2 }); w.hurt();
+  document.getElementById('glitchTag')?.remove();
+  const tag = document.createElement('div'); tag.id = 'glitchTag'; tag.textContent = who ? `${who}'s ${PAL[pal].name}` : PAL[pal].name; gp.after(tag);   // whose companion this is
+  setTimeout(() => { w.stop(); gp.remove(); tag.remove(); }, ms);
   const until = Date.now() + ms;
-  window.dispatchEvent(new CustomEvent('chaosglitch', { detail: { until } }));
+  window.dispatchEvent(new CustomEvent('chaosglitch', { detail: { until, pal, who } }));
   clearTimeout(glitchTimer);
-  glitchTimer = setTimeout(() => { document.body.classList.remove('glitch'); ['--bg', '--panel', '--paper', '--bg-2', '--felt'].forEach((v) => root.removeProperty(v)); }, ms);
+  glitchTimer = setTimeout(() => { document.body.classList.remove('glitch', `glitch-${pal}`); ['--bg', '--panel', '--paper', '--bg-2', '--felt', '--glitch-icon'].forEach((v) => root.removeProperty(v)); }, ms);
 }
 // The game-page news (🔔): what came in during play, newest first, for this visit to the page.
 const news = []; let newsUnread = 0;

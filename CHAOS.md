@@ -150,9 +150,13 @@ a breather before the curve comes back:
 - **The chaos leaks through: ⚡ glitches.** A calm is never quite calm. A held beat whose x lands
   above **0.7** (`CALM.GLITCH`) is a glitch: the rules don't move, but for a second the world does.
   The page tears and its theme swaps for another game's, tanks turn into squirrels (Hilltop Duel, and
-  the run's Hilltop), the ball is a squirrel (the run's Putt), the cards show squirrels. Server: a
-  `glitch` event (076) the pages act on; run: `ev.glitch` from `stepCurve`, and the shell's tear.
-  Reduced motion keeps the theme swap and skips the tear.
+  the run's Hilltop), the ball is a squirrel (the run's Putt), the cards show squirrels. **A glitch is
+  somebody's**: the move that leaked was a player's, and it is *their companion* that leaks, its own way,
+  for everyone at the table (078): Fig tears the page (chaos), Kit mirrors it (symmetry), Bit zooms it in
+  and out (fractals), Phi spins it (geometry); tanks, balls and cards become that companion, and its
+  owner's name hangs under it. Your pal against theirs. Server: a `glitch:<pal>` event with the mover as
+  actor; run: `ev.glitch` from `stepCurve` and your own companion. Reduced motion keeps the theme swap
+  and skips the motion.
 
 The 🌀 button shows 🧘 and the moves left while a game is held.
 

@@ -81,7 +81,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   let calm = 0;
   // ⚡ a glitch: seconds left of the flicker a held peak sets off (the theme is another organ's meanwhile)
   let glitchT = 0;
-  function glitchRun() { if (S.over) return; glitchT = 1.1; const others = organs.filter((o) => o !== active && o.theme); const th = others[Math.floor(Math.random() * others.length)]; if (th) applyTheme(th.theme); active.glitch?.(true); pal.hurt(); sfx('buzz'); banner(NEWS.glitch[0], `${PAL[pal.pal].name}'s mind flickers: nothing changed. Probably.`); }
+  function glitchRun() { if (S.over) return; glitchT = 1.1; const others = organs.filter((o) => o !== active && o.theme); const th = others[Math.floor(Math.random() * others.length)]; if (th) applyTheme(th.theme); active.glitch?.(true, pal.pal); pal.hurt(); sfx('buzz'); banner(NEWS.glitch[0], `${PAL[pal.pal].name}'s mind flickers: nothing changed. Probably.`); }
   function tear() {   // slices of the frame shoved sideways, and a colour band, for the glitch's life
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
     for (let i = 0; i < 5; i++) { const y = Math.random() * cv.height, h = (6 + Math.random() * 34) * host.dpr, dx = (Math.random() < 0.5 ? -1 : 1) * (6 + Math.random() * 18) * host.dpr; ctx.drawImage(cv, 0, y, cv.width, h, dx, y, cv.width, h); }

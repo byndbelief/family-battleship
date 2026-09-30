@@ -743,7 +743,14 @@ x > `CALM.GLITCH` (0.7) posts a `chaos_events` row of kind `glitch`; `announceCh
 `glitch()` (common.js) when one arrives: body gets `.glitch` for 1.1 s (a keyframed tear: hue, invert,
 skew; none under reduced motion), the root's `--bg`/`--panel`/`--paper`/`--bg-2`/`--felt` are set to
 another game's world and then removed, cards' faces become 🐿️ by CSS, and a `chaosglitch` event
-(`detail.until`) tells canvas pages to draw their swap (duel.js: tanks → 🐿️). The run does it itself:
+(`detail.until`, `pal`, `who`) tells canvas pages to draw their swap (duel.js: tanks → the glitcher's
+companion via `drawPal`). **Whose glitch (078):** `_chaos_after_move` and `card_play` set a transaction
+setting `chaos.mover` before stepping the curve; `_chaos_curve` posts kind `glitch:<pal>` with the mover
+as `actor` and their name in the message; `announceChaosNow` passes `{ pal, who }` to `glitch()`, which
+adds `glitch-<pal>` on body (Fig tears, Kit mirrors, Bit zooms, Phi spins), sets `--glitch-icon` for
+the cards, and hangs a `#glitchTag` name under the pop-up. The run passes your own companion to the
+organs' `glitch(on, pal)`. 078's guard looks for `'glitch:' || pal`, not the word `glitch:`, which a
+comment in 076 already contains. The run does it itself:
 `ev.glitch` → `glitchRun()` in the shell (another organ's theme, `active.glitch(true)`, a banner, a
 canvas tear each frame until `glitchT` runs out; `__shell().force('glitch')` for tests); hilltop.js
 draws squirrels for tanks and putt.js a squirrel for the ball while `g.glitch`. Why 0.7 and not the
