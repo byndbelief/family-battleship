@@ -44,6 +44,12 @@ export const CHAOS = Object.freeze({
   ],
 });
 
+// 🧘 CALM WITHIN THE CHAOS: the games that need a think. Their curve starts with a HOLD (r doesn't
+// climb, nothing twists; x still walks so gifts still land), then: here comes that chaos curve again.
+// Server kinds hold HOLD moves (074); run organs hold RUN_HOLD beats (shell.js); WARN beats before
+// the end the warning goes up. The between-round jump into a calm game waits BREATH seconds.
+export const CALM = Object.freeze({ kinds: ['golf', 'cards'], organs: ['putt', 'hilltop'], HOLD: 8, RUN_HOLD: 10, WARN: 3, BREATH: 12 });
+export const isCalm = (key) => CALM.kinds.includes(key) || CALM.organs.includes(key);
 export const phaseOf = (r) => (r < 3 ? 'calm' : r < 3.449 ? 'rhythm ×2' : r < 3.5699 ? 'rhythm ×4…' : 'CHAOS');
 export const inWindow = (n) => n >= CHAOS.WINDOW_N[0] && n <= CHAOS.WINDOW_N[1];   // by beat, so a 0.04 step can't skip it
 export const fixedPoint = (r) => 1 - 1 / r;
@@ -55,24 +61,24 @@ export function makeCurve(n0 = 0, x0 = null) {
   return { n: n0, r: Math.min(CHAOS.RMAX, CHAOS.R0 + CHAOS.DR * n0), x: x0 ?? 0.05 + Math.random() * 0.9, hist: [], window: false };
 }
 // One beat. Returns the events the game acts on.
-export function stepCurve(c) {
+export function stepCurve(c, { hold = false } = {}) {   // hold: 🧘 x walks but r stays (no beat counted)
   const x0 = c.x, r0 = c.r;
-  c.n += 1; c.r = Math.min(CHAOS.RMAX, CHAOS.R0 + CHAOS.DR * c.n);
+  if (!hold) { c.n += 1; c.r = Math.min(CHAOS.RMAX, CHAOS.R0 + CHAOS.DR * c.n); }
   let x = c.r * x0 * (1 - x0);
   if (x <= 1e-9 || x >= 1 - 1e-9) x = 0.5 + (Math.random() - 0.5) * 1e-3;   // stuck on 0 or 1: a butterfly flaps
   c.x = x; c.hist.push(x); if (c.hist.length > CHAOS.HIST) c.hist.shift();
   const win = inWindow(c.n), enteredWindow = win && !c.window; c.window = win;
   const crossed = CHAOS.PHASES.filter(([at]) => r0 < at && c.r >= at).map(([, name, say]) => ({ name, say }));
   return {
-    x, r: c.r, n: c.n, hop: Math.abs(x - x0),
-    peak: x > CHAOS.PEAK && !win,
-    big: x > CHAOS.BIG && !win,
+    x, r: c.r, n: c.n, hop: Math.abs(x - x0), held: hold,
+    peak: x > CHAOS.PEAK && !win && !hold,
+    big: x > CHAOS.BIG && !win && !hold,
     gold: x > CHAOS.GOLD,
     gift: x < CHAOS.GIFT,
     mirror: c.n > 1 && Math.abs(x - (1 - x0)) < CHAOS.MIRROR,
     balance: c.r > 1 && Math.abs(x - fixedPoint(c.r)) < CHAOS.BALANCE,
     window: win, enteredWindow,
-    fib: isFib(c.n),
+    fib: isFib(c.n) && !hold,
     golden: Math.abs(x - CHAOS.CUT) < CHAOS.CUT_TOL,
     crossed,   // phases crossed this beat (usually none, at most a few), newest last
   };
@@ -83,6 +89,8 @@ export const NEWS = {
   window: ['🔁 THE WINDOW', 'a rhythm of 3 inside chaos: no twists, things come in threes'],
   gold: ['✨ GOLDEN', 'x all but touched 1'],
   golden: ['🌻 GOLDEN CUT', 'x landed on 1/φ = 0.618: the golden ratio'],
+  calm: ['🧘 CALM WITHIN THE CHAOS', 'take your time: r holds and nothing twists'],
+  again: ['😎 HERE COMES THAT CHAOS CURVE AGAIN', 'r climbs from the next beat'],
   fib: ['🌻 FIBONACCI BEAT', '1, 1, 2, 3, 5, 8, 13…: luck runs higher this beat'],
 };
 

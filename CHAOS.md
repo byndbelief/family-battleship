@@ -129,6 +129,26 @@ fire, tap torpedoes) · ⛳ Putt (drag back and let go) · 💥 Hilltop (drag to
 three are the multiplayer games' DNA in thirty-second bites, solo: every cell of a ship must burn; five
 putts a cup on a green of fractal bumps; a fractal ridge that craters, and tanks that fire back.
 
+## 🧘 Calm within the chaos
+
+Some games need a think: a putt lined up, a hand planned. Those are the **calm category** (`CALM` in
+`chaos.js`: the kinds Putt Post and Chaos Cards; the run organs Putt and Hilltop), and the box gives them
+a breather before the curve comes back:
+
+- **A hold.** A calm game's curve starts held: for its first **8 moves** (a run organ: **10 beats**)
+  r doesn't climb and no move twists. x still walks, so mirrors, gifts and golden cuts still land.
+  The hold opens with 🧘 *CALM WITHIN THE CHAOS: take your time*, and the last held beat says
+  😎 *HERE COMES THAT CHAOS CURVE AGAIN* (3 beats early in the run). Then it's the same curve as
+  everywhere, further along. Server: `chaos_curve.hold` (074); pages: `stepCurve(c, { hold: true })`.
+- **No morphs during a calm.** The run enters a calm organ and stays for the whole hold, whatever the
+  curve does; the corner chip counts the beats down. Calm organs are interleaved with the wild ones in
+  `run.html`, so one calm can't lead straight into another.
+- **A breather before the round.** When the next round of a Chaos is a calm game, the jump waits
+  12 s instead of 3, and says so. Leaving a calm game for a wild one, the countdown says the chaos is
+  back on.
+
+The 🌀 button shows 🧘 and the moves left while a game is held.
+
 ## The pals (who lives in r4box)
 
 Four candidates (`web/pals.js`), chosen by vote in the Design Studio (`studio.html`): 🟢 Fig, a drop of

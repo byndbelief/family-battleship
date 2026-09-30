@@ -351,9 +351,9 @@ const KIND_ICON = { battleship: '⚓', golf: '⛳', duel: '💥', cards: '🃏',
 const KIND_NAME = { battleship: 'Battleship', golf: 'Putt Post', duel: 'Hilltop Duel', cards: 'Chaos Cards', gauntlet: 'Route to Chaos' };
 const KIND_BLURB = {
   battleship: 'Hide your fleet, hunt theirs. Peeking is allowed.',
-  golf: '18 wild holes, sneak attacks and mulligans.',
+  golf: '🧘 Calm within the chaos: 18 wild holes, sneak attacks and mulligans.',
   duel: 'Tanks on hills. Mind the wind. Up to 4 in a free-for-all.',
-  cards: 'Match colours, dump your hand. Chaos cards and card storms.',
+  cards: '🧘 Calm within the chaos: match colours, dump your hand. Chaos cards and card storms.',
   gauntlet: 'A best-of series of random games. Winner takes the crown.',
 };
 const KIND_SHORT = { battleship: 'Battleship', golf: 'Putt Post', duel: 'Duel', cards: 'Cards', gauntlet: 'Chaos' };
@@ -377,7 +377,7 @@ function wireBotStep(key, chips, room, onChange) {
     onChange(); syncBotStep(key, chips);
   }));
 }
-const KIND_WHO = { battleship: '2–3 players', golf: 'Solo or up to 4', duel: '2–4 players', cards: '2–4 players', gauntlet: '2–4 players · 3, 5 or 7 rounds' };
+const KIND_WHO = { battleship: '2–3 players', golf: 'Solo or up to 4 · 🧘 calm', duel: '2–4 players', cards: '2–4 players · 🧘 calm', gauntlet: '2–4 players · 3, 5 or 7 rounds' };
 
 async function lobby() {
   G = null;

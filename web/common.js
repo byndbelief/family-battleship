@@ -4,7 +4,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 import { SUPABASE_URL, SUPABASE_ANON_KEY, VAPID_PUBLIC_KEY } from './config.js';
 import { sfx, isMuted, setMuted } from './sfx.js';
 import { drawPal } from './pals.js';
-import { CHAOS } from './chaos.js';   // 🌀 the box: CHAOS.md
+import { CHAOS, CALM, isCalm } from './chaos.js';   // 🌀 the box: CHAOS.md
 export { sfx };
 import { THEMES, vesselSVG } from './bs-themes.js';
 
@@ -504,7 +504,7 @@ async function curveFor(c) {
   if (key !== curveKey) { curveKey = key; curve = null; curveAt = 0; }
   if (Date.now() - curveAt < 1500) return drawCurveBtn();
   curveAt = Date.now();
-  const { data } = await sb.from('chaos_curve').select('n, r, x, hist').eq('game_id', c.id).maybeSingle();
+  const { data } = await sb.from('chaos_curve').select('n, r, x, hist, hold').eq('game_id', c.id).maybeSingle();
   if (curveKey !== key) return;
   curve = data || { n: 0, r: 2.9, x: null, hist: [] };
   drawCurveBtn(); if (document.getElementById('curveBox')) drawCurveBox();
@@ -513,7 +513,7 @@ function drawCurveBtn() {
   const btn = tools?.querySelector('.chaos'); if (!btn) return;
   const was = btn.hidden; btn.hidden = !curveKey; if (was !== btn.hidden) fit();
   if (!curve) return;
-  const [ph] = curvePhase(curve.r); btn.title = `The chaos curve: ${ph} (r ${curve.r.toFixed(2)}). Tap for more.`;
+  const [ph] = curvePhase(curve.r); btn.title = curve.hold > 0 ? `🧘 Calm within the chaos: r holds at ${curve.r.toFixed(2)} for ${curve.hold} more move${curve.hold === 1 ? '' : 's'}. Tap for more.` : `The chaos curve: ${ph} (r ${curve.r.toFixed(2)}). Tap for more.`;
   const c = btn.querySelector('canvas').getContext('2d'), W = 64, H = 64, pts = (curve.hist || []).slice(-14);
   c.clearRect(0, 0, W, H);
   c.strokeStyle = '#FF5A4A99'; c.lineWidth = 2; c.setLineDash([4, 4]); c.beginPath(); c.moveTo(4, H - 6 - CURVE_T * (H - 12)); c.lineTo(W - 4, H - 6 - CURVE_T * (H - 12)); c.stroke(); c.setLineDash([]);
@@ -522,6 +522,7 @@ function drawCurveBtn() {
   c.strokeStyle = curve.r >= 3.5699 ? '#FF8A3D' : '#3DD6C6'; c.lineWidth = 3; c.lineJoin = 'round'; c.beginPath();
   pts.forEach((v, i) => c[i ? 'lineTo' : 'moveTo'](X(i), Y(v))); c.stroke();
   pts.forEach((v, i) => { c.fillStyle = v > CURVE_T ? '#FF5A4A' : '#fff'; c.beginPath(); c.arc(X(i), Y(v), i === pts.length - 1 ? 5 : 3, 0, 7); c.fill(); });
+  if (curve.hold > 0) { c.fillStyle = '#C9FFF8'; c.font = '800 13px system-ui'; c.textAlign = 'left'; c.textBaseline = 'top'; c.fillText(`🧘${curve.hold}`, 4, 3); }   // 🧘 held: moves before r climbs again
 }
 let bifImg = null;
 export function bifurcation(W, H, r0, r1) {   // drawn once: 1200 r's, 160 settled x's each
@@ -538,7 +539,7 @@ function drawCurveBox() {
   const box = document.getElementById('curveBox'); if (!box || !curve) return;
   const [ph, say] = curvePhase(curve.r), W = 720, H = 360, r0 = 2.8, r1 = 4;
   box.querySelector('.ph').textContent = ph; box.querySelector('.say').textContent = say;
-  box.querySelector('.num').textContent = curve.n ? `Move ${curve.n} · r = ${curve.r.toFixed(2)} · x = ${curve.x.toFixed(3)}${curve.x > CURVE_T ? ' → twist!' : ''}` : 'No moves yet: r starts at 2.90.';
+  box.querySelector('.num').textContent = curve.hold > 0 ? `🧘 Calm within the chaos: r holds at ${curve.r.toFixed(2)} for ${curve.hold} more move${curve.hold === 1 ? '' : 's'}, and nothing twists. Then here comes that chaos curve again.` : curve.n ? `Move ${curve.n} · r = ${curve.r.toFixed(2)} · x = ${curve.x.toFixed(3)}${curve.x > CURVE_T ? ' → twist!' : ''}` : 'No moves yet: r starts at 2.90.';
   const cv = box.querySelector('canvas'), c = cv.getContext('2d');
   bifImg = bifImg || bifurcation(W, H, r0, r1);
   c.clearRect(0, 0, W, H); c.drawImage(bifImg, 0, 0);
@@ -830,8 +831,10 @@ export async function jumpToNext(kind, game, meId, nameOf, wait = 3000, mount = 
     : 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:95;display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:12px 14px;border-radius:16px;background:#1B1646;color:#fff;font:700 15px/1.3 system-ui,sans-serif;box-shadow:0 10px 30px #000a;width:max-content;max-width:calc(100vw - 24px);box-sizing:border-box';
   const them = game.players.filter((p) => p !== meId).map(nameOf).join(' & ') || 'solo';
   const vs = target ? target.players.filter((p) => p !== meId).map(nameOf).join(' & ') || 'solo' : them;
-  const secs = target ? 3 : 5;   // nothing waiting: a little longer before a brand-new game starts
-  const label = `<span style="display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#F2C230">Coming next</span>`
+  // 🧘 a calm game next: a breather first (CALM.BREATH), and a heads-up when the chaos is back on.
+  const calmNext = !!target && isCalm(target.kind), chaosAgain = !calmNext && isCalm(kind);
+  const secs = calmNext ? CALM.BREATH : target ? 3 : 5;   // nothing waiting: a little longer before a brand-new game starts
+  const label = `<span id="nextJumpEye" style="display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#F2C230">${calmNext ? '🧘 Calm within the chaos · a breather' : chaosAgain ? '😎 Here comes that chaos curve again' : 'Coming next'}</span>`
     + (target ? `${esc(target.label)}: ${KIND_ICON[target.kind]} vs ${esc(vs)}` : `A new game: ${KIND_ICON[kind]} vs ${esc(them)}`);
   el.innerHTML = `<b id="nextJumpN" style="flex:none;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#F2C230;color:#2A2100">${secs}</b><span style="flex:1 1 170px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${label}</span>`
     + '<span style="display:flex;gap:8px;margin-left:auto">' + (canRematch && target ? `<button type="button" data-nj="rematch" style="${btn};background:#F2C230;color:#2A2100">🔁 Rematch</button>` : '')
@@ -852,6 +855,7 @@ export async function jumpToNext(kind, game, meId, nameOf, wait = 3000, mount = 
   };
   iv = setInterval(() => {
     n -= 1; const b = document.getElementById('nextJumpN'); if (b) b.textContent = String(n);
+    if (calmNext && n === CALM.WARN) { const e = document.getElementById('nextJumpEye'); if (e) e.textContent = '😎 Ready? Take your time in there'; }
     if (n <= 0) { clearInterval(iv); if (target) { stop(); go(hrefFor(target.kind, target.id)); } else startRematch(null); }
   }, 1000);
   el.querySelector('[data-nj="stay"]').onclick = stop;

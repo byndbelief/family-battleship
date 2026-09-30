@@ -19,7 +19,7 @@
 //   endStats() → text  debug()?
 // The host an organ gets: { cv, ctx, W, H, k, dpr, reduceMotion, S, banner, add, hurt, heal, over, sfx, ui, morphs }
 import { sb, me, signedIn, sfx, setGameTools, esc, names } from './common.js';
-import { makeCurve, stepCurve, drawMeter, meterText, NEWS, tally, ratingLine } from './chaos.js';
+import { makeCurve, stepCurve, drawMeter, meterText, NEWS, tally, ratingLine, CALM, isCalm } from './chaos.js';
 import { palWidget } from './pals.js';
 import { resident, residentNow } from './studio.js';
 
@@ -77,6 +77,9 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   // ---------------------------------------------------------------- shared state
   const S = { score: 0, hearts: 3, combo: 0, comboT: 0, tally: {}, curve: makeCurve(), beatT: 0, beats: 0, over: false, how: null, time: 0, morphs: 0 };
   let active = null, prev = null, transition = null, tenure = 0, lastUsed = new Map(), running = false;
+  // 🧘 calm within the chaos: beats left in the hold a calm organ (CALM.organs) opens on entry
+  let calm = 0;
+  const openCalm = () => { if (!isCalm(active?.key)) { calm = 0; return; } calm = CALM.RUN_HOLD; banner(NEWS.calm[0], `${NEWS.calm[1]} · ${calm} beats`); pal.force('gift', 1.6); };
   // 🎨 the resident pal sits in the corner and feels every beat (pals.js; who it is: the Design Studio)
   const pal = palWidget($('spal'), { pal: residentNow(), s: 22, own: false, dpr: 2 }); resident().then((k) => pal.set({ pal: k }));
   const host = {
@@ -115,13 +118,15 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     drawMeter(meter, S.curve);
     const v = $('verb');
     if (!active || !running) { v.hidden = true; return; }
-    const armed = morphs && tenure >= minTenure() - 1 && !S.curve.window;
+    const armed = morphs && tenure >= minTenure() - 1 && !S.curve.window && calm <= 0;
     v.hidden = false;
-    v.innerHTML = `<b>${active.icon} ${esc(active.verb)}</b>${morphs ? `<b class="${armed ? 'next' : ''}">${S.curve.window ? '🔁 the window: it rotates every beat' : armed ? `⚡ next: ${nextOrgan().icon} ${esc(nextOrgan().verb)}` : `${S.morphs} morph${S.morphs === 1 ? '' : 's'}`}</b>` : ''}`;
+    v.innerHTML = `<b>${active.icon} ${esc(active.verb)}</b>${morphs ? `<b class="${armed ? 'next' : ''}">${calm > 0 ? `🧘 calm · ${calm} beat${calm === 1 ? '' : 's'} · r holds` : S.curve.window ? '🔁 the window: it rotates every beat' : armed ? `⚡ next: ${nextOrgan().icon} ${esc(nextOrgan().verb)}` : `${S.morphs} morph${S.morphs === 1 ? '' : 's'}`}</b>` : ''}`;
   }
   // ---------------------------------------------------------------- the beat and the morphs
   function beat() {
-    const ev = stepCurve(S.curve); S.beats += 1; tenure += 1; tally(ev, S.tally);
+    const held = calm > 0;
+    const ev = stepCurve(S.curve, { hold: held }); S.beats += 1; tenure += 1; tally(ev, S.tally);
+    if (held) { calm -= 1; if (calm === CALM.WARN) { banner(...NEWS.again); sfx('tick'); } }
     pal.set({ r: S.curve.r }); pal.react(ev);
     ev.crossed.forEach((p) => banner(p.name, p.say));
     if (ev.enteredWindow) banner(...NEWS.window);
@@ -129,7 +134,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     if (ev.balance) banner(...NEWS.balance);
     if (ev.golden) banner(...NEWS.golden);
     active.onBeat(ev);
-    if (morphs && !transition && !S.over) {
+    if (morphs && !transition && !S.over && !held) {   // 🧘 nothing morphs during a calm
       let to = null, why = '';
       if (ev.window) { to = nextOrgan(); why = 'window'; }
       else if (ev.golden) { to = [...organs].filter((o) => o !== active).sort((a, b) => (lastUsed.get(a) || 0) - (lastUsed.get(b) || 0))[0]; why = 'golden'; }
@@ -144,7 +149,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     const anchor = active.leave?.() || null;
     lastUsed.set(active, S.beats); prev = active; active = to; tenure = 0; S.morphs += 1;
     active.enter(prev.key, anchor);
-    applyTheme();
+    applyTheme(); openCalm();
     transition = { t: 0, dur: reduceMotion ? 0.05 : (why === 'golden' ? 1.1 : 0.7), snap, why, anchor };
     banner(`${to.icon} ${to.name.toUpperCase()}`, `${to.verb} · ${WHY[why]}`); sfx(why === 'golden' ? 'birdie' : 'twist');
   }
@@ -175,9 +180,10 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     S.score = 0; S.hearts = 3; S.combo = 0; S.comboT = 0; S.tally = {}; S.curve = makeCurve(); S.beatT = 0; S.beats = 0; S.over = false; S.how = null; S.time = 0; S.morphs = 0;
     tenure = 0; prev = null; transition = null; lastUsed = new Map();
     organs.forEach((o) => o.start());
-    active = organs[Math.floor(Math.random() * organs.length)]; active.enter(null, null); applyTheme();
+    active = organs[Math.floor(Math.random() * organs.length)]; active.enter(null, null); applyTheme(); calm = 0;
     $('over').hidden = true; running = true; sfx('click'); pal.wake(); pal.set({ r: S.curve.r }); $('spal').hidden = false;
     banner(`${active.icon} ${active.name.toUpperCase()}`, morphs ? `${active.verb} · the curve will morph the world` : active.verb);
+    if (isCalm(active.key)) setTimeout(() => { if (running && !S.over && active && isCalm(active.key)) openCalm(); }, 1800);
   }
   async function over(how) {
     if (S.over) return; S.over = true; S.how = how; running = false; $('verb').hidden = true; host.ui(''); pal.sleep();
@@ -202,7 +208,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => cv.addEventListener(ev, fwd('up')));
   addEventListener('keydown', (e) => { if (running && !S.over) active?.keydown?.(e); });
   addEventListener('keyup', (e) => { if (running && !S.over) active?.keyup?.(e); });
-  window.__shell = () => ({ organ: active?.key, prev: prev?.key, score: S.score, hearts: S.hearts, combo: S.combo, beats: S.beats, morphs: S.morphs, r: S.curve.r, n: S.curve.n, window: S.curve.window, over: S.over, tenure, running, transition: !!transition,
+  window.__shell = () => ({ organ: active?.key, prev: prev?.key, calm, score: S.score, hearts: S.hearts, combo: S.combo, beats: S.beats, morphs: S.morphs, r: S.curve.r, n: S.curve.n, window: S.curve.window, over: S.over, tenure, running, transition: !!transition,
     tally: { ...S.tally }, force: (why) => { const to = why === 'mirror' && prev ? prev : nextOrgan(); morphTo(to, why); }, over: S.over, end: (how) => over(how), hurt: () => host.hurt('test') });
   // ---------------------------------------------------------------- go
   (async () => {

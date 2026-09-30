@@ -727,6 +727,21 @@ trophies "Chaos". Code, tables and RPCs keep the gauntlet names. The rounds walk
 `_chaos_curve` starts a round's game at n = (round − 1)·6, so round 1 is calm (r 2.90) and round 4 on
 opens in chaos. The server's messages (round news, champion, call-off, chaos-clock forfeits) say Chaos.
 
+### 🧘 Calm within the chaos (074)
+A category of games that need a think, with a breather built into the box (`CHAOS.md` § Calm):
+`CALM` in `chaos.js` names the kinds (`golf`, `cards`) and the run organs (`putt`, `hilltop`), and
+`isCalm(key)`. Server: `chaos_curve.hold` (8 for a calm kind at insert); while `hold > 0`,
+`_chaos_curve` walks x, keeps n and r, returns false (no twist), decrements, and posts the 🧘 event
+at the start and the 😎 one on the last held move (074 rewrites the whole function; 068's body plus
+the hold). Pages: `stepCurve(c, { hold: true })` keeps n and r and reports `held`, with peak, big and
+fib off; the shell opens a `calm` of `CALM.RUN_HOLD` beats on entering a calm organ (and 1.8 s into a
+run that starts in one), morphs nothing while it lasts, warns `CALM.WARN` beats early, and shows the
+count in the verb chip (`__shell().calm`). `jumpToNext` waits `CALM.BREATH` s before a calm round
+and labels the countdown; the 🌀 button and its box show the moves left. Organs in `run.html` are
+interleaved wild / calm so two calms can't run back to back. Tests: `t_calm` (scratch) forces the run
+into Putt and checks r holds then climbs; the server check steps `_chaos_curve` on a fresh golf game
+11 times (hold 8 → 0, then n climbs).
+
 ### 🎨 r4box: the name, the redesign, the pals and the Design Studio (073)
 The room is **r4box** (r4box.com, bought 2026-09-30 at Cloudflare; DNS: four GitHub Pages A records +
 `www` CNAME, proxy off; `web/CNAME`; the Pages custom domain is set in the repo's settings, the CNAME
