@@ -58,13 +58,11 @@ declare d text;
 begin
   d := pg_get_functiondef('public._gauntlet_round_over()'::regprocedure);
   if position('insert into gauntlets (created_by, players, rounds, scores, live_bot)' in d) > 0 then return; end if;
-  if position('      insert into gauntlets (created_by, players, rounds, scores)
-        values (gt.created_by, gt.players, gt.rounds, array_fill(0, array[cardinality(gt.players)]))' in d) = 0 then
+  -- Whitespace-tolerant: an earlier in-place patch re-indented this function on production.
+  if d !~ 'insert into gauntlets \(created_by, players, rounds, scores\)\s+values \(gt\.created_by, gt\.players, gt\.rounds, array_fill\(0, array\[cardinality\(gt\.players\)\]\)\)' then
     raise exception '065: _gauntlet_round_over is not the shape this patch expects';
   end if;
-  d := replace(d, '      insert into gauntlets (created_by, players, rounds, scores)
-        values (gt.created_by, gt.players, gt.rounds, array_fill(0, array[cardinality(gt.players)]))',
-    '      insert into gauntlets (created_by, players, rounds, scores, live_bot)
-        values (gt.created_by, gt.players, gt.rounds, array_fill(0, array[cardinality(gt.players)]), gt.live_bot)');
+  d := regexp_replace(d, 'insert into gauntlets \(created_by, players, rounds, scores\)(\s+)values \(gt\.created_by, gt\.players, gt\.rounds, array_fill\(0, array\[cardinality\(gt\.players\)\]\)\)',
+    'insert into gauntlets (created_by, players, rounds, scores, live_bot)\1values (gt.created_by, gt.players, gt.rounds, array_fill(0, array[cardinality(gt.players)]), gt.live_bot)');
   execute d;
 end $$;
