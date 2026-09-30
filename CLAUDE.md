@@ -738,7 +738,16 @@ fib off; the shell opens a `calm` of `CALM.RUN_HOLD` beats on entering a calm or
 run that starts in one), morphs nothing while it lasts, warns `CALM.WARN` beats early, and shows the
 count in the verb chip (`__shell().calm`). `jumpToNext` waits `CALM.BREATH` s before a calm round
 and labels the countdown; the 🌀 button and its box show the moves left. Organs in `run.html` are
-interleaved wild / calm so two calms can't run back to back. Tests: `t_calm` (scratch) forces the run
+interleaved wild / calm so two calms can't run back to back. **⚡ Glitches (076):** a held move with
+x > `CALM.GLITCH` (0.7) posts a `chaos_events` row of kind `glitch`; `announceChaosNow` calls
+`glitch()` (common.js) when one arrives: body gets `.glitch` for 1.1 s (a keyframed tear: hue, invert,
+skew; none under reduced motion), the root's `--bg`/`--panel`/`--paper`/`--bg-2`/`--felt` are set to
+another game's world and then removed, cards' faces become 🐿️ by CSS, and a `chaosglitch` event
+(`detail.until`) tells canvas pages to draw their swap (duel.js: tanks → 🐿️). The run does it itself:
+`ev.glitch` → `glitchRun()` in the shell (another organ's theme, `active.glitch(true)`, a banner, a
+canvas tear each frame until `glitchT` runs out; `__shell().force('glitch')` for tests); hilltop.js
+draws squirrels for tanks and putt.js a squirrel for the ball while `g.glitch`. Why 0.7 and not the
+peak's 0.75: at r = 2.9 the curve's top is 0.725, so a round-1 calm would never glitch. Tests: `t_calm` (scratch) forces the run
 into Putt and checks r holds then climbs; the server check steps `_chaos_curve` on a fresh golf game
 11 times (hold 8 → 0, then n climbs).
 

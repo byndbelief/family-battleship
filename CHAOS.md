@@ -147,6 +147,13 @@ a breather before the curve comes back:
   12 s instead of 3, and says so. Leaving a calm game for a wild one, the countdown says the chaos is
   back on.
 
+- **The chaos leaks through: ⚡ glitches.** A calm is never quite calm. A held beat whose x lands
+  above **0.7** (`CALM.GLITCH`) is a glitch: the rules don't move, but for a second the world does.
+  The page tears and its theme swaps for another game's, tanks turn into squirrels (Hilltop Duel, and
+  the run's Hilltop), the ball is a squirrel (the run's Putt), the cards show squirrels. Server: a
+  `glitch` event (076) the pages act on; run: `ev.glitch` from `stepCurve`, and the shell's tear.
+  Reduced motion keeps the theme swap and skips the tear.
+
 The 🌀 button shows 🧘 and the moves left while a game is held.
 
 ## The pals (who lives in r4box)

@@ -48,7 +48,8 @@ export const CHAOS = Object.freeze({
 // climb, nothing twists; x still walks so gifts still land), then: here comes that chaos curve again.
 // Server kinds hold HOLD moves (074); run organs hold RUN_HOLD beats (shell.js); WARN beats before
 // the end the warning goes up. The between-round jump into a calm game waits BREATH seconds.
-export const CALM = Object.freeze({ kinds: ['golf', 'cards', 'duel'], organs: ['putt', 'hilltop'], HOLD: 8, RUN_HOLD: 10, WARN: 3, BREATH: 12 });
+// GLITCH: while held, a beat whose x lands above it is a ⚡ glitch: the rules don't change, the world flickers.
+export const CALM = Object.freeze({ kinds: ['golf', 'cards', 'duel'], organs: ['putt', 'hilltop'], HOLD: 8, RUN_HOLD: 10, WARN: 3, BREATH: 12, GLITCH: 0.7 });
 export const isCalm = (key) => CALM.kinds.includes(key) || CALM.organs.includes(key);
 export const phaseOf = (r) => (r < 3 ? 'calm' : r < 3.449 ? 'rhythm ×2' : r < 3.5699 ? 'rhythm ×4…' : 'CHAOS');
 export const inWindow = (n) => n >= CHAOS.WINDOW_N[0] && n <= CHAOS.WINDOW_N[1];   // by beat, so a 0.04 step can't skip it
@@ -70,7 +71,7 @@ export function stepCurve(c, { hold = false } = {}) {   // hold: 🧘 x walks bu
   const win = inWindow(c.n), enteredWindow = win && !c.window; c.window = win;
   const crossed = CHAOS.PHASES.filter(([at]) => r0 < at && c.r >= at).map(([, name, say]) => ({ name, say }));
   return {
-    x, r: c.r, n: c.n, hop: Math.abs(x - x0), held: hold,
+    x, r: c.r, n: c.n, hop: Math.abs(x - x0), held: hold, glitch: hold && x > CALM.GLITCH,
     peak: x > CHAOS.PEAK && !win && !hold,
     big: x > CHAOS.BIG && !win && !hold,
     gold: x > CHAOS.GOLD,
@@ -91,6 +92,7 @@ export const NEWS = {
   golden: ['🌻 GOLDEN CUT', 'x landed on 1/φ = 0.618: the golden ratio'],
   calm: ['🧘 CALM WITHIN THE CHAOS', 'take your time: r holds and nothing twists'],
   again: ['😎 HERE COMES THAT CHAOS CURVE AGAIN', 'r climbs from the next beat'],
+  glitch: ['⚡ GLITCH', 'the chaos leaks through the calm: nothing changed. Probably.'],
   fib: ['🌻 FIBONACCI BEAT', '1, 1, 2, 3, 5, 8, 13…: luck runs higher this beat'],
 };
 

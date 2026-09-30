@@ -69,6 +69,8 @@ const standing = (X, hp, shooter) => X.map((x, i) => (i === shooter || (hp?.[i] 
 const restAngle = (p, X) => (multi() ? (X[p] < W / 2 ? 45 : 135) : 45);
 const cv = $('cv');
 let ctx = cv.getContext('2d');   // swapped for the tank cam's while it draws (drawTankCam)
+// ⚡ a glitch (common.js): until this time, every tank is drawn as a squirrel
+let glitchUntil = 0; addEventListener('chaosglitch', (e) => { glitchUntil = e.detail.until; });
 // The camera (4+ tanks, where the field is wide and the tanks small): zoom 1-3× around a point of
 // the battlefield (x, y). Pinch or the wheel to zoom, one finger pans when you're not aiming, and a
 // shell in the air pulls the view along with it. At 1× it's the whole field, exactly as before.
@@ -328,11 +330,14 @@ function draw(t) {
     ctx.strokeStyle = '#0B0A1E'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(0, -14); ctx.lineTo(bx, by); ctx.stroke();   // barrel: dark edge
     ctx.strokeStyle = col; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(0, -14); ctx.lineTo(bx, by); ctx.stroke();
     const body = () => { ctx.beginPath(); ctx.arc(0, -12, 8, Math.PI, 0); ctx.closePath(); ctx.roundRect(-16, -10, 32, 10, 4); };
+    if (Date.now() < glitchUntil) { ctx.font = '30px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.save(); ctx.scale(bx < 0 ? -1 : 1, 1); ctx.fillText('🐿️', 0, -8); ctx.restore(); }   // ⚡ glitch: a squirrel where the tank was
+    else {
     if (!out) { ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = 14; ctx.fillStyle = col; body(); ctx.fill(); ctx.restore(); }
     ctx.fillStyle = col; body(); ctx.fill();
     ctx.strokeStyle = '#0B0A1E'; ctx.lineWidth = 2.5; body(); ctx.stroke();
     ctx.strokeStyle = '#FFFFFF99'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(-12, -9); ctx.lineTo(12, -9); ctx.stroke();   // a highlight along the top
     ctx.fillStyle = '#0B0A1E'; for (let i = -12; i <= 12; i += 8) { ctx.beginPath(); ctx.arc(i, 0, 3, 0, 7); ctx.fill(); }
+    }
     ctx.restore();
     // The name tag: "You" for yours, the player's name for the rest, in their colour.
     { const id = g.players[p], raw = p === myIdx() ? 'You' : (G.names?.[id] || ''), label = (out ? '💀 ' : '') + (raw.length > 9 ? raw.slice(0, 8) + '…' : raw);

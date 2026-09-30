@@ -99,6 +99,7 @@ function update(dt) {
 function drawTank(x, hue, flash, mine, gold) {
   const y = hAt(x) - 8;
   ctx.save(); ctx.translate(x, y);
+  if (g.glitch) { ctx.font = '26px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.scale(mine ? 1 : -1, 1); ctx.fillText('🐿️', 0, -8); ctx.restore(); return; }   // ⚡ glitch: squirrels on the hill
   ctx.fillStyle = flash > 0 ? '#fff' : gold ? '#F5C542' : mine ? '#3DD6C6' : `hsl(${hue} 55% 50%)`;
   ctx.beginPath(); ctx.roundRect(-TANK_W / 2, -8, TANK_W, 12, 4); ctx.fill();
   ctx.beginPath(); ctx.arc(0, -8, 7, Math.PI, 0); ctx.fill();
@@ -133,6 +134,7 @@ function draw(t) {
 const organ = {
   key: 'hilltop', name: 'Hilltop', icon: '💥', verb: 'drag to aim · let go to fire', beat: 1.1,
   theme: { bg: '#1B1646', gold: '#F5C542', bannerc: '#FFE08A' },
+  glitch(on) { if (g) g.glitch = on; },
   init(h) { host = h; ctx = h.ctx; S = h.S; sfx = h.sfx; window.__ht = organ.debug; },
   start() { newGame(); },
   enter(from) { if (!g) newGame(); host.ui(''); drag = null; if (from) { g.shells = g.shells.filter((s) => s.mine); g.fireT = Math.max(g.fireT, 1.5); if (!g.tanks.length) addTank(); } },
