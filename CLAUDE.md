@@ -727,6 +727,22 @@ trophies "Chaos". Code, tables and RPCs keep the gauntlet names. The rounds walk
 `_chaos_curve` starts a round's game at n = (round − 1)·6, so round 1 is calm (r 2.90) and round 4 on
 opens in chaos. The server's messages (round news, champion, call-off, chaos-clock forfeits) say Chaos.
 
+### 🐿️ Squirrel Chaos: the dark side (page only)
+Four days now (`LEVELS = 4`; levels are "Day n"; `dark()` = (level−1)/3). Each day: the sky drains
+toward red-black (`draw`'s sky lerp + a tint over the forest + a red vignette from day 2), 👀 eyes blink
+open between the branches (`forest.eyes`, 7·(day−1), `drawEyes`; red on day 4), the knothole peeks red
+from day 2, squirrels' eyes glow from day 3. 📎 The kept: pinned littles stay (`game.kept`, ≤40, faded,
+twitching; in unison on day 4; the HUD counts them; they come along on a dive). Whispers (`WHISPERS`,
+fx kind `whisper`, from day 2, every 15−3.2·day s, a heartbeat from day 3). 📻 Glitches (`drawGlitch`:
+sliced frame via drawImage of the canvas, colour split, static, an inverted frame; chance rises with day,
+chaos and day 4; the score glitches to blocks). Day 4 "IT WAKES": the knot is an eye (`game.eye`,
+opens over 3 s, blinks, iris follows the stapler / your finger). Three dark twists from day 2
+(`DARK_TWISTS`, odds 0.8·dark): 👁️ THEY STARE (squirrels freeze 1.6 s with red eyes, then ×2 speed),
+🌑 BLACKOUT (black, only eyes and the stapler's glow, brighter while a staple flies), 📻 STATIC (6 s of
+glitch). Surviving day 4: "🌘 IT SLEEPS AGAIN · For now. It counted every one." 13+: creepy, not gory.
+Test hook adds `kept`, `glitch`, `eye`, `twist`, `stare`, `whispers`, `skipTo(day)`, `forceTwist(k)`.
+Test: scratch t_sqdark (days 2–4 with every dark twist, screenshots, day 4 ends and saves).
+
 ### 🔺 Fractal Dash (066): the second solo game
 `fractal.html` / `fractal.js`, linked from the lobby's quick entries. An endless runner: you're a
 Sierpiński triangle dashing right over a ridge of 5-octave value noise (`groundY`, seeded per run and
