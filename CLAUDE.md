@@ -727,6 +727,22 @@ trophies "Chaos". Code, tables and RPCs keep the gauntlet names. The rounds walk
 `_chaos_curve` starts a round's game at n = (round − 1)·6, so round 1 is calm (r 2.90) and round 4 on
 opens in chaos. The server's messages (round news, champion, call-off, chaos-clock forfeits) say Chaos.
 
+### 🧬 The shell, the organs and the Chaos Run (072)
+`web/shell.js` (`runShell({ organs, key, title, icon, intro, again })`) is the body every solo game wears;
+`web/organs/squirrel.js` and `web/organs/fractal.js` are the games as organs (the old `web/squirrel.js`
+and `web/fractal.js` are gone; the pages are a `#play > .stage > canvas#cv` and a module script). The
+shell injects the HUD (`#score #hearts #combo #lvl #meter #phase`), the verb chip `#verb`, the organ UI
+slot `#oui` (weapon bar / dash meter), `#banner`, `#over`/`#overCard`/`#again`, sizes the canvas, runs the
+beat clock at the live organ's `beat`, steps the curve, tallies, banners the phases and NEWS, and saves
+with `solo_submit(key, …, tally)` (level = 1 + morphs on a run). `run.html` (key `'run'`, 072 adds it to
+solo_scores) is the Chaos Run: peak → next organ after ≥ 6 beats (3 in chaos), mirror → previous, window
+→ rotate every beat, golden → the least-recently-used organ with a long zoom; the old frame zooms away
+around the organ's `leave()` anchor over the new world. Organs keep their state across morphs; `enter(from)`
+gives a breath of grace. `window.__shell()` (organ, prev, beats, morphs, `force(why)`, `end(how)`);
+`window.__sq()` / `window.__fd()` still come from the organs' `debug()`. Tests: scratch t_run (forced and
+free morphs, save as run), t_fractal / t_fdtwists / t_sqdark against the shell pages (canvas is `#cv`).
+CHAOS.md "The shell and the organs" has the morph table and the organ interface.
+
 ### 🌀 THE BOX: the chaos standard (068, `CHAOS.md`, `web/chaos.js`)
 Read `CHAOS.md` before touching chaos in any game or writing a new one. One curve (r 2.9 → 4 by 0.04
 a beat; a beat = a move, or a solo game's tick), the same phase names and words, and seven events every

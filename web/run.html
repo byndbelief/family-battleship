@@ -6,8 +6,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Game Room">
-  <title>Fractal Dash</title>
-  <meta name="theme-color" content="#0B0A1F">
+  <title>Chaos Run</title>
+  <meta name="theme-color" content="#0E0A1E">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -15,8 +15,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Nunito:wght@600;800;900&display=swap">
   <style>
-  /* One look: neon geometry at the bottom of a deep, deep zoom. The HUD comes from shell.js. */
-  :root{color-scheme:dark;--bg:#0B0A1F;--panel:#161433;--line:#3A3680;--ink:#F3F1FF;--muted:#B9B4E6;--gold:#F5C542;--cyan:#3DF2E0;--bannerc:#C9FFF8;
+  /* The run wears whichever organ is live: the stage's --bg and --gold follow it (shell.js applyTheme). */
+  :root{color-scheme:dark;--bg:#0E0A1E;--panel:#1A1433;--line:#3E3480;--ink:#F3F1FF;--muted:#BDB6E6;--gold:#F5C542;--bannerc:#FFE08A;
     --display:"Bungee","Arial Black",Impact,sans-serif;--body:"Nunito",system-ui,-apple-system,"Segoe UI",sans-serif}
   *{box-sizing:border-box}
   html,body{background:var(--bg);margin:0;height:100%}
@@ -24,11 +24,11 @@
   [hidden]{display:none!important}
   .wrap{max-width:620px;margin:0 auto;display:flex;flex-direction:column;gap:8px}
   .topnav{display:flex;align-items:center;gap:10px;min-height:40px}
-  .topnav a{color:var(--cyan);font-weight:800;text-decoration:none}
+  .topnav a{color:var(--gold);font-weight:800;text-decoration:none}
   h1,h2{font-family:var(--display);font-weight:400;margin:0;line-height:1.05}
   h1{font-size:clamp(20px,5.5vw,30px)}
   button{font:inherit;font-weight:800;cursor:pointer;border-radius:12px;border:1.5px solid var(--line);background:var(--panel);color:var(--ink);padding:10px 16px}
-  button.go{background:var(--cyan);border-color:var(--cyan);color:#002A26;font-size:18px;padding:12px 22px}
+  button.go{background:var(--gold);border-color:var(--gold);color:#2A2100;font-size:18px;padding:12px 22px}
   #play{position:relative}
   .stage{position:relative;border-radius:16px;overflow:hidden;box-shadow:0 14px 34px #0009;touch-action:none;user-select:none;-webkit-user-select:none;background:var(--bg)}
   #cv{display:block;width:100%;cursor:pointer}
@@ -38,16 +38,18 @@
 </head>
 <body>
 <div class="wrap">
-  <nav class="topnav gtop"><a href="./">← All games</a><h1 class="intop">🔺 Fractal Dash</h1></nav>
-  <section id="play"><div class="stage" id="stage"><canvas id="cv" aria-label="A fractal landscape rushing past: tap to jump, hold to dash"></canvas></div></section>
+  <nav class="topnav gtop"><a href="./">← Game Room</a><h1 class="intop">🧬 Chaos Run</h1></nav>
+  <section id="play"><div class="stage" id="stage"><canvas id="cv" aria-label="The run: worlds that morph into each other as the chaos curve says"></canvas></div></section>
 </div>
 <script type="module">
   import { runShell } from './shell.js';
+  import squirrel from './organs/squirrel.js';
   import fractal from './organs/fractal.js';
   runShell({
-    organs: [fractal], key: 'fractal', title: 'Fractal Dash', icon: '🔺', again: 'Dash again',
-    intro: `<p><b>Tap to jump</b> (tap again in the air for a double jump). <b>Hold to dash</b>: a dash phases through spikes while the meter lasts.</p>
-      <p class="muted small">You're a fractal: a Sierpiński triangle, dashing over a fractal ridge that grows rougher as the chaos curve x → r·x·(1−x) climbs: calm, then a rhythm, then chaos. Its peaks bring twists: tailwind, fog, quake, lightning, blackout, a mirror world, spike storms, a trampoline, lead boots, shard rain, low gravity. Spikes hurt, chasms swallow, ✨ shards score (more in a quick combo). Every 22 s the world zooms into a copy of itself: a depth deeper, faster, and one heart back.</p>`,
+    organs: [squirrel, fractal], key: 'run', title: 'Chaos Run', icon: '🧬', again: 'Run again',
+    intro: `<p>One run, many worlds. You start in one game and <b>the chaos curve morphs it into another</b>: a peak twists the world, the mirror brings back the one before, the window turns it every beat, the golden cut dives you into the world you've been away from longest.</p>
+      <p class="muted small">Hearts, score, combo and loot carry across the seams. Each world keeps living while you're away and picks up where you left it. The corner chip shows the verb of the world you're in, and glows gold when a morph is close.</p>
+      <p class="muted small">🐿️ tap to staple · 🔺 tap to jump, hold to dash</p>`,
   });
 </script>
 </body>

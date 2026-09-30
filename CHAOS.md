@@ -100,10 +100,35 @@ moves are marked on the server (`_chaos_mark_move`, from `_chaos_after_move` and
 don't rate. `tally(ev, t)` in `chaos.js` counts a beat's events; the weights in `WEIGHTS` mirror
 `_chaos_weight`.
 
+## The shell and the organs (the Frankenstein game)
+
+`web/shell.js` is the one body every solo game wears. A solo game is an **organ** (`web/organs/*.js`):
+a module that draws a world and maps the nine events to its own nouns, and owns nothing else. The shell
+owns the canvas, the beat clock and the curve, the tally and the rating, hearts, score and combo, the
+HUD and meter, banners, the intro and end cards, the leaderboard, full screen, input and the save.
+
+One organ makes an ordinary game page (`squirrel.html`, `fractal.html`). Several make a **Chaos Run**
+(`run.html`): the curve decides which organ you're in, and the world morphs when it says so:
+
+| cue | morph |
+|---|---|
+| a **peak**, after ≥ 6 beats in this organ (3 in chaos) | flips to the next organ: the world twists |
+| the **mirror** | brings back the organ before |
+| the **window** | rotates every beat (the rhythm of 3) |
+| the **golden cut** | dives into the organ you've been away from longest (a long zoom) |
+
+Hearts, score, combo and the curve carry across the seams; each organ keeps its own world alive while
+it's away and picks up where it left off; a morph lands you mid-action with a breath of grace, and the
+corner chip shows the live organ's verb and glows gold when a morph is close. Organ interface: `key,
+name, icon, verb, beat, theme, init(host), start(), enter(from, anchor), leave() → anchor, update(dt),
+draw(t), onBeat(ev), pointer(type, p), keydown/keyup, resize, hudLine, level, overText(how), endStats,
+debug`. The host gives `cv, ctx, W, H, k, dpr, reduceMotion, S, banner, add, hurt, heal, over, sfx, ui,
+morphs`. Adding an organ to the run is one import and one array entry.
+
 ## A new game must
 
-1. `import { makeCurve, stepCurve, drawMeter, meterText, NEWS } from './chaos.js'` (solo) or call
-   `_chaos_curve` from its move function via `_chaos_after_move` (server).
+1. Be an organ of the shell (solo: `organs/<key>.js` + a page that calls `runShell`, and an entry in
+   `run.html`'s organ list) or call `_chaos_curve` from its move function via `_chaos_after_move` (server).
 2. Never redefine the numbers: no local `2.9`, `0.04`, `0.75`, `0.93`, `3.5699` for chaos.
 3. Map **all nine events** to something the player can see (a table in the game's CLAUDE.md note),
    score combos with `fibMult`, and put a fractal on screen.

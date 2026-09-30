@@ -1,0 +1,279 @@
+// 🔺 Fractal Dash, as an organ of the shell (shell.js): a dash across a fractal landscape. You're a
+// little Sierpiński triangle, running ever faster over ground made of fractal noise (a ridge that gets
+// rougher as the chaos curve climbs). Tap to jump (again in the air for a double jump), hold to dash: a
+// dash phases through spikes while its meter lasts. The box's beats decide the road: a peak is spikes,
+// a hop of x a chasm as wide as the hop, a trough shards, the window threes, the mirror heals, the
+// balance fills the dash, the golden cut lays a spiral of shards. Every 22 s the world zooms into a
+// copy of itself, a depth deeper: faster, rougher, another colour.
+import { fibMult, CHAOS } from '../chaos.js';
+
+const W = 400, DEPTH_S = 22, GRAV = 1500, JUMP = 520, DASH_MAX = 1.4, PX = 96, R = 13;   // PX: where you stand on screen; R: your size
+const PALETTES = [   // one per depth, then round again
+  { sky: ['#0B0A1F', '#2A1F6A'], far: '#2A2270', near: '#3A2F8F', ground: '#0A0918', edge: '#3DF2E0', spike: '#FF5FB0', shard: '#F5C542' },
+  { sky: ['#0A1A1F', '#1A5A66'], far: '#1D5C66', near: '#2A7A85', ground: '#07171B', edge: '#F5C542', spike: '#FF6B5E', shard: '#3DF2E0' },
+  { sky: ['#1F0A16', '#5A1A40'], far: '#6B1D4A', near: '#8F2A63', ground: '#160810', edge: '#FF5FB0', spike: '#3DF2E0', shard: '#C9FFF8' },
+  { sky: ['#1A1405', '#5A4812'], far: '#6B5A1D', near: '#8F7A2A', ground: '#120F04', edge: '#FFE08A', spike: '#FF5FB0', shard: '#3DF2E0' },
+];
+const hash = (i) => { let x = (Math.imul(i | 0, 374761393) + 668265263) | 0; x = Math.imul(x ^ (x >>> 13), 1274126177); return ((x ^ (x >>> 16)) >>> 0) / 4294967296; };
+const smooth = (t) => t * t * (3 - 2 * t);
+// Value noise at x (world units), octave o; seeded per run and per depth so every dive is a new ridge.
+const noise = (x, o, seed) => { const i = Math.floor(x), t = smooth(x - i); const a = hash(i * 7919 + o * 104729 + seed), b = hash((i + 1) * 7919 + o * 104729 + seed); return a + (b - a) * t; };
+const TWISTS = [
+  { k: 'gust', name: '💨 TAILWIND', sub: 'twice the speed for a few seconds', dur: 4 },
+  { k: 'fog', name: '🌫️ FOG', sub: 'the road hides until the last moment', dur: 7 },
+  { k: 'quake', name: '🌋 QUAKE', sub: 'the ground heaves', dur: 5 },
+  { k: 'rain', name: '✨ SHARD RAIN', sub: 'catch what you can', dur: 4 },
+  { k: 'moon', name: '🌙 LOW GRAVITY', sub: 'long floaty jumps', dur: 6 },
+  { k: 'bolt', name: '🌩️ LIGHTNING', sub: 'bolts strike where the marks are', dur: 6 },
+  { k: 'dark', name: '🌑 BLACKOUT', sub: 'only your own glow to see by', dur: 6 },
+  { k: 'mirror', name: '🪞 MIRROR', sub: 'the world flips: you run left', dur: 6 },
+  { k: 'storm', name: '🔺 SPIKE STORM', sub: 'spikes on every beat', dur: 5 },
+  { k: 'bounce', name: '🦘 TRAMPOLINE', sub: 'every landing throws you back up', dur: 6 },
+  { k: 'boots', name: '⚓ LEAD BOOTS', sub: 'short jumps: dash through instead', dur: 6 },
+];
+
+let host, ctx, S, sfx, game = null, depth = 1, dashEl = null, holdT = null;
+const H = () => host.H;
+
+// ---------------------------------------------------------------- the ground
+// A fractal ridge: five octaves of value noise, the small ones louder the rougher the world (depth and
+// the chaos curve's r both roughen it). Chasms are cut out of it as obstacles.
+const rough = () => Math.min(1.6, 0.35 + (depth - 1) * 0.28 + Math.max(0, S.curve.r - 2.9) * 0.6);
+function groundY(x) {
+  const g = game, s = g.seed + depth * 1000, ro = rough();
+  const base = H() * 0.68;
+  const y = base + (noise(x / 220, 1, s) - 0.5) * 90 + (noise(x / 90, 2, s) - 0.5) * 44 * ro + (noise(x / 38, 3, s) - 0.5) * 22 * ro
+    + (noise(x / 16, 4, s) - 0.5) * 10 * ro * ro + (noise(x / 7, 5, s) - 0.5) * 5 * ro * ro;
+  return Math.max(H() * 0.34, Math.min(H() - 40, y));
+}
+const inGap = (x) => game.obs.find((o) => o.type === 'gap' && x > o.x && x < o.x + o.w);
+
+// ---------------------------------------------------------------- a run
+function newGame() {
+  depth = 1;
+  game = { seed: Math.floor(Math.random() * 1e6), cam: 0, speed: 175, time: 0, dive: null, ko: false,
+    py: 0, vy: 0, onGround: true, jumps: 0, dash: DASH_MAX, dashing: false, inv: 0,
+    dist: 0, paid: 0, shards: 0, obs: [], parts: [], twist: null, twistAt: -9, dark: 0, shake: 0, fog: 0 };
+  game.py = groundY(PX) - R;
+}
+// One beat of the chaos curve (the box, CHAOS.md): what x lands on decides what's coming up the road.
+function onBeat(ev) {
+  const g = game, c = S.curve, x = ev.x, d = ev.hop, ahead = g.cam + W + 60;
+  if (ev.window) { for (let i = 0; i < 3; i++) g.obs.push({ type: 'shard', x: ahead + i * 26, lift: 60 + i * 10, t: i }); if (c.n % 3 === 0) g.obs.push({ type: 'spike', x: ahead + 100, n: 3 }); }
+  else if (x > 0.7) {
+    const n = 1 + Math.floor((x - 0.7) * 16); g.obs.push({ type: 'spike', x: ahead, n });
+    if (x > 0.9 && depth >= 2) g.obs.push({ type: 'gap', x: ahead + n * 14 + 30, w: 50 + depth * 10 });   // deeper down, a chasm right behind the spikes
+  }
+  else if (d > 0.07) { const w = Math.min(170 + depth * 10, 50 + Math.floor(d * 170) + depth * 12); g.obs.push({ type: 'gap', x: ahead, w }); if (depth >= 3 && x > 0.5) g.obs.push({ type: 'spike', x: ahead + w + 26, n: 2 }); }
+  else if (x < 0.35 || c.n % 3 === 0) { const n = 3 + Math.floor(Math.max(0, 0.35 - x) * 12); for (let i = 0; i < n; i++) g.obs.push({ type: 'shard', x: ahead + i * 22, lift: 40 + Math.sin(i / (n - 1) * Math.PI) * 70, t: i }); }
+  // ✨ Symmetry in chaos: the mirror heals (or pays), the balance fills the dash.
+  if (ev.mirror) { if (S.hearts < 3) host.heal(1); else { host.add(300); g.shards += 300; } for (let i = 0; i < 14; i++) g.parts.push({ x: g.cam + PX, y: g.py, vx: (Math.random() - 0.5) * 260, vy: (Math.random() - 0.8) * 260, t: 0, life: 0.6, c: '#C9B8FF' }); sfx('chime'); }
+  if (ev.balance) { g.dash = DASH_MAX; sfx('chime'); }
+  // 🌻 Fibonacci: the golden cut lays eight shards along a golden spiral ahead (+161); a Fibonacci beat adds an arc.
+  if (ev.golden) { host.add(161); g.shards += 161; for (let i = 0; i < 8; i++) { const a = i * 0.55, rr = 14 * Math.pow(CHAOS.PHI, a / 1.57); g.obs.push({ type: 'shard', x: ahead + 40 + Math.cos(a) * rr, lift: 90 + Math.sin(a) * rr, t: i }); } sfx('chime', { hi: true }); }
+  if (ev.fib && !ev.window) for (let i = 0; i < 3; i++) g.obs.push({ type: 'shard', x: ahead + 180 + i * 22, lift: 50 + i * 12, t: i });
+  // A twist at the curve's peaks, from the rhythm of 4 on (never in the window).
+  if (ev.big && c.r >= 3.449 && !g.twist && g.time - (g.twistAt || -9) > 2.5) twist();
+}
+function twist() {
+  const t = TWISTS[Math.floor(Math.random() * TWISTS.length)];
+  game.twist = { ...t, t: 0 }; game.twistAt = game.time; host.banner(t.name, t.sub); sfx('whistle');
+}
+
+// ---------------------------------------------------------------- the loop
+function update(dt) {
+  const g = game;
+  g.time += dt;
+  if (g.dive) { g.dive.t += dt; if (g.dive.t >= g.dive.dur) { g.dive = null; } return; }
+  if (g.time >= depth * DEPTH_S) return dive();
+  if (g.twist) { g.twist.t += dt;
+    if (g.twist.k === 'rain' && Math.random() < dt * 9) g.obs.push({ type: 'shard', x: g.cam + PX + 40 + Math.random() * (W - 120), lift: 60 + Math.random() * 120, t: 0, fall: true });
+    if (g.twist.k === 'bolt' && Math.random() < dt * 2.2) g.obs.push({ type: 'bolt', x: g.cam + PX + 50 + Math.random() * (W - 110), t: 0.9, flash: 0 });
+    if (g.twist.k === 'storm' && Math.random() < dt * 1.7) g.obs.push({ type: 'spike', x: g.cam + W + 60, n: 2 + Math.floor(Math.random() * 3) });
+    if (g.twist.t >= g.twist.dur) g.twist = null; }
+  const gust = g.twist?.k === 'gust' ? 1.9 : 1, moon = g.twist?.k === 'moon' ? 0.45 : 1;
+  g.fog += ((g.twist?.k === 'fog' ? 1 : 0) - g.fog) * Math.min(1, dt * 3);
+  g.dark += ((g.twist?.k === 'dark' ? 1 : 0) - g.dark) * Math.min(1, dt * 3);
+  // Speed climbs with time and depth; a dash nearly doubles it while the meter lasts.
+  g.speed = Math.min(640, 190 + (depth - 1) * 60 + g.time * 2.2);
+  if (g.dashing && g.dash > 0) { g.dash = Math.max(0, g.dash - dt); if (g.dash === 0) g.dashing = false; }
+  else if (g.onGround) g.dash = Math.min(DASH_MAX, g.dash + dt * 0.7);
+  const v = g.speed * gust * (g.dashing ? 1.8 : 1);
+  g.cam += v * dt; g.dist += v * dt;
+  const m = Math.floor(g.dist / 10); if (m > g.paid) { host.add(m - g.paid); g.paid = m; }   // a point a metre
+  // You: gravity, the ground under your feet, the edge of a chasm.
+  const px = g.cam + PX, gy = groundY(px), gap = inGap(px);
+  const quake = g.twist?.k === 'quake' ? Math.sin(g.time * 9) * 12 : 0;
+  g.vy += GRAV * moon * dt; g.py += g.vy * dt;
+  const floor = gap ? H() + 60 : gy + quake - R;
+  if (g.py >= floor && g.vy >= 0 && !gap) { g.py = floor; g.vy = 0; if (!g.onGround) { g.onGround = true; g.jumps = 0; puff(px, g.py + R, 4); if (g.twist?.k === 'bounce') { g.vy = -JUMP * 0.8; g.onGround = false; g.jumps = 1; sfx('putt', { power: 0.5 }); } } }
+  else g.onGround = false;
+  if (g.inv > 0) g.inv -= dt;
+  if (g.py > H() + 40) return fall();
+  // Obstacles: spikes hurt (unless you're dashing), shards score, and everything behind you is gone.
+  g.obs = g.obs.filter((o) => {
+    if (o.type === 'shard') {
+      if (o.fall) o.lift = Math.max(6, o.lift - dt * 90);
+      const sy = groundY(o.x) - o.lift, dx = o.x - px, dy = sy - g.py;
+      if (Math.hypot(dx, dy) < R + 12) { collect(o.x, sy); return false; }
+    } else if (o.type === 'bolt') {
+      o.t -= dt;
+      if (o.t <= 0 && !o.struck) { o.struck = true; o.flash = 0.3; sfx('thud'); if (Math.abs(o.x - px) < 24 && g.inv <= 0) hurt('zapped'); }
+      if (o.struck) { o.flash -= dt; return o.flash > 0; }
+    } else if (o.type === 'spike' && g.inv <= 0 && !g.dashing) {
+      const w = o.n * 14;
+      if (px + R * 0.6 > o.x && px - R * 0.6 < o.x + w && g.py + R > groundY(o.x + w / 2) + quake - 15) hurt('spiked');
+    }
+    return o.x + (o.w || o.n * 14 || 0) > g.cam - 60;
+  });
+  g.parts = g.parts.filter((p) => { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 600 * dt; return p.t < p.life; });
+  if (g.dashing && Math.random() < dt * 40) g.parts.push({ x: px - R, y: g.py + (Math.random() - 0.5) * R, vx: -v * 0.5, vy: (Math.random() - 0.5) * 60, t: 0, life: 0.35, c: '#3DF2E0' });
+  if (g.shake > 0) g.shake = Math.max(0, g.shake - dt * 3);
+  if (dashEl) dashEl.style.width = `${(g.dash / DASH_MAX) * 100}%`;
+}
+function collect(x, y) {
+  const g = game;
+  S.combo = S.comboT > 0 ? S.combo + 1 : 1; S.comboT = 1.6;
+  const pts = 50 * fibMult(S.combo); g.shards += pts; host.add(pts);   // 🌻 combos count in Fibonacci: 1, 2, 3, 5, 8, 13, 21…
+  for (let i = 0; i < 8; i++) g.parts.push({ x, y, vx: (Math.random() - 0.5) * 220, vy: (Math.random() - 0.8) * 220, t: 0, life: 0.5, c: PALETTES[(depth - 1) % PALETTES.length].shard });
+  sfx('chime', { hi: S.combo > 3 });
+}
+function puff(x, y, n) { for (let i = 0; i < n; i++) game.parts.push({ x, y, vx: (Math.random() - 0.5) * 120, vy: -Math.random() * 80, t: 0, life: 0.3, c: '#ffffff88' }); }
+function hurt(how) {
+  const g = game;
+  g.inv = 1.4; g.shake = 1; sfx('thud');
+  for (let i = 0; i < 12; i++) g.parts.push({ x: g.cam + PX, y: g.py, vx: (Math.random() - 0.5) * 300, vy: (Math.random() - 0.7) * 300, t: 0, life: 0.6, c: '#FF5FB0' });
+  if (host.hurt(how)) { g.ko = how; return true; }
+  host.banner(how === 'spiked' ? 'OUCH' : how === 'zapped' ? 'ZAP' : 'SPLASH', `${S.hearts} ${S.hearts === 1 ? 'heart' : 'hearts'} left`);
+  return false;
+}
+function fall() {
+  const g = game;
+  if (hurt('fell')) return;
+  // Back on solid ground just past the chasm.
+  const gap = inGap(g.cam + PX) || g.obs.filter((o) => o.type === 'gap' && o.x + o.w < g.cam + PX).pop();
+  if (gap) g.cam = gap.x + gap.w + 12 - PX;
+  g.py = groundY(g.cam + PX) - R - 40; g.vy = 0;
+}
+function jump() {
+  const g = game; if (!g || S.over || g.dive) return;
+  if (g.onGround || g.jumps < 2) { g.vy = -JUMP * (g.onGround ? 1 : 0.85) * (g.twist?.k === 'boots' ? 0.72 : 1); g.jumps = g.onGround ? 1 : 2; g.onGround = false; sfx('putt', { power: 0.6 }); puff(g.cam + PX, g.py + R, 3); }
+}
+function dive() {
+  const g = game;
+  depth += 1;
+  g.dive = { t: 0, dur: host.reduceMotion ? 0.01 : 1.1 };
+  g.seed = (g.seed * 16807 + depth) % 2147483647;   // a new ridge inside the old
+  g.obs = []; g.twist = null; g.py = groundY(g.cam + PX) - R; g.vy = 0; g.onGround = true; g.jumps = 0;
+  host.heal(1); g.dash = DASH_MAX;
+  host.banner(`DEPTH ${depth}`, 'a world inside the world · ❤️ +1'); sfx('birdie');
+}
+
+// ---------------------------------------------------------------- drawing
+function sierp(x, y, s, d, up = true) {   // a Sierpiński triangle, point up, s across
+  if (d === 0) { const h = s * 0.866; ctx.moveTo(x, up ? y - h / 2 : y + h / 2); ctx.lineTo(x + s / 2, up ? y + h / 2 : y - h / 2); ctx.lineTo(x - s / 2, up ? y + h / 2 : y - h / 2); ctx.closePath(); return; }
+  const h = s * 0.866, q = s / 4, hh = h / 4;
+  sierp(x, y - hh * (up ? 1 : -1), s / 2, d - 1, up); sierp(x - q, y + hh * (up ? 1 : -1), s / 2, d - 1, up); sierp(x + q, y + hh * (up ? 1 : -1), s / 2, d - 1, up);
+}
+function draw(t) {
+  const g = game, pal = PALETTES[(depth - 1) % PALETTES.length], k = host.k, Hh = H();
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  if (g?.shake) { ctx.translate((Math.random() - 0.5) * 10 * g.shake, (Math.random() - 0.5) * 10 * g.shake); }
+  if (g?.twist?.k === 'mirror') { ctx.translate(W, 0); ctx.scale(-1, 1); }   // 🪞 the world flips (the HUD stays put)
+  // The dive: the world swells around you, into itself.
+  if (g?.dive) { const p = g.dive.t / g.dive.dur, z = 1 + p * p * 3; ctx.translate(PX, g.py); ctx.scale(z, z); ctx.translate(-PX, -g.py); ctx.globalAlpha = 1 - p * 0.7; }
+  const sky = ctx.createLinearGradient(0, 0, 0, Hh); sky.addColorStop(0, pal.sky[0]); sky.addColorStop(1, pal.sky[1]);
+  ctx.fillStyle = sky; ctx.fillRect(-W, -Hh, W * 3, Hh * 3);
+  const cam = g ? g.cam : t / 40;
+  // 🌻 three ranges of Sierpiński mountains, Fibonacci sizes (233, 144, 89), parallax
+  [[0.12, 0.36, 233, 4, pal.far + '99'], [0.25, 0.44, 144, 3, pal.far], [0.5, 0.58, 89, 3, pal.near]].forEach(([par, yy, s, d, col]) => {
+    ctx.fillStyle = col; ctx.beginPath();
+    const off = (cam * par) % (s * 1.1);
+    for (let x = -off - s; x < W + s; x += s * 1.1) { const i = Math.floor((x + off + cam * par) / (s * 1.1)); sierp(x + s / 2, Hh * yy + (hash(i + 7) - 0.5) * 60 + s * 0.43, s, d); }
+    ctx.fill();
+  });
+  if (!g) { ctx.globalAlpha = 1; return; }
+  // The ground: the ridge, with chasms cut out.
+  ctx.fillStyle = pal.ground; ctx.strokeStyle = pal.edge; ctx.lineWidth = 2.5; ctx.lineJoin = 'round';
+  const quake = g.twist?.k === 'quake' ? Math.sin(g.time * 9) * 12 : 0;
+  let open = false;
+  ctx.beginPath();
+  for (let sx = -6; sx <= W + 6; sx += 5) {
+    const wx = g.cam + sx, gap = inGap(wx);
+    if (gap) { if (open) { ctx.lineTo(sx - 5, Hh + 10); ctx.closePath(); open = false; } continue; }
+    const y = groundY(wx) + quake;
+    if (!open) { ctx.moveTo(sx, Hh + 10); ctx.lineTo(sx, y); open = true; } else ctx.lineTo(sx, y);
+  }
+  if (open) { ctx.lineTo(W + 6, Hh + 10); ctx.closePath(); }
+  ctx.fill(); ctx.stroke();
+  // Chasm glow (the deep is bright).
+  g.obs.forEach((o) => { if (o.type !== 'gap') return; const x0 = o.x - g.cam, gr = ctx.createLinearGradient(0, Hh * 0.7, 0, Hh); gr.addColorStop(0, '#0000'); gr.addColorStop(1, pal.edge + '66'); ctx.fillStyle = gr; ctx.fillRect(x0, Hh * 0.5, o.w, Hh * 0.5); });
+  // Spikes, bolts and shards.
+  const fogA = g.fog;
+  g.obs.forEach((o) => {
+    const sx = o.x - g.cam;
+    if (sx < -60 || sx > W + 60) return;
+    const near = fogA ? Math.max(0, Math.min(1, 1 - (sx - PX - 60) / 120)) : 1;
+    ctx.globalAlpha = (g.dive ? 1 - g.dive.t / g.dive.dur * 0.7 : 1) * Math.max(0.05, fogA ? near : 1);
+    if (o.type === 'spike') {
+      ctx.fillStyle = pal.spike; ctx.beginPath();
+      for (let i = 0; i < o.n; i++) { const x = sx + i * 14, y = groundY(o.x + i * 14 + 7) + quake; ctx.moveTo(x, y + 2); ctx.lineTo(x + 7, y - 20); ctx.lineTo(x + 14, y + 2); }
+      ctx.fill();
+    } else if (o.type === 'bolt') {
+      const gy = groundY(o.x) + quake;
+      if (!o.struck) { ctx.strokeStyle = '#FFE08A'; ctx.globalAlpha *= 0.5 + 0.5 * Math.sin(t / 60); ctx.setLineDash([6, 6]); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, gy); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = '#FFE08A'; ctx.beginPath(); ctx.moveTo(sx - 10, gy); ctx.lineTo(sx + 10, gy); ctx.lineTo(sx, gy - 8); ctx.closePath(); ctx.fill(); }
+      else { ctx.strokeStyle = '#fff'; ctx.shadowColor = '#FFE08A'; ctx.shadowBlur = 18; ctx.lineWidth = 4; ctx.beginPath(); let yy = 0, xx = sx; ctx.moveTo(xx, yy); while (yy < gy) { yy += 30; xx += (Math.random() - 0.5) * 24; ctx.lineTo(xx, Math.min(yy, gy)); } ctx.stroke(); ctx.shadowBlur = 0; }
+    } else if (o.type === 'shard') {
+      const y = groundY(o.x) - o.lift, sp = Math.sin(t / 250 + o.t) * 0.5 + 0.5;
+      ctx.save(); ctx.translate(sx, y); ctx.rotate(t / 700 + o.t); ctx.fillStyle = pal.shard; ctx.shadowColor = pal.shard; ctx.shadowBlur = 10 + sp * 10;
+      ctx.beginPath(); sierp(0, 0, 18, 2); ctx.fill(); ctx.restore();
+    }
+  });
+  ctx.globalAlpha = g.dive ? 1 - g.dive.t / g.dive.dur * 0.7 : 1;
+  // 🌑 Blackout: only a circle of your own glow.
+  if (g.dark > 0.02) { const dg = ctx.createRadialGradient(PX, g.py, 30, PX, g.py, 110); dg.addColorStop(0, '#0000'); dg.addColorStop(1, `rgba(4,3,12,${0.97 * g.dark})`); ctx.fillStyle = dg; ctx.fillRect(-W, -Hh, W * 3, Hh * 3); }
+  // Fog rolls in from the right.
+  if (fogA > 0.02) { const fg = ctx.createLinearGradient(PX + 40, 0, W, 0); fg.addColorStop(0, '#0000'); fg.addColorStop(1, `rgba(20,18,50,${0.96 * fogA})`); ctx.fillStyle = fg; ctx.fillRect(0, 0, W, Hh); }
+  // Particles.
+  g.parts.forEach((p) => { ctx.fillStyle = p.c; ctx.globalAlpha = 1 - p.t / p.life; ctx.fillRect(p.x - g.cam - 2, p.y - 2, 4, 4); });
+  ctx.globalAlpha = g.dive ? 1 - g.dive.t / g.dive.dur * 0.7 : 1;
+  // You: a fractal, leaning into the run, flickering while invulnerable, ablaze while dashing.
+  if (g.inv <= 0 || Math.floor(t / 70) % 2 === 0) {
+    ctx.save(); ctx.translate(PX, g.py);
+    ctx.rotate(Math.max(-0.5, Math.min(0.5, g.vy / 1400)) + (g.onGround ? 0 : t / 300 % 0.3 - 0.15));
+    if (g.dashing) { ctx.scale(1.25, 0.85); ctx.shadowColor = '#3DF2E0'; ctx.shadowBlur = 22; }
+    ctx.fillStyle = g.dashing ? '#C9FFF8' : '#fff'; ctx.beginPath(); sierp(0, 2, R * 2.2, 2); ctx.fill();
+    ctx.fillStyle = pal.edge; ctx.beginPath(); ctx.arc(R * 0.25, -R * 0.1, 2.6, 0, 7); ctx.fill();   // an eye, looking ahead
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+  if (g.dive) { ctx.setTransform(k, 0, 0, k, 0, 0); ctx.fillStyle = `rgba(255,255,255,${(g.dive.t / g.dive.dur) ** 3 * 0.9})`; ctx.fillRect(0, 0, W, Hh); }
+}
+
+// ---------------------------------------------------------------- the organ
+const press = () => { if (!game || S.over) return; jump(); clearTimeout(holdT); holdT = setTimeout(() => { if (game && !S.over && game.dash > 0.15) game.dashing = true; }, 170); };
+const release = () => { clearTimeout(holdT); if (game) game.dashing = false; };
+const organ = {
+  key: 'fractal', name: 'Fractal Dash', icon: '🔺', verb: 'tap to jump · hold to dash', beat: 0.7,
+  theme: { bg: '#0B0A1F', gold: '#F5C542', bannerc: '#C9FFF8' },
+  init(h) { host = h; ctx = h.ctx; S = h.S; sfx = h.sfx; window.__fd = organ.debug; },
+  start() { newGame(); },
+  enter(from) {
+    if (!game) newGame();
+    dashEl = host.ui('<div class="dash" aria-hidden="true"><i></i></div>').querySelector('i');
+    if (from) { game.inv = 1.2; game.obs = game.obs.filter((o) => o.type === 'shard' || o.x > game.cam + W + 40); }   // a morph lands you mid-run: a breath, nothing under your feet yet
+  },
+  leave() { release(); dashEl = null; return game ? { x: PX, y: game.py } : null; },
+  update, draw, onBeat,
+  pointer(type) { if (type === 'down') press(); else if (type === 'up') release(); },
+  keydown(e) { if (e.repeat) return; if (e.code === 'Space' || e.code === 'ArrowUp' || e.key === 'w') { e.preventDefault(); jump(); } if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'ArrowRight') { if (game && game.dash > 0.15) game.dashing = true; } },
+  keyup(e) { if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'ArrowRight') release(); },
+  hudLine: () => (game ? `Depth ${depth} · ${Math.floor(game.dist / 10).toLocaleString()} m · ${Math.max(0, Math.ceil(depth * DEPTH_S - game.time))}s to the next dive` : ''),
+  level: () => depth,
+  overText: (how) => [how === 'fell' ? '🕳️ INTO THE DEEP' : how === 'zapped' ? '⚡ ZAPPED' : how === 'spiked' ? '💥 SPIKED' : 'RUN OVER', ''],
+  endStats: () => (game ? `🔺 ${Math.floor(game.dist / 10).toLocaleString()} m at depth ${depth}, ${game.shards.toLocaleString()} from shards` : ''),
+  debug: () => game && ({ score: S.score, depth, hearts: S.hearts, dist: game.dist, speed: game.speed, py: game.py, onGround: game.onGround, dashing: game.dashing, dash: game.dash, r: S.curve.r, over: S.over,
+    obs: game.obs.map((o) => ({ ...o, sx: o.x - game.cam })), twist: game.twist?.k || null, W, H: H(), PX, groundY: groundY(game.cam + PX), gyAt: (sx) => groundY(game.cam + sx),
+    force: (k) => { const t = TWISTS.find((x) => x.k === k); game.twist = { ...t, t: 0 }; game.twistAt = game.time; S.hearts = 3; }, jump, hurt: () => hurt('spiked') }),
+};
+export default organ;

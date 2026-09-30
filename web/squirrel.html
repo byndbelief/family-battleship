@@ -15,8 +15,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Nunito:wght@600;800;900&display=swap">
   <style>
-  /* One look: an autumn forest at dusk. */
-  :root{color-scheme:dark;--bg:#14200E;--panel:#1E2E15;--line:#3C5A26;--ink:#F6F2E4;--muted:#BFCBA8;--gold:#F5C542;--rust:#E07A3A;
+  /* One look: an autumn forest at dusk. The HUD comes from shell.js. */
+  :root{color-scheme:dark;--bg:#14200E;--panel:#1E2E15;--line:#3C5A26;--ink:#F6F2E4;--muted:#BFCBA8;--gold:#F5C542;--rust:#E07A3A;--bannerc:#FFE08A;
     --display:"Bungee","Arial Black",Impact,sans-serif;--body:"Nunito",system-ui,-apple-system,"Segoe UI",sans-serif}
   *{box-sizing:border-box}
   html,body{background:var(--bg);margin:0;height:100%}
@@ -30,52 +30,27 @@
   button{font:inherit;font-weight:800;cursor:pointer;border-radius:12px;border:1.5px solid var(--line);background:var(--panel);color:var(--ink);padding:10px 16px}
   button.go{background:var(--gold);border-color:var(--gold);color:#2A2100;font-size:18px;padding:12px 22px}
   #play{position:relative}
-  .stage{position:relative;border-radius:16px;overflow:hidden;box-shadow:0 14px 34px #0009;touch-action:none;user-select:none;-webkit-user-select:none}
-  #sq{display:block;width:100%;cursor:crosshair}
+  .stage{position:relative;border-radius:16px;overflow:hidden;box-shadow:0 14px 34px #0009;touch-action:none;user-select:none;-webkit-user-select:none;background:var(--bg)}
+  #cv{display:block;width:100%;cursor:crosshair}
   #play.fs-on{position:fixed;inset:0;z-index:60;background:var(--bg);padding:0}
   #play.fs-on .stage{border-radius:0;height:100%}
-  .hud{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:flex-start;padding:8px 10px;pointer-events:none;font-weight:900;text-shadow:0 2px 4px #000c}
-  .hud .score{font-family:var(--display);font-size:24px;line-height:1}
-  .hud .combo{color:var(--gold);font-size:14px}
-  .hud .lvl{font-size:13px;color:var(--muted)}
-  .hearts{font-size:14px;letter-spacing:1px}
-  .wbar{position:absolute;right:8px;bottom:8px;display:flex;flex-direction:column;gap:6px}
-  .wbar button{position:relative;width:44px;height:44px;padding:0;border-radius:12px;font-size:22px;line-height:1;background:#0E0C22aa;border:1.5px solid #ffffff44;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
-  .wbar button.on{border-color:var(--gold);background:#F5C54244;box-shadow:0 0 12px #F5C54288}
-  .wbar button b{position:absolute;right:-5px;bottom:-5px;font-size:10px;padding:1px 4px;border-radius:8px;background:#141026;border:1px solid #ffffff44}
-  .chaosm{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
-  .chaosm canvas{width:92px;height:34px;background:#0008;border-radius:8px}
-  .over{position:absolute;inset:0;display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,#0008,#000d);padding:16px;text-align:center}
-  .over .card{max-width:360px;display:flex;flex-direction:column;gap:12px;align-items:center}
-  .over p{margin:0}
-  .muted{color:var(--muted)} .small{font-size:13px}
-  .board{list-style:none;margin:0;padding:0;width:100%;max-width:280px;display:flex;flex-direction:column;gap:4px;text-align:left}
-  .board li{display:flex;justify-content:space-between;padding:6px 10px;border-radius:10px;background:#0006}
-  .board li.me{outline:2px solid var(--gold)}
-  .banner{position:absolute;left:50%;top:22%;transform:translateX(-50%);pointer-events:none;font-family:var(--display);font-size:clamp(22px,7vw,40px);color:#FFE08A;-webkit-text-stroke:1.5px #3A1D00;paint-order:stroke fill;text-shadow:0 4px 0 #3A1D00,0 0 30px #F2C230;white-space:nowrap;animation:bpop .45s cubic-bezier(.2,1.6,.4,1) both}
-  .banner small{display:block;font-family:var(--body);font-weight:900;font-size:15px;-webkit-text-stroke:0;color:#fff;text-shadow:0 2px 4px #000;text-align:center}
-  @keyframes bpop{from{transform:translateX(-50%) scale(.3);opacity:0}}
-  @media (prefers-reduced-motion:reduce){.banner{animation:none}}
   </style>
 </head>
 <body>
 <div class="wrap">
   <nav class="topnav gtop"><a href="./">← All games</a><h1 class="intop">🐿️ Squirrel Chaos</h1></nav>
-  <section id="play">
-    <div class="stage" id="stage">
-      <canvas id="sq" aria-label="A forest full of squirrels: tap one to staple it"></canvas>
-      <div class="hud" aria-live="off">
-        <div><div class="score" id="score">0</div><div class="hearts" id="hearts">❤️❤️❤️</div><div class="combo" id="combo"></div><div class="lvl" id="lvl"></div></div>
-        <div class="chaosm"><canvas id="meter" width="184" height="68" aria-hidden="true"></canvas><span id="phase">calm</span></div>
-      </div>
-      <div class="wbar" id="wbar" aria-label="Weapons"></div>
-      <div class="banner" id="banner" hidden></div>
-      <div class="over" id="over">
-        <div class="card" id="overCard"></div>
-      </div>
-    </div>
-  </section>
+  <section id="play"><div class="stage" id="stage"><canvas id="cv" aria-label="A forest full of squirrels: tap one to staple it"></canvas></div></section>
 </div>
-<script type="module" src="squirrel.js"></script>
+<script type="module">
+  import { runShell } from './shell.js';
+  import squirrel from './organs/squirrel.js';
+  runShell({
+    organs: [squirrel], key: 'squirrel', title: 'Squirrel Chaos', icon: '🐿️', again: 'Play again',
+    intro: `<p>Tap to fire the stapler. Staple a big squirrel and it <b>splits in two</b>; only the littlest ones get pinned, and score (more for a quick combo).</p>
+      <p class="muted small">They come to the beat of the chaos curve, x → r·x·(1−x): calm, then a rhythm, then chaos, with twists at its peaks and a ✨ golden squirrel when x nearly touches 1. Four days, each deeper inside the last tree's knothole. Tap the stapler (or R) to reload.</p>
+      <p class="muted small">📦 Shoot the crates for a 🔩 nail gun, 💥 shotgun, 🧨 tack bombs, ⚡ a chain stapler or the 🌀 chaos cannon. And watch out: angry squirrels throw acorns. Shoot them down, or three bonks and you're out.</p>
+      <p class="muted small">Four days. It gets darker the deeper you go: the pinned ones stay, the trees watch, and something in the knothole is waking. 13+: creepy, not gory.</p>`,
+  });
+</script>
 </body>
 </html>
