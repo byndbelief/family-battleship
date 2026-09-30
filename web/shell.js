@@ -32,7 +32,7 @@ const SHELL_CSS = `
   .chaosm{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
   .chaosm canvas{width:92px;height:34px;background:#0008;border-radius:8px}
   .spal{position:absolute;left:4px;top:76px;width:60px;height:60px;pointer-events:none;filter:drop-shadow(0 4px 8px #000a)}   /* under the score, off the field (Hilltop's tank lives bottom-left) */
-  .verb{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none;font-size:12px;font-weight:900;text-shadow:0 2px 4px #000c;max-width:calc(100% - 140px)}   /* centred, clear of the field's edges and the weapon bar */
+  .verb{position:absolute;left:68px;right:8px;top:76px;display:flex;flex-direction:column;align-items:flex-start;gap:4px;pointer-events:none;font-size:12px;font-weight:900;text-shadow:0 2px 4px #000c}   /* up top beside the pal, under the score: the field stays clear */
   .verb b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
   .verb b{display:inline-block;padding:4px 9px;border-radius:99px;background:#0009;border:1px solid #ffffff33;color:#fff}
   .verb b.next{color:var(--gold,#F5C542);border-color:var(--gold,#F5C542);animation:vpulse 1s infinite alternate}
