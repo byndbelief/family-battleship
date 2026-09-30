@@ -104,9 +104,13 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   function size() {
     const fs = !!document.querySelector('#play.fs-on');
     const r = stage.getBoundingClientRect();
-    const w = r.width, h = fs ? innerHeight : Math.max(420, innerHeight - r.top - 12);
+    let w = r.width; const h = fs ? innerHeight : Math.max(420, innerHeight - r.top - 12);
+    // The world is 400 wide and as tall as the screen allows. On a wide screen (a phone on its side) a
+    // full-width fit would scale everything up and leave a world a few beats tall: letterbox instead,
+    // so the world is at least 1.25× taller than wide, centred, with the HUD in the bars.
+    if (h / w < 1.25) w = Math.floor(h / 1.25);
     host.dpr = Math.min(2, devicePixelRatio || 1);
-    cv.style.height = `${h}px`; cv.width = Math.round(w * host.dpr); cv.height = Math.round(h * host.dpr);
+    cv.style.width = `${w}px`; cv.style.height = `${h}px`; cv.style.margin = '0 auto'; cv.width = Math.round(w * host.dpr); cv.height = Math.round(h * host.dpr);
     host.k = cv.width / W; host.H = cv.height / host.k;
     organs.forEach((o) => o.resize?.());
   }
@@ -222,7 +226,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => cv.addEventListener(ev, fwd('up')));
   addEventListener('keydown', (e) => { if (running && !S.over) active?.keydown?.(e); });
   addEventListener('keyup', (e) => { if (running && !S.over) active?.keyup?.(e); });
-  window.__shell = () => ({ organ: active?.key, prev: prev?.key, calm, glitch: glitchT > 0, mood: S.curve.mood, theme: stage.style.getPropertyValue('--bg'), score: S.score, hearts: S.hearts, combo: S.combo, beats: S.beats, morphs: S.morphs, r: S.curve.r, n: S.curve.n, window: S.curve.window, over: S.over, tenure, running, transition: !!transition,
+  window.__shell = () => ({ organ: active?.key, prev: prev?.key, calm, glitch: glitchT > 0, mood: S.curve.mood, H: host.H, cw: cv.getBoundingClientRect().width, theme: stage.style.getPropertyValue('--bg'), score: S.score, hearts: S.hearts, combo: S.combo, beats: S.beats, morphs: S.morphs, r: S.curve.r, n: S.curve.n, window: S.curve.window, over: S.over, tenure, running, transition: !!transition,
     tally: { ...S.tally }, force: (why) => { if (why === 'glitch') return glitchRun(); const to = why === 'mirror' && prev ? prev : nextOrgan(); morphTo(to, why); }, over: S.over, end: (how) => over(how), hurt: () => host.hurt('test') });
   // ---------------------------------------------------------------- go
   (async () => {
