@@ -788,6 +788,10 @@ sits in the corner of every solo game (`#spal` in the shell: `react` on every be
 `sleep` at game over). `resident()` caches the key in localStorage `r4.pal`, and `residentNow()` reads
 that synchronously for the loader and the sign-in screen (which run before or without a session).
 The topic mechanism is generic: a second question is another topic string and its own page section.
+**Meet the resident** (`meetResident(k)` in app.js): a welcome overlay (`#meetOv`, styles `.meet-ov`) the
+first time a device meets the current resident (localStorage `r4.met` holds the key it last met, so a
+change of resident shows it again) and at `#meet` (the Studio links there); a live pal with five pokes
+(peak, mirror, golden, calm, chaos), the story, and Let's go / Design Studio.
 **r4box is the resident's mind** (the curve its mood): common.js reads the key itself (`palKey()`,
 localStorage `r4.pal`, since it can't import studio.js) and draws the pal on the 🌀 button and in the
 curve box at the last move (`curveMood(curve)` reads the mood off `hist`/`hold`), pops it up dizzy in

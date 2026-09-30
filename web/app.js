@@ -477,7 +477,10 @@ async function lobby() {
   // 🌀 The Box on the wall: the bifurcation diagram with a live x walking it. Enter Chaos goes to your
   // running Chaos's round when there is one (renderGauntlets sets it), else opens the start form.
   if (!quick) { const k0 = residentNow(); boxHero(document.getElementById('boxHero'), k0); const mini = palWidget(document.getElementById('palMini'), { pal: k0, s: 15, beat: 0.8, dpr: 2 }); document.getElementById('palName').textContent = PAL[k0].name; document.getElementById('palMind').textContent = `This is ${PAL[k0].name}'s mind.`;
-    resident().then((k) => { if (k !== k0 && document.getElementById('palMini')) { mini.set({ pal: k }); document.getElementById('palName').textContent = PAL[k].name; document.getElementById('palMind').textContent = `This is ${PAL[k].name}'s mind.`; boxHero(document.getElementById('boxHero'), k); } }); }
+    resident().then((k) => { if (k !== k0 && document.getElementById('palMini')) { mini.set({ pal: k }); document.getElementById('palName').textContent = PAL[k].name; document.getElementById('palMind').textContent = `This is ${PAL[k].name}'s mind.`; boxHero(document.getElementById('boxHero'), k); }
+      // 👋 Meet the resident: once per device per resident (and any time at #meet)
+      let met = null; try { met = localStorage.getItem('r4.met'); } catch {}
+      if (location.hash === '#meet' || met !== k) meetResident(k); }); }
   document.getElementById('enterChaos')?.addEventListener('click', (e) => {
     const a = e.currentTarget; if (a.dataset.go) return;   // a running Chaos: the link goes to its round
     e.preventDefault(); const fold = document.getElementById('gtFold'); fold.open = true; fold.scrollIntoView({ behavior: 'smooth', block: 'center' }); fold.querySelector('.chip:not([hidden])')?.focus();
@@ -814,6 +817,38 @@ function renderGauntlets(all) {
     if (mine) { btn.dataset.go = '1'; btn.href = mine.current_kind === 'battleship' ? `#game=${mine.current_game}` : `${mine.current_kind}.html#game=${mine.current_game}`; btn.textContent = `Go to your Chaos › round ${mine.round} of ${mine.rounds}`; }
     else { delete btn.dataset.go; btn.href = '#start'; btn.textContent = 'Enter Chaos 🌀'; }
   }
+}
+// 👋 MEET THE RESIDENT: the welcome the first time a device meets whoever lives in r4box (or whenever
+// the vote changes who that is), and at #meet. r4box is its mind; the four pokes let you feel it react.
+function meetResident(k) {
+  document.getElementById('meetOv')?.remove();
+  const P = PAL[k];
+  const el = document.createElement('div'); el.id = 'meetOv'; el.className = 'meet-ov'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', `Meet ${P.name}`);
+  el.innerHTML = `<div class="meet-card">
+      <canvas id="meetCv" width="520" height="520" aria-hidden="true"></canvas>
+      <span class="eyebrow">Who lives in r4box</span>
+      <h2>Meet ${esc(P.name)}</h2>
+      <p class="meet-tag">${esc(P.tag)}</p>
+      <p class="muted small">${esc(P.story)}</p>
+      <p class="small"><b>r4box is ${esc(P.name)}'s mind.</b> The chaos curve, x → r·x·(1−x), is its mood, and every move you make in any game is a beat of it. Poke a beat and watch:</p>
+      <div class="meet-pokes">
+        <button type="button" data-m="peak">⚡ a peak</button><button type="button" data-m="mirror">✨ the mirror</button><button type="button" data-m="golden">🌻 the golden cut</button><button type="button" data-m="calm">🧘 a calm</button><button type="button" data-m="chaos">🌀 chaos</button>
+      </div>
+      <p class="muted small">You'll find it riding the 🌀 button in every game, in the corner of every solo run, taking a breath in every calm and blinking through every glitch. If you'd rather someone else lived here, the family votes in the Design Studio.</p>
+      <div class="row" style="gap:10px"><button type="button" class="enter" id="meetGo">Let's go 🌀</button><a class="enter alt" href="studio.html">🎨 Design Studio</a></div>
+    </div>`;
+  document.body.appendChild(el);
+  const w = palWidget(document.getElementById("meetCv"), { pal: k, s: 60, beat: 0.9, dpr: 2 });
+  el.querySelector('.meet-pokes').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-m]'); if (!b) return; const m = b.dataset.m;
+    if (m === 'calm') { w.set({ own: false, r: 2.9 }); w.force('gift', 1.8); setTimeout(() => w.set({ own: true }), 1800); }
+    else if (m === 'chaos') { w.set({ own: false, r: 4 }); w.force('big', 1.4); setTimeout(() => w.set({ own: true }), 2200); }
+    else w.force(m, m === 'peak' ? 0.9 : 1.6);
+    sfx('click');
+  });
+  const close = () => { try { localStorage.setItem('r4.met', k); } catch {} w.stop(); el.remove(); if (location.hash === '#meet') history.replaceState(null, '', './'); };
+  document.getElementById('meetGo').onclick = close;
+  el.addEventListener('click', (e) => { if (e.target === el) close(); });
 }
 // The Box, animated: the bifurcation diagram, a beat every 0.4 s walking x along the curve as r climbs
 // 2.9 → 4 and starts over, the window band, the golden cut, a golden spiral, a Sierpiński, and the
