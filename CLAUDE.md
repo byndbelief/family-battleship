@@ -727,6 +727,13 @@ trophies "Chaos". Code, tables and RPCs keep the gauntlet names. The rounds walk
 `_chaos_curve` starts a round's game at n = (round − 1)·6, so round 1 is calm (r 2.90) and round 4 on
 opens in chaos. The server's messages (round news, champion, call-off, chaos-clock forfeits) say Chaos.
 
+### Route to Chaos card: only for starting one (page only)
+The lobby's Route to Chaos section no longer lists running Chaos matches (the per-rival cards with
+scores, round track and Call off took too much room). It is the start form only, always open. A running
+Chaos shows as its current round under Your move / Waiting on others (Round pill), and the game page's
+Chaos bar (`gauntletBar`) carries scores and Call off. `renderGauntlets(gts)` only fills `rivalGroups`
+so the form says "Go to your Chaos ›" for a rival that already has one. `#gtLive` and its styles are gone.
+
 ### Live sticks for the whole Route to Chaos (064)
 `gauntlets.live_bot` carries the 🤖 live-vs-robot setting across rounds: `_gauntlet_next` starts each
 round's game (Battleship, Putt Post, Hilltop) with it, `set_live_bot` on a round's page writes it back to

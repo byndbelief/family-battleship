@@ -394,8 +394,7 @@ async function lobby() {
       <div class="lobmain">
       <section class="gthero" id="gtSec">
         <div class="gthead"><span class="gtcup" aria-hidden="true">🌀</span><div><h2>Route to Chaos</h2><p class="small">One running Chaos per rival: surprise rounds of putts, duels, sea battles and cards, wilder as it goes. Win the most rounds for the crown, and the next Chaos starts on its own.</p></div></div>
-        <div class="gtlive" id="gtLive"></div>
-        <details class="gtfold" id="gtFold"><summary class="gtlabel" id="gtLabel">➕ New rival</summary>
+        <details class="gtfold" id="gtFold"><summary class="gtlabel" id="gtLabel">➕ Start a rivalry</summary>
         <form class="gtstart" id="gtStart">
           <div class="choice">${others.map(([id, u]) => `<button type="button" class="chip" data-gopp="${esc(u)}" data-gid="${id}" aria-pressed="false" ${bots.has(id) ? 'data-bot hidden' : ''}>${esc(u)}</button>`).join('')}<span class="botstep" data-botstep="g" role="group" aria-label="How many robots"><span>🤖 Robots</span><button type="button" data-bs="-1" aria-label="One robot fewer">−</button><b aria-live="polite">0</b><button type="button" data-bs="1" aria-label="One more robot">+</button></span></div>
           <div class="row gtrow">
@@ -650,7 +649,7 @@ async function loadGames() {
     return;   // Gauntlets live on the rival cards at the top (running ones, and titles won)
     cards.push({ at: g.updated_at, kind: 'gauntlet', g, href, mine: false, over: g.status === 'over', prog: (g.history || []).length / g.rounds, pill: g.status === 'over' ? `<span class="pill done">Champion decided</span>` : `<span class="pill gt">Round ${g.round} of ${g.rounds}: ${KIND_ICON[g.current_kind]}</span>`, sub: table, vs: vsOf(g.players), extra: '' });
   });
-  renderGauntlets(gts, cards);
+  renderGauntlets(gts);
   if (!cards.length) { renderUpStrip([], [], [], []); list.innerHTML = `<p class="muted">No games yet. Pick one above.</p>`; return; }
   // Your move first, then games waiting on someone else, then finished ones (folded away).
   cards.sort((a, b) => (a.at < b.at ? 1 : -1));
@@ -775,42 +774,16 @@ function paintUpLive() {
 }
 addEventListener('online', paintUpLive);
 
-// One card per rival (a group of players): their running Gauntlet, which one it is, and
-// how many Gauntlets each of them has won.
+// The Route to Chaos card is only for starting one: running Chaos matches show as their current
+// round under Your move / Waiting on others (with a Round pill), and the game page's Chaos bar has the
+// scores and Call off. Here we only remember which rivals already have one running, so the form says
+// "Go to your Chaos" for them.
 const groupKey = (players) => [...players].sort().join(',');
 let rivalGroups = new Set();
-function renderGauntlets(all, cards) {
-  const box = document.getElementById('gtLive');
-  if (!box) return;
-  const live = all.filter((g) => g.status !== 'over');
-  rivalGroups = new Set(live.map((g) => groupKey(g.players)));
-  box.innerHTML = live.map((g) => {
-    const past = all.filter((x) => x.status === 'over' && groupKey(x.players) === groupKey(g.players));
-    const titles = g.players.map((p) => past.filter((x) => { const i = x.players.indexOf(p), top = Math.max(...x.scores); return top > 0 && x.scores[i] === top; }).length);
-    const lead = Math.max(...g.scores), done = g.history || [];
-    const round = cards.find((c) => c.g.id === g.current_game), myMove = !!round?.mine;
-    const href = g.current_kind === 'battleship' ? `#game=${g.current_game}` : `${g.current_kind}.html#game=${g.current_game}`;
-    const dots = Array.from({ length: g.rounds }, (_, i) => { const h = done[i], cur = !h && i === g.round - 1;
-      return `<i class="${h ? 'done' : cur ? 'cur' : ''}">${h ? KIND_ICON[h.kind] : cur ? KIND_ICON[g.current_kind] : i + 1}</i>`; }).join('');
-    const rivals = g.players.filter((p) => p !== me.id), others = rivals.map((p) => esc(names[p] ?? 'someone')).join(' & ');
-    const faces = rivals.map((p) => avatar({ username: names[p], bot: bots.has(p) }, 'gtav')).join('');
-    return `<div class="gtwrap"><a class="gtcard ${myMove ? 'mine' : ''}" href="${href}">
-      <span class="gtwho"><span class="gtfaces">${faces}</span><span class="gtrival"><strong>vs ${others}</strong><span>Chaos #${past.length + 1}${past.length ? ` · 🏆 ${g.players.map((p, i) => `${p === me.id ? 'You' : nm(p)} ${titles[i]}`).join(' · ')}` : ''}</span></span></span>
-      <span class="gtscore">${g.players.map((p, i) => `<span class="${g.scores[i] === lead && lead > 0 ? 'lead' : ''}">${g.scores[i] === lead && lead > 0 ? '👑 ' : ''}${p === me.id ? 'You' : nm(p)} <b>${g.scores[i]}</b></span>`).join('')}</span>
-      <span class="gttrack">${dots}</span>
-    </a>${g.created_by === me.id ? `<button type="button" class="gtoff" data-off="${g.id}">Call off</button>` : ''}</div>`;
-  }).join('');
-  // Calling a Gauntlet off ends it for everyone: its round in progress goes, finished rounds and past titles stay.
-  box.querySelectorAll('[data-off]').forEach((b) => { b.onclick = async () => {
-    if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Tap to confirm'; b.classList.add('armed'); setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.textContent = 'Call off'; b.classList.remove('armed'); } }, 4000); return; }
-    b.disabled = true;
-    const { error } = await sb.rpc('gauntlet_delete', { p_gauntlet: b.dataset.off });
-    if (error) { note(friendly(error), 'error'); b.disabled = false; return; }
-    note('Chaos called off.'); loadGames(); loadChaos();
-  }; });
-  // The start form stays folded to one row; with no Gauntlet running it opens by itself.
-  document.getElementById('gtLabel').textContent = live.length ? '➕ New rival' : '➕ Start a rivalry';
-  if (!live.length) document.getElementById('gtFold').open = true;
+function renderGauntlets(all) {
+  rivalGroups = new Set(all.filter((g) => g.status !== 'over').map((g) => groupKey(g.players)));
+  const fold = document.getElementById('gtFold');
+  if (fold) fold.open = true;
 }
 
 // The Your move strip: one big card per game waiting on you, swipe (or ‹ ›) through them.
