@@ -727,8 +727,8 @@ trophies "Chaos". Code, tables and RPCs keep the gauntlet names. The rounds walk
 `_chaos_curve` starts a round's game at n = (round − 1)·6, so round 1 is calm (r 2.90) and round 4 on
 opens in chaos. The server's messages (round news, champion, call-off, chaos-clock forfeits) say Chaos.
 
-### 🔺 Fractle Dash (066): the second solo game
-`fractle.html` / `fractle.js`, linked from the lobby's quick entries. An endless runner: you're a
+### 🔺 Fractal Dash (066): the second solo game
+`fractal.html` / `fractal.js`, linked from the lobby's quick entries. An endless runner: you're a
 Sierpiński triangle dashing right over a ridge of 5-octave value noise (`groundY`, seeded per run and
 depth; the small octaves scale with `rough()`, which climbs with depth and the chaos curve's r). Tap =
 jump (double jump in the air), hold ≥170 ms = dash (×1.8 speed, phases through spikes, meter `dash`
@@ -737,9 +737,9 @@ of 1.4 s, refills on the ground); keys Space/↑/W and Shift/→. The chaos curv
 hop (≤150), a trough x < 0.35 (or every 3rd calm beat) an arc of shards; a peak x > 0.96 in chaos
 starts a twist (tailwind, fog, quake, shard rain, low gravity). Spikes and falling cost a heart (3;
 +1 per depth); every 25 s a dive (zoom-in) to the next depth with a new palette, seed and speed. Score =
-m/10 + shards (50 × combo ≤ 8). Saved with `solo_submit('fractle', score, depth)`; 066 widens
-solo_scores' game check to ('squirrel', 'fractle'). Test hook `window.__fd()` (state, `jump`, `hurt`,
-`gyAt`). Test: scratch t_fractle (auto-plays 30 s, all three obstacle kinds, dash, death saves a row).
+m/10 + shards (50 × combo ≤ 8). Saved with `solo_submit('fractal', score, depth)`; 066 widens
+solo_scores' game check to ('squirrel', 'fractal'). Test hook `window.__fd()` (state, `jump`, `hurt`,
+`gyAt`). Test: scratch t_fractal (auto-plays 30 s, all three obstacle kinds, dash, death saves a row).
 
 ### Putt Post: no replay of finished holes (page only)
 `decide()` no longer replays the previous player's hole before your turn, nor the last hole before the

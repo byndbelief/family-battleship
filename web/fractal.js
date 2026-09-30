@@ -1,4 +1,4 @@
-// 🔺 Fractle Dash: a solo dash across a fractal landscape. You're a fractle, a little Sierpiński
+// 🔺 Fractal Dash: a solo dash across a fractal landscape. You're a little Sierpiński
 // triangle, running ever faster over ground made of fractal noise (a ridge that gets rougher as the
 // chaos curve climbs). Tap to jump (again in the air for a double jump), hold to dash: a dash phases
 // through spikes while its meter lasts. Spikes, chasms and shards come to the beat of the chaos curve
@@ -56,7 +56,7 @@ function newGame() {
     score: 0, dist: 0, shards: 0, combo: 0, comboT: 0, hearts: 3,
     obs: [], parts: [], twist: null, curve: { x: 0.05 + Math.random() * 0.9, r: 2.85, n: 0, hist: [], beatT: 0 }, phase: 'calm', shake: 0, fog: 0 };
   game.py = groundY(PX) - R;
-  hud(); banner('FRACTLE DASH', 'tap to jump · hold to dash');
+  hud(); banner('FRACTAL DASH', 'tap to jump · hold to dash');
 }
 const phaseOf = (r) => (r < 3 ? 'calm' : r < 3.449 ? 'rhythm ×2' : r < 3.5699 ? 'rhythm ×4…' : 'CHAOS');
 // One beat of the chaos curve: r climbs, x hops, and what x lands on decides what's coming up the road.
@@ -181,7 +181,7 @@ function dive() {
 async function finish() {
   const g = game; g.over = true; sfx('lose');
   showOver(`<h2>🔺 ${g.score.toLocaleString()} points</h2><p class="muted">saving…</p>`);
-  const { data, error } = await sb.rpc('solo_submit', { p_game: 'fractle', p_score: g.score, p_level: Math.min(99, depth) });
+  const { data, error } = await sb.rpc('solo_submit', { p_game: 'fractal', p_score: g.score, p_level: Math.min(99, depth) });
   const board = data?.top?.length ? `<ol class="board">${data.top.map((r, i) => `<li class="${r.player === me.id ? 'me' : ''}"><span>${i + 1}. ${esc(r.name)}</span><b>${r.score.toLocaleString()}</b></li>`).join('')}</ol>` : '';
   showOver(`<h2 style="color:#FF7A6E">${g.ko === 'fell' ? '🕳️ INTO THE DEEP' : '💥 SPIKED'}</h2><h2>🔺 ${g.score.toLocaleString()} points</h2>${data?.record ? '<p style="color:var(--gold)">🏆 Your new best!</p>' : data ? `<p class="muted small">Your best: ${data.best.toLocaleString()}</p>` : ''}
     <p class="muted small">${Math.floor(g.dist / 10).toLocaleString()} m at depth ${depth} · ${g.shards.toLocaleString()} from shards · chaos reached r = ${g.curve.r.toFixed(2)}</p>
@@ -250,7 +250,7 @@ function draw(t) {
   // Particles.
   g.parts.forEach((p) => { ctx.globalAlpha *= 1; ctx.fillStyle = p.c; const a = 1 - p.t / p.life; ctx.globalAlpha = a; ctx.fillRect(p.x - g.cam - 2, p.y - 2, 4, 4); });
   ctx.globalAlpha = g.dive ? 1 - g.dive.t / g.dive.dur * 0.7 : 1;
-  // You: a fractle, leaning into the run, flickering while invulnerable, ablaze while dashing.
+  // You: a fractal, leaning into the run, flickering while invulnerable, ablaze while dashing.
   if (g.inv <= 0 || Math.floor(t / 70) % 2 === 0) {
     ctx.save(); ctx.translate(PX, g.py);
     ctx.rotate(Math.max(-0.5, Math.min(0.5, g.vy / 1400)) + (g.onGround ? 0 : t / 300 % 0.3 - 0.15));
@@ -308,12 +308,12 @@ window.__fd = () => game && ({ score: game.score, depth, hearts: game.hearts, di
   setGameTools({ fs: '#play' });
   size(); addEventListener('resize', size);
   new MutationObserver(() => requestAnimationFrame(size)).observe($('play'), { attributes: true, attributeFilter: ['class'] });
-  const { data: top } = await sb.from('solo_scores').select('player, score').eq('game', 'fractle').order('score', { ascending: false }).limit(40);
+  const { data: top } = await sb.from('solo_scores').select('player, score').eq('game', 'fractal').order('score', { ascending: false }).limit(40);
   const best = {}; (top || []).forEach((r) => { if (!(r.player in best)) best[r.player] = r.score; });
   const board = Object.entries(best).slice(0, 5);
-  showOver(`<h2>🔺 Fractle Dash</h2>
+  showOver(`<h2>🔺 Fractal Dash</h2>
     <p><b>Tap to jump</b> (tap again in the air for a double jump). <b>Hold to dash</b>: a dash phases through spikes while the meter lasts.</p>
-    <p class="muted small">You're a fractle, a Sierpiński triangle, dashing over a fractal ridge that grows rougher as the chaos curve x → r·x·(1−x) climbs: calm, then a rhythm, then chaos, with twists at its peaks. Spikes hurt, chasms swallow, ✨ shards score (more in a quick combo). Every 25 s the world zooms into a copy of itself: a depth deeper, faster, and one heart back.</p>
+    <p class="muted small">You're a fractal: a Sierpiński triangle, dashing over a fractal ridge that grows rougher as the chaos curve x → r·x·(1−x) climbs: calm, then a rhythm, then chaos, with twists at its peaks. Spikes hurt, chasms swallow, ✨ shards score (more in a quick combo). Every 25 s the world zooms into a copy of itself: a depth deeper, faster, and one heart back.</p>
     ${board.length ? `<ol class="board">${board.map(([p, s], i) => `<li class="${p === me.id ? 'me' : ''}"><span>${i + 1}. ${esc(names[p] ?? '?')}</span><b>${s.toLocaleString()}</b></li>`).join('')}</ol>` : ''}
     <button class="go" id="again">Dash 🔺</button>`, true);
   requestAnimationFrame(loop);

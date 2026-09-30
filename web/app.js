@@ -445,7 +445,7 @@ async function lobby() {
       <a class="quickentry" href="#stats"><span class="qicons" aria-hidden="true">🏅</span><span><strong>Family scoreboard</strong><span class="muted small">All-time titles, wins, streaks and bragging rights</span></span><span class="qgo" aria-hidden="true">›</span></a>
       <a class="quickentry" href="#quick"><span class="qicons" aria-hidden="true">⚓⛳💥</span><span><strong>Quick play</strong><span class="muted small">Battleship, Putt Post or Hilltop Duel on its own</span></span><span class="qgo" aria-hidden="true">›</span></a>
       <a class="quickentry" href="squirrel.html"><span class="qicons" aria-hidden="true">🐿️📎🌀</span><span><strong>Squirrel Chaos</strong><span class="muted small">Solo arcade: staple the squirrels in a fractal forest before the chaos swarms</span></span><span class="qgo" aria-hidden="true">›</span></a>
-      <a class="quickentry" href="fractle.html"><span class="qicons" aria-hidden="true">🔺✨🌀</span><span><strong>Fractle Dash</strong><span class="muted small">Solo dash: jump and dash over a fractal ridge as the chaos curve climbs</span></span><span class="qgo" aria-hidden="true">›</span></a>
+      <a class="quickentry" href="fractal.html"><span class="qicons" aria-hidden="true">🔺✨🌀</span><span><strong>Fractal Dash</strong><span class="muted small">Solo dash: jump and dash over a fractal ridge as the chaos curve climbs</span></span><span class="qgo" aria-hidden="true">›</span></a>
       <section class="stack">
         <div class="row between"><h2>Your games</h2><span class="row" style="gap:14px"><button type="button" class="link" id="gamesMore" hidden></button><span class="live" id="live">Live</span></span></div>
         <div id="games"><p class="muted">Loading games…</p></div>
