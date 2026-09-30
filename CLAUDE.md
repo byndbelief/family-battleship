@@ -727,6 +727,17 @@ trophies "Chaos". Code, tables and RPCs keep the gauntlet names. The rounds walk
 `_chaos_curve` starts a round's game at n = (round − 1)·6, so round 1 is calm (r 2.90) and round 4 on
 opens in chaos. The server's messages (round news, champion, call-off, chaos-clock forfeits) say Chaos.
 
+### The room is The Box · r = 4; five organs (page only)
+Title, manifest and eyebrow say **The Box** (· r = 4 in the eyebrow); every game page's back link is
+"← The Box". Three more organs in `web/organs/`: ⚓ `salvo.js` (lanes of enemy ships across the middle of
+the sea, cells burn, torpedoes to tap, twists fog / kraken arms / storm / whirlpool, Sierpiński salvo on
+the mirror, hooks `window.__sv`), ⛳ `putt.js` (one green, drag to putt, five putts a cup, bumpers / sand
+/ water from the beats, the mirror flips the green, three cups in the window, `window.__pt`), 💥
+`hilltop.js` (midpoint-displacement ridge, drag to aim with a dotted forecast, craters, enemy tanks that
+fire back, meteors at x > 0.9, `window.__ht`). `run.html` runs all five. The shell's banner wraps its
+subtitle now. Tests: scratch t_run5 (a forced morph into each, driven), t_organs (each new organ driven
+by its verb from the debug hooks: a hit, a putt, a shot).
+
 ### The Box on the wall: the home screen leads with Chaos (page only)
 The lobby's Route to Chaos card opens with `#boxHero` (`boxHero()` in app.js: the bifurcation diagram
 from `bifurcation()` (now exported from common.js) with a live x walking it a beat every 0.25 s as r

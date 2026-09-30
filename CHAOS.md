@@ -123,7 +123,11 @@ corner chip shows the live organ's verb and glows gold when a morph is close. Or
 name, icon, verb, beat, theme, init(host), start(), enter(from, anchor), leave() → anchor, update(dt),
 draw(t), onBeat(ev), pointer(type, p), keydown/keyup, resize, hudLine, level, overText(how), endStats,
 debug`. The host gives `cv, ctx, W, H, k, dpr, reduceMotion, S, banner, add, hurt, heal, over, sfx, ui,
-morphs`. Adding an organ to the run is one import and one array entry.
+morphs`. Adding an organ to the run is one import and one array entry. The organs so far, and their verbs:
+🐿️ Squirrel Chaos (tap to staple) · 🔺 Fractal Dash (tap to jump, hold to dash) · ⚓ Salvo (tap the sea to
+fire, tap torpedoes) · ⛳ Putt (drag back and let go) · 💥 Hilltop (drag to aim, let go to fire). The last
+three are the multiplayer games' DNA in thirty-second bites, solo: every cell of a ship must burn; five
+putts a cup on a green of fractal bumps; a fractal ridge that craters, and tanks that fire back.
 
 ## A new game must
 

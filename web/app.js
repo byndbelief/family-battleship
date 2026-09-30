@@ -319,7 +319,7 @@ function loginView(msg) {
   setChannel(null);
   view(`
     <div class="narrow">
-      <header class="stack"><span class="eyebrow">Family Game Room</span><h1>Game on</h1>
+      <header class="stack"><span class="eyebrow">The Box · r = 4</span><h1>Game on</h1>
         <p class="muted">Sign in with your player name to jump into Battleship, Putt Post, Hilltop Duel and the Route to Chaos.</p></header>
       <form class="card" id="login">
         <label class="field" for="user">Username<input type="text" id="user" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
@@ -388,9 +388,9 @@ async function lobby() {
   queueMicrotask(renderHere);
   view(`
     <div class="lobby${quick ? ' quickmode' : ' lobhome'}">
-      <div class="quickhead"><a href="#">← Game Room</a><h1>Practice</h1><p class="muted">One game on its own, off the Route to Chaos. One of each kind per group of players at a time. It still counts toward your chaos rating.</p></div>
+      <div class="quickhead"><a href="#">← The Box</a><h1>Practice</h1><p class="muted">One game on its own, off the Route to Chaos. One of each kind per group of players at a time. It still counts toward your chaos rating.</p></div>
       <header class="row between gtop">
-        <div class="stack lobhead"><span class="eyebrow">Family Game Room</span><h1>Ahoy, ${esc(me.username)}</h1></div>
+        <div class="stack lobhead"><span class="eyebrow">The Box · r = 4</span><h1>Ahoy, ${esc(me.username)}</h1></div>
         <div class="herenow" id="hereNow" aria-label="Who's here"></div>
       </header>
       <div class="lobmain">
@@ -840,7 +840,7 @@ function boxHero(cv) {
 function renderUpStrip(mine, cards, myFleets, atMe) {
   const sec = document.getElementById('upSec'), strip = document.getElementById('upStrip');
   if (!sec) return;
-  document.title = (mine.length ? `(${mine.length}) ` : '') + 'Family Game Room';
+  document.title = (mine.length ? `(${mine.length}) ` : '') + 'The Box';
   sec.hidden = !mine.length;
   if (!mine.length) { strip.innerHTML = ''; return; }
   document.getElementById('upCount').textContent = mine.length;
@@ -1034,7 +1034,7 @@ async function statsView() {
   G = null; setChannel(null); stopShotClock(); danger(false);
   document.getElementById('nextUp')?.remove(); document.body.classList.remove('has-firebar');
   view(`<div class="lobby statsview">
-      <div class="statshead"><a href="#">← Game Room</a><h1>🏅 Family scoreboard</h1><p class="muted" id="since">All-time</p></div>
+      <div class="statshead"><a href="#">← The Box</a><h1>🏅 Family scoreboard</h1><p class="muted" id="since">All-time</p></div>
       <div id="statsBody" class="stack" style="gap:18px"><p class="muted">Counting…</p></div>
     </div>`);
   const [{ data, error }, { data: ratings }] = await Promise.all([sb.rpc('family_stats'), sb.rpc('chaos_ratings')]);
@@ -1574,7 +1574,7 @@ function renderGame() {
   const fbPack = deskBar() ? `<span class="fbpack">${backpackBarHTML(G.pack || [], 'battleship', !busy)}</span>` : packMini ? `<div class="fbmini">${packMini}</div>` : '';
   view(`
     <header class="stack">
-      <div class="row between gtop"><button class="link" id="back">← All games</button>${isPhone() ? `<h1 class="intop">${title}</h1>` : ''}<span class="live" id="live">Live</span></div>
+      <div class="row between gtop"><button class="link" id="back">← The Box</button>${isPhone() ? `<h1 class="intop">${title}</h1>` : ''}<span class="live" id="live">Live</span></div>
       <div id="gtbar">${G.gtHTML || ''}</div>
       ${isPhone() ? '' : `<h1>${title}</h1>`}
       ${sub ? `<p class="muted gsub">${sub}</p>` : ''}

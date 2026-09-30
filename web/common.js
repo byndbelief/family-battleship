@@ -1339,7 +1339,7 @@ const ALERT_HINT = {
   on: "You'll get a notification when it's your turn, even with the game closed.",
   off: 'Get a notification when it\'s your turn, even with the game closed.',
   blocked: "Notifications are blocked for this site. Allow them in your browser's site settings, then come back.",
-  'ios-install': 'On iPhone or iPad: tap Share → Add to Home Screen, open the Game Room from there, then turn alerts on here.',
+  'ios-install': 'On iPhone or iPad: tap Share → Add to Home Screen, open The Box from there, then turn alerts on here.',
   unsupported: "This browser can't show alerts. Games still update live while they're open.",
 };
 async function paintAlerts(wrap) {

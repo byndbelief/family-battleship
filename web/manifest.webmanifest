@@ -1,6 +1,6 @@
 {
-  "name": "Family Game Room",
-  "short_name": "Game Room",
+  "name": "The Box",
+  "short_name": "The Box",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

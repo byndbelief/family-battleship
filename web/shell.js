@@ -40,8 +40,8 @@ const SHELL_CSS = `
   .oui .wbar button b{position:absolute;right:-5px;bottom:-5px;font-size:10px;padding:1px 4px;border-radius:8px;background:#141026;border:1px solid #ffffff44}
   .oui .dash{width:110px;height:8px;border-radius:6px;background:#0008;border:1px solid #ffffff33;overflow:hidden}
   .oui .dash i{display:block;height:100%;background:linear-gradient(90deg,#3DF2E0,#FF5FB0);width:100%;transition:width .08s linear}
-  .sbanner{position:absolute;left:50%;top:22%;transform:translateX(-50%);pointer-events:none;font-family:var(--display,inherit);font-size:clamp(22px,7vw,40px);color:var(--bannerc,#FFE08A);-webkit-text-stroke:1.5px #000a;paint-order:stroke fill;text-shadow:0 4px 0 #0008,0 0 30px var(--gold,#F5C542);white-space:nowrap;animation:bpop .45s cubic-bezier(.2,1.6,.4,1) both;text-align:center}
-  .sbanner small{display:block;font-family:var(--body,inherit);font-weight:900;font-size:15px;-webkit-text-stroke:0;color:#fff;text-shadow:0 2px 4px #000}
+  .sbanner{position:absolute;left:50%;top:22%;transform:translateX(-50%);width:max-content;max-width:94%;pointer-events:none;font-family:var(--display,inherit);font-size:clamp(22px,7vw,40px);color:var(--bannerc,#FFE08A);-webkit-text-stroke:1.5px #000a;paint-order:stroke fill;text-shadow:0 4px 0 #0008,0 0 30px var(--gold,#F5C542);white-space:nowrap;animation:bpop .45s cubic-bezier(.2,1.6,.4,1) both;text-align:center}
+  .sbanner small{display:block;font-family:var(--body,inherit);font-weight:900;font-size:15px;-webkit-text-stroke:0;color:#fff;text-shadow:0 2px 4px #000;white-space:normal;line-height:1.25}
   @keyframes bpop{from{transform:translateX(-50%) scale(.3);opacity:0}}
   .sover{position:absolute;inset:0;display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,#0008,#000d);padding:16px;text-align:center;overflow:auto}
   .sover .card{max-width:360px;display:flex;flex-direction:column;gap:12px;align-items:center}
