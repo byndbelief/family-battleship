@@ -974,7 +974,7 @@ export function danger(on) {
   sfx('heartbeat'); dangerTimer = setInterval(() => { if (!document.hidden) sfx('heartbeat'); }, 1300);
 }
 // The first time you open a Gauntlet round: which round, which game, and what's at stake.
-const GT_NAME = { battleship: 'Battleship', golf: 'Putt Post', duel: 'Hilltop Duel' };
+const GT_NAME = { battleship: 'Battleship', golf: 'Putt Post', duel: 'Hilltop Duel', cards: 'Chaos Cards' };
 export function roundIntro(gt, gameId, meId, nameOf) {
   if (!gt || gt.status !== 'playing' || gt.current_game !== gameId) return;
   const key = `drama.intro.${gameId}`;

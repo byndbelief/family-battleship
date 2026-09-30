@@ -727,6 +727,15 @@ trophies "Chaos". Code, tables and RPCs keep the gauntlet names. The rounds walk
 `_chaos_curve` starts a round's game at n = (round − 1)·6, so round 1 is calm (r 2.90) and round 4 on
 opens in chaos. The server's messages (round news, champion, call-off, chaos-clock forfeits) say Chaos.
 
+### Live sticks for the whole Route to Chaos (064)
+`gauntlets.live_bot` carries the 🤖 live-vs-robot setting across rounds: `_gauntlet_next` starts each
+round's game (Battleship, Putt Post, Hilltop) with it, `set_live_bot` on a round's page writes it back to
+the Chaos, and `gauntlet_create` starts it **on** when two or more people play robots
+(`_gauntlet_live_default`), so a round goes live by itself once the people are all on the page. One person
+vs robots still starts turn by turn. Chaos Cards never had the switch (robots always count as here). Also
+fixed: `GT_NAME` lacked `cards`, so the "Route to Chaos · Round n" splash threw on every Cards round.
+Test: scratch t_chaoslive (two people + two robots, three rounds: switch reads LIVE, `_*_live(g)` true).
+
 ### Hilltop shot camera: yours only
 `rideStart(p)` returns at once unless `p === myIdx()`: zoomed in, the camera rides only your own shots;
 other players' shots, robots' and chaos (meteors, quakes, the sun) leave your view where it is (the tank
