@@ -45,7 +45,7 @@ function twist() {
   const [title, sub, kind] = TWISTS[Math.floor(Math.random() * TWISTS.length)];
   g.twist = { kind, until: g.time + 6, wind: (Math.random() < 0.5 ? -1 : 1) * (40 + Math.random() * 40) }; host.banner(title, sub); sfx('twist');
 }
-const moving = () => Math.hypot(g.v.x, g.v.y) > 2;
+const moving = () => Math.hypot(g.v.x, g.v.y) > 6;   // a crawl under 6 px/s counts as stopped: the next putt is yours sooner
 function putt(dx, dy) {
   if (!g || S.over || moving()) return;
   const d = Math.min(150, Math.hypot(dx, dy)); if (d < 8) return;
@@ -77,12 +77,14 @@ function update(dt) {
   const ice = g.twist?.kind === 'ice', wind = g.twist?.kind === 'wind' ? g.twist.wind : 0, ripple = g.twist?.kind === 'ripple';
   if (moving()) {
     const inSand = g.sand.some((s) => ((b.x - s.x) / s.rx) ** 2 + ((b.y - s.y) / s.ry) ** 2 < 1);
-    const fr = ice ? 0.995 : inSand ? 0.93 : 0.985;
+    const fr = ice ? 0.995 : inSand ? 0.93 : 0.975;   // more drag than Putt Post's green: a solo bite of golf, so the ball settles fast
     g.v.x = g.v.x * Math.pow(fr, dt * 60) + wind * dt; g.v.y *= Math.pow(fr, dt * 60);
+    if (!ice && Math.hypot(g.v.x, g.v.y) < 40) { const k = Math.pow(0.9, dt * 60); g.v.x *= k; g.v.y *= k; }   // the last crawl dies quickly
     if (ripple) { g.v.x += Math.sin(g.time * 4 + b.y / 30) * 60 * dt; g.v.y += Math.cos(g.time * 3 + b.x / 30) * 60 * dt; }
     // 🌱 the fractal bumps of the green: a slope from two octaves of hash noise
     const sl = (x, y) => (hash(Math.floor(x / 60) * 131 + Math.floor(y / 60) * 7 + g.seed) - 0.5) * 30 + (hash(Math.floor(x / 22) * 17 + Math.floor(y / 22) * 3 + g.seed) - 0.5) * 12;
     g.v.x += (sl(b.x + 4, b.y) - sl(b.x - 4, b.y)) * dt * 6; g.v.y += (sl(b.x, b.y + 4) - sl(b.x, b.y - 4)) * dt * 6;
+    if (!ice && !ripple && Math.hypot(g.v.x, g.v.y) < 6) { g.v.x = 0; g.v.y = 0; }   // at rest, the bumps can't set it creeping again
     b.x += g.v.x * dt; b.y += g.v.y * dt;
     if (b.x < G.x + R) { b.x = G.x + R; g.v.x *= -0.8; sfx('clack'); } if (b.x > G.x + G.w - R) { b.x = G.x + G.w - R; g.v.x *= -0.8; sfx('clack'); }
     if (b.y < G.y + R) { b.y = G.y + R; g.v.y *= -0.8; sfx('clack'); } if (b.y > G.y + G.h - R) { b.y = G.y + G.h - R; g.v.y *= -0.8; sfx('clack'); }

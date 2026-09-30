@@ -299,7 +299,7 @@ function tick(b, h){
   }
   b.clock++;
   const sand=h.sand.some(r=>inRect(b.x,b.y,r)), mud=h.mud&&h.mud.some(r=>inRect(b.x,b.y,r));
-  const f=mud?0.86:sand?0.93:(h.friction||0.978); b.vx*=f; b.vy*=f;   // a touch more drag on the green: the ball settles sooner
+  const f=mud?0.86:sand?0.93:(h.friction||0.984); b.vx*=f; b.vy*=f;
   if(h.wind && b.vx*b.vx+b.vy*b.vy>0.16){ b.vx+=h.wind[0]; b.vy+=h.wind[1]; }
   let sloped=false;
   for(const s of h.slopes) if(inRect(b.x,b.y,s.r)){ b.vx+=s.a[0]; b.vy+=s.a[1]; sloped=true; }
@@ -311,9 +311,8 @@ function tick(b, h){
       b.vx*=0.7; b.vy*=0.7; b.x=ox+b.vx/sp*(GOPH_R+R+1); b.y=oy+b.vy/sp*(GOPH_R+R+1); b.gcool=12; return 'gopher'; } }
   const cx=b.x-h.cup[0], cy=b.y-h.cup[1], s2=Math.sqrt(b.vx*b.vx+b.vy*b.vy);
   const cr=h.cupR||CUP_R; if(cx*cx+cy*cy<cr*cr && s2<(h.cupSpeed||5.5)) return 'cup';
-  if(s2<0.9 && !sloped){ b.vx*=0.93; b.vy*=0.93; }   // the last crawl dies quickly instead of creeping for seconds
-  if(s2<0.14){ b.still=(b.still||0)+1; if(!sloped || b.still>20) return 'stop'; } else b.still=0;
-  if(++b.ticks>1500) return 'stop';
+  if(s2<0.06){ b.still=(b.still||0)+1; if(!sloped || b.still>40) return 'stop'; } else b.still=0;
+  if(++b.ticks>2400) return 'stop';
   return ev;
 }
 const q20 = v => Math.round(v*20)/20;     // stored ball position precision
