@@ -1,6 +1,9 @@
-# 🌀 THE BOX — the chaos standard
+# 🌀 THE BOX — chaos, symmetry, fractals, Fibonacci
 
-Every game in the room runs on one curve, and reads the same seven events off it. A player who learns
+The four things every game in the room is made of. One curve (chaos), the order hidden in it
+(symmetry), a shape that repeats itself inside itself (fractals), and our friend Fibonacci (1, 1, 2,
+3, 5, 8, 13… and the golden ratio φ its ratios close on). Every game reads the same nine events off
+the curve. A player who learns
 the curve in one game knows it in all of them. Code: `web/chaos.js` (pages) and `_chaos_curve` +
 `_chaos_after_move` (server, migrations 058 / 062 / 068). `tools/e2e` scratch test `t_chaosbox`
 runs both from one starting x and checks they agree beat for beat.
@@ -37,8 +40,31 @@ deeper in. A solo game's levels, depths and days never reset the curve either.
 | **mirror** ✨ | \|x − (1 − x_prev)\| < 0.02 | **symmetry**: this beat landed on the mirror of the last, and f(x) = f(1−x). A gift in every game: a drop (server), a crate + 250 (Squirrel), a heart or 300 (Fractal) |
 | **balance** ⚖️ | \|x − (1 − 1/r)\| < 0.01 | x found the point the curve would settle on: a calm reward (a reload / a full dash) |
 | **window** 🔁 | beats 24–26 (r 3.86 … 3.94, as r passes 1 + √8 ≈ 3.8284, the period-3 window) | inside chaos, a rhythm of 3: **no twists**, things come in threes. Announced once |
+| **golden** 🌻 | \|x − 0.618\| < 0.012 (the golden cut, 1/φ) | a reward: a drop (server), every squirrel stops for a moment + 161 (Squirrel), eight shards on a golden spiral + 161 (Fractal) |
+| **fib** 🌻 | beat n ∈ 1, 2, 3, 5, 8, 13, 21, 34, 55, 89 | luck runs higher: a 35% extra drop (server), a crate half the time (Squirrel), an extra shard arc (Fractal). The meter shows an F |
 
 `hop` (\|x − x_prev\|) is the beat's intensity, for games that want a size (Fractal's chasm width).
+
+## Fractals
+
+Every game shows a shape that holds itself inside itself, and zooming in is always allowed to find
+the whole again: Putt Post's fractal cup (the hole around the cup is the hole), Hilltop's fractal
+ridges and splitting shell, Battleship's coastlines, Sierpiński salvo and branching kraken, Chaos
+Cards' Butterfly and Recursion, Squirrel Chaos's fractal trees (a branch is a smaller tree) and the
+forest inside the knot, Fractal Dash's Sierpiński hero and ranges over fractal-noise ground, and the
+🌀 box's bifurcation diagram, which is the chaos curve's own fractal. The loader draws it too.
+
+## Fibonacci
+
+1, 1, 2, 3, 5, 8, 13, 21, 34… Each is the sum of the two before, and the ratio of neighbours closes on
+**φ = 1.618…**, the golden ratio; **1/φ = 0.618** is the golden cut of [0, 1]. In the box:
+
+- **Combos count in Fibonacci.** The k-th hit of a combo pays F(k) times: 1, 1, 2, 3, 5, 8, 13, 21
+  (`fibMult(k)`). A combo of 5 pays 8×, of 8 pays 34×. Squirrel Chaos and Fractal Dash score this way.
+- **The golden cut** and **Fibonacci beats** are events on the curve (table above).
+- **Shapes shrink by φ.** Squirrel Chaos's branches are 0.618 of their parent; Fractal Dash's three
+  ranges are 233, 144 and 89 wide.
+- **The meter** carries a faint gold dashed line at 0.618 and an F on Fibonacci beats.
 
 ## Finding symmetry in chaos
 
@@ -63,6 +89,7 @@ violet wash while in the window; the label `phase · r x.xx` (`window ×3` insid
 1. `import { makeCurve, stepCurve, drawMeter, meterText, NEWS } from './chaos.js'` (solo) or call
    `_chaos_curve` from its move function via `_chaos_after_move` (server).
 2. Never redefine the numbers: no local `2.9`, `0.04`, `0.75`, `0.93`, `3.5699` for chaos.
-3. Map **all seven events** to something the player can see (a table in the game's CLAUDE.md note).
+3. Map **all nine events** to something the player can see (a table in the game's CLAUDE.md note),
+   score combos with `fibMult`, and put a fractal on screen.
 4. Show the meter, announce the phases with `ev.crossed`, and the window with `NEWS.window`.
 5. Continue the curve across its levels; never reset it inside a run.

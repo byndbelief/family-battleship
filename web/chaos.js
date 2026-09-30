@@ -14,6 +14,12 @@
 //   The window:   inside chaos, at r ∈ [3.8284, 3.8415], the map falls into a rhythm of 3 (the
 //                 period-3 window). No twists there; things come in threes.
 //   Self-similarity: every dive, depth or Chaos round is the same curve again, further along.
+// And our friend Fibonacci: 1, 1, 2, 3, 5, 8, 13, 21… Its ratios close on φ = 1.618…, the golden ratio,
+// and 1/φ = 0.618 is the golden cut of [0, 1]. So:
+//   Fibonacci beats: beat 1, 2, 3, 5, 8, 13, 21, 34, 55 is a 🌀→🌻 Fibonacci beat: luck runs higher.
+//   The golden cut:  x within 0.012 of 0.618 is 🌻 golden: a reward, in every game.
+//   Combos count in Fibonacci: the k-th hit of a combo pays F(k) times (1, 1, 2, 3, 5, 8, 13, 21).
+//   Shapes shrink by φ: a fractal tree's branches, the ranges of mountains (233, 144, 89).
 
 export const CHAOS = Object.freeze({
   R0: 2.9, DR: 0.04, RMAX: 4,
@@ -27,6 +33,8 @@ export const CHAOS = Object.freeze({
   WINDOW_N: [24, 26],         // the beats the games spend in it as r passes it (r 3.86 … 3.94): three of them
   FEIGENBAUM: 4.6692,         // each split comes this much sooner than the last
   HIST: 24,
+  PHI: 1.6180339887, CUT: 0.6180339887, CUT_TOL: 0.012,   // the golden ratio, the golden cut of x, and how close counts
+  FIB: [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144],
   PHASES: [   // [r at which it starts, name, what it means]
     [3, 'RHYTHM ×2', 'the curve split in two: x flips between two values'],
     [3.449, 'RHYTHM ×4', 'split again: period doubling has begun'],
@@ -39,6 +47,8 @@ export const CHAOS = Object.freeze({
 export const phaseOf = (r) => (r < 3 ? 'calm' : r < 3.449 ? 'rhythm ×2' : r < 3.5699 ? 'rhythm ×4…' : 'CHAOS');
 export const inWindow = (n) => n >= CHAOS.WINDOW_N[0] && n <= CHAOS.WINDOW_N[1];   // by beat, so a 0.04 step can't skip it
 export const fixedPoint = (r) => 1 - 1 / r;
+export const isFib = (n) => CHAOS.FIB.includes(n);
+export const fibMult = (k) => CHAOS.FIB[Math.max(0, Math.min(CHAOS.FIB.length - 1, k))];   // F(k): combo k pays F(k) times (k = 1 → 1, 2 → 2, 3 → 3, 4 → 5 …)
 
 // A curve, `n0` beats along (a Chaos round starts (round − 1)·6 in). x0 random unless given.
 export function makeCurve(n0 = 0, x0 = null) {
@@ -62,6 +72,8 @@ export function stepCurve(c) {
     mirror: c.n > 1 && Math.abs(x - (1 - x0)) < CHAOS.MIRROR,
     balance: c.r > 1 && Math.abs(x - fixedPoint(c.r)) < CHAOS.BALANCE,
     window: win, enteredWindow,
+    fib: isFib(c.n),
+    golden: Math.abs(x - CHAOS.CUT) < CHAOS.CUT_TOL,
     crossed,   // phases crossed this beat (usually none, at most a few), newest last
   };
 }
@@ -70,6 +82,8 @@ export const NEWS = {
   balance: ['⚖️ BALANCE', 'x found the point it would settle on: 1 − 1/r'],
   window: ['🔁 THE WINDOW', 'a rhythm of 3 inside chaos: no twists, things come in threes'],
   gold: ['✨ GOLDEN', 'x all but touched 1'],
+  golden: ['🌻 GOLDEN CUT', 'x landed on 1/φ = 0.618: the golden ratio'],
+  fib: ['🌻 FIBONACCI BEAT', '1, 1, 2, 3, 5, 8, 13…: luck runs higher this beat'],
 };
 
 // The same meter in every HUD: the last beats of x, the red line at the peak, teal until chaos.
@@ -78,6 +92,8 @@ export function drawMeter(canvas, c) {
   mc.clearRect(0, 0, w, h);
   if (c.window) { mc.fillStyle = '#C9B8FF22'; mc.fillRect(0, 0, w, h); }
   mc.strokeStyle = '#FF5A4A99'; mc.setLineDash([5, 5]); mc.lineWidth = 2; mc.beginPath(); mc.moveTo(0, h - CHAOS.PEAK * h); mc.lineTo(w, h - CHAOS.PEAK * h); mc.stroke(); mc.setLineDash([]);
+  mc.strokeStyle = '#F5C54266'; mc.setLineDash([2, 6]); mc.lineWidth = 1.5; mc.beginPath(); mc.moveTo(0, h - CHAOS.CUT * h); mc.lineTo(w, h - CHAOS.CUT * h); mc.stroke(); mc.setLineDash([]);   // 🌻 the golden cut
+  if (isFib(c.n)) { mc.fillStyle = '#F5C542'; mc.font = '900 11px system-ui'; mc.textAlign = 'right'; mc.fillText('F', w - 4, 12); }
   mc.strokeStyle = c.r >= 3.5699 ? '#FF8A3D' : '#3DD6C6'; mc.lineWidth = 3; mc.beginPath();
   hs.forEach((v, i) => mc[i ? 'lineTo' : 'moveTo']((i / (CHAOS.HIST - 1)) * (w - 8) + 4, h - 4 - v * (h - 8))); mc.stroke();
 }

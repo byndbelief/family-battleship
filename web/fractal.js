@@ -6,7 +6,7 @@
 // Every 25 s the world zooms into a copy of itself, a depth deeper: faster, rougher, another colour.
 // Everything is played on this page; the score is saved with solo_submit (063, 066).
 import { sb, me, signedIn, sfx, setGameTools, esc, names } from './common.js';
-import { makeCurve, stepCurve, drawMeter, meterText, NEWS, phaseOf } from './chaos.js';   // 🌀 the box: CHAOS.md
+import { makeCurve, stepCurve, drawMeter, meterText, NEWS, phaseOf, fibMult, CHAOS } from './chaos.js';   // 🌀 the box: CHAOS.md
 
 const $ = (id) => document.getElementById(id);
 const cv = $('fd'), ctx = cv.getContext('2d'), stage = $('stage');
@@ -77,6 +77,9 @@ function chaosStep() {
   // ✨ Symmetry in chaos: the mirror heals (or pays), the balance fills the dash.
   if (ev.mirror) { banner(...NEWS.mirror); if (game.hearts < 3) game.hearts += 1; else game.shards += 300; for (let i = 0; i < 14; i++) game.parts.push({ x: game.cam + PX, y: game.py, vx: (Math.random() - 0.5) * 260, vy: (Math.random() - 0.8) * 260, t: 0, life: 0.6, c: '#C9B8FF' }); sfx('chime'); }
   if (ev.balance) { banner(...NEWS.balance); game.dash = DASH_MAX; sfx('chime'); }
+  // 🌻 Fibonacci: the golden cut lays eight shards along a golden spiral ahead (+161); a Fibonacci beat adds an arc.
+  if (ev.golden) { banner(...NEWS.golden); game.shards += 161; for (let i = 0; i < 8; i++) { const a = i * 0.55, rr = 14 * Math.pow(CHAOS.PHI, a / 1.57); game.obs.push({ type: 'shard', x: ahead + 40 + Math.cos(a) * rr, lift: 90 + Math.sin(a) * rr, t: i }); } sfx('chime', { hi: true }); }
+  if (ev.fib && !ev.window) for (let i = 0; i < 3; i++) game.obs.push({ type: 'shard', x: ahead + 180 + i * 22, lift: 50 + i * 12, t: i });
   // A twist at the curve's peaks, from the rhythm of 4 on (never in the window).
   if (ev.big && c.r >= 3.449 && !game.twist && game.time - (game.twistAt || -9) > 2.5) twist();
 }
@@ -163,7 +166,7 @@ function update(dt) {
 function collect(x, y) {
   const g = game;
   g.combo = g.comboT > 0 ? g.combo + 1 : 1; g.comboT = 1.6;
-  const pts = 50 * Math.min(8, g.combo); g.shards += pts;
+  const pts = 50 * fibMult(g.combo); g.shards += pts;   // 🌻 combos count in Fibonacci: 1, 2, 3, 5, 8, 13, 21…
   for (let i = 0; i < 8; i++) g.parts.push({ x, y, vx: (Math.random() - 0.5) * 220, vy: (Math.random() - 0.8) * 220, t: 0, life: 0.5, c: PALETTES[(depth - 1) % PALETTES.length].shard });
   sfx('chime', { hi: g.combo > 3 });
 }
@@ -224,7 +227,8 @@ function draw(t) {
   ctx.fillStyle = sky; ctx.fillRect(-W, -H, W * 3, H * 3);
   const cam = g ? g.cam : t / 40;
   // Far and near ranges of Sierpiński mountains, parallax.
-  [[0.25, 0.42, 190, 4, pal.far], [0.5, 0.58, 120, 3, pal.near]].forEach(([par, yy, s, d, col]) => {
+  // 🌻 three ranges of Sierpiński mountains, Fibonacci sizes (233, 144, 89), parallax
+  [[0.12, 0.36, 233, 4, pal.far + '99'], [0.25, 0.44, 144, 3, pal.far], [0.5, 0.58, 89, 3, pal.near]].forEach(([par, yy, s, d, col]) => {
     ctx.fillStyle = col; ctx.beginPath();
     const off = (cam * par) % (s * 1.1);
     for (let x = -off - s; x < W + s; x += s * 1.1) { const i = Math.floor((x + off + cam * par) / (s * 1.1)); sierp(x + s / 2, H * yy + (hash(i + 7) - 0.5) * 60 + s * 0.43, s, d); }

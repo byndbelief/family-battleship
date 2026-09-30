@@ -741,6 +741,11 @@ in `_chaos_after_move` gives the mover a `_chaos_drop` on a mirror move; `card_p
 Cards (069), so all four multiplayer games pay the mirror. common.js takes `CURVE_T` and
 the bifurcation picture's r from `CHAOS`, and paints the window band. Test: scratch t_chaosbox (page vs
 server from one x0: first 10 steps within float32, same twists, the window on both, the phases in order).
+🌻 Fibonacci (070) is in the box too: `CHAOS.FIB/PHI/CUT`, `isFib(n)`, `fibMult(k)`; two more events, `fib`
+(beat n Fibonacci) and `golden` (|x − 0.618| < 0.012); combos in Squirrel and Fractal pay F(k)×; the
+server's `_chaos_fib`/`_chaos_golden` drop loot in `_chaos_after_move` and `card_play`; the meter shows
+the golden-cut line and an F. Shapes shrink by φ (Squirrel branches 0.618, Fractal ranges 233/144/89).
+Nine events now; CHAOS.md has the fractals and Fibonacci sections.
 
 ### 🐿️ Squirrel Chaos: the dark side (page only)
 Four days now (`LEVELS = 4`; levels are "Day n"; `dark()` = (level−1)/3). Each day: the sky drains

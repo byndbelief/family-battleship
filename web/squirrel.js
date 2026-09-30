@@ -5,7 +5,7 @@
 // Each level ends by diving into the knothole of the middle tree, into a deeper, wilder forest.
 // Everything is played on this page; the score is saved with solo_submit (063).
 import { sb, me, signedIn, sfx, setGameTools, esc, names } from './common.js';
-import { makeCurve, stepCurve, drawMeter, meterText, NEWS, phaseOf } from './chaos.js';   // 🌀 the box: CHAOS.md
+import { makeCurve, stepCurve, drawMeter, meterText, NEWS, phaseOf, fibMult } from './chaos.js';   // 🌀 the box: CHAOS.md
 
 const $ = (id) => document.getElementById(id);
 const cv = $('sq'), ctx = cv.getContext('2d'), stage = $('stage');
@@ -49,7 +49,7 @@ function grow(seed, lvl) {
       const n = r() < 0.3 ? 3 : 2, spread = 0.38 + r() * 0.22;
       for (let j = 0; j < n; j++) {
         const f = n === 1 ? 0 : (j / (n - 1)) * 2 - 1;
-        add(x2, y2, a + f * spread + (r() - 0.5) * 0.25, len * (0.66 + r() * 0.12), Math.max(2, w * 0.66), d + 1, s);
+        add(x2, y2, a + f * spread + (r() - 0.5) * 0.25, len * (0.58 + r() * 0.08), Math.max(2, w * 0.618), d + 1, s);   // 🌻 branches shrink by the golden ratio
       }
     }
     return s;
@@ -97,6 +97,9 @@ function chaosStep() {
   // ✨ Symmetry in chaos: the mirror drops a crate and pays; the balance reloads and heals.
   if (ev.mirror) { banner(...NEWS.mirror); dropCrate(); add(250, { x: W / 2, y: H * 0.42 }, '✨ SYMMETRY +250'); sfx('chime'); }
   if (ev.balance) { banner(...NEWS.balance); game.ammo = AMMO; game.reloadT = 0; game.hearts = Math.min(3, game.hearts + 1); sfx('chime'); }
+  // 🌻 Fibonacci: a golden-cut beat stops every squirrel for a moment (+161); a Fibonacci beat may drop a crate.
+  if (ev.golden) { banner(...NEWS.golden); game.squirrels.forEach((sq) => { sq.daze = Math.max(sq.daze || 0, 1.6); }); add(161, { x: W / 2, y: H * 0.5 }, '🌻 φ +161'); sfx('chime', { hi: true }); }
+  if (ev.fib && Math.random() < 0.5) dropCrate();
   if (ev.gold) spawn(1, true);            // ✨ a golden one when x all but touches 1
   else if (ev.big && !game.twist) twist();
 }
@@ -320,10 +323,10 @@ function strike(best, quiet) {
   }
   game.squirrels.splice(game.squirrels.indexOf(best), 1);
   game.combo = game.comboT > 0 ? game.combo + 1 : 1; game.comboT = 1.6;
-  const pts = (best.gold ? 1000 : 100) * game.combo;
+  const pts = (best.gold ? 1000 : 100) * fibMult(game.combo);   // 🌻 combos count in Fibonacci: 1, 2, 3, 5, 8, 13…
   add(pts, p, best.gold ? 'JACKPOT!' : WORDS[Math.floor(Math.random() * WORDS.length)]); game.pins.push({ x: p.x, y: p.y, face: best.face, gold: best.gold, t: 0 });
   tufts(p.x, p.y, 8);
-  if (game.combo >= 3) { game.hitstop = 0.07; if (game.combo % 5 === 0) comic(`${game.combo}× COMBO!`, W / 2, H * 0.35, '#FF8AD8'); }
+  if (game.combo >= 3) { game.hitstop = 0.07; if (game.combo % 5 === 0) comic(`${game.combo}× COMBO · F = ${fibMult(game.combo)}`, W / 2, H * 0.35, '#FF8AD8'); }
   if (!quiet || best.gold) sfx(best.gold ? 'chime' : 'pop');
 }
 function add(pts, p, word) { game.score += pts; game.fx.push({ kind: 'text', x: p.x, y: p.y - 12, text: word ? `${word} +${pts}` : `+${pts}`, life: 1 }); }
