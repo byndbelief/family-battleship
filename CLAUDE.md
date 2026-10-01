@@ -795,6 +795,12 @@ sits in the corner of every solo game (`#spal` in the shell: `react` on every be
 `sleep` at game over). `resident()` caches the key in localStorage `r4.pal`, and `residentNow()` reads
 that synchronously for the loader and the sign-in screen (which run before or without a session).
 The topic mechanism is generic: a second question is another topic string and its own page section.
+**The world grows with the stage.** `host.stage()` in the shell. hilltop.js: `stage()`, the drive to the
+middle (`g.centred`), `addTank` on both sides from Stage 2, `mole()`/`carveLake()`/`serpent()`/`balloon()`
+on timers scaled by stage, `enemyShell()`, your shells tested against them in the shells filter, lakes
+flatten `g.fresh` too so the healing keeps them; `window.__ht()` reports counts. putt.js: `parOf()`,
+`PUTTS_OF()` (par + 2), `course`/`courseHole`/`coursePar`/`courseStrokes`, `far()` places the cup,
+`holeDone()` scores against par and moves the course on; `level()` is the course. Test: `t_world`.
 **The run's stages, zoom and lenses** (shell.js): `STAGES` (beats, climbEvery, zoom, tenure, lens
 seconds); `stepCurve(c, { freeze })` keeps n and r but lands everything else (fib off, since n didn't
 move); the beat freezes when `S.beats % climbEvery !== 0`; a stage change banners and sets `zoomTo`,

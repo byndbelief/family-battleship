@@ -98,7 +98,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     heal: (n = 1) => { S.hearts = Math.min(3, S.hearts + n); },
     hurt: (how) => { S.hearts -= 1; S.combo = 0; S.comboT = 0; pal.hurt(); if (S.hearts <= 0) { over(how); return true; } return false; },
     over, ui: (html) => { $('oui').innerHTML = html || ''; return $('oui'); },
-    organ: () => active?.key, activeBeat: () => active?.beat || 1,
+    organ: () => active?.key, activeBeat: () => active?.beat || 1, stage: () => stageOf() + 1,   // 🎚️ the run's stage, for organs that grow with it
   };
   // ---------------------------------------------------------------- sizing
   function size() {

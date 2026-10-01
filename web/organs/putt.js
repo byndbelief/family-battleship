@@ -19,14 +19,35 @@ let host, ctx, S, sfx, g = null, sunkN = 0, puttsN = 0, drag = null;
 const H = () => host.H;
 const hash = (i) => { let x = (Math.imul(i | 0, 374761393) + 668265263) | 0; x = Math.imul(x ^ (x >>> 13), 1274126177); return ((x ^ (x >>> 16)) >>> 0) / 4294967296; };
 const green = () => ({ x: 24, y: 70, w: W - 48, h: H() - 110 });
-function newGame() { g = { ball: null, v: { x: 0, y: 0 }, cups: [], bumpers: [], sand: [], water: [], fx: [], putts: 0, hole: 0, twist: null, time: 0, seed: Math.floor(Math.random() * 1e6), wind: 0, guide: 0, free: 0, gold: false }; sunkN = 0; puttsN = 0; newCup(); }
+// ⛳ COURSES: three holes a course, each with an estimated par (the distance, the hazards in the way, the cup's
+// size). Make the course's par and you move up a course (longer holes, more bumpers stay, a smaller cup);
+// miss it and you play that course again. Each hole allows par + 2 putts before you pick up.
+function parOf() { if (!g.ball || !g.cups[0]) return 3; const c = g.cups[0], d = Math.hypot(c.x - g.ball.x, c.y - g.ball.y); let p = 1 + Math.ceil(d / 150); if (g.bumpers.length >= 3) p += 1; if (g.water.length) p += 1; if (g.course >= 3) p += 1; return Math.max(2, Math.min(6, p)); }
+const PUTTS_OF = () => (g?.par || 3) + 2;
+function newGame() { g = { ball: null, v: { x: 0, y: 0 }, cups: [], bumpers: [], sand: [], water: [], fx: [], putts: 0, hole: 0, course: 1, courseHole: 0, coursePar: 0, courseStrokes: 0, par: 3, twist: null, time: 0, seed: Math.floor(Math.random() * 1e6), wind: 0, guide: 0, free: 0, gold: false }; sunkN = 0; puttsN = 0; newCup(); }
 function spot(margin = 40) { const G = green(); return { x: G.x + margin + Math.random() * (G.w - 2 * margin), y: G.y + margin + Math.random() * (G.h - 2 * margin) }; }
 function newCup(three = false) {
   const G = green();
-  g.cups = three ? [0, 1, 2].map(() => spot(30)) : [spot(36)];
   if (!g.ball) g.ball = { x: G.x + G.w / 2, y: G.y + G.h - 40 };
+  // the cup: farther away on higher courses (the farthest of a few throws), and smaller
+  const far = () => { let best = null; for (let i = 0; i < 1 + g.course; i++) { const p = spot(36); const d = Math.hypot(p.x - g.ball.x, p.y - g.ball.y); if (!best || d > best.d) best = { ...p, d }; } return { x: best.x, y: best.y, big: Math.max(0.6, 1 - 0.08 * (g.course - 1)) }; };
+  g.cups = three ? [0, 1, 2].map(() => spot(30)) : [far()];
   g.putts = 0; g.hole += 1; g.seed = (g.seed * 16807 + g.hole) % 2147483647; g.gold = false; g.guide = 0;
-  g.bumpers = g.bumpers.filter(() => Math.random() < 0.4); g.sand = g.sand.filter(() => Math.random() < 0.5); g.water = [];
+  g.bumpers = g.bumpers.filter(() => Math.random() < Math.min(0.8, 0.4 + 0.1 * g.course)); g.sand = g.sand.filter(() => Math.random() < 0.5); g.water = [];
+  g.par = parOf(); g.courseHole += 1; g.coursePar += g.par;
+  if (g.courseHole === 1) host.banner(`⛳ COURSE ${g.course}`, `three holes · make par to move up`);
+}
+// after a cup: the hole's score against par, and the course's
+function holeDone(strokes) {
+  g.courseStrokes += strokes;
+  const vs = strokes - g.par, say = vs <= -2 ? '🦅 EAGLE' : vs === -1 ? '🐦 BIRDIE' : vs === 0 ? 'PAR' : vs === 1 ? 'BOGEY' : `${vs} OVER`;
+  if (vs < 0) host.add(100 * -vs);
+  if (g.courseHole >= 3) {
+    const made = g.courseStrokes <= g.coursePar;
+    if (made) { g.course += 1; host.banner(`⛳ COURSE ${g.course - 1} MADE`, `${g.courseStrokes} on a par ${g.coursePar} · up to course ${g.course}`); host.add(300 * (g.course - 1)); sfx('fanfare'); }
+    else host.banner('⛳ OVER PAR', `${g.courseStrokes} on a par ${g.coursePar} · course ${g.course} again`);
+    g.courseHole = 0; g.coursePar = 0; g.courseStrokes = 0;
+  } else g.fx.push({ kind: 'text', x: W / 2, y: 90, text: say, life: 1.2, big: true, col: vs <= 0 ? '#C9FFF8' : '#FFB3A8' });
 }
 function onBeat(ev) {
   const x = ev.x;
@@ -57,7 +78,8 @@ function putt(dx, dy) {
 function pickUp() {
   S.combo = 0; sfx('buzz');
   const dead = host.hurt('picked up'); if (dead) return;
-  host.banner('PICKED UP', `${PUTTS} putts and no cup · ${S.hearts} ${S.hearts === 1 ? 'heart' : 'hearts'} left`);
+  host.banner('PICKED UP', `${PUTTS_OF()} putts on a par ${g.par} and no cup · ${S.hearts} ${S.hearts === 1 ? 'heart' : 'hearts'} left`);
+  g.courseStrokes += PUTTS_OF() + 1;
   g.v = { x: 0, y: 0 }; g.ball = null; newCup();
 }
 function sink(c) {
@@ -66,7 +88,7 @@ function sink(c) {
   g.fx.push({ kind: 'text', x: c.x, y: c.y - 18, text: `${g.putts <= 1 ? 'ACE! ' : c.gold ? 'GOLDEN ' : ''}+${pts}`, life: 1.2, big: true, col: c.gold ? '#F5C542' : '#FFE08A' });
   for (let i = 0; i < 18; i++) { const a = Math.random() * 6.28, v = 40 + Math.random() * 120; g.fx.push({ kind: 'dot', x: c.x, y: c.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60, c: ['#F2C14E', '#fff', '#7FD3F7'][i % 3], life: 0.8, r: 2 }); }
   sfx('cup'); sfx('cheer', { delay: 0.15 });
-  g.v = { x: 0, y: 0 }; g.ball = { x: c.x, y: c.y }; newCup();
+  g.v = { x: 0, y: 0 }; g.ball = { x: c.x, y: c.y }; holeDone(Math.max(1, g.putts)); newCup();
 }
 function update(dt) {
   g.time += dt;
@@ -93,7 +115,7 @@ function update(dt) {
     const cupR = (c) => CUP_R * (c.big || 1) * (g.twist?.kind === 'tiny' ? 0.5 : 1);
     const cup = g.cups.find((c) => Math.hypot(b.x - c.x, b.y - c.y) < cupR(c) && Math.hypot(g.v.x, g.v.y) < 260);
     if (cup) return sink(cup);
-    if (!moving()) { g.v = { x: 0, y: 0 }; if (g.putts >= PUTTS) pickUp(); }
+    if (!moving()) { g.v = { x: 0, y: 0 }; if (g.putts >= PUTTS_OF()) pickUp(); }
   }
   g.bumpers.forEach((bp) => { if (bp.hit > 0) bp.hit -= dt; });
   g.fx.forEach((f) => { f.life -= dt; if (f.kind === 'dot') { f.x += f.vx * dt; f.y += f.vy * dt; f.vy += 300 * dt; } else f.y -= 24 * dt; });
@@ -125,7 +147,7 @@ function draw(t) {
   }
   ctx.restore();
   if (g.twist?.kind === 'wind') { ctx.strokeStyle = '#ffffff55'; ctx.lineWidth = 2; for (let i = 0; i < 10; i++) { const y = 80 + i * (Hh / 11), x = ((t / 5) * Math.sign(g.twist.wind) + i * 97) % (W + 60); ctx.beginPath(); ctx.moveTo(x - 30, y); ctx.lineTo(x, y); ctx.stroke(); } }
-  ctx.fillStyle = '#FFE08A'; ctx.font = '900 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText(`putt ${Math.min(PUTTS, g.putts + 1)} of ${PUTTS}${g.free ? ` · 🌻 ${g.free} free` : ''}`, W / 2, Hh - 16);
+  ctx.fillStyle = '#FFE08A'; ctx.font = '900 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText(`par ${g.par} · putt ${Math.min(PUTTS_OF(), g.putts + 1)} of ${PUTTS_OF()}${g.free ? ` · 🌻 ${g.free} free` : ''}`, W / 2, Hh - 16);
   g.fx.forEach((f) => { ctx.globalAlpha = Math.max(0, Math.min(1, f.life * 1.5)); if (f.kind === 'dot') { ctx.fillStyle = f.c; ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, 7); ctx.fill(); } else { ctx.font = f.big ? '400 20px Bungee, Impact, sans-serif' : '900 14px Nunito, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = f.col || '#FFE08A'; ctx.strokeStyle = '#102010'; ctx.lineWidth = 4; ctx.strokeText(f.text, f.x, f.y); ctx.fillText(f.text, f.x, f.y); } });
   ctx.globalAlpha = 1;
 }
@@ -139,10 +161,10 @@ const organ = {
   leave() { drag = null; return g?.ball ? { x: g.ball.x, y: g.ball.y } : null; },
   update, draw, onBeat,
   pointer(type, p) { if (type === 'down') drag = { x0: p.x, y0: p.y, x: p.x, y: p.y }; else if (type === 'move') { if (drag) { drag.x = p.x; drag.y = p.y; } } else if (drag) { putt(drag.x - drag.x0, drag.y - drag.y0); drag = null; } },
-  hudLine: () => (g ? `⛳ ${sunkN} sunk · cup ${g.hole}` : ''),
-  level: () => 1 + Math.floor(sunkN / 5),
+  hudLine: () => (g ? `⛳ course ${g.course} · hole ${g.courseHole}/3 · ${sunkN} sunk` : ''),
+  level: () => g?.course || 1,
   overText: (how) => (how === 'picked up' ? ['⛳ PICKED UP', 'Too many cups walked away from.'] : ['RUN OVER', '']),
   endStats: () => (g ? `⛳ ${sunkN} cups in ${puttsN} putts` : ''),
-  debug: () => g && ({ ball: g.ball, v: g.v, cups: g.cups, putts: g.putts, sunk: sunkN, twist: g.twist?.kind || null, bumpers: g.bumpers.length, W, H: H(), putt }),
+  debug: () => g && ({ ball: g.ball, v: g.v, cups: g.cups, putts: g.putts, sunk: sunkN, par: g.par, course: g.course, courseHole: g.courseHole, allowed: PUTTS_OF(), twist: g.twist?.kind || null, bumpers: g.bumpers.length, W, H: H(), putt }),
 };
 export default organ;

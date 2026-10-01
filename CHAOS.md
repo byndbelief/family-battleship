@@ -191,6 +191,15 @@ stays but x walks, so the nine events and **Fig's moods still land: a hint of wh
 banner says so). Morphs need more tenure early (10, 8, 6, 4 beats). As the stages get harder the
 **board zooms out** (1.0, 0.92, 0.84, 0.76): a taller world, the organ's colour around it.
 
+**The world fills as it grows.** Organs read the stage (`host.stage()`). Hilltop: from Stage 2 you
+drive to the middle and tanks come from both sides; 🕳️ moles surface from the hill, lob a shell and
+sink; from Stage 3 a dip becomes a 🌊 lake with a serpent that rises and spits, and 🎈 balloons drift
+over and drop a bomb when above you. All of it is shellable (120 / 200 / 150, with the combo). Putt:
+⛳ **courses** of three holes, each hole with an estimated par (1 + the distance in 150s, +1 for three
+or more bumpers, +1 for water, +1 from course 3), par + 2 putts allowed; make the course's par and you
+move up a course (longer holes, more bumpers stay, a smaller cup), miss it and you play it again;
+birdies and eagles pay, and a course made pays 300 × the course.
+
 **Lenses**: Fig's personalities bend the picture itself. When a mood comes on, sometimes (50% in
 Stage 1 up to always in Stage 4) a lens goes over the screen for a while (2 s in Stage 1 up to 7 s):
 🌀 Wild Fig inverts the colours · ✨ Mirror Fig mirrors the screen (and your touches) · 🔁 Boxy Fig
