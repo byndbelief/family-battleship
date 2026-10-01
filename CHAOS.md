@@ -207,8 +207,9 @@ while your ball sits still, runs over and drags it off (+1 putt) unless you tap 
 
 **A gentle start, in every organ.** The first stretch of a run teaches the organ before the world fills.
 Putt's ⛳ **courses** are corridors: a fairway of straight legs from the tee to the cup. Course 1 is one
-short straight leg, a single putt (par 1); Course 2 adds a bend, Course 3 is an S, then more bends,
-narrower, with bumpers (course 3+), sand (2+) and water (5+) on the way. Par is the bends + 1 (+1 for two
+short straight leg, a single putt (par 1); Course 2 adds a bend, Course 3 is an S, then more bends, longer
+legs and a wider fairway (44 → 84), with bumpers (course 3+), sand (2+) and water (5+) on the way. Every
+fairway sits centred in the field. Par is the bends + 1 (+1 for two
 or more bumpers, +1 for water), par + 2 putts allowed; make the course's par over three holes and you move
 up, miss it and you play it again; birdies and eagles pay, and a course made pays 300 × the course.
 Squirrel Chaos Day 1 is a single fractal tree and one small squirrel at a time, no acorns; Day 2 two trees

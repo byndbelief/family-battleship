@@ -24,23 +24,27 @@ const hash = (i) => { let x = (Math.imul(i | 0, 374761393) + 668265263) | 0; x =
 // with bumpers (course 3+), sand (2+) and water (5+) on the way. The par is the bends + 1 (+1 for two or more
 // bumpers, +1 for water). Make the course's par and you move up; miss it and you play that course again.
 const bendsOf = (c) => (c <= 1 ? 0 : c === 2 ? 1 : c === 3 ? 2 : Math.min(4, 2 + Math.floor(Math.random() * 2) + (c >= 5 ? 1 : 0)));
-const widthOf = (c) => Math.max(40, 62 - 4 * (c - 1));
-function corridor(bends, c) {   // legs from the bottom middle, turning 60–105° at each bend; retried until it fits the world
+const widthOf = (c) => Math.min(84, 44 + 7 * (c - 1));   // the fairway widens as the courses go on (and the legs get longer)
+function corridor(bends, c) {   // legs from the bottom middle, turning 60–105° at each bend; retried with shorter legs until it fits the world
   const B = { x0: 30, x1: W - 30, y0: 80, y1: H() - 70 };
   for (let tries = 0; tries < 60; tries++) {
     const pts = [{ x: W / 2 + (Math.random() - 0.5) * (bends ? 140 : 20), y: B.y1 - 10 }]; let a = -Math.PI / 2, ok = true, turn = Math.random() < 0.5 ? 1 : -1;
     for (let i = 0; i <= bends; i++) {
-      const len = (bends ? 90 : 120) + 12 * Math.min(c, 6) + Math.random() * 50, p = pts[pts.length - 1], q = { x: p.x + Math.cos(a) * len, y: p.y + Math.sin(a) * len };
+      const len = ((bends ? 100 : 130) + 22 * Math.min(c, 8) + Math.random() * 60) * Math.max(0.45, 1 - tries / 60), p = pts[pts.length - 1], q = { x: p.x + Math.cos(a) * len, y: p.y + Math.sin(a) * len };
       if (q.x < B.x0 || q.x > B.x1 || q.y < B.y0 || q.y > B.y1) { ok = false; break; }
       pts.push(q); a += turn * (Math.PI / 3 + Math.random() * Math.PI / 4); turn = Math.random() < 0.7 ? -turn : turn;
     }
-    if (ok) return pts;
+    if (ok) return centred(pts);
   }
-  return [{ x: W / 2, y: H() - 80 }, { x: W / 2, y: H() - 230 }];
+  return centred([{ x: W / 2, y: H() - 80 }, { x: W / 2, y: H() - 230 }]);
+}
+function centred(pts) {   // the fairway sits in the middle of the field, not wherever the walk left it
+  const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y), dx = W / 2 - (Math.min(...xs) + Math.max(...xs)) / 2, dy = (80 + H() - 70) / 2 - (Math.min(...ys) + Math.max(...ys)) / 2;
+  return pts.map((p) => ({ x: p.x + dx, y: p.y + dy }));
 }
 const nearest = (x, y) => { let best = null; for (let i = 0; i < g.path.length - 1; i++) { const p = g.path[i], q = g.path[i + 1], dx = q.x - p.x, dy = q.y - p.y, L2 = dx * dx + dy * dy || 1; let t = ((x - p.x) * dx + (y - p.y) * dy) / L2; t = Math.max(0, Math.min(1, t)); const nx = p.x + dx * t, ny = p.y + dy * t, d = Math.hypot(x - nx, y - ny); if (!best || d < best.d) best = { x: nx, y: ny, d, i, t }; } return best; };
 const tee = () => ({ x: g.path[0].x, y: g.path[0].y });
-function parOf() { let p = 1 + (g.path.length - 2); if (g.bumpers.length >= 2) p += 1; if (g.water.length) p += 1; return Math.max(1, Math.min(6, p)); }
+function parOf() { let p = 1 + (g.path.length - 2) + (g.course >= 4 ? 1 : 0); if (g.bumpers.length >= 2) p += 1; if (g.water.length) p += 1; return Math.max(1, Math.min(6, p)); }
 const PUTTS_OF = () => (g?.par || 3) + 2;
 function newGame() { g = { ball: null, v: { x: 0, y: 0 }, cups: [], bumpers: [], sand: [], water: [], fx: [], putts: 0, hole: 0, course: 1, courseHole: 0, coursePar: 0, courseStrokes: 0, par: 3, twist: null, time: 0, seed: Math.floor(Math.random() * 1e6), wind: 0, guide: 0, free: 0, gold: false, gopher: null, gopherT: 3, restT: 0 }; sunkN = 0; puttsN = 0; newCup(); }
 function spot(margin = 10) {   // a point on the fairway, `margin` in from its edge, off the tee and the cup
@@ -203,6 +207,6 @@ const organ = {
   level: () => g?.course || 1,
   overText: (how) => (how === 'picked up' ? ['⛳ PICKED UP', 'Too many cups walked away from.'] : ['RUN OVER', '']),
   endStats: () => (g ? `⛳ ${sunkN} cups in ${puttsN} putts` : ''),
-  debug: () => g && ({ gopher: g.gopher, bends: g.path.length - 2, pw: g.pw, path: g.path, ball: g.ball, v: g.v, cups: g.cups, putts: g.putts, sunk: sunkN, par: g.par, course: g.course, courseHole: g.courseHole, allowed: PUTTS_OF(), twist: g.twist?.kind || null, bumpers: g.bumpers.length, W, H: H(), putt }),
+  debug: () => g && ({ jump: (c) => { g.course = c; g.courseHole = 0; g.coursePar = 0; g.courseStrokes = 0; g.ball = null; newCup(); }, gopher: g.gopher, bends: g.path.length - 2, pw: g.pw, path: g.path, ball: g.ball, v: g.v, cups: g.cups, putts: g.putts, sunk: sunkN, par: g.par, course: g.course, courseHole: g.courseHole, allowed: PUTTS_OF(), twist: g.twist?.kind || null, bumpers: g.bumpers.length, W, H: H(), putt }),
 };
 export default organ;
