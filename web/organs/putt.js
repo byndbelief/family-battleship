@@ -1,6 +1,7 @@
-// ⛳ Putt, an organ of the shell: Putt Post's DNA, one green at a time. Drag back from anywhere and
-// let go to putt; sink the cup for 100 × the Fibonacci combo, and the cup moves on across a green
-// whose bumps are fractal noise. Five putts a cup, or you pick up (a heart). The box's beats reshape
+// ⛳ Putt, an organ of the shell: Putt Post's DNA, one fairway at a time. Drag back from anywhere and
+// let go to putt; sink the cup for 100 × the Fibonacci combo. A fairway is a corridor of straight legs:
+// Course 1 is one short leg (a single putt), and each course adds a bend, narrows it and brings hazards.
+// You are Fig, rolled up into the ball. Par + 2 putts a cup, or you pick up (a heart). The box's beats reshape
 // the green: a peak drops bumpers, a big hop cuts a water hazard, gift grows the cup, the mirror flips
 // the green left for right (and the ball with it), the balance draws your line to the cup, the golden
 // cut gilds the cup (500), the window sets three cups (sink any), a Fibonacci beat is a free putt.
@@ -18,22 +19,42 @@ const TWISTS = [
 let host, ctx, S, sfx, g = null, sunkN = 0, puttsN = 0, drag = null;
 const H = () => host.H;
 const hash = (i) => { let x = (Math.imul(i | 0, 374761393) + 668265263) | 0; x = Math.imul(x ^ (x >>> 13), 1274126177); return ((x ^ (x >>> 16)) >>> 0) / 4294967296; };
-const green = () => ({ x: 24, y: 70, w: W - 48, h: H() - 110 });
-// ⛳ COURSES: three holes a course, each with an estimated par (the distance, the hazards in the way, the cup's
-// size). Make the course's par and you move up a course (longer holes, more bumpers stay, a smaller cup);
-// miss it and you play that course again. Each hole allows par + 2 putts before you pick up.
-function parOf() { if (!g.ball || !g.cups[0]) return 3; const c = g.cups[0], d = Math.hypot(c.x - g.ball.x, c.y - g.ball.y); let p = 1 + Math.ceil(d / 150); if (g.bumpers.length >= 3) p += 1; if (g.water.length) p += 1; if (g.course >= 3) p += 1; return Math.max(2, Math.min(6, p)); }
+// ⛳ COURSES: three holes a course. A fairway is a corridor (`g.path`, legs of a polyline, `g.pw` wide) from the
+// tee to the cup: Course 1 one short straight leg, Course 2 one bend, Course 3 an S, then more bends, narrower,
+// with bumpers (course 3+), sand (2+) and water (5+) on the way. The par is the bends + 1 (+1 for two or more
+// bumpers, +1 for water). Make the course's par and you move up; miss it and you play that course again.
+const bendsOf = (c) => (c <= 1 ? 0 : c === 2 ? 1 : c === 3 ? 2 : Math.min(4, 2 + Math.floor(Math.random() * 2) + (c >= 5 ? 1 : 0)));
+const widthOf = (c) => Math.max(40, 62 - 4 * (c - 1));
+function corridor(bends, c) {   // legs from the bottom middle, turning 60–105° at each bend; retried until it fits the world
+  const B = { x0: 30, x1: W - 30, y0: 80, y1: H() - 70 };
+  for (let tries = 0; tries < 60; tries++) {
+    const pts = [{ x: W / 2 + (Math.random() - 0.5) * (bends ? 140 : 20), y: B.y1 - 10 }]; let a = -Math.PI / 2, ok = true, turn = Math.random() < 0.5 ? 1 : -1;
+    for (let i = 0; i <= bends; i++) {
+      const len = (bends ? 90 : 120) + 12 * Math.min(c, 6) + Math.random() * 50, p = pts[pts.length - 1], q = { x: p.x + Math.cos(a) * len, y: p.y + Math.sin(a) * len };
+      if (q.x < B.x0 || q.x > B.x1 || q.y < B.y0 || q.y > B.y1) { ok = false; break; }
+      pts.push(q); a += turn * (Math.PI / 3 + Math.random() * Math.PI / 4); turn = Math.random() < 0.7 ? -turn : turn;
+    }
+    if (ok) return pts;
+  }
+  return [{ x: W / 2, y: H() - 80 }, { x: W / 2, y: H() - 230 }];
+}
+const nearest = (x, y) => { let best = null; for (let i = 0; i < g.path.length - 1; i++) { const p = g.path[i], q = g.path[i + 1], dx = q.x - p.x, dy = q.y - p.y, L2 = dx * dx + dy * dy || 1; let t = ((x - p.x) * dx + (y - p.y) * dy) / L2; t = Math.max(0, Math.min(1, t)); const nx = p.x + dx * t, ny = p.y + dy * t, d = Math.hypot(x - nx, y - ny); if (!best || d < best.d) best = { x: nx, y: ny, d, i, t }; } return best; };
+const tee = () => ({ x: g.path[0].x, y: g.path[0].y });
+function parOf() { let p = 1 + (g.path.length - 2); if (g.bumpers.length >= 2) p += 1; if (g.water.length) p += 1; return Math.max(1, Math.min(6, p)); }
 const PUTTS_OF = () => (g?.par || 3) + 2;
 function newGame() { g = { ball: null, v: { x: 0, y: 0 }, cups: [], bumpers: [], sand: [], water: [], fx: [], putts: 0, hole: 0, course: 1, courseHole: 0, coursePar: 0, courseStrokes: 0, par: 3, twist: null, time: 0, seed: Math.floor(Math.random() * 1e6), wind: 0, guide: 0, free: 0, gold: false, gopher: null, gopherT: 3, restT: 0 }; sunkN = 0; puttsN = 0; newCup(); }
-function spot(margin = 40) { const G = green(); return { x: G.x + margin + Math.random() * (G.w - 2 * margin), y: G.y + margin + Math.random() * (G.h - 2 * margin) }; }
+function spot(margin = 10) {   // a point on the fairway, `margin` in from its edge, off the tee and the cup
+  for (let k = 0; k < 24; k++) { const i = Math.floor(Math.random() * (g.path.length - 1)), p = g.path[i], q = g.path[i + 1], t = 0.15 + Math.random() * 0.7, nx = -(q.y - p.y), ny = q.x - p.x, L = Math.hypot(nx, ny) || 1, off = (Math.random() - 0.5) * Math.max(0, g.pw - 2 * margin); const sp = { x: p.x + (q.x - p.x) * t + nx / L * off, y: p.y + (q.y - p.y) * t + ny / L * off }; if ((!g.ball || Math.hypot(sp.x - g.ball.x, sp.y - g.ball.y) > 40) && (!g.cups[0] || Math.hypot(sp.x - g.cups[0].x, sp.y - g.cups[0].y) > 36)) return sp; }
+  const e = g.path[g.path.length - 1]; return { x: e.x, y: e.y };
+}
 function newCup(three = false) {
-  const G = green();
-  if (!g.ball) g.ball = { x: G.x + G.w / 2, y: G.y + G.h - 40 };
-  // the cup: farther away on higher courses (the farthest of a few throws), and smaller
-  const far = () => { let best = null; for (let i = 0; i < 1 + g.course; i++) { const p = spot(36); const d = Math.hypot(p.x - g.ball.x, p.y - g.ball.y); if (!best || d > best.d) best = { ...p, d }; } return { x: best.x, y: best.y, big: Math.max(0.6, 1 - 0.08 * (g.course - 1)) }; };
-  g.cups = three ? [0, 1, 2].map(() => spot(30)) : [far()];
-  g.putts = 0; g.hole += 1; g.seed = (g.seed * 16807 + g.hole) % 2147483647; g.gold = false; g.guide = 0;
-  g.bumpers = g.bumpers.filter(() => Math.random() < Math.min(0.8, 0.4 + 0.1 * g.course)); g.sand = g.sand.filter(() => Math.random() < 0.5); g.water = [];
+  if (three) { g.cups = [0, 1, 2].map(() => spot(12)); return; }   // 🔁 the window: three cups along the fairway, sink any
+  g.path = corridor(bendsOf(g.course), g.course); g.pw = widthOf(g.course); const e = g.path[g.path.length - 1];
+  g.ball = tee(); g.cups = [{ x: e.x, y: e.y, big: Math.max(0.6, 1 - 0.08 * (g.course - 1)) }];
+  g.putts = 0; g.hole += 1; g.seed = (g.seed * 16807 + g.hole) % 2147483647; g.gold = false; g.guide = 0; g.gopher = null;
+  g.bumpers = []; for (let i = 0; i < Math.min(4, g.course - 2); i++) { const sp = spot(14); g.bumpers.push({ x: sp.x, y: sp.y, r: 10 }); }
+  g.sand = []; if (g.course >= 2 && Math.random() < 0.6) { const sp = spot(8); g.sand.push({ x: sp.x, y: sp.y, rx: 26, ry: 16 }); }
+  g.water = []; if (g.course >= 5) { const sp = spot(10); g.water.push({ x: sp.x, y: sp.y, rx: 22, ry: 14 }); }
   g.par = parOf(); g.courseHole += 1; g.coursePar += g.par;
   if (g.courseHole === 1) host.banner(`⛳ COURSE ${g.course}`, `three holes · make par to move up`);
 }
@@ -52,11 +73,11 @@ function holeDone(strokes) {
 function onBeat(ev) {
   const x = ev.x;
   if (ev.window && g.cups.length < 3) { newCup(true); host.banner('🔁 THREE CUPS', 'sink any of them'); }
-  if (ev.peak && !ev.window) { const p = spot(30); g.bumpers.push({ x: p.x, y: p.y, r: 12 + Math.floor((x - 0.75) * 40) }); if (g.bumpers.length > 6) g.bumpers.shift(); }
-  else if (ev.hop > 0.3 && !ev.window) { const p = spot(50); g.water.push({ x: p.x, y: p.y, rx: 30 + ev.hop * 60, ry: 18 + ev.hop * 30 }); if (g.water.length > 2) g.water.shift(); }
-  else if (x > 0.4 && x < 0.6 && Math.random() < 0.5) { const p = spot(40); g.sand.push({ x: p.x, y: p.y, rx: 34, ry: 22 }); if (g.sand.length > 3) g.sand.shift(); }
+  if (ev.peak && !ev.window && g.course >= 2) { const p = spot(14); g.bumpers.push({ x: p.x, y: p.y, r: 9 + Math.floor((x - 0.75) * 24) }); if (g.bumpers.length > 5) g.bumpers.shift(); }
+  else if (ev.hop > 0.3 && !ev.window && g.course >= 3) { const p = spot(10); g.water.push({ x: p.x, y: p.y, rx: 18 + ev.hop * 20, ry: 12 + ev.hop * 10 }); if (g.water.length > 2) g.water.shift(); }
+  else if (x > 0.4 && x < 0.6 && Math.random() < 0.5 && g.course >= 2) { const p = spot(8); g.sand.push({ x: p.x, y: p.y, rx: 26, ry: 16 }); if (g.sand.length > 3) g.sand.shift(); }
   if (ev.gift) g.cups.forEach((c) => { c.big = 1.6; });
-  if (ev.mirror) { const G = green(); const flip = (o) => { o.x = 2 * (G.x + G.w / 2) - o.x; }; g.cups.forEach(flip); g.bumpers.forEach(flip); g.sand.forEach(flip); g.water.forEach(flip); flip(g.ball); sfx('chime'); }
+  if (ev.mirror) { const flip = (o) => { o.x = W - o.x; }; g.path.forEach(flip); g.cups.forEach(flip); g.bumpers.forEach(flip); g.sand.forEach(flip); g.water.forEach(flip); flip(g.ball); if (g.gopher) flip(g.gopher); sfx('chime'); }
   if (ev.balance) { g.guide = 4; sfx('chime'); }
   if (ev.golden) { g.gold = true; g.cups.forEach((c) => { c.gold = true; }); sfx('chime', { hi: true }); }
   if (ev.fib) g.free += 1;
@@ -96,7 +117,7 @@ function update(dt) {
   g.time += dt;
   if (g.twist && g.time > g.twist.until) g.twist = null;
   if (g.guide > 0) g.guide -= dt;
-  const G = green(), b = g.ball; if (!b) { g.ball = { x: G.x + G.w / 2, y: G.y + G.h - 40 }; return; }
+  const b = g.ball; if (!b) { g.ball = tee(); return; }
   g.cups.forEach((c) => { if (c.big) c.big = Math.max(1, c.big - dt * 0.15); });
   const ice = g.twist?.kind === 'ice', wind = g.twist?.kind === 'wind' ? g.twist.wind : 0, ripple = g.twist?.kind === 'ripple';
   if (moving()) {
@@ -110,10 +131,9 @@ function update(dt) {
     g.v.x += (sl(b.x + 4, b.y) - sl(b.x - 4, b.y)) * dt * 6; g.v.y += (sl(b.x, b.y + 4) - sl(b.x, b.y - 4)) * dt * 6;
     if (!ice && !ripple && Math.hypot(g.v.x, g.v.y) < 6) { g.v.x = 0; g.v.y = 0; }   // at rest, the bumps can't set it creeping again
     b.x += g.v.x * dt; b.y += g.v.y * dt;
-    if (b.x < G.x + R) { b.x = G.x + R; g.v.x *= -0.8; sfx('clack'); } if (b.x > G.x + G.w - R) { b.x = G.x + G.w - R; g.v.x *= -0.8; sfx('clack'); }
-    if (b.y < G.y + R) { b.y = G.y + R; g.v.y *= -0.8; sfx('clack'); } if (b.y > G.y + G.h - R) { b.y = G.y + G.h - R; g.v.y *= -0.8; sfx('clack'); }
+    { const n = nearest(b.x, b.y), lim = g.pw / 2 - R; if (n.d > lim) { const nx = (b.x - n.x) / n.d, ny = (b.y - n.y) / n.d, dot = g.v.x * nx + g.v.y * ny; if (dot > 0) { g.v.x -= 2 * dot * nx; g.v.y -= 2 * dot * ny; g.v.x *= 0.8; g.v.y *= 0.8; sfx('clack'); } b.x = n.x + nx * lim; b.y = n.y + ny * lim; } }   // the fairway's edge: a bounce off the nearest wall
     g.bumpers.forEach((bp) => { const dx = b.x - bp.x, dy = b.y - bp.y, d = Math.hypot(dx, dy); if (d < bp.r + R) { const nx = dx / d, ny = dy / d, dot = g.v.x * nx + g.v.y * ny; g.v.x -= 2 * dot * nx; g.v.y -= 2 * dot * ny; g.v.x *= 1.15; g.v.y *= 1.15; b.x = bp.x + nx * (bp.r + R + 1); b.y = bp.y + ny * (bp.r + R + 1); bp.hit = 0.3; sfx('boing'); } });
-    if (g.water.some((w) => ((b.x - w.x) / w.rx) ** 2 + ((b.y - w.y) / w.ry) ** 2 < 1)) { g.v = { x: 0, y: 0 }; sfx('plunk'); S.combo = 0; g.fx.push({ kind: 'text', x: b.x, y: b.y - 12, text: 'SPLASH · +1 putt', life: 1 }); g.putts += 1; b.x = G.x + G.w / 2; b.y = G.y + G.h - 40; }
+    if (g.water.some((w) => ((b.x - w.x) / w.rx) ** 2 + ((b.y - w.y) / w.ry) ** 2 < 1)) { g.v = { x: 0, y: 0 }; sfx('plunk'); S.combo = 0; g.fx.push({ kind: 'text', x: b.x, y: b.y - 12, text: 'SPLASH · +1 putt', life: 1 }); g.putts += 1; Object.assign(b, tee()); }
     const cupR = (c) => CUP_R * (c.big || 1) * (g.twist?.kind === 'tiny' ? 0.5 : 1);
     const cup = g.cups.find((c) => Math.hypot(b.x - c.x, b.y - c.y) < cupR(c) && Math.hypot(g.v.x, g.v.y) < 260);
     if (cup) return sink(cup);
@@ -125,7 +145,7 @@ function update(dt) {
     if (st >= 2 && !g.gopher && g.restT > 1.2) { g.gopherT = (g.gopherT ?? 3) - dt; if (g.gopherT <= 0) { g.gopherT = 8 - st * 1.5 + Math.random() * 4; const sp = spot(30); g.gopher = { x: sp.x, y: sp.y, t: 0, v: 40 + st * 20, grab: 0 }; g.fx.push({ kind: 'text', x: sp.x, y: sp.y - 20, text: '🐹 a gopher', life: 1 }); sfx('tick'); } }
     if (g.gopher) { const gp = g.gopher, b = g.ball; gp.t += dt;
       if (!b || moving()) g.gopher = null;
-      else if (gp.grab > 0) { gp.grab -= dt; b.x += gp.dx * dt; b.y += gp.dy * dt; gp.x = b.x; gp.y = b.y; if (gp.grab <= 0) { g.gopher = null; const G = green(); b.x = Math.max(G.x + R, Math.min(G.x + G.w - R, b.x)); b.y = Math.max(G.y + R, Math.min(G.y + G.h - R, b.y)); } }
+      else if (gp.grab > 0) { gp.grab -= dt; b.x += gp.dx * dt; b.y += gp.dy * dt; gp.x = b.x; gp.y = b.y; if (gp.grab <= 0) { g.gopher = null; const n = nearest(b.x, b.y), lim = g.pw / 2 - R; if (n.d > lim) { b.x = n.x + (b.x - n.x) / n.d * lim; b.y = n.y + (b.y - n.y) / n.d * lim; } } }
       else if (gp.t > 0.6) { const dx = b.x - gp.x, dy = b.y - gp.y, d = Math.hypot(dx, dy); if (d < 10) { gp.grab = 1.2; const a = Math.random() * 6.28; gp.dx = Math.cos(a) * 70; gp.dy = Math.sin(a) * 70; g.putts += 1; S.combo = 0; g.fx.push({ kind: 'text', x: b.x, y: b.y - 16, text: 'STOLEN · +1 putt', life: 1.1 }); sfx('buzz'); } else { gp.x += dx / d * gp.v * dt; gp.y += dy / d * gp.v * dt; } }
     }
   }
@@ -135,16 +155,18 @@ function update(dt) {
 }
 function draw(t) {
   W = host?.W || W;
-  const k = host.k, Hh = H(), G = green();
+  const k = host.k, Hh = H();
   ctx.setTransform(k, 0, 0, k, host.ox || 0, host.oy || 0);
   ctx.fillStyle = '#1E3A1A'; ctx.fillRect(0, 0, W, Hh);
-  ctx.fillStyle = '#4C9A3F'; ctx.beginPath(); ctx.roundRect(G.x, G.y, G.w, G.h, 26); ctx.fill();
-  ctx.strokeStyle = '#2F6B2A'; ctx.lineWidth = 6; ctx.stroke();
   if (!g) return;
-  // mowing stripes, and the bumps as faint contour rings
-  ctx.save(); ctx.beginPath(); ctx.roundRect(G.x, G.y, G.w, G.h, 26); ctx.clip();
-  ctx.fillStyle = '#ffffff0c'; for (let i = 0; i < 10; i++) ctx.fillRect(G.x, G.y + i * (G.h / 5), G.w, G.h / 10);
-  ctx.strokeStyle = '#00000018'; ctx.lineWidth = 1; for (let i = 0; i < 6; i++) { const cx = G.x + hash(i * 3 + g.seed) * G.w, cy = G.y + hash(i * 5 + g.seed + 1) * G.h; for (let r = 12; r < 60; r += 14) { ctx.beginPath(); ctx.ellipse(cx, cy, r * 1.3, r, 0, 0, 7); ctx.stroke(); } }
+  // the fairway: a corridor of legs, its rough edge, the mowing, the tee
+  const way = () => { ctx.beginPath(); g.path.forEach((p, i) => ctx[i ? 'lineTo' : 'moveTo'](p.x, p.y)); };
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#2F6B2A'; ctx.lineWidth = g.pw + 12; way(); ctx.stroke();
+  ctx.strokeStyle = '#4C9A3F'; ctx.lineWidth = g.pw; way(); ctx.stroke();
+  ctx.strokeStyle = '#ffffff10'; ctx.lineWidth = g.pw * 0.45; ctx.setLineDash([18, 18]); way(); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = '#A8E08A55'; ctx.beginPath(); ctx.arc(g.path[0].x, g.path[0].y, 9, 0, 7); ctx.fill();
+  ctx.save();
   g.sand.forEach((s) => { ctx.fillStyle = '#E4C77A'; ctx.beginPath(); ctx.ellipse(s.x, s.y, s.rx, s.ry, 0, 0, 7); ctx.fill(); });
   g.water.forEach((w) => { ctx.fillStyle = '#3FA7E0'; ctx.beginPath(); ctx.ellipse(w.x, w.y, w.rx, w.ry, 0, 0, 7); ctx.fill(); ctx.strokeStyle = '#BFE9FF88'; ctx.beginPath(); ctx.ellipse(w.x, w.y + 4, w.rx * 0.7, w.ry * 0.5, 0, 0, 7); ctx.stroke(); });
   g.bumpers.forEach((b) => { ctx.fillStyle = b.hit > 0 ? '#FFE08A' : '#E4572E'; ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, 7); ctx.fill(); ctx.strokeStyle = '#7A2A14'; ctx.lineWidth = 3; ctx.stroke(); });
@@ -155,8 +177,10 @@ function draw(t) {
   if (b) {
     if (g.guide > 0 && g.cups[0]) { ctx.strokeStyle = '#FFE08Acc'; ctx.setLineDash([6, 6]); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(g.cups[0].x, g.cups[0].y); ctx.stroke(); ctx.setLineDash([]); }
     if (drag && !moving()) { const dx = drag.x - drag.x0, dy = drag.y - drag.y0, d = Math.min(150, Math.hypot(dx, dy)), a = Math.atan2(dy, dx); ctx.strokeStyle = `rgba(255,${230 - d},120,0.9)`; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - Math.cos(a) * d * 0.8, b.y - Math.sin(a) * d * 0.8); ctx.stroke(); }
-    if (g.glitch) { drawPal(g.glitchPal || 'fig', ctx, { x: b.x, y: b.y, s: R * 1.1, t: performance.now() / 1000, r: 4 }); }   // ⚡ glitch: the ball is your companion
-    else { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(b.x, b.y, R, 0, 7); ctx.fill(); ctx.fillStyle = '#00000033'; ctx.beginPath(); ctx.arc(b.x + 2, b.y + 2, R - 2, 0, 7); ctx.fill(); }
+    // 🟢 you are Fig, rolled up into the ball (the glitch's Fig if a glitch is on), facing the way you roll
+    g.face = g.v.x ? Math.sign(g.v.x) : (g.face || 1);
+    ctx.fillStyle = '#00000033'; ctx.beginPath(); ctx.ellipse(b.x + 1, b.y + R + 2, R * 1.2, R * 0.45, 0, 0, 7); ctx.fill();
+    drawPal(g.glitch ? (g.glitchPal || 'fig') : (S.curve.mood || 'calm'), ctx, { x: b.x, y: b.y, s: R * 1.15, t: performance.now() / 1000, r: S.curve.r, face: g.face, hurt: !!(g.gopher && g.gopher.grab > 0) });
   }
   ctx.restore();
   if (g.twist?.kind === 'wind') { ctx.strokeStyle = '#ffffff55'; ctx.lineWidth = 2; for (let i = 0; i < 10; i++) { const y = 80 + i * (Hh / 11), x = ((t / 5) * Math.sign(g.twist.wind) + i * 97) % (W + 60); ctx.beginPath(); ctx.moveTo(x - 30, y); ctx.lineTo(x, y); ctx.stroke(); } }
@@ -175,10 +199,10 @@ const organ = {
   leave() { drag = null; return g?.ball ? { x: g.ball.x, y: g.ball.y } : null; },
   update, draw, onBeat,
   pointer(type, p) { if (type === 'down') { if (g?.gopher && Math.hypot(g.gopher.x - p.x, g.gopher.y - p.y) < 30) return shoo(); drag = { x0: p.x, y0: p.y, x: p.x, y: p.y }; } else if (type === 'move') { if (drag) { drag.x = p.x; drag.y = p.y; } } else if (drag) { putt(drag.x - drag.x0, drag.y - drag.y0); drag = null; } },
-  hudLine: () => (g ? `⛳ course ${g.course} · hole ${g.courseHole}/3 · ${sunkN} sunk` : ''),
+  hudLine: () => (g ? `⛳ course ${g.course} · ${g.courseHole}/3` : ''),
   level: () => g?.course || 1,
   overText: (how) => (how === 'picked up' ? ['⛳ PICKED UP', 'Too many cups walked away from.'] : ['RUN OVER', '']),
   endStats: () => (g ? `⛳ ${sunkN} cups in ${puttsN} putts` : ''),
-  debug: () => g && ({ gopher: g.gopher, ball: g.ball, v: g.v, cups: g.cups, putts: g.putts, sunk: sunkN, par: g.par, course: g.course, courseHole: g.courseHole, allowed: PUTTS_OF(), twist: g.twist?.kind || null, bumpers: g.bumpers.length, W, H: H(), putt }),
+  debug: () => g && ({ gopher: g.gopher, bends: g.path.length - 2, pw: g.pw, path: g.path, ball: g.ball, v: g.v, cups: g.cups, putts: g.putts, sunk: sunkN, par: g.par, course: g.course, courseHole: g.courseHole, allowed: PUTTS_OF(), twist: g.twist?.kind || null, bumpers: g.bumpers.length, W, H: H(), putt }),
 };
 export default organ;

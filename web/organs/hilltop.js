@@ -32,7 +32,7 @@ const hAt = (x) => { const i = Math.max(0, Math.min(99, x / SP())), a = Math.flo
 const stage = () => host.stage?.() || 1;   // 🎚️ the run's stage: the world grows and fills around you
 function newGame() { g = { h: [], tanks: [], shells: [], fx: [], meteors: [], moles: [], lakes: [], balloons: [], moleT: 4, serpT: 3, balloonT: 5, centred: false, me: { x: 44 }, wind: 0, twist: null, time: 0, fireT: 3, shield: 0, split: 0, big: 0, seed: Math.floor(Math.random() * 1e6), night: 0 }; g.h = ridge(g.seed); killsN = 0; shotsN = 0; addTank(); }
 function addTank(gold = false, quiet = false) {
-  if (g.tanks.length >= 5 + Math.min(3, stage() - 1)) return;
+  if (g.tanks.length >= (stage() === 1 ? 2 : 5 + Math.min(3, stage() - 1))) return;   // Stage 1: two at most
   // Stage 1: they line up on the right. From Stage 2 they come from both sides, never within 70 of you.
   let x = 200 + Math.random() * 170;
   if (stage() >= 2) { const left = Math.random() < 0.5 && g.me.x > 110; x = left ? 30 + Math.random() * (g.me.x - 100) : g.me.x + 70 + Math.random() * (W - 30 - g.me.x - 70); }
@@ -99,7 +99,7 @@ function boom(x, y, r, mine) {
   } else if (Math.abs(g.me.x - x) < r + TANK_W / 2) {
     if (g.shield) { g.shield = 0; g.fx.push({ kind: 'text', x: g.me.x, y: hAt(g.me.x) - 30, text: '🛡️ BOUNCED', life: 1 }); sfx('clack'); return; }
     S.combo = 0; navigator.vibrate?.(100);
-    host.hurt('shelled') || host.banner('DIRECT HIT', `${S.hearts} ${S.hearts === 1 ? 'heart' : 'hearts'} left`);
+    g.hurtT = 1.2; host.hurt('shelled') || host.banner('DIRECT HIT', `${S.hearts} ${S.hearts === 1 ? 'heart' : 'hearts'} left`);
   }
 }
 function update(dt) {
@@ -121,7 +121,9 @@ function update(dt) {
   // 🌱 the hill always heals, slowly (a crater is half gone in ~4 s); the Regrowth twist heals it fast
   { const fresh = g.fresh || (g.fresh = ridge(g.seed)), rate = g.twist?.kind === 'regrow' ? 0.8 : 0.18; g.h = g.h.map((v, i) => v + (fresh[i] - v) * Math.min(1, dt * rate)); }
   // they fire back, more often the wilder the curve; tanks set by the window hold their fire
-  g.fireT -= dt * (1 + Math.max(0, S.curve.r - 2.9));
+  if (g.hurtT > 0) g.hurtT -= dt;
+  g.fireT -= dt * (1 + Math.max(0, S.curve.r - 2.9)) / (st === 1 ? 1.8 : 1);   // 🎚️ Stage 1: they fire slowly, and there is no wind
+  if (st === 1) g.wind *= Math.max(0, 1 - dt * 2);
   if (g.fireT <= 0) { g.fireT = 2.2 + Math.random() * 2; const t = g.tanks.filter((q) => !q.quiet)[Math.floor(Math.random() * g.tanks.filter((q) => !q.quiet).length)];
     if (t) { const dx = g.me.x - t.x, p = 300 + Math.random() * 120, a = -2.2 - Math.random() * 0.5; t.flash = 0.35; g.shells.push({ x: t.x, y: hAt(t.x) - 10, vx: Math.cos(a) * p * Math.sign(dx) * -1 * -1, vy: Math.sin(a) * p, mine: false }); const s = g.shells[g.shells.length - 1]; s.vx = -Math.abs(s.vx) * (0.8 + Math.random() * 0.5); sfx('cannon'); } }
   g.shells = g.shells.filter((s) => { s.vy += G * dt; s.vx += g.wind * dt * 0.6; s.x += s.vx * dt; s.y += s.vy * dt; if (s.x < -20 || s.x > W + 20) return false;
@@ -139,10 +141,11 @@ function update(dt) {
 function drawTank(x, hue, flash, mine, gold) {
   const y = hAt(x) - 8;
   ctx.save(); ctx.translate(x, y);
-  if (g.glitch) { drawPal(g.glitchPal || 'fig', ctx, { x: 0, y: -12, s: 10, t: performance.now() / 1000, r: 4, face: mine ? 1 : -1 }); ctx.restore(); return; }   // ⚡ glitch: your companion on every hill
+  if (g.glitch && !mine) { drawPal(g.glitchPal || 'fig', ctx, { x: 0, y: -12, s: 10, t: performance.now() / 1000, r: 4, face: -1 }); ctx.restore(); return; }   // ⚡ glitch: Fig on every hill
   ctx.fillStyle = flash > 0 ? '#fff' : gold ? '#F5C542' : mine ? '#3DD6C6' : `hsl(${hue} 55% 50%)`;
   ctx.beginPath(); ctx.roundRect(-TANK_W / 2, -8, TANK_W, 12, 4); ctx.fill();
-  ctx.beginPath(); ctx.arc(0, -8, 7, Math.PI, 0); ctx.fill();
+  if (mine) drawPal(g.glitch ? (g.glitchPal || 'fig') : (S.curve.mood || 'calm'), ctx, { x: 0, y: -17, s: 8, t: performance.now() / 1000, r: S.curve.r, face: 1, hurt: g.hurtT > 0 });   // 🟢 you are Fig, at the wheel
+  else { ctx.beginPath(); ctx.arc(0, -8, 7, Math.PI, 0); ctx.fill(); }
   ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(mine ? 12 : -12, -18); ctx.stroke();
   ctx.fillStyle = '#0A0A14'; for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.arc(i * 7, 4, 3, 0, 7); ctx.fill(); }
   ctx.restore();

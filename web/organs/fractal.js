@@ -6,6 +6,7 @@
 // balance fills the dash, the golden cut lays a spiral of shards. Every 22 s the world zooms into a
 // copy of itself, a depth deeper: faster, rougher, another colour.
 import { fibMult, CHAOS } from '../chaos.js';
+import { drawPal } from '../pals.js';
 
 let W = 400, DEPTH_S = 22, GRAV = 1500, JUMP = 520, DASH_MAX = 1.4, PX = 96, R = 13;   // PX: where you stand on screen; R: your size
 const PALETTES = [   // one per depth, then round again
@@ -61,10 +62,10 @@ function onBeat(ev) {
   const g = game, c = S.curve, x = ev.x, d = ev.hop, ahead = g.cam + W + 60;
   if (ev.window) { for (let i = 0; i < 3; i++) g.obs.push({ type: 'shard', x: ahead + i * 26, lift: 60 + i * 10, t: i }); if (c.n % 3 === 0) g.obs.push({ type: 'spike', x: ahead + 100, n: 3 }); }
   else if (x > 0.7) {
-    const n = 1 + Math.floor((x - 0.7) * 16); g.obs.push({ type: 'spike', x: ahead, n });
+    const easy = depth === 1 && (host.stage?.() || 1) === 1, n = easy ? Math.min(2, 1 + Math.floor((x - 0.7) * 16)) : 1 + Math.floor((x - 0.7) * 16); g.obs.push({ type: 'spike', x: ahead, n });   // 🎚️ Stage 1, Depth 1: short rows
     if (x > 0.9 && depth >= 2) g.obs.push({ type: 'gap', x: ahead + n * 14 + 30, w: 50 + depth * 10 });   // deeper down, a chasm right behind the spikes
   }
-  else if (d > 0.07) { const w = Math.min(170 + depth * 10, 50 + Math.floor(d * 170) + depth * 12); g.obs.push({ type: 'gap', x: ahead, w }); if (depth >= 3 && x > 0.5) g.obs.push({ type: 'spike', x: ahead + w + 26, n: 2 }); }
+  else if (d > 0.07 && !(depth === 1 && (host.stage?.() || 1) === 1)) { const w = Math.min(170 + depth * 10, 50 + Math.floor(d * 170) + depth * 12); g.obs.push({ type: 'gap', x: ahead, w }); if (depth >= 3 && x > 0.5) g.obs.push({ type: 'spike', x: ahead + w + 26, n: 2 }); }
   else if (x < 0.35 || c.n % 3 === 0) { const n = 3 + Math.floor(Math.max(0, 0.35 - x) * 12); for (let i = 0; i < n; i++) g.obs.push({ type: 'shard', x: ahead + i * 22, lift: 40 + Math.sin(i / (n - 1) * Math.PI) * 70, t: i }); }
   // ✨ Symmetry in chaos: the mirror heals (or pays), the balance fills the dash.
   if (ev.mirror) { if (S.hearts < 3) host.heal(1); else { host.add(300); g.shards += 300; } for (let i = 0; i < 14; i++) g.parts.push({ x: g.cam + PX, y: g.py, vx: (Math.random() - 0.5) * 260, vy: (Math.random() - 0.8) * 260, t: 0, life: 0.6, c: '#C9B8FF' }); sfx('chime'); }
@@ -98,7 +99,7 @@ function update(dt) {
   g.fog += ((g.twist?.k === 'fog' ? 1 : 0) - g.fog) * Math.min(1, dt * 3);
   g.dark += ((g.twist?.k === 'dark' ? 1 : 0) - g.dark) * Math.min(1, dt * 3);
   // Speed climbs with time and depth; a dash nearly doubles it while the meter lasts.
-  g.speed = Math.min(640, 190 + (depth - 1) * 60 + g.time * 2.2);
+  g.speed = Math.min(640, (depth === 1 && (host.stage?.() || 1) === 1 ? 140 : 190) + (depth - 1) * 60 + g.time * 2.2);   // 🎚️ a gentle start
   if (g.dashing && g.dash > 0) { g.dash = Math.max(0, g.dash - dt); if (g.dash === 0) g.dashing = false; }
   else if (g.onGround) g.dash = Math.min(DASH_MAX, g.dash + dt * 0.7);
   const v = g.speed * gust * (g.dashing ? 1.8 : 1);
@@ -256,8 +257,7 @@ function draw(t) {
     ctx.save(); ctx.translate(PX, g.py);
     ctx.rotate(Math.max(-0.5, Math.min(0.5, g.vy / 1400)) + (g.onGround ? 0 : t / 300 % 0.3 - 0.15));
     if (g.dashing) { ctx.scale(1.25, 0.85); ctx.shadowColor = '#3DF2E0'; ctx.shadowBlur = 22; }
-    ctx.fillStyle = g.dashing ? '#C9FFF8' : '#fff'; ctx.beginPath(); sierp(0, 2, R * 2.2, 2); ctx.fill();
-    ctx.fillStyle = pal.edge; ctx.beginPath(); ctx.arc(R * 0.25, -R * 0.1, 2.6, 0, 7); ctx.fill();   // an eye, looking ahead
+    drawPal(S.curve.mood || 'calm', ctx, { x: 0, y: 0, s: R, t: t / 1000, r: S.curve.r, face: 1, hurt: g.inv > 0 });   // 🟢 you are Fig, leaning into the run
     ctx.restore();
   }
   ctx.globalAlpha = 1;
@@ -282,7 +282,7 @@ const organ = {
   pointer(type) { if (type === 'down') press(); else if (type === 'up') release(); },
   keydown(e) { if (e.repeat) return; if (e.code === 'Space' || e.code === 'ArrowUp' || e.key === 'w') { e.preventDefault(); jump(); } if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'ArrowRight') { if (game && game.dash > 0.15) game.dashing = true; } },
   keyup(e) { if (e.code === 'ShiftLeft' || e.code === 'ShiftRight' || e.code === 'ArrowRight') release(); },
-  hudLine: () => (game ? `Depth ${depth} · ${Math.floor(game.dist / 10).toLocaleString()} m · ${Math.max(0, Math.ceil(depth * DEPTH_S - game.time))}s to the next dive` : ''),
+  hudLine: () => (game ? `Depth ${depth} · ${Math.floor(game.dist / 10).toLocaleString()} m · ${Math.max(0, Math.ceil(depth * DEPTH_S - game.time))}s` : ''),
   level: () => depth,
   overText: (how) => [how === 'fell' ? '🕳️ INTO THE DEEP' : how === 'zapped' ? '⚡ ZAPPED' : how === 'spiked' ? '💥 SPIKED' : 'RUN OVER', ''],
   endStats: () => (game ? `🔺 ${Math.floor(game.dist / 10).toLocaleString()} m at depth ${depth}, ${game.shards.toLocaleString()} from shards` : ''),

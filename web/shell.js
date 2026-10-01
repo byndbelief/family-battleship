@@ -27,12 +27,13 @@ const SHELL_CSS = `
   .shud{position:absolute;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:flex-start;padding:8px 10px;pointer-events:none;font-weight:900;text-shadow:0 2px 4px #000c}
   .shud .score{font-family:var(--display,inherit);font-size:24px;line-height:1}
   .shud .combo{color:var(--gold,#F5C542);font-size:14px}
-  .shud .lvl{font-size:13px;color:var(--muted,#ccc)}
+  .shud .lvl{font-size:13px;color:var(--muted,#ccc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:min(58vw,260px)}   /* one line on a phone: Putt's course text used to wrap under the hearts */
+  .shud > div:first-child{min-width:0}
   .shud .hearts{font-size:14px;letter-spacing:1px}
   .chaosm{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
   .chaosm canvas{width:92px;height:34px;background:#0008;border-radius:8px}
   .spal{position:absolute;left:4px;top:76px;width:60px;height:60px;pointer-events:none;filter:drop-shadow(0 4px 8px #000a)}   /* under the score, off the field (Hilltop's tank lives bottom-left) */
-  .verb{position:absolute;left:68px;right:8px;top:76px;display:flex;flex-direction:column;align-items:flex-start;gap:4px;pointer-events:none;font-size:12px;font-weight:900;text-shadow:0 2px 4px #000c}   /* up top beside the pal, under the score: the field stays clear */
+  .verb{display:none !important;position:absolute;left:68px;right:8px;top:76px;display:flex;flex-direction:column;align-items:flex-start;gap:4px;pointer-events:none;font-size:12px;font-weight:900;text-shadow:0 2px 4px #000c}   /* up top beside the pal, under the score: the field stays clear */
   .verb b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
   .verb b{display:inline-block;padding:4px 9px;border-radius:99px;background:#0009;border:1px solid #ffffff33;color:#fff}
   .verb b.next{color:var(--gold,#F5C542);border-color:var(--gold,#F5C542);animation:vpulse 1s infinite alternate}
@@ -44,9 +45,9 @@ const SHELL_CSS = `
   .oui .wbar button b{position:absolute;right:-5px;bottom:-5px;font-size:10px;padding:1px 4px;border-radius:8px;background:#141026;border:1px solid #ffffff44}
   .oui .dash{width:110px;height:8px;border-radius:6px;background:#0008;border:1px solid #ffffff33;overflow:hidden}
   .oui .dash i{display:block;height:100%;background:linear-gradient(90deg,#3DF2E0,#FF5FB0);width:100%;transition:width .08s linear}
-  .sbanner{position:absolute;left:50%;top:22%;transform:translateX(-50%);width:max-content;max-width:94%;pointer-events:none;font-family:var(--display,inherit);font-size:clamp(22px,7vw,40px);color:var(--bannerc,#FFE08A);-webkit-text-stroke:1.5px #000a;paint-order:stroke fill;text-shadow:0 4px 0 #0008,0 0 30px var(--gold,#F5C542);white-space:nowrap;animation:bpop .45s cubic-bezier(.2,1.6,.4,1) both;text-align:center}
-  .sbanner small{display:block;font-family:var(--body,inherit);font-weight:900;font-size:15px;-webkit-text-stroke:0;color:#fff;text-shadow:0 2px 4px #000;white-space:normal;line-height:1.25}
-  @keyframes bpop{from{transform:translateX(-50%) scale(.3);opacity:0}}
+  .sbanner{position:absolute;left:68px;top:84px;max-width:calc(100% - 80px);pointer-events:none;font-weight:900;font-size:12px;line-height:1.2;padding:4px 10px;border-radius:99px;background:#000a;border:1px solid #ffffff33;color:var(--bannerc,#FFE08A);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transform-origin:0 50%;animation:bpop .25s ease-out}   /* 🟢 Fig says it: a small word beside the pal, never over the field */8,0 0 30px var(--gold,#F5C542);white-space:nowrap;animation:bpop .45s cubic-bezier(.2,1.6,.4,1) both;text-align:center}
+  .sbanner small{display:none;font-family:var(--body,inherit);font-weight:900;font-size:15px;-webkit-text-stroke:0;color:#fff;text-shadow:0 2px 4px #000;white-space:normal;line-height:1.25}
+  @keyframes bpop{from{transform:scale(.4);opacity:0}}
   .sover{position:absolute;inset:0;display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,#0008,#000d);padding:16px;text-align:center;overflow:auto}
   .sover .card{max-width:360px;display:flex;flex-direction:column;gap:12px;align-items:center}
   .sover p{margin:0}
@@ -122,10 +123,15 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   }
   // ---------------------------------------------------------------- banners, HUD
   let bannerT = null;
+  // 🟢 Notices go through Fig: the pal in the corner acts the event out (a cue read off the title's mark) and a
+  // short word sits beside it for a moment. Nothing lands over the field; the sub-line is for the ratings only.
+  const CUE = [['🌻', 'golden'], ['✨', 'mirror'], ['⚖️', 'balance'], ['🔁', 'window'], ['⚡', 'peak'], ['🧘', 'gift'], ['🎚️', 'big'], ['🛡️', 'gift'], ['🌀', 'peak'], ['🔂', 'window'], ['🌟', 'gold'], ['🟢', null]];
+  const HURTS = /OUCH|ZAP|SPLASH|HIT|BOMBED|BONK|PICKED|DRONED|GLITCH|OVER PAR/;
   function banner(t, sub) {
-    const b = $('banner'); b.innerHTML = `${esc(t)}${sub ? `<small>${esc(sub)}</small>` : ''}`; b.hidden = false;
+    const b = $('banner'); b.textContent = t; b.title = sub || ''; b.hidden = false;
     b.style.animation = 'none'; void b.offsetWidth; b.style.animation = '';
-    clearTimeout(bannerT); bannerT = setTimeout(() => { b.hidden = true; }, 1700);
+    clearTimeout(bannerT); bannerT = setTimeout(() => { b.hidden = true; }, 1400);
+    const cue = CUE.find(([m]) => t.includes(m)); if (HURTS.test(t)) pal.hurt(); else if (cue) { if (cue[1]) pal.force(cue[1], 1.6); } else pal.force('big', 1);
   }
   const nextOrgan = () => organs[(organs.indexOf(active) + 1) % organs.length];
   // 🎚️ STAGES: the run eases into chaos. A stage is a stretch of beats; early stages let r climb only
@@ -159,11 +165,11 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     $('score').textContent = S.score.toLocaleString();
     const hearts = '❤️'.repeat(Math.max(0, S.hearts)) + '🖤'.repeat(Math.max(0, 3 - S.hearts)); if ($('hearts').textContent !== hearts) $('hearts').textContent = hearts;
     $('combo').textContent = S.combo > 1 && S.comboT > 0 ? `COMBO ×${S.combo}` : '';
-    $('lvl').textContent = `${STAGES[stageOf()].name}${active?.hudLine?.() ? ' · ' + active.hudLine() : ''}`;
+    $('lvl').textContent = `Stage ${stageOf() + 1}${active?.hudLine?.() ? ' · ' + active.hudLine() : ''}`;
     $('phase').textContent = meterText(S.curve);
     drawMeter(meter, S.curve);
     const v = $('verb');
-    if (!active || !running) { v.hidden = true; return; }
+    v.hidden = true; if (true) return;   // the hint pills are gone: Fig and the field say what's happening
     const armed = morphs && tenure >= minTenure() - 1 && !S.curve.window && calm <= 0;
     v.hidden = false;
     v.innerHTML = `<b>${active.icon} ${esc(active.verb)}</b>${morphs ? `<b class="${armed ? 'next' : ''}">${calm > 0 ? `🧘 calm · ${calm} beat${calm === 1 ? '' : 's'} · r holds` : S.curve.window ? '🔁 the window: it rotates every beat' : armed ? `⚡ next: ${nextOrgan().icon} ${esc(nextOrgan().verb)}` : `${S.morphs} morph${S.morphs === 1 ? '' : 's'}`}</b>` : ''}`;

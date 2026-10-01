@@ -6,6 +6,7 @@
 // Each day ends by diving into the knothole of the middle tree, into a deeper, darker forest: the
 // pinned ones stay, eyes open in the trees, the picture tears, and on day 4 the knothole wakes.
 import { fibMult } from '../chaos.js';
+import { drawPal } from '../pals.js';
 
 let W = 400, LEVELS = 4, LEVEL_S = 30, AMMO = 12, RELOAD_S = 1.1, MAX_SQ = 16;
 const dark = () => Math.min(1, (level - 1) / 3);   // 0 on day 1, 1 on day 4
@@ -61,13 +62,14 @@ function grow(seed, lvl) {
     }
     return s;
   };
-  const trunks = [];
-  for (let t = 0; t < 3; t++) {
-    const x = W * (t + 0.5) / 3 + (r() - 0.5) * 40;
+  // 🌳 Day 1 is a single tree (one fractal to learn on), Day 2 two, Day 3 on the whole wood
+  const trunks = [], nT = Math.min(3, lvl);
+  for (let t = 0; t < nT; t++) {
+    const x = W * (t + 0.5) / nT + (r() - 0.5) * 40;
     trunks.push(add(x, ground, -Math.PI / 2 + (r() - 0.5) * 0.12, (H() - 110) * (0.26 + r() * 0.06), 15, 0, null));
   }
   const tips = segs.filter((s) => !s.kids.length);
-  const mid = trunks[1];
+  const mid = trunks[Math.floor(nT / 2)];
   const knot = { x: mid.x1 + (mid.x2 - mid.x1) * 0.55, y: mid.y1 + (mid.y2 - mid.y1) * 0.55 };
   const eyes = []; for (let i = 0; i < (lvl - 1) * 7; i++) eyes.push({ x: 20 + r() * (W - 40), y: 80 + r() * (ground - 160), ph: r() * 6.28, rate: 0.6 + r() * 0.8, gap: 5 + r() * 3 });
   return { seed, H: H(), W, ground, segs, trunks, tips, knot, eyes, hue: [34, 28, 22, 16][Math.min(3, lvl - 1)] };
@@ -85,10 +87,11 @@ function newGame() {
 function onBeat(ev) {
   const g = game, c = S.curve;
   if (g.dive) return;
-  const n = ev.window ? 3 : ev.x > 0.8 ? 3 : ev.x > 0.6 ? 2 : ev.x > 0.35 ? 1 : 0;
-  for (let i = 0; i < n; i++) spawn(ev.window ? 1 : undefined);
+  // Day 1: one squirrel at a time, small ones, no acorns; the wood fills from Day 2
+  const n = level === 1 ? (g.squirrels.length ? 0 : ev.x > 0.2 ? 1 : 0) : ev.window ? 3 : ev.x > 0.8 ? 3 : ev.x > 0.6 ? 2 : ev.x > 0.35 ? 1 : 0;
+  for (let i = 0; i < n; i++) spawn(ev.window || level === 1 ? 1 : undefined);
   // 😠 They fight back: the wilder the curve, the more acorns come flying at your stapler.
-  if (ev.x > 0.55 && !ev.window && g.acorns.length < 2 && Math.random() < 0.1 + 0.07 * level + (c.r >= 3.5699 ? 0.08 : 0)) throwAcorn();
+  if (level >= 2 && ev.x > 0.55 && !ev.window && g.acorns.length < 2 && Math.random() < 0.1 + 0.07 * level + (c.r >= 3.5699 ? 0.08 : 0)) throwAcorn();
   // ✨ Symmetry in chaos: the mirror drops a crate and pays; the balance reloads and heals.
   if (ev.mirror) { dropCrate(); add(250, { x: W / 2, y: H() * 0.42 }, '✨ SYMMETRY'); sfx('chime'); }
   if (ev.balance) { g.ammo = AMMO; g.reloadT = 0; host.heal(1); sfx('chime'); }
@@ -112,7 +115,7 @@ function twist() {
 
 // ---------------------------------------------------------------- squirrels
 function spawn(sz, gold = false) {
-  if (game.squirrels.length >= MAX_SQ || game.dive) return;
+  if (game.squirrels.length >= [1, 4, 8, MAX_SQ][Math.min(3, level - 1)] || game.dive) return;   // a cap that grows by the day
   const size = sz || (Math.random() < 0.35 ? 3 : Math.random() < 0.55 ? 2 : 1);
   const trunk = forest.trunks[Math.floor(Math.random() * forest.trunks.length)];
   const sq = { seg: trunk, t: 0, dir: 1, size, gold, face: Math.random() < 0.5 ? -1 : 1, spd: (70 + Math.random() * 40) * (gold ? 1.6 : 1) / (0.7 + size * 0.15), hop: null, wig: Math.random() * 6 };
@@ -519,6 +522,8 @@ function drawStapler() {
   const st = STAPLER(), g = game;
   ctx.save(); ctx.translate(st.x, st.y); if (g.stun > 0) ctx.rotate(Math.sin(g.stun * 40) * 0.12);
   if (g.weapon !== 'staple') { ctx.font = '18px serif'; ctx.textAlign = 'center'; ctx.fillText(WEAPONS[g.weapon].icon, 0, -26); }
+  // 🟢 Fig works the stapler: behind it, leaning in, dizzy when bonked
+  drawPal(g.glitch > 0 ? 'fig' : (S.curve.mood || 'calm'), ctx, { x: -44, y: -22, s: 13, t: performance.now() / 1000, r: S.curve.r, face: 1, hurt: g.stun > 0 });
   ctx.fillStyle = '#C0392B'; ctx.beginPath(); ctx.roundRect(-30, -14, 60, 12, 5); ctx.fill();
   ctx.fillStyle = '#2B2B33'; ctx.beginPath(); ctx.roundRect(-32, -3, 64, 8, 4); ctx.fill();
   ctx.fillStyle = '#E74C3C'; ctx.beginPath(); ctx.roundRect(-26, -18, 50, 6, 3); ctx.fill();
@@ -554,7 +559,7 @@ const organ = {
   level: () => level,
   overText: (how) => (how === 'sleeps' ? ['🌘 IT SLEEPS AGAIN', 'For now. It counted every one.'] : how === 'bonked' ? ['💫 KNOCKED OUT', 'Too many acorns to the head. The forest keeps your staples.'] : ['RUN OVER', '']),
   endStats: () => (game ? `🐿️ ${game.hits} hits from ${game.shots} staples${game.shots ? ` (${Math.round((100 * game.hits) / game.shots)}%)` : ''}, day ${level}` : ''),
-  debug: () => game && ({ score: S.score, level, owls: game.owls?.length || 0, cones: game.cones?.length || 0, snakes: game.snakes?.length || 0, W, kept: game.kept.length, glitch: game.glitch, eye: game.eye.open, twist: game.twist?.kind || null, stare: game.stare, whispers: game.fx.filter((f) => f.kind === 'whisper').length,
+  debug: () => game && ({ score: S.score, level, trunks: forest?.trunks.length, squirrels: game.squirrels.length, owls: game.owls?.length || 0, cones: game.cones?.length || 0, snakes: game.snakes?.length || 0, W, kept: game.kept.length, glitch: game.glitch, eye: game.eye.open, twist: game.twist?.kind || null, stare: game.stare, whispers: game.fx.filter((f) => f.kind === 'whisper').length,
     skipTo: (l) => { level = l - 1; game.time = level * LEVEL_S; }, forceTwist: (k) => { game.twist = { kind: k, until: game.time + 6, wind: 70 }; if (k === 'stare') game.stare = 1.6; if (k === 'static') game.glitch = 6; },
     hearts: S.hearts, weapon: game.weapon, arsenal: { ...game.arsenal }, crates: game.crates.map((c) => ({ x: c.x, y: c.y, w: c.w })), acorns: game.acorns.map(acornPos), ammo: game.ammo, dive: !!game.dive, over: S.over, r: S.curve.r,
     squirrels: game.squirrels.map((sq) => ({ ...sqPos(sq), size: sq.size, hop: !!sq.hop })), W, H: H() }),

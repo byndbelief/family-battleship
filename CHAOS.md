@@ -203,11 +203,25 @@ the stapler (shoo them, +120). Fractal Dash: from Stage 2 🛸 drones hunt you a
 through one for +150, touch it any other way and it stings. Salvo: from Stage 2 ✈️ planes cross the
 lanes and drop a bomb over your boat (tap the plane, +150, or the bomb, +50); from Stage 3 🫧 submarines
 surface, fire a torpedo and dive (tap one while it's up, +250). Putt: from Stage 2 a 🐹 gopher pops up
-while your ball sits still, runs over and drags it off (+1 putt) unless you tap it first (+100). Putt
-also has ⛳ **courses** of three holes, each hole with an estimated par (1 + the distance in 150s, +1 for three
-or more bumpers, +1 for water, +1 from course 3), par + 2 putts allowed; make the course's par and you
-move up a course (longer holes, more bumpers stay, a smaller cup), miss it and you play it again;
-birdies and eagles pay, and a course made pays 300 × the course.
+while your ball sits still, runs over and drags it off (+1 putt) unless you tap it first (+100).
+
+**A gentle start, in every organ.** The first stretch of a run teaches the organ before the world fills.
+Putt's ⛳ **courses** are corridors: a fairway of straight legs from the tee to the cup. Course 1 is one
+short straight leg, a single putt (par 1); Course 2 adds a bend, Course 3 is an S, then more bends,
+narrower, with bumpers (course 3+), sand (2+) and water (5+) on the way. Par is the bends + 1 (+1 for two
+or more bumpers, +1 for water), par + 2 putts allowed; make the course's par over three holes and you move
+up, miss it and you play it again; birdies and eagles pay, and a course made pays 300 × the course.
+Squirrel Chaos Day 1 is a single fractal tree and one small squirrel at a time, no acorns; Day 2 two trees
+and a few, Day 3 the wood. Hilltop in Stage 1 digs in two tanks at most, firing slowly, with no wind.
+Fractal Dash at Depth 1 in Stage 1 runs slower with no chasms and spike rows of two. Salvo in Stage 1
+sails three short slow ships and nobody fires back.
+
+**You are Fig.** In every organ the thing you steer is Fig, in the run's current mood: rolled up into
+Putt's ball, at the wheel of Hilltop's tank, working the stapler in Squirrel Chaos, running Fractal
+Dash, at the helm of Salvo's gunboat; a hit makes Fig wince. And **the notices go through Fig**: there
+are no hint pills and no banners over the field any more. The pal in the corner acts each event out (a
+golden cut makes it glow, a mirror flips it, a glitch or a hit makes it dizzy, a stage or a morph makes it
+bounce) with a short word beside it for a moment.
 
 **Lenses**: Fig's personalities bend the picture itself. When a mood comes on, sometimes (50% in
 Stage 1 up to always in Stage 4) a lens goes over the screen for a while (2 s in Stage 1 up to 7 s):

@@ -808,6 +808,25 @@ fractal.js `drone` obstacles in `g.obs` (killed by a dash, else `hurt('droned')`
 `planes`/`bombs`/`subs` (a sub pushes a real torpedo into `g.torps`; `fire()` tests them before the
 ammo path), putt.js `g.gopher` (`restT` counts the ball's stillness; `shoo()` from `pointer`). Each
 `__xx()` debug reports the counts. Tests: `t_wide`, `t_wide2`.
+**Fig is the player, notices go through Fig (shell.js, organs).** `banner(t, sub)` now shows `t` as a
+small pill beside the pal (`.sbanner`, left of the field under the score; `sub` only lands in the
+pill's `title`) and cues the pal: `CUE` maps the title's mark to a `pal.force(mood)` (🌻 golden, ✨
+mirror, 🔁 window, ⚡ peak, 🧘/🛡️ gift, 🎚️ big), `HURTS` titles (OUCH, HIT, GLITCH, PICKED, OVER PAR…)
+call `pal.hurt()`, anything else bounces (`big`). `.verb` (the hint pills) is `display:none` and `hud()`
+returns before filling it; the HUD stage line is `Stage N · <hudLine>` on one line (`.lvl` nowrap +
+ellipsis, so keep `hudLine()`s short). Each organ draws the player with `drawPal(S.curve.mood || 'calm',
+…)` (hilltop `drawTank` when `mine`, putt's ball with `g.face` from the roll, squirrel's `drawStapler`,
+fractal's runner, salvo's boat), passing `hurt` from a short `hurtT`/`stun`/`inv` so Fig winces.
+**A gentle start** (organs read `host.stage()` and their own level): putt.js fairways are corridors
+(`g.path` polyline, `g.pw` width; `corridor(bends, course)` retries a turning walk inside the world,
+`nearest()` gives the wall for the bounce and the gopher's drop, `spot(margin)` places hazards on the
+fairway, `tee()`), `bendsOf(course)` 0/1/2/2–4, `widthOf` 62 → 40, `parOf()` = bends + 1 (+ hazards),
+so course 1 is par 1; squirrel.js `grow()` plants `min(3, lvl)` trunks and `onBeat`/`spawn` hold Day 1
+to one small squirrel, no acorns, caps 1/4/8/16; hilltop `addTank` cap 2 in Stage 1, `fireT` runs at
+1/1.8 and wind decays; fractal `onBeat` skips gaps and caps spike rows at 2 while Depth 1 × Stage 1,
+base speed 140; salvo `spawn` caps 3 ships, len ≤ 2, speed × 0.7 and torpedoes need Stage 2. Test:
+`t_easy` (HUD one line, no pills, pill left of the field; course 1 par 1 / 0 bends; a wall putt keeps the
+ball inside the corridor; Day 1 one trunk, one squirrel).
 **The world widens by stage** (shell.js `size()`): `STAGES[].widen` (1, 1.15, 1.3, 1.45) sets
 `host.W = 400 × widen` and `zoom` (1, .94, .88, .82) sets the visible height `host.H = H0 / zoom`
 from the Stage 1 fit (`k0`, 400 wide and ≥ 1.25× taller); `host.k = min(cw / W, ch / H)` and the
