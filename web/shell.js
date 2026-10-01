@@ -234,7 +234,9 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
       for (let n = 0; n < 48; n++) { x = r * x * (1 - x); x2.fillRect(i, h - 2 - x * (h - 4), 1, 1.2); } }
     return c;
   }
-  const motes = Array.from({ length: 14 }, (_, i) => ({ ic: organs[i % organs.length].icon, a: Math.random() * 6.28, rr: 0.15 + Math.random() * 0.5, z: Math.random(), v: 0.05 + Math.random() * 0.07 }));
+  const FIB = [1, 1, 2, 3, 5, 8, 13, 21, 34], PHI = (1 + Math.sqrt(5)) / 2;
+  // a mirrored fractal tree: the same branch drawn left and right (symmetry), fewer twigs deeper in
+  function tree(x, y, a, len, d, sway) { if (d === 0 || len < 2) return; const x2 = x + Math.cos(a) * len, y2 = y + Math.sin(a) * len; bctx.lineWidth = Math.max(0.6, d * 0.45); bctx.beginPath(); bctx.moveTo(x, y); bctx.lineTo(x2, y2); bctx.stroke(); tree(x2, y2, a - 0.5 + sway, len / PHI, d - 1, sway); tree(x2, y2, a + 0.5 + sway, len / PHI, d - 1, sway); }
   function drawBox(t) {
     const W = bb.width = bb.clientWidth * host.dpr, H = bb.height = bb.clientHeight * host.dpr; if (!W || !H) return; const d = host.dpr, cx = W / 2, cy = H * 0.36;
     const ow = Math.min(W * 0.9, H * 0.6), oh = Math.min(H * 0.62, ow * 0.95), iw = ow * 0.46, ih = oh * 0.46;   // the rim and the floor
@@ -252,10 +254,23 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     if (!bif || bif.width !== Math.round(iw)) bif = bifurcation(Math.max(2, Math.round(iw)), Math.max(2, Math.round(ih)));
     bctx.drawImage(bif, I.x0, I.y0, iw, ih);
     const gl = bctx.createRadialGradient(cx, cy, ih * 0.1, cx, cy, oh * 0.75); gl.addColorStop(0, `rgba(61,214,198,${0.22 + 0.08 * Math.sin(t / 700)})`); gl.addColorStop(1, 'rgba(61,214,198,0)'); bctx.fillStyle = gl; bctx.fillRect(0, 0, W, H);
-    // the organs' icons drifting up out of the depth toward you
-    bctx.textAlign = 'center'; bctx.textBaseline = 'middle';
-    motes.forEach((m) => { m.z = (m.z + m.v * 0.016) % 1; const sc = 0.25 + m.z * 1.1, ang = m.a + t / 9000; const x = cx + Math.cos(ang) * m.rr * ow * (0.3 + m.z * 0.9), y = cy + Math.sin(ang) * m.rr * oh * (0.3 + m.z * 0.9);
-      bctx.globalAlpha = m.z < 0.1 ? m.z * 10 : m.z > 0.85 ? (1 - m.z) / 0.15 : 1; bctx.font = `${Math.round(16 * d * sc)}px serif`; bctx.fillText(m.ic, x, y); });
+    // 🌀 the curve, live: a cursor sweeps r across the floor (2.5 → 4, over ~20 s) and the orbit x → r·x·(1−x)
+    // sparks at that r, one point a beat, so you watch it settle, double, double again and scatter
+    const u = (t / 20000) % 1, r = 2.5 + u * 1.5, rx = I.x0 + u * iw; let x = 0.5 + 0.3 * Math.sin(t / 1300); for (let n = 0; n < 40; n++) x = r * x * (1 - x);
+    bctx.strokeStyle = r < 3.5699 ? '#F5C542' : '#FF5FB0'; bctx.lineWidth = 1 * d; bctx.globalAlpha = 0.7; bctx.beginPath(); bctx.moveTo(rx, I.y0); bctx.lineTo(rx, I.y1); bctx.stroke();
+    for (let n = 0; n < 12; n++) { x = r * x * (1 - x); const py = I.y1 - 2 - x * (ih - 4); bctx.fillStyle = '#fff'; bctx.globalAlpha = 0.9 - n * 0.07; bctx.beginPath(); bctx.arc(rx, py, (2.6 - n * 0.15) * d, 0, 7); bctx.fill(); }
+    bctx.fillStyle = '#FFE08A'; bctx.globalAlpha = 0.9; bctx.font = `${Math.round(10 * d)}px ui-monospace, monospace`; bctx.textAlign = 'left'; bctx.textBaseline = 'top'; bctx.fillText(`r ${r.toFixed(2)}`, I.x0 + 3 * d, I.y0 + 3 * d);
+    // ✨ symmetry: the same fractal tree on the left wall and the right, mirror images, swaying together
+    bctx.strokeStyle = '#C9B8FF'; bctx.globalAlpha = 0.55; const sway = Math.sin(t / 1700) * 0.12, tl = oh * 0.1;
+    tree((O.x0 + I.x0) / 2, cy + ih * 0.3, -Math.PI / 2, tl, 6, sway); tree((O.x1 + I.x1) / 2, cy + ih * 0.3, -Math.PI / 2, tl, 6, -sway);
+    // 🌻 the golden spiral, turning on the far wall, its φ rectangles faint behind it
+    bctx.save(); bctx.translate(cx, I.y0 - (I.y0 - O.y0) * 0.5); bctx.rotate(t / 6000); bctx.strokeStyle = '#F5C542'; bctx.globalAlpha = 0.6; bctx.lineWidth = 1.2 * d;
+    { let a = 0, rr = 2 * d; bctx.beginPath(); for (let i = 0; i < 160; i++) { a += 0.1; rr *= Math.pow(PHI, 0.1 / (Math.PI / 2)); bctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr * 0.55); if (rr > ow * 0.22) break; } bctx.stroke(); }
+    bctx.globalAlpha = 0.18; for (let i = 1; i < 6; i++) { const w2 = 6 * d * Math.pow(PHI, i); bctx.strokeRect(-w2 / 2, -w2 * 0.55 / 2, w2, w2 * 0.55); }
+    bctx.restore();
+    // 🔢 Fibonacci: rings of 1, 1, 2, 3, 5, 8… dots pulse out from the floor's centre, one ring a beat
+    const beat = Math.floor(t / 700) % FIB.length, ring = FIB[beat], e = (t % 700) / 700;
+    bctx.fillStyle = '#3DD6C6'; bctx.globalAlpha = 0.8 * (1 - e); for (let i = 0; i < ring; i++) { const a = (i / ring) * 6.28 + beat; const rad = (0.08 + 0.3 * e) * ih; bctx.beginPath(); bctx.arc(cx + Math.cos(a) * rad * 1.3, cy + Math.sin(a) * rad, 2 * d, 0, 7); bctx.fill(); }
     bctx.globalAlpha = 1;
     // Fig, peeking over the rim
     drawPal(S.curve.mood || 'calm', bctx, { x: cx + ow * 0.28, y: O.y0 - f * 0.1 + Math.sin(t / 900) * 3 * d, s: 15 * d, t: t / 1000, r: S.curve.r, face: -1 });

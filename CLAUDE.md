@@ -820,8 +820,10 @@ fractal's runner, salvo's boat), passing `hurt` from a short `hurtT`/`stun`/`inv
 **A look in the box (shell.js `drawBox`).** The start and over overlay (`.sover`) has a `#boxbg` canvas
 behind the card, drawn each frame while the overlay is up: four cardboard walls to a floor that is the
 logistic map's bifurcation diagram (`bifurcation()`, an offscreen canvas rebuilt when the floor's width
-changes), the organ icons drifting up out of the depth (`motes`), and Fig peeking over the rim in the
-run's mood. The card sits low (`justify-content:flex-end`) so the box shows above it; the run's intro
+changes) with a cursor sweeping r 2.5 → 4 over 20 s and the orbit at that r sparking down it (the
+curve, live), the same fractal tree mirrored on the two side walls (`tree()`, branches shrink by φ),
+a golden spiral turning on the far wall over faint φ rectangles, Fibonacci rings of dots pulsing from
+the floor's centre (`FIB`), and Fig peeking over the rim in the run's mood. The card sits low (`justify-content:flex-end`) so the box shows above it; the run's intro
 copy in run.html is short for the same reason.
 **Organs have their own lives (shell.js).** `S.lives[key]` (default 3, `livesOf`); `host.hurt()` takes one
 and, at zero, sets `resetPending`; `loop` runs `resetOrgan()` after the organ's `update` returns (so an
