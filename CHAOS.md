@@ -217,6 +217,13 @@ and a few, Day 3 the wood. Hilltop in Stage 1 digs in two tanks at most, firing 
 Fractal Dash at Depth 1 in Stage 1 runs slower with no chasms and spike rows of two. Salvo in Stage 1
 sails three short slow ships and nobody fires back.
 
+**Every organ is its own little game inside the run.** Each has three lives of its own (the dots under
+the run's hearts, `⛳ ●●○`). Lose them and that organ starts over at its easy beginning (course 1, Day 1,
+Depth 1, two tanks, three ships) and the run pays one of its own three hearts; the run ends when the run's
+hearts are gone. Healing (a dive, a new day, the mirror) refills the organ's lives, not the run's hearts.
+In Squirrel Chaos a staple takes the first squirrel in its path, not just the one where it lands; the
+things that fall (acorns, pinecones, crates) only count on a direct hit.
+
 **You are Fig.** In every organ the thing you steer is Fig, in the run's current mood: rolled up into
 Putt's ball, at the wheel of Hilltop's tank, working the stapler in Squirrel Chaos, running Fractal
 Dash, at the helm of Salvo's gunboat; a hit makes Fig wince. And **the notices go through Fig**: there

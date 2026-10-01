@@ -192,11 +192,11 @@ function fire(x, y) {
   if (!game || S.over || game.dive) return;
   const st = STAPLER(), w = game.weapon;
   const owl = game.owls?.find((o) => Math.hypot(o.x - x, o.y - y) < 30); if (owl) { game.owls.splice(game.owls.indexOf(owl), 1); add(150, owl, 'HOOT!'); tufts(owl.x, owl.y, 8); sfx('clack'); return; }
-  const cone = game.cones?.find((c) => Math.hypot(c.x - x, c.y - y) < 26); if (cone) { game.cones.splice(game.cones.indexOf(cone), 1); add(60, cone, 'SWAT!'); burst(cone.x, cone.y, ['#8A5A2B', '#5A3B1F'], 8); sfx('clack'); return; }
+  const cone = game.cones?.find((c) => Math.hypot(c.x - x, c.y - y) < 12); if (cone) { game.cones.splice(game.cones.indexOf(cone), 1); add(60, cone, 'SWAT!'); burst(cone.x, cone.y, ['#8A5A2B', '#5A3B1F'], 8); sfx('clack'); return; }
   const snake = game.snakes?.find((s) => Math.abs(s.x - x) < 34 && Math.abs(st.y - 12 - y) < 32); if (snake) { game.snakes.splice(game.snakes.indexOf(snake), 1); add(120, { x: snake.x, y: st.y - 14 }, 'SHOO!'); burst(snake.x, st.y - 8, ['#5CB85C', '#2E7D4F'], 10); sfx('thud'); return; }
-  const target = game.acorns.some((a) => { const q = acornPos(a); return Math.hypot(q.x - x, q.y - y) < 30; }) || game.crates.some((c) => Math.hypot(c.x - x, c.y - y) < 26);
+  const target = game.acorns.some((a) => { const q = acornPos(a); return Math.hypot(q.x - x, q.y - y) < 14; }) || game.crates.some((c) => Math.hypot(c.x - x, c.y - y) < 16);   // the falling things need a direct hit
   if (!target && Math.hypot(x - st.x, y - st.y) < 34) return reload();
-  const acorn = game.acorns.find((a) => { const q = acornPos(a); return Math.hypot(q.x - x, q.y - y) < 30; });
+  const acorn = game.acorns.find((a) => { const q = acornPos(a); return Math.hypot(q.x - x, q.y - y) < 14; });
   if (acorn && game.stun <= 0) {
     if (w === 'staple') { if (game.reloadT > 0 || game.ammo <= 0) { sfx('buzz'); return; } game.ammo -= 1; if (game.ammo === 0) reload(); }
     const q = acornPos(acorn); game.acorns.splice(game.acorns.indexOf(acorn), 1); add(25, q, 'SWAT!'); burst(q.x, q.y, ['#8A5A2B', '#C98B4A'], 10); sfx('clack');
@@ -246,9 +246,9 @@ function reload() { if (game.reloadT > 0 || game.ammo === AMMO) return; game.rel
 function land(s) { if (!hitAt(s.x, s.y, s.nail ? 4 : 7)) { const onTree = forest.segs.some((sg) => segDist(s.x, s.y, sg) < sg.w / 2 + 3); if (onTree) game.stuck.push({ x: s.x, y: s.y, a: Math.random() * 3, life: 4 }); S.combo = 0; burst(s.x, s.y, ['#E9E4D0', '#9AA7B0'], 6); } }
 function hitAt(x, y, slack, quiet = false) {
   if (!game || S.over) return false;
-  const crate = game.crates.find((c) => Math.hypot(c.x - x, c.y - y) < 22);
+  const crate = game.crates.find((c) => Math.hypot(c.x - x, c.y - y) < 14);   // direct hits only for what falls
   if (crate) { openCrate(crate); return true; }
-  const acorn = game.acorns.find((a) => { const q = acornPos(a); return Math.hypot(q.x - x, q.y - y) < 24; });
+  const acorn = game.acorns.find((a) => { const q = acornPos(a); return Math.hypot(q.x - x, q.y - y) < 12; });
   if (acorn) { const q = acornPos(acorn); game.acorns.splice(game.acorns.indexOf(acorn), 1); add(25, q, 'CRACK!'); burst(q.x, q.y, ['#8A5A2B', '#C98B4A'], 10); sfx('clack'); return true; }
   let best = null, bd = Infinity;
   game.squirrels.forEach((sq) => { const p = sqPos(sq), d = Math.hypot(p.x - x, p.y - y); if (d < RAD[sq.size] + slack && d < bd) { bd = d; best = sq; } });
@@ -365,7 +365,12 @@ function update(dt) {
   if (g.twist && g.time > g.twist.until) g.twist = null;
   if (g.reloadT > 0) { g.reloadT -= dt; if (g.reloadT <= 0) { g.reloadT = 0; g.ammo = AMMO; } }
   g.squirrels.forEach((sq) => moveSquirrel(sq, sq.daze > 0 ? dt * 0.35 : dt));
-  g.staples = g.staples.filter((s) => { s.t += dt; if (s.t >= s.tf) { land(s); return false; } return true; });
+  g.staples = g.staples.filter((s) => { s.t += dt; if (s.t >= s.tf) { land(s); return false; }
+    // 📎 in flight: the first squirrel in the staple's path takes it (the falling things only count where it lands)
+    const e = s.t / s.tf, sx = s.x0 + (s.x - s.x0) * e, sy = s.y0 + (s.y - s.y0) * e; let best = null, bd = Infinity;
+    g.squirrels.forEach((sq) => { const p = sqPos(sq), d = Math.hypot(p.x - sx, p.y - sy); if (d < RAD[sq.size] + (s.nail ? 3 : 5) && d < bd) { bd = d; best = sq; } });
+    if (best) { strike(best, false); return false; }
+    return true; });
   g.pins.forEach((p) => { p.t += dt; }); g.pins = g.pins.filter((p) => { if (p.t > 0.9) { burst(p.x, p.y, p.gold ? ['#F5C542', '#FFF3C4'] : ['#C98B4A', '#8A5A2B', '#F2E3C0'], 16); if (!p.gold) { g.kept.push({ x: p.x, y: p.y, face: p.face, tw: 0 }); if (g.kept.length > 40) g.kept.shift(); } return false; } return true; });
   g.stuck.forEach((s) => { s.life -= dt; }); g.stuck = g.stuck.filter((s) => s.life > 0);
   g.fx.forEach((f) => { f.life -= dt; if (f.kind === 'whisper') return; if (f.kind === 'dot' || f.kind === 'tuft') { f.x += f.vx * dt; f.y += f.vy * dt; f.vy += (f.kind === 'tuft' ? 160 : 300) * dt; f.a = (f.a || 0) + dt * 5; } else if (f.kind === 'ring') f.r += (f.R - f.r) * Math.min(1, dt * 14); else f.y -= 30 * dt; });

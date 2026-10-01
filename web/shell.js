@@ -30,6 +30,7 @@ const SHELL_CSS = `
   .shud .lvl{font-size:13px;color:var(--muted,#ccc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:min(58vw,260px)}   /* one line on a phone: Putt's course text used to wrap under the hearts */
   .shud > div:first-child{min-width:0}
   .shud .hearts{font-size:14px;letter-spacing:1px}
+  .shud .hearts small{display:block;font-size:11px;letter-spacing:2px;color:var(--muted,#ccc)}
   .chaosm{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
   .chaosm canvas{width:92px;height:34px;background:#0008;border-radius:8px}
   .spal{position:absolute;left:4px;top:76px;width:60px;height:60px;pointer-events:none;filter:drop-shadow(0 4px 8px #000a)}   /* under the score, off the field (Hilltop's tank lives bottom-left) */
@@ -77,7 +78,12 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     <div class="sover" id="over"><div class="card" id="overCard"></div></div>`);
   const meter = $('meter');
   // ---------------------------------------------------------------- shared state
-  const S = { score: 0, hearts: 3, combo: 0, comboT: 0, tally: {}, curve: makeCurve(), beatT: 0, beats: 0, over: false, how: null, time: 0, morphs: 0 };
+  const S = { score: 0, hearts: 3, lives: {}, combo: 0, comboT: 0, tally: {}, curve: makeCurve(), beatT: 0, beats: 0, over: false, how: null, time: 0, morphs: 0 };
+  // 🎮 Every organ is its own little game inside the run: it has three lives of its own (S.lives[key]). Lose
+  // them and that organ resets to its easy start, and the run loses one of its own three hearts. The run ends
+  // when the run's hearts are gone. The reset waits for the organ's update to finish (resetPending).
+  const livesOf = (k) => S.lives[k] ?? 3;
+  let resetPending = null;
   let active = null, prev = null, transition = null, tenure = 0, lastUsed = new Map(), running = false;
   // 🧘 calm within the chaos: beats left in the hold a calm organ (CALM.organs) opens on entry
   let calm = 0;
@@ -96,8 +102,8 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   const host = {
     cv, ctx, W: W0, H: 640, k: 1, dpr: 1, ox: 0, oy: 0, reduceMotion, S, sfx, morphs,
     banner, add: (pts) => { S.score += Math.max(0, Math.round(pts)); },
-    heal: (n = 1) => { S.hearts = Math.min(3, S.hearts + n); },
-    hurt: (how) => { S.hearts -= 1; S.combo = 0; S.comboT = 0; pal.hurt(); if (S.hearts <= 0) { over(how); return true; } return false; },
+    heal: (n = 1) => { if (active) S.lives[active.key] = Math.min(3, livesOf(active.key) + n); },
+    hurt: (how) => { S.combo = 0; S.comboT = 0; pal.hurt(); if (!active) return false; S.lives[active.key] = livesOf(active.key) - 1; if (S.lives[active.key] <= 0) resetPending = how; return false; },
     over, ui: (html) => { $('oui').innerHTML = html || ''; return $('oui'); },
     organ: () => active?.key, activeBeat: () => active?.beat || 1, stage: () => stageOf() + 1,   // 🎚️ the run's stage, for organs that grow with it
   };
@@ -163,7 +169,8 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   }
   function hud() {
     $('score').textContent = S.score.toLocaleString();
-    const hearts = '❤️'.repeat(Math.max(0, S.hearts)) + '🖤'.repeat(Math.max(0, 3 - S.hearts)); if ($('hearts').textContent !== hearts) $('hearts').textContent = hearts;
+    const lv = active ? livesOf(active.key) : 3, hearts = '❤️'.repeat(Math.max(0, S.hearts)) + '🖤'.repeat(Math.max(0, 3 - S.hearts)) + (active ? `<small>${active.icon} ${'●'.repeat(Math.max(0, lv))}${'○'.repeat(Math.max(0, 3 - lv))}</small>` : '');
+    if ($('hearts').innerHTML !== hearts) $('hearts').innerHTML = hearts;   // the run's hearts, and under them this organ's own lives
     $('combo').textContent = S.combo > 1 && S.comboT > 0 ? `COMBO ×${S.combo}` : '';
     $('lvl').textContent = `Stage ${stageOf() + 1}${active?.hudLine?.() ? ' · ' + active.hudLine() : ''}`;
     $('phase').textContent = meterText(S.curve);
@@ -222,6 +229,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
       S.beatT += dt; const bl = active.beat || 1; while (S.beatT >= bl && !S.over) { S.beatT -= bl; beat(); }
       if (S.comboT > 0) { S.comboT -= dt; if (S.comboT <= 0) S.combo = 0; }
       if (!S.over) active.update(dt);
+      if (resetPending && !S.over) resetOrgan();
       if (Math.abs(zoom - zoomTo) > 0.001 || Math.abs(widen - widenTo) > 0.001) { const e = Math.min(1, dt * 1.5); zoom += (zoomTo - zoom) * e; widen += (widenTo - widen) * e; if (Math.abs(zoom - zoomTo) < 0.002) zoom = zoomTo; if (Math.abs(widen - widenTo) < 0.002) widen = widenTo; size(); }   // 🔍 the board eases out, wider faster than taller
       if (lens) { lens.t += dt; if (lens.t >= lens.dur) clearLens(); }
       hud();
@@ -240,8 +248,14 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     requestAnimationFrame(loop);
   }
   // ---------------------------------------------------------------- start and end
+  function resetOrgan() {   // the organ's lives are gone: it starts over, easy, and the run pays a heart
+    const how = resetPending; resetPending = null; S.lives[active.key] = 3; S.hearts -= 1; S.how = how;
+    if (S.hearts <= 0) { over(how); return; }
+    active.start(); active.enter(null, null); applyTheme(); host.ui(''); calm = 0; if (isCalm(active.key)) openCalm();
+    banner(`🔁 ${active.name.toUpperCase()} STARTS OVER · ❤️ −1`, `${how} · the run has ${S.hearts} ${S.hearts === 1 ? 'heart' : 'hearts'} left`); sfx('buzz'); navigator.vibrate?.(80);
+  }
   function startRun() {
-    S.score = 0; S.hearts = 3; S.combo = 0; S.comboT = 0; S.tally = {}; S.curve = makeCurve(); S.beatT = 0; S.beats = 0; S.over = false; S.how = null; S.time = 0; S.morphs = 0;
+    S.score = 0; S.hearts = 3; S.lives = {}; resetPending = null; S.combo = 0; S.comboT = 0; S.tally = {}; S.curve = makeCurve(); S.beatT = 0; S.beats = 0; S.over = false; S.how = null; S.time = 0; S.morphs = 0;
     tenure = 0; prev = null; transition = null; lastUsed = new Map(); zoom = zoomTo = 1; widen = widenTo = 1; clearLens(); size();
     organs.forEach((o) => o.start());
     active = organs[Math.floor(Math.random() * organs.length)]; active.enter(null, null); applyTheme(); calm = 0;
@@ -272,7 +286,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => cv.addEventListener(ev, fwd('up')));
   addEventListener('keydown', (e) => { if (running && !S.over) active?.keydown?.(e); });
   addEventListener('keyup', (e) => { if (running && !S.over) active?.keyup?.(e); });
-  window.__shell = () => ({ organ: active?.key, prev: prev?.key, calm, glitch: glitchT > 0, mood: S.curve.mood, stage: stageOf() + 1, zoom, widen, W: host.W, lens: lens?.kind || null, H: host.H, oy: host.oy, cw: cv.getBoundingClientRect().width, k: host.k, ox: host.ox, theme: stage.style.getPropertyValue('--bg'), score: S.score, hearts: S.hearts, combo: S.combo, beats: S.beats, morphs: S.morphs, r: S.curve.r, n: S.curve.n, window: S.curve.window, over: S.over, tenure, running, transition: !!transition,
+  window.__shell = () => ({ organ: active?.key, prev: prev?.key, calm, glitch: glitchT > 0, mood: S.curve.mood, stage: stageOf() + 1, zoom, widen, W: host.W, lens: lens?.kind || null, H: host.H, oy: host.oy, cw: cv.getBoundingClientRect().width, k: host.k, ox: host.ox, theme: stage.style.getPropertyValue('--bg'), score: S.score, hearts: S.hearts, combo: S.combo, beats: S.beats, morphs: S.morphs, r: S.curve.r, n: S.curve.n, window: S.curve.window, over: S.over, tenure, running, transition: !!transition, lives: { ...S.lives },
     tally: { ...S.tally }, force: (why) => { if (why === 'glitch') return glitchRun(); if (why.startsWith('lens:')) return putLens(why.slice(5), 3); if (why === 'stage') { S.beats = STAGES[Math.min(3, stageOf() + 1)].beats; zoomTo = STAGES[stageOf()].zoom; widenTo = STAGES[stageOf()].widen; return; } const to = why === 'mirror' && prev ? prev : nextOrgan(); morphTo(to, why); }, over: S.over, end: (how) => over(how), hurt: () => host.hurt('test') });
   // ---------------------------------------------------------------- go
   (async () => {

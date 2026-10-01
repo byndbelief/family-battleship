@@ -817,6 +817,15 @@ returns before filling it; the HUD stage line is `Stage N · <hudLine>` on one l
 ellipsis, so keep `hudLine()`s short). Each organ draws the player with `drawPal(S.curve.mood || 'calm',
 …)` (hilltop `drawTank` when `mine`, putt's ball with `g.face` from the roll, squirrel's `drawStapler`,
 fractal's runner, salvo's boat), passing `hurt` from a short `hurtT`/`stun`/`inv` so Fig winces.
+**Organs have their own lives (shell.js).** `S.lives[key]` (default 3, `livesOf`); `host.hurt()` takes one
+and, at zero, sets `resetPending`; `loop` runs `resetOrgan()` after the organ's `update` returns (so an
+organ never has its state swapped under it mid-frame): lives back to 3, `S.hearts -= 1` (over at 0, with
+the hurt's `how`), then `active.start()` + `enter(null)` + the calm hold if it's a calm organ, and a Fig
+cue. `host.heal()` refills the organ's lives. `host.hurt()` now always returns false (organs' `ko` paths
+are dead code kept for the shape). The HUD hearts line carries `<small>` with the organ's icon and
+●/○ lives. `__shell().lives`. Test: `t_lives`. squirrel.js: the staples filter checks each flight frame
+for a squirrel within `RAD + 5` (nail 3) of the staple and `strike`s it; tap/landing radii for acorns,
+cones and crates are tight (12–16).
 **A gentle start** (organs read `host.stage()` and their own level): putt.js fairways are corridors
 (`g.path` polyline, `g.pw` width; `corridor(bends, course)` retries a turning walk inside the world,
 `nearest()` gives the wall for the bounce and the gopher's drop, `spot(margin)` places hazards on the
