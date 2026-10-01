@@ -20,7 +20,7 @@
 // The host an organ gets: { cv, ctx, W, H, k, dpr, reduceMotion, S, banner, add, hurt, heal, over, sfx, ui, morphs }
 import { sb, me, signedIn, sfx, setGameTools, esc, names } from './common.js';
 import { makeCurve, stepCurve, drawMeter, meterText, NEWS, tally, ratingLine, CALM, isCalm, CHAOS, MOOD_SAY, MOOD_NAME, WEIGHTS } from './chaos.js';
-import { palWidget, PAL } from './pals.js';
+import { palWidget, PAL, drawPal } from './pals.js';
 import { applyPalTheme } from './common.js';
 
 const SHELL_CSS = `
@@ -49,8 +49,9 @@ const SHELL_CSS = `
   .sbanner{position:absolute;left:68px;top:84px;max-width:calc(100% - 80px);pointer-events:none;font-weight:900;font-size:12px;line-height:1.2;padding:4px 10px;border-radius:99px;background:#000a;border:1px solid #ffffff33;color:var(--bannerc,#FFE08A);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transform-origin:0 50%;animation:bpop .25s ease-out}   /* 🟢 Fig says it: a small word beside the pal, never over the field */8,0 0 30px var(--gold,#F5C542);white-space:nowrap;animation:bpop .45s cubic-bezier(.2,1.6,.4,1) both;text-align:center}
   .sbanner small{display:none;font-family:var(--body,inherit);font-weight:900;font-size:15px;-webkit-text-stroke:0;color:#fff;text-shadow:0 2px 4px #000;white-space:normal;line-height:1.25}
   @keyframes bpop{from{transform:scale(.4);opacity:0}}
-  .sover{position:absolute;inset:0;display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,#0008,#000d);padding:16px;text-align:center;overflow:auto}
-  .sover .card{max-width:360px;display:flex;flex-direction:column;gap:12px;align-items:center}
+  .sover{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;background:#07060F;padding:16px;text-align:center;overflow:auto}   /* the card sits low: the box shows above it */
+  .sover .boxbg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}   /* 📦 a look in the box: drawn by drawBox() while the overlay is up */
+  .sover .card{position:relative;max-width:340px;display:flex;flex-direction:column;gap:10px;align-items:center;padding:14px 16px;border-radius:20px;background:#0B0918b8;border:1px solid #ffffff1a;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
   .sover p{margin:0}
   .sover .muted{color:var(--muted,#ccc)} .sover .small{font-size:13px}
   .sover .board{list-style:none;margin:0;padding:0;width:100%;max-width:280px;display:flex;flex-direction:column;gap:4px;text-align:left}
@@ -75,7 +76,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     <div class="verb" id="verb" hidden></div>
     <div class="oui" id="oui"></div>
     <div class="sbanner" id="banner" hidden></div>
-    <div class="sover" id="over"><div class="card" id="overCard"></div></div>`);
+    <div class="sover" id="over"><canvas class="boxbg" id="boxbg" aria-hidden="true"></canvas><div class="card" id="overCard"></div></div>`);
   const meter = $('meter');
   // ---------------------------------------------------------------- shared state
   const S = { score: 0, hearts: 3, lives: {}, combo: 0, comboT: 0, tally: {}, curve: makeCurve(), beatT: 0, beats: 0, over: false, how: null, time: 0, morphs: 0 };
@@ -221,8 +222,47 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   }
   function applyTheme(th = active?.theme) { if (!th) return; Object.entries(th).forEach(([k, v]) => stage.style.setProperty(`--${k}`, v)); }
   // ---------------------------------------------------------------- the loop
+  // ---------------------------------------------------------------- 📦 a look in the box (the start and over screens)
+  // Looking down into an open box: cardboard walls falling away to a floor where the logistic map's bifurcation
+  // diagram glows (the whole run, r 2.5 → 4, laid out as light), the organs' icons drifting up out of the depth,
+  // and Fig peeking over the rim. Drawn only while the overlay is up.
+  const bb = $('boxbg'), bctx = bb.getContext('2d'); let bif = null;
+  function bifurcation(w, h) {   // the diagram as an offscreen canvas: for each r, the orbit after it settles
+    const c = document.createElement('canvas'); c.width = w; c.height = h; const x2 = c.getContext('2d'); x2.fillStyle = '#0B0918'; x2.fillRect(0, 0, w, h);
+    for (let i = 0; i < w; i++) { const r = 2.5 + (i / w) * 1.5; let x = 0.3; for (let n = 0; n < 60; n++) x = r * x * (1 - x);
+      const col = r < 3 ? '#3DD6C6' : r < 3.449 ? '#C9B8FF' : r < 3.5699 ? '#F5C542' : '#FF5FB0'; x2.fillStyle = col; x2.globalAlpha = 0.55;
+      for (let n = 0; n < 48; n++) { x = r * x * (1 - x); x2.fillRect(i, h - 2 - x * (h - 4), 1, 1.2); } }
+    return c;
+  }
+  const motes = Array.from({ length: 14 }, (_, i) => ({ ic: organs[i % organs.length].icon, a: Math.random() * 6.28, rr: 0.15 + Math.random() * 0.5, z: Math.random(), v: 0.05 + Math.random() * 0.07 }));
+  function drawBox(t) {
+    const W = bb.width = bb.clientWidth * host.dpr, H = bb.height = bb.clientHeight * host.dpr; if (!W || !H) return; const d = host.dpr, cx = W / 2, cy = H * 0.36;
+    const ow = Math.min(W * 0.9, H * 0.6), oh = Math.min(H * 0.62, ow * 0.95), iw = ow * 0.46, ih = oh * 0.46;   // the rim and the floor
+    const O = { x0: cx - ow / 2, y0: cy - oh / 2, x1: cx + ow / 2, y1: cy + oh / 2 }, I = { x0: cx - iw / 2, y0: cy - ih / 2, x1: cx + iw / 2, y1: cy + ih / 2 };
+    bctx.setTransform(1, 0, 0, 1, 0, 0); bctx.fillStyle = '#07060F'; bctx.fillRect(0, 0, W, H);
+    // the lid flaps, folded out past the rim
+    bctx.fillStyle = '#5A3E22'; const f = ow * 0.11;
+    bctx.fillRect(O.x0 - f, O.y0, f, oh); bctx.fillRect(O.x1, O.y0, f, oh); bctx.fillRect(O.x0, O.y0 - f * 0.8, ow, f * 0.8); bctx.fillRect(O.x0, O.y1, ow, f * 0.8);
+    bctx.fillStyle = '#C9B48A55'; bctx.fillRect(cx - 6 * d, O.y0 - f * 0.8, 12 * d, f * 0.8); bctx.fillRect(cx - 6 * d, O.y1, 12 * d, f * 0.8);   // the tape
+    // the four walls, darker the deeper they go
+    const wall = (a, b, c2, e, light) => { const g = bctx.createLinearGradient(a[0], a[1], c2[0], c2[1]); g.addColorStop(0, light); g.addColorStop(1, '#120B06'); bctx.fillStyle = g; bctx.beginPath(); bctx.moveTo(...a); bctx.lineTo(...b); bctx.lineTo(...c2); bctx.lineTo(...e); bctx.closePath(); bctx.fill(); };
+    wall([O.x0, O.y0], [O.x1, O.y0], [I.x1, I.y0], [I.x0, I.y0], '#3A2816'); wall([O.x1, O.y0], [O.x1, O.y1], [I.x1, I.y1], [I.x1, I.y0], '#2E1F11');
+    wall([O.x1, O.y1], [O.x0, O.y1], [I.x0, I.y1], [I.x1, I.y1], '#49321B'); wall([O.x0, O.y1], [O.x0, O.y0], [I.x0, I.y0], [I.x0, I.y1], '#2E1F11');
+    // the floor: the bifurcation diagram, glowing
+    if (!bif || bif.width !== Math.round(iw)) bif = bifurcation(Math.max(2, Math.round(iw)), Math.max(2, Math.round(ih)));
+    bctx.drawImage(bif, I.x0, I.y0, iw, ih);
+    const gl = bctx.createRadialGradient(cx, cy, ih * 0.1, cx, cy, oh * 0.75); gl.addColorStop(0, `rgba(61,214,198,${0.22 + 0.08 * Math.sin(t / 700)})`); gl.addColorStop(1, 'rgba(61,214,198,0)'); bctx.fillStyle = gl; bctx.fillRect(0, 0, W, H);
+    // the organs' icons drifting up out of the depth toward you
+    bctx.textAlign = 'center'; bctx.textBaseline = 'middle';
+    motes.forEach((m) => { m.z = (m.z + m.v * 0.016) % 1; const sc = 0.25 + m.z * 1.1, ang = m.a + t / 9000; const x = cx + Math.cos(ang) * m.rr * ow * (0.3 + m.z * 0.9), y = cy + Math.sin(ang) * m.rr * oh * (0.3 + m.z * 0.9);
+      bctx.globalAlpha = m.z < 0.1 ? m.z * 10 : m.z > 0.85 ? (1 - m.z) / 0.15 : 1; bctx.font = `${Math.round(16 * d * sc)}px serif`; bctx.fillText(m.ic, x, y); });
+    bctx.globalAlpha = 1;
+    // Fig, peeking over the rim
+    drawPal(S.curve.mood || 'calm', bctx, { x: cx + ow * 0.28, y: O.y0 - f * 0.1 + Math.sin(t / 900) * 3 * d, s: 15 * d, t: t / 1000, r: S.curve.r, face: -1 });
+  }
   let last = 0;
   function loop(t) {
+    if (!$('over').hidden) drawBox(t);
     const dt = Math.min(0.05, last ? (t - last) / 1000 : 0); last = t;
     if (running && !S.over) {
       S.time += dt;
