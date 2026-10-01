@@ -9,7 +9,7 @@
 import { fibMult } from '../chaos.js';
 import { drawPal } from '../pals.js';
 
-const W = 400, G = 620, TANK_W = 22;
+let W = 400, G = 620, TANK_W = 22;
 const TWISTS = [
   ['💨 GALE', 'the wind howls: lead your shots', 'gale'],
   ['☄️ METEOR SHOWER', 'watch the sky', 'meteors'],
@@ -19,7 +19,7 @@ const TWISTS = [
 let host, ctx, S, sfx, g = null, killsN = 0, shotsN = 0, drag = null;
 const H = () => host.H;
 const rng = (seed) => { let x = (seed >>> 0) || 1; return () => { x ^= x << 13; x >>>= 0; x ^= x >>> 17; x ^= x << 5; x >>>= 0; return x / 4294967296; }; };
-// The ridge: midpoint displacement, 0..W in 4 px steps.
+// The ridge: 101 samples across the world, W/100 apart (the world widens with the stage; the ridge stretches with it).
 function ridge(seed) {
   const r = rng(seed), n = 101, h = new Array(n).fill(0), base = H() * 0.66;
   h[0] = base + 40; h[n - 1] = base - 60 + r() * 40; h[50] = base - 20 + r() * 60;
@@ -27,7 +27,8 @@ function ridge(seed) {
   sub(0, 50, 90); sub(50, n - 1, 90);
   return h.map((v) => Math.max(H() * 0.3, Math.min(H() - 30, v)));
 }
-const hAt = (x) => { const i = Math.max(0, Math.min(99, x / 4)), a = Math.floor(i), t = i - a; return g.h[a] + (g.h[Math.min(100, a + 1)] - g.h[a]) * t; };
+const SP = () => W / 100;
+const hAt = (x) => { const i = Math.max(0, Math.min(99, x / SP())), a = Math.floor(i), t = i - a; return g.h[a] + (g.h[Math.min(100, a + 1)] - g.h[a]) * t; };
 const stage = () => host.stage?.() || 1;   // 🎚️ the run's stage: the world grows and fills around you
 function newGame() { g = { h: [], tanks: [], shells: [], fx: [], meteors: [], moles: [], lakes: [], balloons: [], moleT: 4, serpT: 3, balloonT: 5, centred: false, me: { x: 44 }, wind: 0, twist: null, time: 0, fireT: 3, shield: 0, split: 0, big: 0, seed: Math.floor(Math.random() * 1e6), night: 0 }; g.h = ridge(g.seed); killsN = 0; shotsN = 0; addTank(); }
 function addTank(gold = false, quiet = false) {
@@ -44,9 +45,9 @@ const inLake = (x) => g.lakes.some((l) => x > l.x0 && x < l.x1);
 function carveLake() {
   if (g.lakes.length >= 2) return;
   const fresh = g.fresh || (g.fresh = ridge(g.seed)); let best = -1, bi = 20;
-  for (let i = 20; i < 81; i++) { if (Math.abs(i * 4 - g.me.x) < 70) continue; const v = fresh[i]; if (v > best && !inLake(i * 4)) { best = v; bi = i; } }   // the lowest ground that isn't under you
-  const x0 = Math.max(0, bi - 9) * 4, x1 = Math.min(100, bi + 9) * 4, y = Math.min(H() - 36, best + 6);
-  for (let i = x0 / 4; i <= x1 / 4; i++) { fresh[i] = Math.max(fresh[i], y); g.h[i] = Math.max(g.h[i], y); }
+  for (let i = 20; i < 81; i++) { if (Math.abs(i * SP() - g.me.x) < 70) continue; const v = fresh[i]; if (v > best && !inLake(i * SP())) { best = v; bi = i; } }   // the lowest ground that isn't under you
+  const i0 = Math.max(0, bi - 9), i1 = Math.min(100, bi + 9), x0 = i0 * SP(), x1 = i1 * SP(), y = Math.min(H() - 36, best + 6);
+  for (let i = i0; i <= i1; i++) { fresh[i] = Math.max(fresh[i], y); g.h[i] = Math.max(g.h[i], y); }
   g.lakes.push({ x0, x1, y, serpent: null }); g.fx.push({ kind: 'text', x: (x0 + x1) / 2, y: y - 30, text: '🌊 a lake', life: 1.2 });
 }
 function serpent() { const l = g.lakes[Math.floor(Math.random() * g.lakes.length)]; if (!l || l.serpent) return; l.serpent = { x: l.x0 + 20 + Math.random() * (l.x1 - l.x0 - 40), t: 0, hp: 1, fired: false }; sfx('splash'); }
@@ -82,7 +83,7 @@ function fire(dx, dy) {
   g.big = 0; shotsN += 1; sfx('cannon');
 }
 // a crater digs the hill, but never more than 70 below where it stood fresh: you keep a hill to stand on
-function crater(x, y, r) { const fresh = g.fresh || (g.fresh = ridge(g.seed)); for (let i = 0; i < 101; i++) { const px = i * 4, dx = px - x; if (Math.abs(dx) < r) { const depth = Math.sqrt(r * r - dx * dx); g.h[i] = Math.max(g.h[i], Math.min(H() - 30, fresh[i] + 70, y + depth)); } } }
+function crater(x, y, r) { const fresh = g.fresh || (g.fresh = ridge(g.seed)); for (let i = 0; i < 101; i++) { const px = i * SP(), dx = px - x; if (Math.abs(dx) < r) { const depth = Math.sqrt(r * r - dx * dx); g.h[i] = Math.max(g.h[i], Math.min(H() - 30, fresh[i] + 70, y + depth)); } } }
 function boom(x, y, r, mine) {
   crater(x, y, r);
   for (let i = 0; i < 22; i++) { const a = Math.random() * 6.28, v = 40 + Math.random() * 180; g.fx.push({ kind: 'dot', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 80, c: ['#FFF4D6', '#FFC857', '#FF8A3D', '#E0453A'][i % 4], life: 0.7, r: 2 + Math.random() * 2 }); }
@@ -102,6 +103,7 @@ function boom(x, y, r, mine) {
   }
 }
 function update(dt) {
+  W = host?.W || W;   // 🎚️ the world widens with the stage
   g.time += dt;
   if (g.twist && g.time > g.twist.until) { if (g.twist.kind === 'gale') g.wind *= 0.3; g.twist = null; }
   g.night += ((g.twist?.kind === 'night' ? 1 : 0) - g.night) * Math.min(1, dt * 3);
@@ -146,17 +148,18 @@ function drawTank(x, hue, flash, mine, gold) {
   ctx.restore();
 }
 function draw(t) {
+  W = host?.W || W;
   const k = host.k, Hh = H();
-  ctx.setTransform(k, 0, 0, k, host.ox || 0, 0);
+  ctx.setTransform(k, 0, 0, k, host.ox || 0, host.oy || 0);
   const night = g ? g.night : 0;
   const sky = ctx.createLinearGradient(0, 0, 0, Hh); sky.addColorStop(0, night > 0.5 ? '#07071A' : '#1B1646'); sky.addColorStop(0.6, night > 0.5 ? '#12102A' : '#3B2A6E'); sky.addColorStop(1, night > 0.5 ? '#1A0A20' : '#7A3E72');
   ctx.fillStyle = sky; ctx.fillRect(0, 0, W, Hh);
   ctx.fillStyle = '#FFE9B0'; ctx.beginPath(); ctx.arc(W * 0.78, 70, 22, 0, 7); ctx.fill();
   if (!g) return;
   // the ridge
-  ctx.fillStyle = '#2E7D4F'; ctx.beginPath(); ctx.moveTo(0, Hh); g.h.forEach((v, i) => ctx.lineTo(i * 4, v)); ctx.lineTo(W, Hh); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = '#5A3B1F'; ctx.beginPath(); ctx.moveTo(0, Hh); g.h.forEach((v, i) => ctx.lineTo(i * 4, v + 14)); ctx.lineTo(W, Hh); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = '#8FD48F'; ctx.lineWidth = 3; ctx.beginPath(); g.h.forEach((v, i) => ctx[i ? 'lineTo' : 'moveTo'](i * 4, v)); ctx.stroke();
+  ctx.fillStyle = '#2E7D4F'; ctx.beginPath(); ctx.moveTo(0, Hh); g.h.forEach((v, i) => ctx.lineTo(i * SP(), v)); ctx.lineTo(W, Hh); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#5A3B1F'; ctx.beginPath(); ctx.moveTo(0, Hh); g.h.forEach((v, i) => ctx.lineTo(i * SP(), v + 14)); ctx.lineTo(W, Hh); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#8FD48F'; ctx.lineWidth = 3; ctx.beginPath(); g.h.forEach((v, i) => ctx[i ? 'lineTo' : 'moveTo'](i * SP(), v)); ctx.stroke();
   // wind
   ctx.fillStyle = '#ffffffaa'; ctx.font = '900 12px system-ui'; ctx.textAlign = 'center'; ctx.fillText(`${g.wind < -5 ? '←' : g.wind > 5 ? '→' : '·'} wind ${Math.abs(Math.round(g.wind))}`, W / 2, 24);
   // 🌊 lakes, 🕳️ moles, 🎈 balloons

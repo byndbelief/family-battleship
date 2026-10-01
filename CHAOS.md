@@ -189,13 +189,22 @@ stretches of beats: Stage 1 · learn (beats 0–29) lets r climb only every 5th 
 (30–59) every 2nd, Stage 3 · wild (60–99) and Stage 4 · chaos (100+) every beat. On a frozen beat r
 stays but x walks, so the nine events and **Fig's moods still land: a hint of what's coming** (the
 banner says so). Morphs need more tenure early (10, 8, 6, 4 beats). As the stages get harder the
-**board zooms out** (1.0, 0.92, 0.84, 0.76): a taller world, the organ's colour around it.
+**world expands, sideways more than up**: its width grows ×1, 1.15, 1.3, 1.45 (400 → 580) while the
+visible height grows only ×1, 1.06, 1.14, 1.22. On a phone upright that leaves a thin band of the
+organ's colour above and below; on its side the world just fills more of the screen.
 
 **The world fills as it grows.** Organs read the stage (`host.stage()`). Hilltop: from Stage 2 you
 drive to the middle and tanks come from both sides; 🕳️ moles surface from the hill, lob a shell and
 sink; from Stage 3 a dip becomes a 🌊 lake with a serpent that rises and spits, and 🎈 balloons drift
-over and drop a bomb when above you. All of it is shellable (120 / 200 / 150, with the combo). Putt:
-⛳ **courses** of three holes, each hole with an estimated par (1 + the distance in 150s, +1 for three
+over and drop a bomb when above you. All of it is shellable (120 / 200 / 150, with the combo).
+Squirrel Chaos: from Stage 2 🦉 owls glide over the stapler and drop a pinecone on it (a bonk unless
+you swat the cone, +60; swat the owl, +150); from Stage 3 🐍 snakes slither in along the ground and bite
+the stapler (shoo them, +120). Fractal Dash: from Stage 2 🛸 drones hunt you at jump height; dash
+through one for +150, touch it any other way and it stings. Salvo: from Stage 2 ✈️ planes cross the
+lanes and drop a bomb over your boat (tap the plane, +150, or the bomb, +50); from Stage 3 🫧 submarines
+surface, fire a torpedo and dive (tap one while it's up, +250). Putt: from Stage 2 a 🐹 gopher pops up
+while your ball sits still, runs over and drags it off (+1 putt) unless you tap it first (+100). Putt
+also has ⛳ **courses** of three holes, each hole with an estimated par (1 + the distance in 150s, +1 for three
 or more bumpers, +1 for water, +1 from course 3), par + 2 putts allowed; make the course's par and you
 move up a course (longer holes, more bumpers stay, a smaller cup), miss it and you play it again;
 birdies and eagles pay, and a course made pays 300 × the course.

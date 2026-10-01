@@ -8,7 +8,7 @@
 // drift). Six shells a clip; tap the gunboat (or R) to reload.
 import { fibMult } from '../chaos.js';
 
-const W = 400, LANES = 6, AMMO = 6, RELOAD_S = 1.2, CELL = 40;
+let W = 400, LANES = 6, AMMO = 6, RELOAD_S = 1.2, CELL = 40;
 const laneY = (i) => H() * 0.2 + i * ((H() * 0.5) / (LANES - 1));   // the lanes fill the middle of the sea, clear of the HUD and the boat
 const TWISTS = [
   ['🌫️ FOG', 'the sea hides them: fire at the wakes', 'fog'],
@@ -20,7 +20,7 @@ let host, ctx, S, sfx, g = null, sunkN = 0, shotsN = 0;
 const H = () => host.H;
 const BOAT = () => ({ x: W / 2, y: H() - 78 });   // above the shell's corner chips
 
-function newGame() { g = { ships: [], shells: [], torps: [], fx: [], arms: [], ammo: AMMO, reloadT: 0, time: 0, twist: null, salvo: 0, wave: 0, fog: 0, spawnT: 0 }; sunkN = 0; shotsN = 0; }
+function newGame() { g = { ships: [], shells: [], torps: [], fx: [], arms: [], ammo: AMMO, reloadT: 0, time: 0, twist: null, salvo: 0, wave: 0, fog: 0, spawnT: 0, planes: [], bombs: [], subs: [], planeT: 3, subT: 4 }; sunkN = 0; shotsN = 0; }
 function spawn(len, gold = false, lane = null) {
   if (g.ships.length >= 9) return;
   const l = lane ?? Math.floor(Math.random() * LANES), dir = Math.random() < 0.5 ? 1 : -1;
@@ -59,6 +59,9 @@ function fire(x, y) {
   // a torpedo under your finger: blow it up, whatever you're doing
   const tp = g.torps.find((t) => { const q = torpPos(t); return Math.hypot(q.x - x, q.y - y) < 30; });
   if (tp) { const q = torpPos(tp); g.torps.splice(g.torps.indexOf(tp), 1); host.add(25); splash(q.x, q.y, '#FFE08A', 14); g.fx.push({ kind: 'text', x: q.x, y: q.y - 10, text: 'DEFUSED +25', life: 0.9 }); sfx('clack'); return; }
+  const pl = g.planes?.find((p) => Math.hypot(p.x - x, p.y - y) < 30); if (pl) { g.planes.splice(g.planes.indexOf(pl), 1); host.add(150); splash(pl.x, pl.y, '#FFB07A', 16); g.fx.push({ kind: 'text', x: pl.x, y: pl.y - 10, text: 'SHOT DOWN +150', life: 0.9 }); sfx('boom', { size: 0.8 }); return; }
+  const bm = g.bombs?.find((q) => Math.hypot(q.x - x, q.y - y) < 26); if (bm) { g.bombs.splice(g.bombs.indexOf(bm), 1); host.add(50); splash(bm.x, bm.y, '#FFE08A', 12); g.fx.push({ kind: 'text', x: bm.x, y: bm.y - 10, text: 'DEFUSED +50', life: 0.9 }); sfx('clack'); return; }
+  const sub = g.subs?.find((s) => s.up > 0.5 && Math.hypot(s.x - x, s.y - y) < 34); if (sub) { g.subs.splice(g.subs.indexOf(sub), 1); host.add(250); splash(sub.x, sub.y, '#C9B8FF', 20); g.fx.push({ kind: 'text', x: sub.x, y: sub.y - 14, text: 'SUB SUNK +250', life: 1.1, big: true }); sfx('boom', { size: 1.1 }); return; }
   const arm = g.arms.find((a) => a.alive && Math.abs(a.x - x) < 22 && y > H() - a.h - 10);
   if (arm) { arm.alive = false; host.add(60); splash(arm.x, H() - arm.h / 2, '#C9B8FF', 16); g.fx.push({ kind: 'text', x: arm.x, y: H() - a_h(arm), text: 'ARM OFF +60', life: 0.9 }); sfx('thud'); return; }
   if (Math.hypot(x - b.x, y - b.y) < 36) return reload();
@@ -88,6 +91,7 @@ function land(x, y) {
 }
 function splash(x, y, c, n) { for (let i = 0; i < n; i++) { const a = Math.random() * 6.28, v = 40 + Math.random() * 120; g.fx.push({ kind: 'dot', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 50, c, life: 0.7, r: 1.5 + Math.random() * 2 }); } }
 function update(dt) {
+  W = host?.W || W;   // 🎚️ the world widens with the stage
   g.time += dt;
   if (g.twist && g.time > g.twist.until) { g.twist = null; g.arms = []; }
   g.fog += ((g.twist?.kind === 'fog' ? 1 : 0) - g.fog) * Math.min(1, dt * 3);
@@ -97,6 +101,14 @@ function update(dt) {
   const whirl = g.twist?.kind === 'whirl' ? 1 : 0;
   g.shells = g.shells.filter((s) => { s.t += dt; if (whirl) s.x += Math.sin(g.time * 3 + s.y) * 40 * dt; if (s.t >= s.tf) { land(s.x, s.y); return false; } return true; });
   g.torps = g.torps.filter((t) => { t.t += dt; if (t.t >= t.tf) { const b = BOAT(); splash(b.x, b.y - 10, '#FF5A3A', 24); sfx('boom'); navigator.vibrate?.(100); host.hurt('torpedoed') || host.banner('HIT', `${S.hearts} ${S.hearts === 1 ? 'heart' : 'hearts'} left`); S.combo = 0; return false; } return true; });
+  // ✈️ planes (Stage 2+) cross over the lanes (clear of the HUD chips) and drop a bomb over the boat; 🫧 submarines (Stage 3+) surface and fire a torpedo. Tap them.
+  { const st = host.stage?.() || 1, b = BOAT(); if (!g.planes) { g.planes = []; g.bombs = []; g.subs = []; g.planeT = 3; g.subT = 4; }
+    if (st >= 2) { g.planeT -= dt; if (g.planeT <= 0 && g.planes.length < st - 1) { g.planeT = 6 - st + Math.random() * 3; const dir = Math.random() < 0.5 ? 1 : -1; g.planes.push({ x: dir > 0 ? -40 : W + 40, y: laneY(0) + Math.random() * (laneY(LANES - 1) - laneY(0)), dir, v: 70 + st * 20, dropped: false }); } }
+    g.planes = g.planes.filter((p) => { p.x += p.dir * p.v * dt; if (!p.dropped && Math.abs(p.x - b.x) < 8 + st * 6) { p.dropped = true; g.bombs.push({ x: p.x, y: p.y + 8, vy: 20 }); sfx('tick'); } return p.x > -50 && p.x < W + 50; });
+    g.bombs = g.bombs.filter((bm) => { bm.vy += 200 * dt; bm.y += bm.vy * dt; if (bm.y >= b.y - 12) { if (Math.abs(bm.x - b.x) < 36) { splash(b.x, b.y - 10, '#FF5A3A', 24); sfx('boom'); navigator.vibrate?.(100); host.hurt('bombed') || host.banner('BOMBED', `${S.hearts} ${S.hearts === 1 ? 'heart' : 'hearts'} left`); S.combo = 0; } else splash(bm.x, bm.y, '#BFE9FF', 10); return false; } return true; });
+    if (st >= 3) { g.subT -= dt; if (g.subT <= 0 && g.subs.length < st - 2) { g.subT = 8 - st + Math.random() * 4; g.subs.push({ x: 50 + Math.random() * (W - 100), y: laneY(LANES - 1) + 30 + Math.random() * 20, t: 0, up: 0, fired: false }); } }
+    g.subs = g.subs.filter((s) => { s.t += dt; s.up = s.t < 1 ? s.t : s.t > 4 ? Math.max(0, 5 - s.t) : 1; if (!s.fired && s.t >= 2) { s.fired = true; g.torps.push({ x0: s.x, y0: s.y, x1: b.x + (Math.random() - 0.5) * 40, y1: b.y - 8, t: 0, tf: 2.2 }); sfx('splash'); } return s.t < 5; });
+  }
   g.arms.forEach((a) => { a.t += dt; if (a.alive) a.h = Math.min(a.hmax, a.h + 60 * dt); else a.h = Math.max(0, a.h - 200 * dt);
     if (a.alive && a.h >= a.hmax && Math.random() < dt * 0.5) { const s = g.ships.find((sh) => Math.abs(sh.x + sh.len * CELL / 2 - a.x) < 60); if (s) { g.ships.splice(g.ships.indexOf(s), 1); g.fx.push({ kind: 'text', x: a.x, y: H() - a.h, text: 'DRAGGED UNDER', life: 1, col: '#C9B8FF' }); } } });
   g.arms = g.arms.filter((a) => a.alive || a.h > 0);
@@ -105,8 +117,9 @@ function update(dt) {
   g.wave += dt;
 }
 function draw(t) {
+  W = host?.W || W;
   const k = host.k, Hh = H();
-  ctx.setTransform(k, 0, 0, k, host.ox || 0, 0);
+  ctx.setTransform(k, 0, 0, k, host.ox || 0, host.oy || 0);
   const sea = ctx.createLinearGradient(0, 0, 0, Hh); sea.addColorStop(0, '#0B2A44'); sea.addColorStop(1, '#0A1626');
   ctx.fillStyle = sea; ctx.fillRect(0, 0, W, Hh);
   ctx.strokeStyle = '#ffffff10'; ctx.lineWidth = 1; for (let i = 0; i < LANES; i++) { ctx.beginPath(); ctx.moveTo(0, laneY(i) + 20); ctx.lineTo(W, laneY(i) + 20); ctx.stroke(); }
@@ -124,6 +137,9 @@ function draw(t) {
     if (hidden && Math.random() < 0.06) { ctx.strokeStyle = '#ffffff55'; ctx.beginPath(); ctx.moveTo(s.x - s.dir * 10, y + 6); ctx.lineTo(s.x - s.dir * 30, y + 8); ctx.stroke(); }
   });
   g.torps.forEach(({ t: tt, ...tp }) => { const q = torpPos({ t: tt, ...tp }); ctx.fillStyle = '#1B1B22'; ctx.strokeStyle = '#FF5A3A'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(q.x, q.y, 5, 11, Math.atan2(tp.y1 - tp.y0, tp.x1 - tp.x0) - Math.PI / 2, 0, 7); ctx.fill(); ctx.stroke(); ctx.strokeStyle = '#ffffff44'; ctx.beginPath(); ctx.moveTo(q.x, q.y - 12); ctx.lineTo(q.x + (Math.random() - 0.5) * 6, q.y - 30); ctx.stroke(); });
+  (g.planes || []).forEach((p) => { ctx.fillStyle = '#00000033'; ctx.beginPath(); ctx.ellipse(p.x + 6, p.y + 18, 18, 5, 0, 0, 7); ctx.fill(); ctx.save(); ctx.translate(p.x, p.y); ctx.scale(p.dir, 1); ctx.fillStyle = '#DDE3E8'; ctx.beginPath(); ctx.roundRect(-18, -4, 36, 8, 4); ctx.fill(); ctx.beginPath(); ctx.moveTo(-4, 0); ctx.lineTo(-14, 10); ctx.lineTo(4, 10); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#E4572E'; ctx.fillRect(-18, -10, 5, 7); ctx.restore(); });
+  (g.bombs || []).forEach((bm) => { ctx.fillStyle = '#1B1B22'; ctx.strokeStyle = '#FF5A3A'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(bm.x, bm.y, 5, 9, 0, 0, 7); ctx.fill(); ctx.stroke(); });
+  (g.subs || []).forEach((s) => { if (s.up <= 0) return; ctx.save(); ctx.globalAlpha = 0.5 + 0.5 * s.up; ctx.translate(s.x, s.y + (1 - s.up) * 14); ctx.fillStyle = '#3A4A5A'; ctx.strokeStyle = '#8FA8C0'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(0, 0, 26, 9, 0, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillRect(-5, -16, 10, 10); ctx.fillStyle = '#FFE08A'; ctx.fillRect(-1, -22, 2, 7); ctx.restore(); });
   g.arms.forEach((a) => { if (a.h <= 0) return; ctx.strokeStyle = a.alive ? '#5A2A7A' : '#3A1A4A'; ctx.lineWidth = 14; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(a.x, Hh + 10); ctx.bezierCurveTo(a.x + Math.sin(a.t) * 30, Hh - a.h * 0.5, a.x - Math.sin(a.t * 1.3) * 30, Hh - a.h * 0.8, a.x + Math.sin(a.t * 0.7) * 20, Hh - a.h); ctx.stroke(); ctx.fillStyle = '#C9B8FF'; for (let i = 1; i < 4; i++) { ctx.beginPath(); ctx.arc(a.x + Math.sin(a.t + i) * 12, Hh - a.h * i / 4, 3, 0, 7); ctx.fill(); } });
   g.shells.forEach((s) => { const e = s.t / s.tf, x = s.x0 + (s.x - s.x0) * e, y = s.y0 + (s.y - s.y0) * e - Math.sin(e * Math.PI) * 60; ctx.fillStyle = '#FFE08A'; ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.fill(); ctx.strokeStyle = '#ffffff33'; ctx.setLineDash([3, 5]); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(s.x, s.y); ctx.stroke(); ctx.setLineDash([]); ctx.strokeStyle = '#FF5A4A88'; ctx.beginPath(); ctx.arc(s.x, s.y, 8, 0, 7); ctx.stroke(); });
   if (g.fog > 0.02) { ctx.fillStyle = `rgba(200,210,230,${0.35 * g.fog})`; ctx.fillRect(0, 0, W, Hh * 0.8); }
@@ -152,6 +168,6 @@ const organ = {
   level: () => 1 + Math.floor(sunkN / 5),
   overText: (how) => (how === 'torpedoed' ? ['💥 GUNBOAT DOWN', 'Too many torpedoes got through.'] : ['RUN OVER', '']),
   endStats: () => (g ? `⚓ ${sunkN} sunk from ${shotsN} shells` : ''),
-  debug: () => g && ({ ships: g.ships.map((s) => ({ x: s.x, y: laneY(s.lane), len: s.len, hits: s.hits.filter(Boolean).length })), torps: g.torps.map(torpPos), ammo: g.ammo, sunk: sunkN, twist: g.twist?.kind || null, arms: g.arms.length, W, H: H() }),
+  debug: () => g && ({ planes: g.planes?.length || 0, bombs: g.bombs?.length || 0, subs: g.subs?.length || 0, ships: g.ships.map((s) => ({ x: s.x, y: laneY(s.lane), len: s.len, hits: s.hits.filter(Boolean).length })), torps: g.torps.map(torpPos), ammo: g.ammo, sunk: sunkN, twist: g.twist?.kind || null, arms: g.arms.length, W, H: H() }),
 };
 export default organ;

@@ -7,7 +7,7 @@
 // copy of itself, a depth deeper: faster, rougher, another colour.
 import { fibMult, CHAOS } from '../chaos.js';
 
-const W = 400, DEPTH_S = 22, GRAV = 1500, JUMP = 520, DASH_MAX = 1.4, PX = 96, R = 13;   // PX: where you stand on screen; R: your size
+let W = 400, DEPTH_S = 22, GRAV = 1500, JUMP = 520, DASH_MAX = 1.4, PX = 96, R = 13;   // PX: where you stand on screen; R: your size
 const PALETTES = [   // one per depth, then round again
   { sky: ['#0B0A1F', '#2A1F6A'], far: '#2A2270', near: '#3A2F8F', ground: '#0A0918', edge: '#3DF2E0', spike: '#FF5FB0', shard: '#F5C542' },
   { sky: ['#0A1A1F', '#1A5A66'], far: '#1D5C66', near: '#2A7A85', ground: '#07171B', edge: '#F5C542', spike: '#FF6B5E', shard: '#3DF2E0' },
@@ -82,6 +82,7 @@ function twist() {
 
 // ---------------------------------------------------------------- the loop
 function update(dt) {
+  W = host?.W || W;   // 🎚️ the world widens with the stage
   const g = game;
   g.time += dt;
   if (g.dive) { g.dive.t += dt; if (g.dive.t >= g.dive.dur) { g.dive = null; } return; }
@@ -91,6 +92,8 @@ function update(dt) {
     if (g.twist.k === 'bolt' && Math.random() < dt * 2.2) g.obs.push({ type: 'bolt', x: g.cam + PX + 50 + Math.random() * (W - 110), t: 0.9, flash: 0 });
     if (g.twist.k === 'storm' && Math.random() < dt * 1.7) g.obs.push({ type: 'spike', x: g.cam + W + 60, n: 2 + Math.floor(Math.random() * 3) });
     if (g.twist.t >= g.twist.dur) g.twist = null; }
+  // 🛸 drones (Stage 2+): they fly in from the right at jump height and hunt you; a dash smashes them, anything else stings
+  { const st = host.stage?.() || 1; if (st >= 2 && Math.random() < dt * (0.12 + st * 0.08) && g.obs.filter((o) => o.type === 'drone').length < st) g.obs.push({ type: 'drone', x: g.cam + W + 40, lift: 40 + Math.random() * 60, vx: 50 + st * 25, ph: Math.random() * 6.28 }); }
   const gust = g.twist?.k === 'gust' ? 1.9 : 1, moon = g.twist?.k === 'moon' ? 0.45 : 1;
   g.fog += ((g.twist?.k === 'fog' ? 1 : 0) - g.fog) * Math.min(1, dt * 3);
   g.dark += ((g.twist?.k === 'dark' ? 1 : 0) - g.dark) * Math.min(1, dt * 3);
@@ -120,6 +123,9 @@ function update(dt) {
       o.t -= dt;
       if (o.t <= 0 && !o.struck) { o.struck = true; o.flash = 0.3; sfx('thud'); if (Math.abs(o.x - px) < 24 && g.inv <= 0) hurt('zapped'); }
       if (o.struck) { o.flash -= dt; return o.flash > 0; }
+    } else if (o.type === 'drone') {
+      o.x -= o.vx * dt; o.ph += dt * 3; const dy = (groundY(o.x) - o.lift + Math.sin(o.ph) * 8) - g.py, dx = o.x - px;
+      if (Math.hypot(dx, dy) < R + 11) { if (g.dashing) { host.add(150); for (let i = 0; i < 10; i++) g.parts.push({ x: o.x, y: g.py + dy, vx: (Math.random() - 0.5) * 260, vy: (Math.random() - 0.8) * 260, t: 0, life: 0.5, c: '#FF5FB0' }); sfx('boom', { size: 0.6 }); return false; } if (g.inv <= 0) hurt('droned'); }
     } else if (o.type === 'spike' && g.inv <= 0 && !g.dashing) {
       const w = o.n * 14;
       if (px + R * 0.6 > o.x && px - R * 0.6 < o.x + w && g.py + R > groundY(o.x + w / 2) + quake - 15) hurt('spiked');
@@ -144,7 +150,7 @@ function hurt(how) {
   g.inv = 1.4; g.shake = 1; sfx('thud');
   for (let i = 0; i < 12; i++) g.parts.push({ x: g.cam + PX, y: g.py, vx: (Math.random() - 0.5) * 300, vy: (Math.random() - 0.7) * 300, t: 0, life: 0.6, c: '#FF5FB0' });
   if (host.hurt(how)) { g.ko = how; return true; }
-  host.banner(how === 'spiked' ? 'OUCH' : how === 'zapped' ? 'ZAP' : 'SPLASH', `${S.hearts} ${S.hearts === 1 ? 'heart' : 'hearts'} left`);
+  host.banner(how === 'spiked' ? 'OUCH' : how === 'zapped' ? 'ZAP' : how === 'droned' ? 'DRONED · dash through them' : 'SPLASH', `${S.hearts} ${S.hearts === 1 ? 'heart' : 'hearts'} left`);
   return false;
 }
 function fall() {
@@ -176,8 +182,9 @@ function sierp(x, y, s, d, up = true) {   // a Sierpiński triangle, point up, s
   sierp(x, y - hh * (up ? 1 : -1), s / 2, d - 1, up); sierp(x - q, y + hh * (up ? 1 : -1), s / 2, d - 1, up); sierp(x + q, y + hh * (up ? 1 : -1), s / 2, d - 1, up);
 }
 function draw(t) {
+  W = host?.W || W;
   const g = game, pal = PALETTES[(depth - 1) % PALETTES.length], k = host.k, Hh = H();
-  ctx.setTransform(k, 0, 0, k, host.ox || 0, 0);
+  ctx.setTransform(k, 0, 0, k, host.ox || 0, host.oy || 0);
   if (g?.shake) { ctx.translate((Math.random() - 0.5) * 10 * g.shake, (Math.random() - 0.5) * 10 * g.shake); }
   if (g?.twist?.k === 'mirror') { ctx.translate(W, 0); ctx.scale(-1, 1); }   // 🪞 the world flips (the HUD stays put)
   // The dive: the world swells around you, into itself.
@@ -223,6 +230,13 @@ function draw(t) {
       const gy = groundY(o.x) + quake;
       if (!o.struck) { ctx.strokeStyle = '#FFE08A'; ctx.globalAlpha *= 0.5 + 0.5 * Math.sin(t / 60); ctx.setLineDash([6, 6]); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, gy); ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = '#FFE08A'; ctx.beginPath(); ctx.moveTo(sx - 10, gy); ctx.lineTo(sx + 10, gy); ctx.lineTo(sx, gy - 8); ctx.closePath(); ctx.fill(); }
       else { ctx.strokeStyle = '#fff'; ctx.shadowColor = '#FFE08A'; ctx.shadowBlur = 18; ctx.lineWidth = 4; ctx.beginPath(); let yy = 0, xx = sx; ctx.moveTo(xx, yy); while (yy < gy) { yy += 30; xx += (Math.random() - 0.5) * 24; ctx.lineTo(xx, Math.min(yy, gy)); } ctx.stroke(); ctx.shadowBlur = 0; }
+    } else if (o.type === 'drone') {
+      const y = groundY(o.x) - o.lift + Math.sin(o.ph) * 8, sp = (t / 30) % 6.28;
+      ctx.save(); ctx.translate(sx, y); ctx.fillStyle = '#FF5FB0'; ctx.strokeStyle = '#FFD1EA'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.roundRect(-10, -5, 20, 10, 4); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-14, -8); ctx.lineTo(14, -8); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(-12, -8, 7 * Math.abs(Math.cos(sp)), 1.5, 0, 0, 7); ctx.ellipse(12, -8, 7 * Math.abs(Math.sin(sp)), 1.5, 0, 0, 7); ctx.stroke();
+      ctx.fillStyle = '#3DF2E0'; ctx.beginPath(); ctx.arc(0, 1, 2.5, 0, 7); ctx.fill(); ctx.restore();
     } else if (o.type === 'shard') {
       const y = groundY(o.x) - o.lift, sp = Math.sin(t / 250 + o.t) * 0.5 + 0.5;
       ctx.save(); ctx.translate(sx, y); ctx.rotate(t / 700 + o.t); ctx.fillStyle = pal.shard; ctx.shadowColor = pal.shard; ctx.shadowBlur = 10 + sp * 10;
@@ -247,7 +261,7 @@ function draw(t) {
     ctx.restore();
   }
   ctx.globalAlpha = 1;
-  if (g.dive) { ctx.setTransform(k, 0, 0, k, host.ox || 0, 0); ctx.fillStyle = `rgba(255,255,255,${(g.dive.t / g.dive.dur) ** 3 * 0.9})`; ctx.fillRect(0, 0, W, Hh); }
+  if (g.dive) { ctx.setTransform(k, 0, 0, k, host.ox || 0, host.oy || 0); ctx.fillStyle = `rgba(255,255,255,${(g.dive.t / g.dive.dur) ** 3 * 0.9})`; ctx.fillRect(0, 0, W, Hh); }
 }
 
 // ---------------------------------------------------------------- the organ
@@ -272,7 +286,7 @@ const organ = {
   level: () => depth,
   overText: (how) => [how === 'fell' ? '🕳️ INTO THE DEEP' : how === 'zapped' ? '⚡ ZAPPED' : how === 'spiked' ? '💥 SPIKED' : 'RUN OVER', ''],
   endStats: () => (game ? `🔺 ${Math.floor(game.dist / 10).toLocaleString()} m at depth ${depth}, ${game.shards.toLocaleString()} from shards` : ''),
-  debug: () => game && ({ score: S.score, depth, hearts: S.hearts, dist: game.dist, speed: game.speed, py: game.py, onGround: game.onGround, dashing: game.dashing, dash: game.dash, r: S.curve.r, over: S.over,
+  debug: () => game && ({ score: S.score, depth, drones: game.obs.filter((o) => o.type === 'drone').length, W, hearts: S.hearts, dist: game.dist, speed: game.speed, py: game.py, onGround: game.onGround, dashing: game.dashing, dash: game.dash, r: S.curve.r, over: S.over,
     obs: game.obs.map((o) => ({ ...o, sx: o.x - game.cam })), twist: game.twist?.k || null, W, H: H(), PX, groundY: groundY(game.cam + PX), gyAt: (sx) => groundY(game.cam + sx),
     force: (k) => { const t = TWISTS.find((x) => x.k === k); game.twist = { ...t, t: 0 }; game.twistAt = game.time; S.hearts = 3; }, jump, hurt: () => hurt('spiked') }),
 };

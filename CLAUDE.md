@@ -801,11 +801,27 @@ on timers scaled by stage, `enemyShell()`, your shells tested against them in th
 flatten `g.fresh` too so the healing keeps them; `window.__ht()` reports counts. putt.js: `parOf()`,
 `PUTTS_OF()` (par + 2), `course`/`courseHole`/`coursePar`/`courseStrokes`, `far()` places the cup,
 `holeDone()` scores against par and moves the course on; `level()` is the course. Test: `t_world`.
+Every organ has stage-scaled enemies, each on a `g.<x>T` timer that only ticks while the organ is up
+(so it carries over visits) and a cap of `st - 1` / `st - 2`: squirrel.js `owls`/`cones`/`snakes`
+(`fire()` hit-tests them first, before the stapler reload check; cones and snakes call `bonk()`),
+fractal.js `drone` obstacles in `g.obs` (killed by a dash, else `hurt('droned')`), salvo.js
+`planes`/`bombs`/`subs` (a sub pushes a real torpedo into `g.torps`; `fire()` tests them before the
+ammo path), putt.js `g.gopher` (`restT` counts the ball's stillness; `shoo()` from `pointer`). Each
+`__xx()` debug reports the counts. Tests: `t_wide`, `t_wide2`.
+**The world widens by stage** (shell.js `size()`): `STAGES[].widen` (1, 1.15, 1.3, 1.45) sets
+`host.W = 400 × widen` and `zoom` (1, .94, .88, .82) sets the visible height `host.H = H0 / zoom`
+from the Stage 1 fit (`k0`, 400 wide and ≥ 1.25× taller); `host.k = min(cw / W, ch / H)` and the
+leftover canvas becomes `host.ox` / `host.oy` margins painted in the organ's `--bg`. Both ease in
+`loop`. Organs hold `let W` refreshed from `host?.W` at the top of `update()` and `draw()` (and
+`resize()` in squirrel, which regrows the forest when W changes), draw with
+`setTransform(k, 0, 0, k, host.ox, host.oy)`, and hilltop's ridge is 101 samples `W / 100` apart
+(`SP()`). `toWorld` subtracts both margins and clamps to the world. `__shell()` reports `W`, `widen`,
+`oy`.
 **The run's stages, zoom and lenses** (shell.js): `STAGES` (beats, climbEvery, zoom, tenure, lens
 seconds); `stepCurve(c, { freeze })` keeps n and r but lands everything else (fib off, since n didn't
 move); the beat freezes when `S.beats % climbEvery !== 0`; a stage change banners and sets `zoomTo`,
-which `loop` eases into `zoom` and re-`size()`s (host.k × zoom, so `host.H` grows and `host.ox`
-centres the board); `LENS` per mood (`putLens`/`clearLens`: a CSS filter or `scaleX(-1)` on the
+which `loop` eases into `zoom` (and `widenTo` into `widen`) and re-`size()`s (see "The world widens
+by stage" above); `LENS` per mood (`putLens`/`clearLens`: a CSS filter or `scaleX(-1)` on the
 canvas, `toWorld` mirrors x under the mirror lens; `wireframe()` is a difference-composite
 post-process in `loop`); `__shell().force('stage')` and `force('lens:<kind>')` for tests (`t_stages`).
 **Fig's mood is the curve's (080).** No picks any more: `design_votes` and `_chaos_companion` are

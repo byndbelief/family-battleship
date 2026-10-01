@@ -8,7 +8,7 @@
 import { fibMult } from '../chaos.js';
 import { drawPal } from '../pals.js';
 
-const W = 400, R = 6, CUP_R = 11, PUTTS = 5;
+let W = 400, R = 6, CUP_R = 11, PUTTS = 5;
 const TWISTS = [
   ['💨 WIND', 'the ball drifts across the green', 'wind'],
   ['🧊 ICE', 'nothing slows down', 'ice'],
@@ -24,7 +24,7 @@ const green = () => ({ x: 24, y: 70, w: W - 48, h: H() - 110 });
 // miss it and you play that course again. Each hole allows par + 2 putts before you pick up.
 function parOf() { if (!g.ball || !g.cups[0]) return 3; const c = g.cups[0], d = Math.hypot(c.x - g.ball.x, c.y - g.ball.y); let p = 1 + Math.ceil(d / 150); if (g.bumpers.length >= 3) p += 1; if (g.water.length) p += 1; if (g.course >= 3) p += 1; return Math.max(2, Math.min(6, p)); }
 const PUTTS_OF = () => (g?.par || 3) + 2;
-function newGame() { g = { ball: null, v: { x: 0, y: 0 }, cups: [], bumpers: [], sand: [], water: [], fx: [], putts: 0, hole: 0, course: 1, courseHole: 0, coursePar: 0, courseStrokes: 0, par: 3, twist: null, time: 0, seed: Math.floor(Math.random() * 1e6), wind: 0, guide: 0, free: 0, gold: false }; sunkN = 0; puttsN = 0; newCup(); }
+function newGame() { g = { ball: null, v: { x: 0, y: 0 }, cups: [], bumpers: [], sand: [], water: [], fx: [], putts: 0, hole: 0, course: 1, courseHole: 0, coursePar: 0, courseStrokes: 0, par: 3, twist: null, time: 0, seed: Math.floor(Math.random() * 1e6), wind: 0, guide: 0, free: 0, gold: false, gopher: null, gopherT: 3, restT: 0 }; sunkN = 0; puttsN = 0; newCup(); }
 function spot(margin = 40) { const G = green(); return { x: G.x + margin + Math.random() * (G.w - 2 * margin), y: G.y + margin + Math.random() * (G.h - 2 * margin) }; }
 function newCup(three = false) {
   const G = green();
@@ -75,6 +75,7 @@ function putt(dx, dy) {
   if (g.free > 0) { g.free -= 1; g.fx.push({ kind: 'text', x: g.ball.x, y: g.ball.y - 16, text: '🌻 free putt', life: 0.9 }); } else g.putts += 1;
   puttsN += 1; sfx('putt', { power: d / 150 });
 }
+function shoo() { const gp = g.gopher; g.gopher = null; host.add(100); g.fx.push({ kind: 'text', x: gp.x, y: gp.y - 16, text: 'SHOO! +100', life: 0.9 }); sfx('clack'); }
 function pickUp() {
   S.combo = 0; sfx('buzz');
   const dead = host.hurt('picked up'); if (dead) return;
@@ -91,6 +92,7 @@ function sink(c) {
   g.v = { x: 0, y: 0 }; g.ball = { x: c.x, y: c.y }; holeDone(Math.max(1, g.putts)); newCup();
 }
 function update(dt) {
+  W = host?.W || W;   // 🎚️ the world widens with the stage
   g.time += dt;
   if (g.twist && g.time > g.twist.until) g.twist = null;
   if (g.guide > 0) g.guide -= dt;
@@ -117,13 +119,24 @@ function update(dt) {
     if (cup) return sink(cup);
     if (!moving()) { g.v = { x: 0, y: 0 }; if (g.putts >= PUTTS_OF()) pickUp(); }
   }
+  // 🐹 the gopher (Stage 2+): when the ball sits still it pops up, runs over and drags the ball off (+1 putt). Tap it to shoo it.
+  { const st = host.stage?.() || 1;
+    g.restT = !moving() && g.ball && !drag ? (g.restT || 0) + dt : 0;
+    if (st >= 2 && !g.gopher && g.restT > 1.2) { g.gopherT = (g.gopherT ?? 3) - dt; if (g.gopherT <= 0) { g.gopherT = 8 - st * 1.5 + Math.random() * 4; const sp = spot(30); g.gopher = { x: sp.x, y: sp.y, t: 0, v: 40 + st * 20, grab: 0 }; g.fx.push({ kind: 'text', x: sp.x, y: sp.y - 20, text: '🐹 a gopher', life: 1 }); sfx('tick'); } }
+    if (g.gopher) { const gp = g.gopher, b = g.ball; gp.t += dt;
+      if (!b || moving()) g.gopher = null;
+      else if (gp.grab > 0) { gp.grab -= dt; b.x += gp.dx * dt; b.y += gp.dy * dt; gp.x = b.x; gp.y = b.y; if (gp.grab <= 0) { g.gopher = null; const G = green(); b.x = Math.max(G.x + R, Math.min(G.x + G.w - R, b.x)); b.y = Math.max(G.y + R, Math.min(G.y + G.h - R, b.y)); } }
+      else if (gp.t > 0.6) { const dx = b.x - gp.x, dy = b.y - gp.y, d = Math.hypot(dx, dy); if (d < 10) { gp.grab = 1.2; const a = Math.random() * 6.28; gp.dx = Math.cos(a) * 70; gp.dy = Math.sin(a) * 70; g.putts += 1; S.combo = 0; g.fx.push({ kind: 'text', x: b.x, y: b.y - 16, text: 'STOLEN · +1 putt', life: 1.1 }); sfx('buzz'); } else { gp.x += dx / d * gp.v * dt; gp.y += dy / d * gp.v * dt; } }
+    }
+  }
   g.bumpers.forEach((bp) => { if (bp.hit > 0) bp.hit -= dt; });
   g.fx.forEach((f) => { f.life -= dt; if (f.kind === 'dot') { f.x += f.vx * dt; f.y += f.vy * dt; f.vy += 300 * dt; } else f.y -= 24 * dt; });
   g.fx = g.fx.filter((f) => f.life > 0);
 }
 function draw(t) {
+  W = host?.W || W;
   const k = host.k, Hh = H(), G = green();
-  ctx.setTransform(k, 0, 0, k, host.ox || 0, 0);
+  ctx.setTransform(k, 0, 0, k, host.ox || 0, host.oy || 0);
   ctx.fillStyle = '#1E3A1A'; ctx.fillRect(0, 0, W, Hh);
   ctx.fillStyle = '#4C9A3F'; ctx.beginPath(); ctx.roundRect(G.x, G.y, G.w, G.h, 26); ctx.fill();
   ctx.strokeStyle = '#2F6B2A'; ctx.lineWidth = 6; ctx.stroke();
@@ -147,6 +160,7 @@ function draw(t) {
   }
   ctx.restore();
   if (g.twist?.kind === 'wind') { ctx.strokeStyle = '#ffffff55'; ctx.lineWidth = 2; for (let i = 0; i < 10; i++) { const y = 80 + i * (Hh / 11), x = ((t / 5) * Math.sign(g.twist.wind) + i * 97) % (W + 60); ctx.beginPath(); ctx.moveTo(x - 30, y); ctx.lineTo(x, y); ctx.stroke(); } }
+  if (g.gopher) { const gp = g.gopher, pop = Math.min(1, gp.t / 0.4); ctx.save(); ctx.translate(gp.x, gp.y); ctx.fillStyle = '#3A2A1A'; ctx.beginPath(); ctx.ellipse(0, 6, 13, 5, 0, 0, 7); ctx.fill(); ctx.translate(0, (1 - pop) * 14); ctx.fillStyle = '#A4753E'; ctx.beginPath(); ctx.ellipse(0, -4, 9, 11, 0, 0, 7); ctx.fill(); ctx.fillStyle = '#1B1B22'; ctx.beginPath(); ctx.arc(-3.5, -8, 1.6, 0, 7); ctx.arc(3.5, -8, 1.6, 0, 7); ctx.fill(); ctx.fillStyle = '#FFF'; ctx.fillRect(-2.5, -2, 2, 4); ctx.fillRect(0.5, -2, 2, 4); ctx.restore(); }
   ctx.fillStyle = '#FFE08A'; ctx.font = '900 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText(`par ${g.par} · putt ${Math.min(PUTTS_OF(), g.putts + 1)} of ${PUTTS_OF()}${g.free ? ` · 🌻 ${g.free} free` : ''}`, W / 2, Hh - 16);
   g.fx.forEach((f) => { ctx.globalAlpha = Math.max(0, Math.min(1, f.life * 1.5)); if (f.kind === 'dot') { ctx.fillStyle = f.c; ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, 7); ctx.fill(); } else { ctx.font = f.big ? '400 20px Bungee, Impact, sans-serif' : '900 14px Nunito, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = f.col || '#FFE08A'; ctx.strokeStyle = '#102010'; ctx.lineWidth = 4; ctx.strokeText(f.text, f.x, f.y); ctx.fillText(f.text, f.x, f.y); } });
   ctx.globalAlpha = 1;
@@ -160,11 +174,11 @@ const organ = {
   enter(from) { if (!g) newGame(); host.ui(''); drag = null; if (from) { g.v = { x: 0, y: 0 }; } },
   leave() { drag = null; return g?.ball ? { x: g.ball.x, y: g.ball.y } : null; },
   update, draw, onBeat,
-  pointer(type, p) { if (type === 'down') drag = { x0: p.x, y0: p.y, x: p.x, y: p.y }; else if (type === 'move') { if (drag) { drag.x = p.x; drag.y = p.y; } } else if (drag) { putt(drag.x - drag.x0, drag.y - drag.y0); drag = null; } },
+  pointer(type, p) { if (type === 'down') { if (g?.gopher && Math.hypot(g.gopher.x - p.x, g.gopher.y - p.y) < 30) return shoo(); drag = { x0: p.x, y0: p.y, x: p.x, y: p.y }; } else if (type === 'move') { if (drag) { drag.x = p.x; drag.y = p.y; } } else if (drag) { putt(drag.x - drag.x0, drag.y - drag.y0); drag = null; } },
   hudLine: () => (g ? `⛳ course ${g.course} · hole ${g.courseHole}/3 · ${sunkN} sunk` : ''),
   level: () => g?.course || 1,
   overText: (how) => (how === 'picked up' ? ['⛳ PICKED UP', 'Too many cups walked away from.'] : ['RUN OVER', '']),
   endStats: () => (g ? `⛳ ${sunkN} cups in ${puttsN} putts` : ''),
-  debug: () => g && ({ ball: g.ball, v: g.v, cups: g.cups, putts: g.putts, sunk: sunkN, par: g.par, course: g.course, courseHole: g.courseHole, allowed: PUTTS_OF(), twist: g.twist?.kind || null, bumpers: g.bumpers.length, W, H: H(), putt }),
+  debug: () => g && ({ gopher: g.gopher, ball: g.ball, v: g.v, cups: g.cups, putts: g.putts, sunk: sunkN, par: g.par, course: g.course, courseHole: g.courseHole, allowed: PUTTS_OF(), twist: g.twist?.kind || null, bumpers: g.bumpers.length, W, H: H(), putt }),
 };
 export default organ;

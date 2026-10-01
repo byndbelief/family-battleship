@@ -57,7 +57,7 @@ const SHELL_CSS = `
   .sover .organs{display:flex;gap:10px;justify-content:center;font-size:28px}
   @media (prefers-reduced-motion:reduce){.sbanner{animation:none}.verb b.next{animation:none}}`;
 
-export function runShell({ organs, key, title, icon, intro, again = 'Play again', W = 400 }) {
+export function runShell({ organs, key, title, icon, intro, again = 'Play again', W: W0 = 400 }) {
   const $ = (id) => document.getElementById(id);
   const stage = $('stage'), cv = $('cv'), ctx = cv.getContext('2d');
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -93,7 +93,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   // 🎨 the resident pal sits in the corner and feels every beat (pals.js; who it is: the Design Studio)
   const pal = palWidget($('spal'), { pal: 'calm', s: 22, own: false, dpr: 2 });   // 🟢 Fig, in the run's mood
   const host = {
-    cv, ctx, W, H: 640, k: 1, dpr: 1, ox: 0, reduceMotion, S, sfx, morphs,
+    cv, ctx, W: W0, H: 640, k: 1, dpr: 1, ox: 0, oy: 0, reduceMotion, S, sfx, morphs,
     banner, add: (pts) => { S.score += Math.max(0, Math.round(pts)); },
     heal: (n = 1) => { S.hearts = Math.min(3, S.hearts + n); },
     hurt: (how) => { S.hearts -= 1; S.combo = 0; S.comboT = 0; pal.hurt(); if (S.hearts <= 0) { over(how); return true; } return false; },
@@ -111,7 +111,13 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     // full-width fit would scale everything up and leave a world a few beats tall: zoom out instead,
     // so the world is at least 1.25× taller than wide, centred on the full canvas (host.ox, device px)
     // with the organ's own background around it. Organs draw with setTransform(k, 0, 0, k, host.ox, 0).
-    host.k = Math.min(cv.width / W, cv.height / (W * 1.25)) * zoom; host.H = cv.height / host.k; host.ox = Math.max(0, (cv.width - W * host.k) / 2);   // zoom < 1: the stages zoom the board out
+    // 🎚️ The stages widen the world more than they lengthen it: W grows by `widen`, the visible height only by
+    // 1/zoom, and whichever runs out of screen first gets margins (host.ox / host.oy, device px) in the organ's
+    // own colour. Organs draw with setTransform(k, 0, 0, k, host.ox, host.oy) and read host.W live.
+    const k0 = Math.min(cv.width / W0, cv.height / (W0 * 1.25)), H0 = cv.height / k0;   // the Stage 1 fit: 400 wide, at least 1.25× taller than wide
+    host.W = Math.round(W0 * widen); const Hv = H0 / zoom;
+    host.k = Math.min(cv.width / host.W, cv.height / Hv); host.H = Hv;
+    host.ox = Math.max(0, (cv.width - host.W * host.k) / 2); host.oy = Math.max(0, (cv.height - host.H * host.k) / 2);
     organs.forEach((o) => o.resize?.());
   }
   // ---------------------------------------------------------------- banners, HUD
@@ -126,13 +132,13 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   // every few beats (frozen beats: x walks and Fig's moods still land, a hint of what's coming), morph
   // less, and keep the board close; later stages climb every beat and zoom the board out (a taller world).
   const STAGES = [
-    { name: 'Stage 1 · learn', beats: 0, climbEvery: 5, zoom: 1.0, tenure: 10, lens: 2.2 },
-    { name: 'Stage 2 · warm', beats: 30, climbEvery: 2, zoom: 0.92, tenure: 8, lens: 4 },
-    { name: 'Stage 3 · wild', beats: 60, climbEvery: 1, zoom: 0.84, tenure: 6, lens: 6 },
-    { name: 'Stage 4 · chaos', beats: 100, climbEvery: 1, zoom: 0.76, tenure: 4, lens: 7 },
-  ];
+    { name: 'Stage 1 · learn', beats: 0, climbEvery: 5, zoom: 1.0, widen: 1.0, tenure: 10, lens: 2.2 },
+    { name: 'Stage 2 · warm', beats: 30, climbEvery: 2, zoom: 0.94, widen: 1.15, tenure: 8, lens: 4 },
+    { name: 'Stage 3 · wild', beats: 60, climbEvery: 1, zoom: 0.88, widen: 1.3, tenure: 6, lens: 6 },
+    { name: 'Stage 4 · chaos', beats: 100, climbEvery: 1, zoom: 0.82, widen: 1.45, tenure: 4, lens: 7 },
+  ];   // zoom: the visible height grows by 1/zoom; widen: the world's width grows by widen — sideways more than up
   const stageOf = () => { let i = 0; STAGES.forEach((st, j) => { if (S.beats >= st.beats) i = j; }); return i; };
-  let zoom = 1, zoomTo = 1;
+  let zoom = 1, zoomTo = 1, widen = 1, widenTo = 1;
   const minTenure = () => (S.curve.r >= 3.5699 ? Math.min(3, STAGES[stageOf()].tenure) : STAGES[stageOf()].tenure);
   // 🔍 LENSES: Fig's personalities bend the picture itself. A new mood may put a lens on: Wild Fig inverts the
   // colours, Mirror Fig mirrors the screen (and your touches), Boxy Fig leaves only the wireframe, Golden Fig
@@ -167,7 +173,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     const held = calm > 0, st0 = stageOf(), stg = STAGES[st0];
     const frozen = !held && stg.climbEvery > 1 && (S.beats % stg.climbEvery) !== 0;   // 🎚️ an early stage: r climbs only every few beats
     const ev = stepCurve(S.curve, { hold: held, freeze: frozen }); S.beats += 1; tenure += 1; tally(ev, S.tally);
-    if (stageOf() !== st0) { const ns = STAGES[stageOf()]; banner(`🎚️ ${ns.name.toUpperCase()}`, st0 === 0 ? 'r climbs faster now · the board zooms out' : st0 === 1 ? 'r climbs every beat · the board zooms out' : 'the top of the curve · the whole board'); sfx('twist'); zoomTo = ns.zoom; }
+    if (stageOf() !== st0) { const ns = STAGES[stageOf()]; banner(`🎚️ ${ns.name.toUpperCase()}`, st0 === 0 ? 'r climbs faster now · the board zooms out' : st0 === 1 ? 'r climbs every beat · the board zooms out' : 'the top of the curve · the whole board'); sfx('twist'); zoomTo = ns.zoom; widenTo = ns.widen; }
     // 🟢 Fig's mood moved: say so, recolour the room, and its pillar's events pay double (the bond, in points)
     if (ev.moodChanged) { banner(`🟢 ${MOOD_NAME[ev.mood]}`, st0 < 2 && ev.mood !== 'calm' ? `${MOOD_SAY[ev.mood]} · a hint of what's coming` : MOOD_SAY[ev.mood]); applyPalTheme(ev.mood);
       // 🔍 a lens, sometimes: a hint in the early stages, a stretch later
@@ -210,16 +216,16 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
       S.beatT += dt; const bl = active.beat || 1; while (S.beatT >= bl && !S.over) { S.beatT -= bl; beat(); }
       if (S.comboT > 0) { S.comboT -= dt; if (S.comboT <= 0) S.combo = 0; }
       if (!S.over) active.update(dt);
-      if (Math.abs(zoom - zoomTo) > 0.001) { zoom += (zoomTo - zoom) * Math.min(1, dt * 1.5); if (Math.abs(zoom - zoomTo) < 0.002) zoom = zoomTo; size(); }   // 🔍 the board eases out
+      if (Math.abs(zoom - zoomTo) > 0.001 || Math.abs(widen - widenTo) > 0.001) { const e = Math.min(1, dt * 1.5); zoom += (zoomTo - zoom) * e; widen += (widenTo - widen) * e; if (Math.abs(zoom - zoomTo) < 0.002) zoom = zoomTo; if (Math.abs(widen - widenTo) < 0.002) widen = widenTo; size(); }   // 🔍 the board eases out, wider faster than taller
       if (lens) { lens.t += dt; if (lens.t >= lens.dur) clearLens(); }
       hud();
     }
-    if (host.ox > 0) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = getComputedStyle(stage).getPropertyValue('--bg').trim() || '#0B0918'; ctx.fillRect(0, 0, cv.width, cv.height); }   // zoomed out: the margins in the organ's colour
-    ctx.setTransform(host.k, 0, 0, host.k, host.ox, 0);
+    if (host.ox > 0 || host.oy > 0) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = getComputedStyle(stage).getPropertyValue('--bg').trim() || '#0B0918'; ctx.fillRect(0, 0, cv.width, cv.height); }   // zoomed out: the margins in the organ's colour
+    ctx.setTransform(host.k, 0, 0, host.k, host.ox, host.oy);
     (active || organs[0]).draw(t);
     if (transition) {   // the old world zooms away from where you were, and the new one is underneath
       transition.t += dt; const p = Math.min(1, transition.t / transition.dur), e = p * p * (3 - 2 * p);
-      const ax = (transition.anchor?.x ?? W / 2) * host.k + host.ox, ay = (transition.anchor?.y ?? host.H / 2) * host.k, z = 1 + e * (transition.why === 'golden' ? 6 : 2.2);
+      const ax = (transition.anchor?.x ?? host.W / 2) * host.k + host.ox, ay = (transition.anchor?.y ?? host.H / 2) * host.k + host.oy, z = 1 + e * (transition.why === 'golden' ? 6 : 2.2);
       ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1 - e; ctx.translate(ax, ay); ctx.scale(z, z); ctx.translate(-ax, -ay); ctx.drawImage(transition.snap, 0, 0); ctx.restore();
       if (p >= 1) transition = null;
     }
@@ -230,7 +236,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   // ---------------------------------------------------------------- start and end
   function startRun() {
     S.score = 0; S.hearts = 3; S.combo = 0; S.comboT = 0; S.tally = {}; S.curve = makeCurve(); S.beatT = 0; S.beats = 0; S.over = false; S.how = null; S.time = 0; S.morphs = 0;
-    tenure = 0; prev = null; transition = null; lastUsed = new Map(); zoom = zoomTo = 1; clearLens(); size();
+    tenure = 0; prev = null; transition = null; lastUsed = new Map(); zoom = zoomTo = 1; widen = widenTo = 1; clearLens(); size();
     organs.forEach((o) => o.start());
     active = organs[Math.floor(Math.random() * organs.length)]; active.enter(null, null); applyTheme(); calm = 0;
     $('over').hidden = true; running = true; sfx('click'); pal.wake(); pal.set({ r: S.curve.r, mood: 'calm' }); applyPalTheme('calm'); $('spal').hidden = false;
@@ -254,14 +260,14 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   }
   function showOver(html) { $('overCard').innerHTML = html; $('over').hidden = false; const a = $('again'); if (a) a.onclick = startRun; }
   // ---------------------------------------------------------------- input: the shell listens, the organ decides
-  const toWorld = (e) => { const r = cv.getBoundingClientRect(); const sx = cv.width / r.width, sy = cv.height / r.height; let x = ((e.clientX - r.left) * sx - host.ox) / host.k; if (lens?.kind === 'mirror') x = W - x; return { x: Math.max(0, Math.min(W, x)), y: ((e.clientY - r.top) * sy) / host.k }; };   // through the zoom-out (and a mirror lens), clamped to the world
+  const toWorld = (e) => { const r = cv.getBoundingClientRect(); const sx = cv.width / r.width, sy = cv.height / r.height; let x = ((e.clientX - r.left) * sx - host.ox) / host.k; if (lens?.kind === 'mirror') x = host.W - x; return { x: Math.max(0, Math.min(host.W, x)), y: Math.max(0, Math.min(host.H, ((e.clientY - r.top) * sy - host.oy) / host.k)) }; };   // through the zoom-out (and a mirror lens), clamped to the world
   const fwd = (type) => (e) => { if (type === 'down') e.preventDefault(); if (running && !S.over && active) active.pointer(type, toWorld(e), e); };
   cv.addEventListener('pointerdown', fwd('down')); cv.addEventListener('pointermove', fwd('move'));
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => cv.addEventListener(ev, fwd('up')));
   addEventListener('keydown', (e) => { if (running && !S.over) active?.keydown?.(e); });
   addEventListener('keyup', (e) => { if (running && !S.over) active?.keyup?.(e); });
-  window.__shell = () => ({ organ: active?.key, prev: prev?.key, calm, glitch: glitchT > 0, mood: S.curve.mood, stage: stageOf() + 1, zoom, lens: lens?.kind || null, H: host.H, cw: cv.getBoundingClientRect().width, k: host.k, ox: host.ox, theme: stage.style.getPropertyValue('--bg'), score: S.score, hearts: S.hearts, combo: S.combo, beats: S.beats, morphs: S.morphs, r: S.curve.r, n: S.curve.n, window: S.curve.window, over: S.over, tenure, running, transition: !!transition,
-    tally: { ...S.tally }, force: (why) => { if (why === 'glitch') return glitchRun(); if (why.startsWith('lens:')) return putLens(why.slice(5), 3); if (why === 'stage') { S.beats = STAGES[Math.min(3, stageOf() + 1)].beats; zoomTo = STAGES[stageOf()].zoom; return; } const to = why === 'mirror' && prev ? prev : nextOrgan(); morphTo(to, why); }, over: S.over, end: (how) => over(how), hurt: () => host.hurt('test') });
+  window.__shell = () => ({ organ: active?.key, prev: prev?.key, calm, glitch: glitchT > 0, mood: S.curve.mood, stage: stageOf() + 1, zoom, widen, W: host.W, lens: lens?.kind || null, H: host.H, oy: host.oy, cw: cv.getBoundingClientRect().width, k: host.k, ox: host.ox, theme: stage.style.getPropertyValue('--bg'), score: S.score, hearts: S.hearts, combo: S.combo, beats: S.beats, morphs: S.morphs, r: S.curve.r, n: S.curve.n, window: S.curve.window, over: S.over, tenure, running, transition: !!transition,
+    tally: { ...S.tally }, force: (why) => { if (why === 'glitch') return glitchRun(); if (why.startsWith('lens:')) return putLens(why.slice(5), 3); if (why === 'stage') { S.beats = STAGES[Math.min(3, stageOf() + 1)].beats; zoomTo = STAGES[stageOf()].zoom; widenTo = STAGES[stageOf()].widen; return; } const to = why === 'mirror' && prev ? prev : nextOrgan(); morphTo(to, why); }, over: S.over, end: (how) => over(how), hurt: () => host.hurt('test') });
   // ---------------------------------------------------------------- go
   (async () => {
     if (!(await signedIn())) return;

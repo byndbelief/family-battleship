@@ -7,7 +7,7 @@
 // pinned ones stay, eyes open in the trees, the picture tears, and on day 4 the knothole wakes.
 import { fibMult } from '../chaos.js';
 
-const W = 400, LEVELS = 4, LEVEL_S = 30, AMMO = 12, RELOAD_S = 1.1, MAX_SQ = 16;
+let W = 400, LEVELS = 4, LEVEL_S = 30, AMMO = 12, RELOAD_S = 1.1, MAX_SQ = 16;
 const dark = () => Math.min(1, (level - 1) / 3);   // 0 on day 1, 1 on day 4
 const WHISPERS = ['they remember', 'the stapler was never yours', 'it counts them too', 'do not look at the knot', 'one more day',
   'the little ones do not split. they multiply', 'you are inside the knot already', 'it likes the sound', 'the trees grew around something',
@@ -70,7 +70,7 @@ function grow(seed, lvl) {
   const mid = trunks[1];
   const knot = { x: mid.x1 + (mid.x2 - mid.x1) * 0.55, y: mid.y1 + (mid.y2 - mid.y1) * 0.55 };
   const eyes = []; for (let i = 0; i < (lvl - 1) * 7; i++) eyes.push({ x: 20 + r() * (W - 40), y: 80 + r() * (ground - 160), ph: r() * 6.28, rate: 0.6 + r() * 0.8, gap: 5 + r() * 3 });
-  return { seed, H: H(), ground, segs, trunks, tips, knot, eyes, hue: [34, 28, 22, 16][Math.min(3, lvl - 1)] };
+  return { seed, H: H(), W, ground, segs, trunks, tips, knot, eyes, hue: [34, 28, 22, 16][Math.min(3, lvl - 1)] };
 }
 const posOn = (s, t) => ({ x: s.x1 + (s.x2 - s.x1) * t, y: s.y1 + (s.y2 - s.y1) * t });
 
@@ -80,7 +80,7 @@ function newGame() {
   forest = grow((Date.now() & 0xffffff) | 1, level);
   game = { ammo: AMMO, reloadT: 0, time: 0, squirrels: [], staples: [], pins: [], fx: [], stuck: [], leaves: [],
     twist: null, speed: 1, dive: null, hits: 0, shots: 0, weapon: 'staple', arsenal: {}, stun: 0, shake: 0, hitstop: 0, acorns: [], crates: [], crateT: 5, bombs: [], bolts: [],
-    kept: [], whisperT: 9, glitch: 0, eye: { open: 0, blink: 0, blinkT: 4 }, stare: 0, ko: false };
+    kept: [], whisperT: 9, glitch: 0, owls: [], cones: [], snakes: [], owlT: 3, snakeT: 4, eye: { open: 0, blink: 0, blinkT: 4 }, stare: 0, ko: false };
 }
 function onBeat(ev) {
   const g = game, c = S.curve;
@@ -188,6 +188,9 @@ function bonk() {
 function fire(x, y) {
   if (!game || S.over || game.dive) return;
   const st = STAPLER(), w = game.weapon;
+  const owl = game.owls?.find((o) => Math.hypot(o.x - x, o.y - y) < 30); if (owl) { game.owls.splice(game.owls.indexOf(owl), 1); add(150, owl, 'HOOT!'); tufts(owl.x, owl.y, 8); sfx('clack'); return; }
+  const cone = game.cones?.find((c) => Math.hypot(c.x - x, c.y - y) < 26); if (cone) { game.cones.splice(game.cones.indexOf(cone), 1); add(60, cone, 'SWAT!'); burst(cone.x, cone.y, ['#8A5A2B', '#5A3B1F'], 8); sfx('clack'); return; }
+  const snake = game.snakes?.find((s) => Math.abs(s.x - x) < 34 && Math.abs(st.y - 12 - y) < 32); if (snake) { game.snakes.splice(game.snakes.indexOf(snake), 1); add(120, { x: snake.x, y: st.y - 14 }, 'SHOO!'); burst(snake.x, st.y - 8, ['#5CB85C', '#2E7D4F'], 10); sfx('thud'); return; }
   const target = game.acorns.some((a) => { const q = acornPos(a); return Math.hypot(q.x - x, q.y - y) < 30; }) || game.crates.some((c) => Math.hypot(c.x - x, c.y - y) < 26);
   if (!target && Math.hypot(x - st.x, y - st.y) < 34) return reload();
   const acorn = game.acorns.find((a) => { const q = acornPos(a); return Math.hypot(q.x - x, q.y - y) < 30; });
@@ -315,6 +318,7 @@ function nextLevel() {
 
 // ---------------------------------------------------------------- the loop
 function update(dt) {
+  W = host?.W || W;   // 🎚️ the world widens with the stage
   const g = game;
   if (g.dive) {
     g.dive.t += dt;
@@ -343,6 +347,14 @@ function update(dt) {
   g.crates = g.crates.filter((c) => c.life > 0);
   g.acorns.forEach((a) => { a.t += dt; a.spin += dt * 9; });
   g.acorns = g.acorns.filter((a) => { if (a.t >= a.tf) { bonk(); return false; } return true; });
+  // 🦉 owls (Stage 2+) glide over the stapler and drop pinecones on it; 🐍 snakes (Stage 3+) slither in along the ground. Tap them away.
+  { const st = host.stage?.() || 1, sp = STAPLER(); if (!g.owls) { g.owls = []; g.cones = []; g.snakes = []; g.owlT = 3; g.snakeT = 4; }
+    if (st >= 2) { g.owlT -= dt; if (g.owlT <= 0 && g.owls.length < st - 1) { g.owlT = 6 - st + Math.random() * 3; const dir = Math.random() < 0.5 ? 1 : -1; g.owls.push({ x: dir > 0 ? -30 : W + 30, y: 90 + Math.random() * 60, dir, v: 50 + st * 15, dropped: false, flap: 0 }); } }
+    g.owls = g.owls.filter((o) => { o.x += o.dir * o.v * dt; o.flap += dt * 8; if (!o.dropped && Math.abs(o.x - sp.x) < 10 + st * 6) { o.dropped = true; g.cones.push({ x: o.x, y: o.y + 10, vy: 30, spin: 0 }); sfx('tick'); } return o.x > -40 && o.x < W + 40; });
+    g.cones = g.cones.filter((c) => { c.vy += 260 * dt; c.y += c.vy * dt; c.spin += dt * 6; if (c.y >= sp.y - 12) { if (Math.abs(c.x - sp.x) < 30) bonk(); else burst(c.x, sp.y - 8, ['#8A5A2B', '#5A3B1F'], 8); return false; } return true; });
+    if (st >= 3) { g.snakeT -= dt; if (g.snakeT <= 0 && g.snakes.length < st - 2) { g.snakeT = 7 - st + Math.random() * 3; const dir = Math.random() < 0.5 ? 1 : -1; g.snakes.push({ x: dir > 0 ? -30 : W + 30, dir, v: 28 + st * 8, ph: 0 }); } }
+    g.snakes = g.snakes.filter((s) => { s.x += s.dir * s.v * dt; s.ph += dt * 7; if (Math.abs(s.x - sp.x) < 26) { bonk(); burst(s.x, sp.y - 6, ['#5CB85C', '#2E7D4F'], 10); return false; } return true; });
+  }
   if (S.over) return;
   g.bombs = g.bombs.filter((b) => { b.t += dt; if (b.t >= b.tf) { explode(b.x, b.y); return false; } return true; });
   g.bolts.forEach((b) => { b.life -= dt; }); g.bolts = g.bolts.filter((b) => b.life > 0);
@@ -361,6 +373,7 @@ function update(dt) {
 
 // ---------------------------------------------------------------- drawing
 function draw(t) {
+  W = host?.W || W;
   const cv = host.cv, k = host.k, Hh = H();
   if (!forest) forest = grow(12345, 1);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -375,7 +388,7 @@ function draw(t) {
   sky.addColorStop(0, `hsl(${forest.hue + 190 + d * 150} ${40 - d * 25}% ${18 - d * 14}%)`); sky.addColorStop(0.6, `hsl(${forest.hue - d * 20} ${55 - d * 30}% ${28 - d * 20}%)`); sky.addColorStop(1, d > 0.9 ? '#1A0308' : '#2A1C10');
   ctx.fillStyle = sky; ctx.fillRect(0, 0, cv.width, cv.height);
   const sh = game && !host.reduceMotion ? (game.shake || 0) * 14 : 0, sx = (Math.random() - 0.5) * sh, sy = (Math.random() - 0.5) * sh;
-  ctx.setTransform(k * z, 0, 0, k * z, (W / 2) * k - fx * k * z + sx * k + (host.ox || 0), (Hh / 2) * k - fy * k * z + sy * k);   // host.ox: the zoom-out's centring on a wide screen
+  ctx.setTransform(k * z, 0, 0, k * z, (W / 2) * k - fx * k * z + sx * k + (host.ox || 0), (Hh / 2) * k - fy * k * z + sy * k + (host.oy || 0));   // host.ox / oy: the zoom-out's margins
   drawForest(t);
   if (game) {
     if (d > 0) { ctx.fillStyle = `rgba(8,2,6,${d * 0.5})`; ctx.fillRect(-W, -Hh, W * 3, Hh * 3); }   // the day drains
@@ -388,6 +401,9 @@ function draw(t) {
       if (level >= 3 || game.twist?.kind === 'blackout' || game.stare > 0) { const s = RAD[sq.size] / 10; ctx.save(); ctx.fillStyle = game.stare > 0 ? '#FF2A2A' : '#FF5A3A'; ctx.shadowColor = '#FF3A2A'; ctx.shadowBlur = 8; ctx.beginPath(); ctx.arc(p.x + sq.face * 8.6 * s, p.y - 6 * s, 1.4 * s, 0, 7); ctx.fill(); ctx.restore(); }
       if (sq.daze > 0) { ctx.fillStyle = '#FFE08A'; ctx.font = '10px system-ui'; ctx.textAlign = 'center'; for (let i = 0; i < 3; i++) { const a = t / 180 + i * 2.1; ctx.fillText('✦', p.x + Math.cos(a) * RAD[sq.size], p.y - RAD[sq.size] - 4 + Math.sin(a) * 3); } } });
     game.acorns.forEach((a) => drawAcorn(acornPos(a), a.spin));
+    (game.owls || []).forEach((o) => { ctx.save(); ctx.translate(o.x, o.y); ctx.scale(o.dir, 1); const fl = Math.sin(o.flap) * 6; ctx.fillStyle = '#6B5235'; ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(-26, -6 - fl); ctx.lineTo(-10, 6); ctx.closePath(); ctx.fill(); ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(26, -6 + fl); ctx.lineTo(10, 6); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#8B6B45'; ctx.beginPath(); ctx.ellipse(0, 0, 11, 9, 0, 0, 7); ctx.fill(); ctx.fillStyle = '#FFE08A'; ctx.beginPath(); ctx.arc(-4, -2, 3, 0, 7); ctx.arc(4, -2, 3, 0, 7); ctx.fill(); ctx.fillStyle = '#1B1B22'; ctx.beginPath(); ctx.arc(-4, -2, 1.3, 0, 7); ctx.arc(4, -2, 1.3, 0, 7); ctx.fill(); ctx.fillStyle = '#E4572E'; ctx.beginPath(); ctx.moveTo(-2, 2); ctx.lineTo(2, 2); ctx.lineTo(0, 6); ctx.closePath(); ctx.fill(); ctx.restore(); });
+    (game.cones || []).forEach((c) => { ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.spin); ctx.fillStyle = '#5A3B1F'; ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(6, 8); ctx.lineTo(-6, 8); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#8A5A2B'; for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(0, -4 + i * 5, 2 + i, 0, 7); ctx.fill(); } ctx.restore(); });
+    (game.snakes || []).forEach((s) => { const y = forest.ground - 4; ctx.strokeStyle = '#5CB85C'; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.beginPath(); for (let i = 0; i <= 8; i++) { const x = s.x - s.dir * i * 5; ctx[i ? 'lineTo' : 'moveTo'](x, y + Math.sin(s.ph + i) * 3); } ctx.stroke(); ctx.fillStyle = '#2E7D4F'; ctx.beginPath(); ctx.arc(s.x, y, 4.5, 0, 7); ctx.fill(); ctx.fillStyle = '#FF2A2A'; ctx.beginPath(); ctx.arc(s.x + s.dir * 2, y - 1.5, 1.2, 0, 7); ctx.fill(); });
     game.bombs.forEach((b) => { const e = b.t / b.tf, x = b.x0 + (b.x - b.x0) * e, y = b.y0 + (b.y - b.y0) * e - Math.sin(e * Math.PI) * 90; ctx.font = '20px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🧨', x, y); ctx.textBaseline = 'alphabetic'; });
     game.bolts.forEach((b) => { ctx.save(); ctx.globalAlpha = Math.min(1, b.life * 4); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       const col = b.col || '#9BE7FF', path = () => { ctx.beginPath(); if (b.pts) b.pts.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x, y)); else b.lines.forEach(([a, c, dd, e]) => { ctx.moveTo(a, c); ctx.lineTo(dd, e); }); };
@@ -531,14 +547,14 @@ const organ = {
   },
   leave() { hold = null; bar = null; return game ? STAPLER() : null; },
   update, draw, onBeat,
-  resize() { if (forest && Math.abs(forest.H - H()) > 1) forest = grow(forest.seed, level); },   // the trees stand on the new ground
+  resize() { W = host?.W || W; if (forest && (Math.abs(forest.H - H()) > 1 || Math.abs(forest.W - W) > 1)) forest = grow(forest.seed, level); },   // the trees stand on the new ground
   pointer(type, p) { if (type === 'down') { hold = p; if (game) game.nailT = 0.09; fire(p.x, p.y); } else if (type === 'move') { if (hold) hold = p; } else hold = null; },
   keydown(e) { if ((e.key === 'r' || e.key === 'R') && game) reload(); },
   hudLine: () => (game ? `Day ${level}${host.morphs ? '' : ` of ${LEVELS}`} · ${Math.max(0, Math.ceil(level * LEVEL_S - game.time))}s${game.kept.length ? ` · 📎 ${game.kept.length} kept` : ''}` : ''),
   level: () => level,
   overText: (how) => (how === 'sleeps' ? ['🌘 IT SLEEPS AGAIN', 'For now. It counted every one.'] : how === 'bonked' ? ['💫 KNOCKED OUT', 'Too many acorns to the head. The forest keeps your staples.'] : ['RUN OVER', '']),
   endStats: () => (game ? `🐿️ ${game.hits} hits from ${game.shots} staples${game.shots ? ` (${Math.round((100 * game.hits) / game.shots)}%)` : ''}, day ${level}` : ''),
-  debug: () => game && ({ score: S.score, level, kept: game.kept.length, glitch: game.glitch, eye: game.eye.open, twist: game.twist?.kind || null, stare: game.stare, whispers: game.fx.filter((f) => f.kind === 'whisper').length,
+  debug: () => game && ({ score: S.score, level, owls: game.owls?.length || 0, cones: game.cones?.length || 0, snakes: game.snakes?.length || 0, W, kept: game.kept.length, glitch: game.glitch, eye: game.eye.open, twist: game.twist?.kind || null, stare: game.stare, whispers: game.fx.filter((f) => f.kind === 'whisper').length,
     skipTo: (l) => { level = l - 1; game.time = level * LEVEL_S; }, forceTwist: (k) => { game.twist = { kind: k, until: game.time + 6, wind: 70 }; if (k === 'stare') game.stare = 1.6; if (k === 'static') game.glitch = 6; },
     hearts: S.hearts, weapon: game.weapon, arsenal: { ...game.arsenal }, crates: game.crates.map((c) => ({ x: c.x, y: c.y, w: c.w })), acorns: game.acorns.map(acornPos), ammo: game.ammo, dive: !!game.dive, over: S.over, r: S.curve.r,
     squirrels: game.squirrels.map((sq) => ({ ...sqPos(sq), size: sq.size, hop: !!sq.hop })), W, H: H() }),
