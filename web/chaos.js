@@ -92,9 +92,9 @@ export function makeCurve(n0 = 0, x0 = null) {
   return { n: n0, r: Math.min(CHAOS.RMAX, CHAOS.R0 + CHAOS.DR * n0), x: x0 ?? 0.05 + Math.random() * 0.9, hist: [], window: false, mood: 'calm', moodLeft: 0 };
 }
 // One beat. Returns the events the game acts on.
-export function stepCurve(c, { hold = false } = {}) {   // hold: 🧘 x walks but r stays (no beat counted)
+export function stepCurve(c, { hold = false, freeze = false } = {}) {   // hold: 🧘 x walks but r stays, nothing twists; freeze: r stays, all else lands (the run's early stages)
   const x0 = c.x, r0 = c.r, m0 = c.mood || 'calm', E = edgesOf(m0);   // this beat is judged by the mood Fig was in
-  if (!hold) { c.n += 1; c.r = Math.min(CHAOS.RMAX, CHAOS.R0 + CHAOS.DR * c.n); }
+  if (!hold && !freeze) { c.n += 1; c.r = Math.min(CHAOS.RMAX, CHAOS.R0 + CHAOS.DR * c.n); }
   let x = c.r * x0 * (1 - x0);
   if (x <= 1e-9 || x >= 1 - 1e-9) x = 0.5 + (Math.random() - 0.5) * 1e-3;   // stuck on 0 or 1: a butterfly flaps
   c.x = x; c.hist.push(x); if (c.hist.length > CHAOS.HIST) c.hist.shift();
@@ -109,7 +109,7 @@ export function stepCurve(c, { hold = false } = {}) {   // hold: 🧘 x walks bu
     mirror: c.n > 1 && Math.abs(x - (1 - x0)) < E.MIRROR,
     balance: c.r > 1 && Math.abs(x - fixedPoint(c.r)) < E.BALANCE,
     window: win, enteredWindow,
-    fib: isFib(c.n) && !hold,
+    fib: isFib(c.n) && !hold && !freeze,
     golden: Math.abs(x - CHAOS.CUT) < E.CUT_TOL,
     luck: E.FIB_LUCK,   // 🧭 Phi: Fibonacci beats pay double luck
     crossed,   // phases crossed this beat (usually none, at most a few), newest last

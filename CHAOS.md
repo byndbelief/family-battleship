@@ -182,6 +182,21 @@ blends toward the mood), on every game's 🌀 button and curve box, in the room'
 follows the mood: teal, red, violet, lilac, gold), in a banner when the mood moves, and in what leaks
 through a glitch (a glitch wears the mood of the moment, and names whose move let it out).
 
+## The run's stages, zoom and lenses
+
+The Chaos Run (`run.html`) eases into chaos so a new player can learn the organs. **Stages** are
+stretches of beats: Stage 1 · learn (beats 0–29) lets r climb only every 5th beat, Stage 2 · warm
+(30–59) every 2nd, Stage 3 · wild (60–99) and Stage 4 · chaos (100+) every beat. On a frozen beat r
+stays but x walks, so the nine events and **Fig's moods still land: a hint of what's coming** (the
+banner says so). Morphs need more tenure early (10, 8, 6, 4 beats). As the stages get harder the
+**board zooms out** (1.0, 0.92, 0.84, 0.76): a taller world, the organ's colour around it.
+
+**Lenses**: Fig's personalities bend the picture itself. When a mood comes on, sometimes (50% in
+Stage 1 up to always in Stage 4) a lens goes over the screen for a while (2 s in Stage 1 up to 7 s):
+🌀 Wild Fig inverts the colours · ✨ Mirror Fig mirrors the screen (and your touches) · 🔁 Boxy Fig
+leaves only the wireframe · 🌻 Golden Fig gilds everything. Reduced motion still gets them: they're
+stills, not motion.
+
 ## A new game must
 
 1. Be an organ of the shell (solo: `organs/<key>.js` + a page that calls `runShell`, and an entry in

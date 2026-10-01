@@ -111,7 +111,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     // full-width fit would scale everything up and leave a world a few beats tall: zoom out instead,
     // so the world is at least 1.25× taller than wide, centred on the full canvas (host.ox, device px)
     // with the organ's own background around it. Organs draw with setTransform(k, 0, 0, k, host.ox, 0).
-    host.k = Math.min(cv.width / W, cv.height / (W * 1.25)); host.H = cv.height / host.k; host.ox = Math.max(0, (cv.width - W * host.k) / 2);
+    host.k = Math.min(cv.width / W, cv.height / (W * 1.25)) * zoom; host.H = cv.height / host.k; host.ox = Math.max(0, (cv.width - W * host.k) / 2);   // zoom < 1: the stages zoom the board out
     organs.forEach((o) => o.resize?.());
   }
   // ---------------------------------------------------------------- banners, HUD
@@ -122,12 +122,38 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     clearTimeout(bannerT); bannerT = setTimeout(() => { b.hidden = true; }, 1700);
   }
   const nextOrgan = () => organs[(organs.indexOf(active) + 1) % organs.length];
-  const minTenure = () => (S.curve.r >= 3.5699 ? 3 : 6);
+  // 🎚️ STAGES: the run eases into chaos. A stage is a stretch of beats; early stages let r climb only
+  // every few beats (frozen beats: x walks and Fig's moods still land, a hint of what's coming), morph
+  // less, and keep the board close; later stages climb every beat and zoom the board out (a taller world).
+  const STAGES = [
+    { name: 'Stage 1 · learn', beats: 0, climbEvery: 5, zoom: 1.0, tenure: 10, lens: 2.2 },
+    { name: 'Stage 2 · warm', beats: 30, climbEvery: 2, zoom: 0.92, tenure: 8, lens: 4 },
+    { name: 'Stage 3 · wild', beats: 60, climbEvery: 1, zoom: 0.84, tenure: 6, lens: 6 },
+    { name: 'Stage 4 · chaos', beats: 100, climbEvery: 1, zoom: 0.76, tenure: 4, lens: 7 },
+  ];
+  const stageOf = () => { let i = 0; STAGES.forEach((st, j) => { if (S.beats >= st.beats) i = j; }); return i; };
+  let zoom = 1, zoomTo = 1;
+  const minTenure = () => (S.curve.r >= 3.5699 ? Math.min(3, STAGES[stageOf()].tenure) : STAGES[stageOf()].tenure);
+  // 🔍 LENSES: Fig's personalities bend the picture itself. A new mood may put a lens on: Wild Fig inverts the
+  // colours, Mirror Fig mirrors the screen (and your touches), Boxy Fig leaves only the wireframe, Golden Fig
+  // turns it gold. Short in the early stages (a hint), longer later.
+  const LENS = { fig: ['invert', '🌀 WILD FIG INVERTS THE WORLD', 'the colours flip'], kit: ['mirror', '✨ MIRROR FIG FLIPS THE SCREEN', 'left is right now'], bit: ['wire', '🔁 BOXY FIG: WIREFRAME', 'only the edges are real'], phi: ['gold', '🌻 GOLDEN FIG GILDS IT', 'everything in gold'] };
+  let lens = null;   // { kind, t, dur }
+  function putLens(kind, dur) {
+    lens = { kind, t: 0, dur };
+    cv.style.filter = kind === 'invert' ? 'invert(1) hue-rotate(180deg)' : kind === 'gold' ? 'sepia(1) saturate(1.6) hue-rotate(-10deg) contrast(1.1)' : '';
+    cv.style.transform = kind === 'mirror' ? 'scaleX(-1)' : '';
+  }
+  function clearLens() { lens = null; cv.style.filter = ''; cv.style.transform = ''; }
+  function wireframe() {   // edges only: the frame minus itself shifted a pixel, brightened
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = 'difference'; ctx.drawImage(cv, 1, 1); ctx.drawImage(cv, -1, 0);
+    ctx.globalCompositeOperation = 'lighter'; ctx.drawImage(cv, 0, 0); ctx.drawImage(cv, 0, 0); ctx.restore();
+  }
   function hud() {
     $('score').textContent = S.score.toLocaleString();
     const hearts = '❤️'.repeat(Math.max(0, S.hearts)) + '🖤'.repeat(Math.max(0, 3 - S.hearts)); if ($('hearts').textContent !== hearts) $('hearts').textContent = hearts;
     $('combo').textContent = S.combo > 1 && S.comboT > 0 ? `COMBO ×${S.combo}` : '';
-    $('lvl').textContent = active?.hudLine?.() || '';
+    $('lvl').textContent = `${STAGES[stageOf()].name}${active?.hudLine?.() ? ' · ' + active.hudLine() : ''}`;
     $('phase').textContent = meterText(S.curve);
     drawMeter(meter, S.curve);
     const v = $('verb');
@@ -138,10 +164,14 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   }
   // ---------------------------------------------------------------- the beat and the morphs
   function beat() {
-    const held = calm > 0;
-    const ev = stepCurve(S.curve, { hold: held }); S.beats += 1; tenure += 1; tally(ev, S.tally);
+    const held = calm > 0, st0 = stageOf(), stg = STAGES[st0];
+    const frozen = !held && stg.climbEvery > 1 && (S.beats % stg.climbEvery) !== 0;   // 🎚️ an early stage: r climbs only every few beats
+    const ev = stepCurve(S.curve, { hold: held, freeze: frozen }); S.beats += 1; tenure += 1; tally(ev, S.tally);
+    if (stageOf() !== st0) { const ns = STAGES[stageOf()]; banner(`🎚️ ${ns.name.toUpperCase()}`, st0 === 0 ? 'r climbs faster now · the board zooms out' : st0 === 1 ? 'r climbs every beat · the board zooms out' : 'the top of the curve · the whole board'); sfx('twist'); zoomTo = ns.zoom; }
     // 🟢 Fig's mood moved: say so, recolour the room, and its pillar's events pay double (the bond, in points)
-    if (ev.moodChanged) { banner(`🟢 ${MOOD_NAME[ev.mood]}`, MOOD_SAY[ev.mood]); applyPalTheme(ev.mood); }
+    if (ev.moodChanged) { banner(`🟢 ${MOOD_NAME[ev.mood]}`, st0 < 2 && ev.mood !== 'calm' ? `${MOOD_SAY[ev.mood]} · a hint of what's coming` : MOOD_SAY[ev.mood]); applyPalTheme(ev.mood);
+      // 🔍 a lens, sometimes: a hint in the early stages, a stretch later
+      const L = LENS[ev.mood]; if (L && !lens && Math.random() < [0.5, 0.65, 0.85, 1][st0]) { putLens(L[0], stg.lens); setTimeout(() => banner(L[1], L[2]), 900); sfx('buzz'); } }
     { const B = PAL[ev.mood]?.boosts || []; let bond = 0; for (const k of B) { if (k === 'r4' ? ev.crossed.some((p) => p.name === 'r = 4') : k === 'phase' ? ev.crossed.length > 0 : ev[k]) bond += WEIGHTS[k] || 0; } if (bond) S.tally.bond = (S.tally.bond || 0) + bond; }
     if (held) { calm -= 1; if (calm === CALM.WARN) { banner(...NEWS.again); sfx('tick'); } else if (ev.glitch) glitchRun(); }
     pal.set({ r: S.curve.r, mood: ev.mood }); pal.react(ev);
@@ -180,6 +210,8 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
       S.beatT += dt; const bl = active.beat || 1; while (S.beatT >= bl && !S.over) { S.beatT -= bl; beat(); }
       if (S.comboT > 0) { S.comboT -= dt; if (S.comboT <= 0) S.combo = 0; }
       if (!S.over) active.update(dt);
+      if (Math.abs(zoom - zoomTo) > 0.001) { zoom += (zoomTo - zoom) * Math.min(1, dt * 1.5); if (Math.abs(zoom - zoomTo) < 0.002) zoom = zoomTo; size(); }   // 🔍 the board eases out
+      if (lens) { lens.t += dt; if (lens.t >= lens.dur) clearLens(); }
       hud();
     }
     if (host.ox > 0) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = getComputedStyle(stage).getPropertyValue('--bg').trim() || '#0B0918'; ctx.fillRect(0, 0, cv.width, cv.height); }   // zoomed out: the margins in the organ's colour
@@ -192,12 +224,13 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
       if (p >= 1) transition = null;
     }
     if (glitchT > 0) { glitchT -= dt; if (!reduceMotion) tear(); if (glitchT <= 0) { applyTheme(); active?.glitch?.(false); } }
+    if (lens?.kind === 'wire') wireframe();
     requestAnimationFrame(loop);
   }
   // ---------------------------------------------------------------- start and end
   function startRun() {
     S.score = 0; S.hearts = 3; S.combo = 0; S.comboT = 0; S.tally = {}; S.curve = makeCurve(); S.beatT = 0; S.beats = 0; S.over = false; S.how = null; S.time = 0; S.morphs = 0;
-    tenure = 0; prev = null; transition = null; lastUsed = new Map();
+    tenure = 0; prev = null; transition = null; lastUsed = new Map(); zoom = zoomTo = 1; clearLens(); size();
     organs.forEach((o) => o.start());
     active = organs[Math.floor(Math.random() * organs.length)]; active.enter(null, null); applyTheme(); calm = 0;
     $('over').hidden = true; running = true; sfx('click'); pal.wake(); pal.set({ r: S.curve.r, mood: 'calm' }); applyPalTheme('calm'); $('spal').hidden = false;
@@ -205,7 +238,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     if (isCalm(active.key)) setTimeout(() => { if (running && !S.over && active && isCalm(active.key)) openCalm(); }, 1800);
   }
   async function over(how) {
-    if (S.over) return; S.over = true; S.how = how; running = false; $('verb').hidden = true; host.ui(''); pal.sleep();
+    if (S.over) return; S.over = true; S.how = how; running = false; $('verb').hidden = true; host.ui(''); pal.sleep(); clearLens();
     const [t1, sub] = active.overText?.(how) || ['GAME OVER', ''];
     sfx(how === 'sleeps' ? 'fanfare' : 'lose');
     showOver(`<h2 style="color:#FF9A8A">${esc(t1)}</h2>${sub ? `<p class="muted small">${esc(sub)}</p>` : ''}<h2>${icon} ${S.score.toLocaleString()} points</h2><p class="muted small">saving…</p>`);
@@ -221,14 +254,14 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   }
   function showOver(html) { $('overCard').innerHTML = html; $('over').hidden = false; const a = $('again'); if (a) a.onclick = startRun; }
   // ---------------------------------------------------------------- input: the shell listens, the organ decides
-  const toWorld = (e) => { const r = cv.getBoundingClientRect(); const sx = cv.width / r.width, sy = cv.height / r.height; return { x: Math.max(0, Math.min(W, ((e.clientX - r.left) * sx - host.ox) / host.k)), y: ((e.clientY - r.top) * sy) / host.k }; };   // through the zoom-out, clamped to the world
+  const toWorld = (e) => { const r = cv.getBoundingClientRect(); const sx = cv.width / r.width, sy = cv.height / r.height; let x = ((e.clientX - r.left) * sx - host.ox) / host.k; if (lens?.kind === 'mirror') x = W - x; return { x: Math.max(0, Math.min(W, x)), y: ((e.clientY - r.top) * sy) / host.k }; };   // through the zoom-out (and a mirror lens), clamped to the world
   const fwd = (type) => (e) => { if (type === 'down') e.preventDefault(); if (running && !S.over && active) active.pointer(type, toWorld(e), e); };
   cv.addEventListener('pointerdown', fwd('down')); cv.addEventListener('pointermove', fwd('move'));
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => cv.addEventListener(ev, fwd('up')));
   addEventListener('keydown', (e) => { if (running && !S.over) active?.keydown?.(e); });
   addEventListener('keyup', (e) => { if (running && !S.over) active?.keyup?.(e); });
-  window.__shell = () => ({ organ: active?.key, prev: prev?.key, calm, glitch: glitchT > 0, mood: S.curve.mood, H: host.H, cw: cv.getBoundingClientRect().width, k: host.k, ox: host.ox, theme: stage.style.getPropertyValue('--bg'), score: S.score, hearts: S.hearts, combo: S.combo, beats: S.beats, morphs: S.morphs, r: S.curve.r, n: S.curve.n, window: S.curve.window, over: S.over, tenure, running, transition: !!transition,
-    tally: { ...S.tally }, force: (why) => { if (why === 'glitch') return glitchRun(); const to = why === 'mirror' && prev ? prev : nextOrgan(); morphTo(to, why); }, over: S.over, end: (how) => over(how), hurt: () => host.hurt('test') });
+  window.__shell = () => ({ organ: active?.key, prev: prev?.key, calm, glitch: glitchT > 0, mood: S.curve.mood, stage: stageOf() + 1, zoom, lens: lens?.kind || null, H: host.H, cw: cv.getBoundingClientRect().width, k: host.k, ox: host.ox, theme: stage.style.getPropertyValue('--bg'), score: S.score, hearts: S.hearts, combo: S.combo, beats: S.beats, morphs: S.morphs, r: S.curve.r, n: S.curve.n, window: S.curve.window, over: S.over, tenure, running, transition: !!transition,
+    tally: { ...S.tally }, force: (why) => { if (why === 'glitch') return glitchRun(); if (why.startsWith('lens:')) return putLens(why.slice(5), 3); if (why === 'stage') { S.beats = STAGES[Math.min(3, stageOf() + 1)].beats; zoomTo = STAGES[stageOf()].zoom; return; } const to = why === 'mirror' && prev ? prev : nextOrgan(); morphTo(to, why); }, over: S.over, end: (how) => over(how), hurt: () => host.hurt('test') });
   // ---------------------------------------------------------------- go
   (async () => {
     if (!(await signedIn())) return;

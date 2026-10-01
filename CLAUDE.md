@@ -795,6 +795,13 @@ sits in the corner of every solo game (`#spal` in the shell: `react` on every be
 `sleep` at game over). `resident()` caches the key in localStorage `r4.pal`, and `residentNow()` reads
 that synchronously for the loader and the sign-in screen (which run before or without a session).
 The topic mechanism is generic: a second question is another topic string and its own page section.
+**The run's stages, zoom and lenses** (shell.js): `STAGES` (beats, climbEvery, zoom, tenure, lens
+seconds); `stepCurve(c, { freeze })` keeps n and r but lands everything else (fib off, since n didn't
+move); the beat freezes when `S.beats % climbEvery !== 0`; a stage change banners and sets `zoomTo`,
+which `loop` eases into `zoom` and re-`size()`s (host.k × zoom, so `host.H` grows and `host.ox`
+centres the board); `LENS` per mood (`putLens`/`clearLens`: a CSS filter or `scaleX(-1)` on the
+canvas, `toWorld` mirrors x under the mirror lens; `wireframe()` is a difference-composite
+post-process in `loop`); `__shell().force('stage')` and `force('lens:<kind>')` for tests (`t_stages`).
 **Fig's mood is the curve's (080).** No picks any more: `design_votes` and `_chaos_companion` are
 unused (left in place); `studio.js` is gone; the chooser is gone; `meetFig()` is the welcome (`r4.met`
 = 'fig4'). `chaos_curve.mood` / `mood_left`; `_chaos_curve` is rewritten whole (hold, glitch owner,
