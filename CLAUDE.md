@@ -817,14 +817,14 @@ returns before filling it; the HUD stage line is `Stage N · <hudLine>` on one l
 ellipsis, so keep `hudLine()`s short). Each organ draws the player with `drawPal(S.curve.mood || 'calm',
 …)` (hilltop `drawTank` when `mine`, putt's ball with `g.face` from the roll, squirrel's `drawStapler`,
 fractal's runner, salvo's boat), passing `hurt` from a short `hurtT`/`stun`/`inv` so Fig winces.
-**A look in the box (shell.js `drawBox`).** The start and over overlay (`.sover`) has a `#boxbg` canvas
-behind the card, drawn each frame while the overlay is up: four cardboard walls to a floor that is the
-logistic map's bifurcation diagram (`bifurcation()`, an offscreen canvas rebuilt when the floor's width
-changes) with a cursor sweeping r 2.5 → 4 over 20 s and the orbit at that r sparking down it (the
-curve, live), the same fractal tree mirrored on the two side walls (`tree()`, branches shrink by φ),
-a golden spiral turning on the far wall over faint φ rectangles, Fibonacci rings of dots pulsing from
-the floor's centre (`FIB`), and Fig peeking over the rim in the run's mood. The card sits low (`justify-content:flex-end`) so the box shows above it; the run's intro
-copy in run.html is short for the same reason.
+**Inside the box (shell.js `drawBox`).** The start and over overlay (`.sover`) has a `#boxbg` canvas
+behind the card, drawn each frame while the overlay is up and filling the screen (the site is the box,
+so no box is drawn): the logistic map's bifurcation diagram across the lower half (`bifurcation()`, an
+offscreen canvas rebuilt when its size changes) with a cursor sweeping r 2.5 → 4 over 20 s and the orbit
+at that r sparking down it, the same fractal tree mirrored left and right (`tree()`, branches shrink by
+φ), a golden spiral turning above over faint φ rectangles, Fibonacci rings of dots pulsing from the
+centre (`FIB`), and Fig in the top-right corner in the run's mood. The card sits low
+(`justify-content:flex-end`); the run's intro copy in run.html is short for the same reason.
 **Organs have their own lives (shell.js).** `S.lives[key]` (default 3, `livesOf`); `host.hurt()` takes one
 and, at zero, sets `resetPending`; `loop` runs `resetOrgan()` after the organ's `update` returns (so an
 organ never has its state swapped under it mid-frame): lives back to 3, `S.hearts -= 1` (over at 0, with
