@@ -112,7 +112,7 @@ function drawTank(x, hue, flash, mine, gold) {
 }
 function draw(t) {
   const k = host.k, Hh = H();
-  ctx.setTransform(k, 0, 0, k, 0, 0);
+  ctx.setTransform(k, 0, 0, k, host.ox || 0, 0);
   const night = g ? g.night : 0;
   const sky = ctx.createLinearGradient(0, 0, 0, Hh); sky.addColorStop(0, night > 0.5 ? '#07071A' : '#1B1646'); sky.addColorStop(0.6, night > 0.5 ? '#12102A' : '#3B2A6E'); sky.addColorStop(1, night > 0.5 ? '#1A0A20' : '#7A3E72');
   ctx.fillStyle = sky; ctx.fillRect(0, 0, W, Hh);

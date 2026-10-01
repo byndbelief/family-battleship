@@ -106,7 +106,7 @@ function update(dt) {
 }
 function draw(t) {
   const k = host.k, Hh = H();
-  ctx.setTransform(k, 0, 0, k, 0, 0);
+  ctx.setTransform(k, 0, 0, k, host.ox || 0, 0);
   const sea = ctx.createLinearGradient(0, 0, 0, Hh); sea.addColorStop(0, '#0B2A44'); sea.addColorStop(1, '#0A1626');
   ctx.fillStyle = sea; ctx.fillRect(0, 0, W, Hh);
   ctx.strokeStyle = '#ffffff10'; ctx.lineWidth = 1; for (let i = 0; i < LANES; i++) { ctx.beginPath(); ctx.moveTo(0, laneY(i) + 20); ctx.lineTo(W, laneY(i) + 20); ctx.stroke(); }

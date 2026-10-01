@@ -93,7 +93,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   // 🎨 the resident pal sits in the corner and feels every beat (pals.js; who it is: the Design Studio)
   const pal = palWidget($('spal'), { pal: 'calm', s: 22, own: false, dpr: 2 });   // 🟢 Fig, in the run's mood
   const host = {
-    cv, ctx, W, H: 640, k: 1, dpr: 1, reduceMotion, S, sfx, morphs,
+    cv, ctx, W, H: 640, k: 1, dpr: 1, ox: 0, reduceMotion, S, sfx, morphs,
     banner, add: (pts) => { S.score += Math.max(0, Math.round(pts)); },
     heal: (n = 1) => { S.hearts = Math.min(3, S.hearts + n); },
     hurt: (how) => { S.hearts -= 1; S.combo = 0; S.comboT = 0; pal.hurt(); if (S.hearts <= 0) { over(how); return true; } return false; },
@@ -104,14 +104,14 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   function size() {
     const fs = !!document.querySelector('#play.fs-on');
     const r = stage.getBoundingClientRect();
-    let w = r.width; const h = fs ? innerHeight : Math.max(420, innerHeight - r.top - 12);
-    // The world is 400 wide and as tall as the screen allows. On a wide screen (a phone on its side) a
-    // full-width fit would scale everything up and leave a world a few beats tall: letterbox instead,
-    // so the world is at least 1.25× taller than wide, centred, with the HUD in the bars.
-    if (h / w < 1.25) w = Math.floor(h / 1.25);
+    const w = r.width, h = fs ? innerHeight : Math.max(420, innerHeight - r.top - 12);
     host.dpr = Math.min(2, devicePixelRatio || 1);
-    cv.style.width = `${w}px`; cv.style.height = `${h}px`; cv.style.margin = '0 auto'; cv.width = Math.round(w * host.dpr); cv.height = Math.round(h * host.dpr);
-    host.k = cv.width / W; host.H = cv.height / host.k;
+    cv.style.height = `${h}px`; cv.width = Math.round(w * host.dpr); cv.height = Math.round(h * host.dpr);
+    // The world is 400 wide and as tall as the screen allows. On a wide screen (a phone on its side) a
+    // full-width fit would scale everything up and leave a world a few beats tall: zoom out instead,
+    // so the world is at least 1.25× taller than wide, centred on the full canvas (host.ox, device px)
+    // with the organ's own background around it. Organs draw with setTransform(k, 0, 0, k, host.ox, 0).
+    host.k = Math.min(cv.width / W, cv.height / (W * 1.25)); host.H = cv.height / host.k; host.ox = Math.max(0, (cv.width - W * host.k) / 2);
     organs.forEach((o) => o.resize?.());
   }
   // ---------------------------------------------------------------- banners, HUD
@@ -182,11 +182,12 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
       if (!S.over) active.update(dt);
       hud();
     }
-    ctx.setTransform(host.k, 0, 0, host.k, 0, 0);
+    if (host.ox > 0) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = getComputedStyle(stage).getPropertyValue('--bg').trim() || '#0B0918'; ctx.fillRect(0, 0, cv.width, cv.height); }   // zoomed out: the margins in the organ's colour
+    ctx.setTransform(host.k, 0, 0, host.k, host.ox, 0);
     (active || organs[0]).draw(t);
     if (transition) {   // the old world zooms away from where you were, and the new one is underneath
       transition.t += dt; const p = Math.min(1, transition.t / transition.dur), e = p * p * (3 - 2 * p);
-      const ax = (transition.anchor?.x ?? W / 2) * host.k, ay = (transition.anchor?.y ?? host.H / 2) * host.k, z = 1 + e * (transition.why === 'golden' ? 6 : 2.2);
+      const ax = (transition.anchor?.x ?? W / 2) * host.k + host.ox, ay = (transition.anchor?.y ?? host.H / 2) * host.k, z = 1 + e * (transition.why === 'golden' ? 6 : 2.2);
       ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1 - e; ctx.translate(ax, ay); ctx.scale(z, z); ctx.translate(-ax, -ay); ctx.drawImage(transition.snap, 0, 0); ctx.restore();
       if (p >= 1) transition = null;
     }
@@ -220,13 +221,13 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   }
   function showOver(html) { $('overCard').innerHTML = html; $('over').hidden = false; const a = $('again'); if (a) a.onclick = startRun; }
   // ---------------------------------------------------------------- input: the shell listens, the organ decides
-  const toWorld = (e) => { const r = cv.getBoundingClientRect(); return { x: ((e.clientX - r.left) / r.width) * W, y: ((e.clientY - r.top) / r.height) * host.H }; };
+  const toWorld = (e) => { const r = cv.getBoundingClientRect(); const sx = cv.width / r.width, sy = cv.height / r.height; return { x: Math.max(0, Math.min(W, ((e.clientX - r.left) * sx - host.ox) / host.k)), y: ((e.clientY - r.top) * sy) / host.k }; };   // through the zoom-out, clamped to the world
   const fwd = (type) => (e) => { if (type === 'down') e.preventDefault(); if (running && !S.over && active) active.pointer(type, toWorld(e), e); };
   cv.addEventListener('pointerdown', fwd('down')); cv.addEventListener('pointermove', fwd('move'));
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => cv.addEventListener(ev, fwd('up')));
   addEventListener('keydown', (e) => { if (running && !S.over) active?.keydown?.(e); });
   addEventListener('keyup', (e) => { if (running && !S.over) active?.keyup?.(e); });
-  window.__shell = () => ({ organ: active?.key, prev: prev?.key, calm, glitch: glitchT > 0, mood: S.curve.mood, H: host.H, cw: cv.getBoundingClientRect().width, theme: stage.style.getPropertyValue('--bg'), score: S.score, hearts: S.hearts, combo: S.combo, beats: S.beats, morphs: S.morphs, r: S.curve.r, n: S.curve.n, window: S.curve.window, over: S.over, tenure, running, transition: !!transition,
+  window.__shell = () => ({ organ: active?.key, prev: prev?.key, calm, glitch: glitchT > 0, mood: S.curve.mood, H: host.H, cw: cv.getBoundingClientRect().width, k: host.k, ox: host.ox, theme: stage.style.getPropertyValue('--bg'), score: S.score, hearts: S.hearts, combo: S.combo, beats: S.beats, morphs: S.morphs, r: S.curve.r, n: S.curve.n, window: S.curve.window, over: S.over, tenure, running, transition: !!transition,
     tally: { ...S.tally }, force: (why) => { if (why === 'glitch') return glitchRun(); const to = why === 'mirror' && prev ? prev : nextOrgan(); morphTo(to, why); }, over: S.over, end: (how) => over(how), hurt: () => host.hurt('test') });
   // ---------------------------------------------------------------- go
   (async () => {

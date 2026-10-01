@@ -375,7 +375,7 @@ function draw(t) {
   sky.addColorStop(0, `hsl(${forest.hue + 190 + d * 150} ${40 - d * 25}% ${18 - d * 14}%)`); sky.addColorStop(0.6, `hsl(${forest.hue - d * 20} ${55 - d * 30}% ${28 - d * 20}%)`); sky.addColorStop(1, d > 0.9 ? '#1A0308' : '#2A1C10');
   ctx.fillStyle = sky; ctx.fillRect(0, 0, cv.width, cv.height);
   const sh = game && !host.reduceMotion ? (game.shake || 0) * 14 : 0, sx = (Math.random() - 0.5) * sh, sy = (Math.random() - 0.5) * sh;
-  ctx.setTransform(k * z, 0, 0, k * z, (W / 2) * k - fx * k * z + sx * k, (Hh / 2) * k - fy * k * z + sy * k);
+  ctx.setTransform(k * z, 0, 0, k * z, (W / 2) * k - fx * k * z + sx * k + (host.ox || 0), (Hh / 2) * k - fy * k * z + sy * k);   // host.ox: the zoom-out's centring on a wide screen
   drawForest(t);
   if (game) {
     if (d > 0) { ctx.fillStyle = `rgba(8,2,6,${d * 0.5})`; ctx.fillRect(-W, -Hh, W * 3, Hh * 3); }   // the day drains

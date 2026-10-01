@@ -177,7 +177,7 @@ function sierp(x, y, s, d, up = true) {   // a Sierpiński triangle, point up, s
 }
 function draw(t) {
   const g = game, pal = PALETTES[(depth - 1) % PALETTES.length], k = host.k, Hh = H();
-  ctx.setTransform(k, 0, 0, k, 0, 0);
+  ctx.setTransform(k, 0, 0, k, host.ox || 0, 0);
   if (g?.shake) { ctx.translate((Math.random() - 0.5) * 10 * g.shake, (Math.random() - 0.5) * 10 * g.shake); }
   if (g?.twist?.k === 'mirror') { ctx.translate(W, 0); ctx.scale(-1, 1); }   // 🪞 the world flips (the HUD stays put)
   // The dive: the world swells around you, into itself.
@@ -247,7 +247,7 @@ function draw(t) {
     ctx.restore();
   }
   ctx.globalAlpha = 1;
-  if (g.dive) { ctx.setTransform(k, 0, 0, k, 0, 0); ctx.fillStyle = `rgba(255,255,255,${(g.dive.t / g.dive.dur) ** 3 * 0.9})`; ctx.fillRect(0, 0, W, Hh); }
+  if (g.dive) { ctx.setTransform(k, 0, 0, k, host.ox || 0, 0); ctx.fillStyle = `rgba(255,255,255,${(g.dive.t / g.dive.dur) ** 3 * 0.9})`; ctx.fillRect(0, 0, W, Hh); }
 }
 
 // ---------------------------------------------------------------- the organ

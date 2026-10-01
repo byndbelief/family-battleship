@@ -101,7 +101,7 @@ function update(dt) {
 }
 function draw(t) {
   const k = host.k, Hh = H(), G = green();
-  ctx.setTransform(k, 0, 0, k, 0, 0);
+  ctx.setTransform(k, 0, 0, k, host.ox || 0, 0);
   ctx.fillStyle = '#1E3A1A'; ctx.fillRect(0, 0, W, Hh);
   ctx.fillStyle = '#4C9A3F'; ctx.beginPath(); ctx.roundRect(G.x, G.y, G.w, G.h, 26); ctx.fill();
   ctx.strokeStyle = '#2F6B2A'; ctx.lineWidth = 6; ctx.stroke();
