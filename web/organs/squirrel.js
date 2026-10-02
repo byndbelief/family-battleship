@@ -160,7 +160,7 @@ function hopTo(sq, from) {
 function dropCrate() {
   if (game.crates.length >= 2) return;
   let r = Math.random(), w = 'nail'; for (const [k, p] of CRATE_ODDS) { if ((r -= p) < 0) { w = k; break; } }
-  game.crates.push({ x: 40 + Math.random() * (W - 80), y: -30, w, life: 9, sway: Math.random() * 6 });
+  game.crates.push({ x: 40 + Math.random() * (W - 80), y: -30, w, life: 14, sway: Math.random() * 6 });   // 📦 slow under its chute, and it waits a while on the ground
 }
 function openCrate(c) {
   game.crates.splice(game.crates.indexOf(c), 1);
@@ -194,7 +194,9 @@ function fire(x, y) {
   const owl = game.owls?.find((o) => Math.hypot(o.x - x, o.y - y) < 30); if (owl) { game.owls.splice(game.owls.indexOf(owl), 1); add(150, owl, 'HOOT!'); tufts(owl.x, owl.y, 8); sfx('clack'); return; }
   const cone = game.cones?.find((c) => Math.hypot(c.x - x, c.y - y) < 12); if (cone) { game.cones.splice(game.cones.indexOf(cone), 1); add(60, cone, 'SWAT!'); burst(cone.x, cone.y, ['#8A5A2B', '#5A3B1F'], 8); sfx('clack'); return; }
   const snake = game.snakes?.find((s) => Math.abs(s.x - x) < 34 && Math.abs(st.y - 12 - y) < 32); if (snake) { game.snakes.splice(game.snakes.indexOf(snake), 1); add(120, { x: snake.x, y: st.y - 14 }, 'SHOO!'); burst(snake.x, st.y - 8, ['#5CB85C', '#2E7D4F'], 10); sfx('thud'); return; }
-  const target = game.acorns.some((a) => { const q = acornPos(a); return Math.hypot(q.x - x, q.y - y) < 14; }) || game.crates.some((c) => Math.hypot(c.x - x, c.y - y) < 16);   // the falling things need a direct hit
+  // 📦 a crate under your finger opens on the tap itself, no staple spent (the falling things that bite need a direct hit)
+  const crate = game.crates.find((c) => Math.hypot(c.x - x, c.y - y) < 30); if (crate) { openCrate(crate); return; }
+  const target = game.acorns.some((a) => { const q = acornPos(a); return Math.hypot(q.x - x, q.y - y) < 14; });
   if (!target && Math.hypot(x - st.x, y - st.y) < 34) return reload();
   const acorn = game.acorns.find((a) => { const q = acornPos(a); return Math.hypot(q.x - x, q.y - y) < 14; });
   if (acorn && game.stun <= 0) {
@@ -246,7 +248,7 @@ function reload() { if (game.reloadT > 0 || game.ammo === AMMO) return; game.rel
 function land(s) { if (!hitAt(s.x, s.y, s.nail ? 4 : 7)) { const onTree = forest.segs.some((sg) => segDist(s.x, s.y, sg) < sg.w / 2 + 3); if (onTree) game.stuck.push({ x: s.x, y: s.y, a: Math.random() * 3, life: 4 }); S.combo = 0; burst(s.x, s.y, ['#E9E4D0', '#9AA7B0'], 6); } }
 function hitAt(x, y, slack, quiet = false) {
   if (!game || S.over) return false;
-  const crate = game.crates.find((c) => Math.hypot(c.x - x, c.y - y) < 14);   // direct hits only for what falls
+  const crate = game.crates.find((c) => Math.hypot(c.x - x, c.y - y) < 26);   // a staple near a crate opens it too
   if (crate) { openCrate(crate); return true; }
   const acorn = game.acorns.find((a) => { const q = acornPos(a); return Math.hypot(q.x - x, q.y - y) < 12; });
   if (acorn) { const q = acornPos(acorn); game.acorns.splice(game.acorns.indexOf(acorn), 1); add(25, q, 'CRACK!'); burst(q.x, q.y, ['#8A5A2B', '#C98B4A'], 10); sfx('clack'); return true; }
@@ -346,7 +348,7 @@ function update(dt) {
   g.kept.forEach((p) => { p.tw = Math.max(0, p.tw - dt); if (Math.random() < dt * (0.05 + dark() * 0.4)) p.tw = 0.4; });
   if (hold && g.weapon === 'nail' && (g.nailT = (g.nailT || 0) - dt) <= 0) { g.nailT = 0.09; fire(hold.x, hold.y); }   // 🔩 hold to fire
   g.crateT -= dt * (1 + S.curve.x); if (g.crateT <= 0) { g.crateT = 7 + Math.random() * 5; dropCrate(); }
-  g.crates.forEach((c) => { if (c.y < forest.ground - 16) c.y += 55 * dt; else c.life -= dt; c.sway += dt; });
+  g.crates.forEach((c) => { if (c.y < forest.ground - 16) c.y += 34 * dt; else c.life -= dt; c.sway += dt; });
   g.crates = g.crates.filter((c) => c.life > 0);
   g.acorns.forEach((a) => { a.t += dt; a.spin += dt * 9; });
   g.acorns = g.acorns.filter((a) => { if (a.t >= a.tf) { bonk(); return false; } return true; });

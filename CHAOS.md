@@ -207,7 +207,9 @@ while your ball sits still, runs over and drags it off (+1 putt) unless you tap 
 
 **The arsenal grows with the stage (Hilltop).** New enemies bring new weapons, used by tapping the enemy
 itself: 🎯 flak from Stage 2 for what flies (balloons, meteors), ❄️ frost from Stage 3 for what comes up
-from the earth's core (🪱 magma worms: the ground cracks and glows, the worm rears up and spits lava), ⚡
+from the earth's core (🪱 magma worms: one starts at the very bottom of the world and tunnels up through the
+dirt, glowing, so the zoomed-out board is what lets you watch it coming; it breaks the surface, rears up and
+spits lava; freeze it while it's still underground for 300), ⚡
 EMP from Stage 4 for what crawls (moles, serpents). Each has a few charges that come back over time (the
 bar bottom-right; locked ones show the stage they arrive at). The cannon (drag) still works on everything.
 **Putt repairs.** From course 2 each hole comes with repairs (🔧 1, then 2 from course 4, 3 from course 6):
