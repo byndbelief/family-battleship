@@ -192,13 +192,13 @@ function fire(x, y) {
   if (!game || S.over || game.dive) return;
   const st = STAPLER(), w = game.weapon;
   const owl = game.owls?.find((o) => Math.hypot(o.x - x, o.y - y) < 30); if (owl) { game.owls.splice(game.owls.indexOf(owl), 1); add(150, owl, 'HOOT!'); tufts(owl.x, owl.y, 8); sfx('clack'); return; }
-  const cone = game.cones?.find((c) => Math.hypot(c.x - x, c.y - y) < 12); if (cone) { game.cones.splice(game.cones.indexOf(cone), 1); add(60, cone, 'SWAT!'); burst(cone.x, cone.y, ['#8A5A2B', '#5A3B1F'], 8); sfx('clack'); return; }
+  const cone = game.cones?.find((c) => Math.hypot(c.x - x, c.y - y) < 28); if (cone) { game.cones.splice(game.cones.indexOf(cone), 1); add(60, cone, 'SWAT!'); burst(cone.x, cone.y, ['#8A5A2B', '#5A3B1F'], 8); sfx('clack'); return; }
   const snake = game.snakes?.find((s) => Math.abs(s.x - x) < 34 && Math.abs(st.y - 12 - y) < 32); if (snake) { game.snakes.splice(game.snakes.indexOf(snake), 1); add(120, { x: snake.x, y: st.y - 14 }, 'SHOO!'); burst(snake.x, st.y - 8, ['#5CB85C', '#2E7D4F'], 10); sfx('thud'); return; }
-  // 📦 a crate under your finger opens on the tap itself, no staple spent (the falling things that bite need a direct hit)
+  // 📦 a crate under your finger opens on the tap itself, no staple spent; acorns and pinecones go on a near miss too
   const crate = game.crates.find((c) => Math.hypot(c.x - x, c.y - y) < 30); if (crate) { openCrate(crate); return; }
-  const target = game.acorns.some((a) => { const q = acornPos(a); return Math.hypot(q.x - x, q.y - y) < 14; });
+  const target = game.acorns.some((a) => { const q = acornPos(a); return Math.hypot(q.x - x, q.y - y) < 30; });
   if (!target && Math.hypot(x - st.x, y - st.y) < 34) return reload();
-  const acorn = game.acorns.find((a) => { const q = acornPos(a); return Math.hypot(q.x - x, q.y - y) < 14; });
+  const acorn = game.acorns.find((a) => { const q = acornPos(a); return Math.hypot(q.x - x, q.y - y) < 30; });
   if (acorn && game.stun <= 0) {
     if (w === 'staple') { if (game.reloadT > 0 || game.ammo <= 0) { sfx('buzz'); return; } game.ammo -= 1; if (game.ammo === 0) reload(); }
     const q = acornPos(acorn); game.acorns.splice(game.acorns.indexOf(acorn), 1); add(25, q, 'SWAT!'); burst(q.x, q.y, ['#8A5A2B', '#C98B4A'], 10); sfx('clack');
@@ -250,7 +250,7 @@ function hitAt(x, y, slack, quiet = false) {
   if (!game || S.over) return false;
   const crate = game.crates.find((c) => Math.hypot(c.x - x, c.y - y) < 26);   // a staple near a crate opens it too
   if (crate) { openCrate(crate); return true; }
-  const acorn = game.acorns.find((a) => { const q = acornPos(a); return Math.hypot(q.x - x, q.y - y) < 12; });
+  const acorn = game.acorns.find((a) => { const q = acornPos(a); return Math.hypot(q.x - x, q.y - y) < 24; });
   if (acorn) { const q = acornPos(acorn); game.acorns.splice(game.acorns.indexOf(acorn), 1); add(25, q, 'CRACK!'); burst(q.x, q.y, ['#8A5A2B', '#C98B4A'], 10); sfx('clack'); return true; }
   let best = null, bd = Infinity;
   game.squirrels.forEach((sq) => { const p = sqPos(sq), d = Math.hypot(p.x - x, p.y - y); if (d < RAD[sq.size] + slack && d < bd) { bd = d; best = sq; } });

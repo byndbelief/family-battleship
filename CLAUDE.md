@@ -832,8 +832,8 @@ the hurt's `how`), then `active.start()` + `enter(null)` + the calm hold if it's
 cue. `host.heal()` refills the organ's lives. `host.hurt()` now always returns false (organs' `ko` paths
 are dead code kept for the shape). The HUD hearts line carries `<small>` with the organ's icon and
 ●/○ lives. `__shell().lives`. Test: `t_lives`. squirrel.js: the staples filter checks each flight frame
-for a squirrel within `RAD + 5` (nail 3) of the staple and `strike`s it; tap/landing radii for acorns and
-cones are tight (12–14); a tap within 30 of a crate opens it outright in `fire()`, a staple within 26.
+for a squirrel within `RAD + 5` (nail 3) of the staple and `strike`s it; tap radii for acorns and cones
+are forgiving (30/28, landing 24); a tap within 30 of a crate opens it outright in `fire()`, a staple within 26.
 **Fractal Dash's ground (fractal.js `groundY`).** A base bulb every `BULB_P` (260) px along the track
 (radius 80–150, centre 0.72 r below `base = H × 0.72` so only the cap shows), each with 2–3 children on
 its rim at 0.2–0.32 r, recursively to `levels = 2 + min(3, round(rough × 1.6))`; the ground is the
