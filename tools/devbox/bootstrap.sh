@@ -22,7 +22,8 @@ for a in "$@"; do case $a in --no-e2e) E2E=0;; --lock-ssh) LOCK=1;; *) echo "unk
 
 [ "$(id -u)" = 0 ] || { echo "Run as root (sudo)."; exit 1; }
 say() { printf '\n\033[1;36m== %s\033[0m\n' "$*"; }
-as_dev() { sudo -u "$DEV_USER" -H bash -lc "$*"; }
+# Run from the dev user's home: sudo keeps the caller's cwd (e.g. /root/devbox), which dev can't read.
+as_dev() { sudo -u "$DEV_USER" -H bash -lc "cd ~ && $*"; }
 
 # ---------------------------------------------------------------- lock down SSH (second pass)
 if [ "$LOCK" = 1 ]; then
@@ -30,8 +31,14 @@ if [ "$LOCK" = 1 ]; then
   command -v tailscale >/dev/null && tailscale ip -4 >/dev/null 2>&1 \
     || { echo "Tailscale isn't up. Run 'sudo tailscale up' and check you can ssh in over it first."; exit 1; }
   ufw allow in on tailscale0 to any port 22 proto tcp
-  ufw delete allow 22/tcp >/dev/null 2>&1 || ufw delete allow OpenSSH >/dev/null 2>&1 || true
+  # Remove whichever public rule exists (matches "22/tcp ALLOW Anywhere", not the "on tailscale0" one).
+  for rule in 22/tcp OpenSSH; do
+    ufw status | grep -qE "^$rule +ALLOW +Anywhere" && ufw delete allow "$rule" >/dev/null
+  done
   ufw status
+  if ufw status | grep -E "^(22/tcp|OpenSSH)( \(v6\))? +ALLOW +Anywhere"; then
+    echo "A public SSH rule is still open (see above). Remove it with: sudo ufw delete allow <rule>"; exit 1
+  fi
   echo "Public SSH is closed. Reach this box at: ssh $DEV_USER@$(tailscale ip -4 | head -1)"
   echo "(Lost access? DigitalOcean console -> Droplet -> Access -> Launch Droplet Console.)"
   exit 0
