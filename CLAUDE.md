@@ -841,6 +841,10 @@ lowest circle top at x (`topOf`) plus a little noise; bulbs more than 2.2 r away
 touches three base bulbs' trees. `BANDS` are stroked under the ridge at +7, +15, … px in `draw`. putt.js
 `corridor`: `span = min(1, 0.4 + 0.12 × course)` narrows the walk's x-bounds around the middle; turns
 × 1.15 from course 4. Test: `t_coast` (ground samples, Putt spans 44 → 272 by course 6).
+**Salvo centres with the zoom-out.** `g.spread` eases 0 → 1 from Stage 2 in `update`; `BOAT()` y lerps
+from `H − 78` to `H × 0.52` and `laneY(i)` from the 0.2–0.7 band to 0.1–0.9 by it. Tap radii 36–44,
+`land()` ±26 of a lane and ±12 past a ship's ends. Hilltop: shell hit radii 26–28, tap radii 36–40.
+Test: `t_sea`.
 **Hilltop's arsenal and worms.** `ARMS` (flak/frost/emp: stage, max charges, cooldown, hint), `g.arms[k]
 = {n, t}` recharging in `update`, `renderBar()` into `host.ui` (`.wbar`, re-rendered when the stage
 changes), `tap(x, y)` on a pointer-up that moved < 10 (else `fire`): finds the enemy under the tap and

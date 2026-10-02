@@ -92,11 +92,11 @@ function tap(x, y) {
   if (!g || S.over) return; const st = stage(), near = (ex, ey, r) => Math.hypot(ex - x, ey - y) < r;
   const kill = (k, ex, ey, pts, what) => { const a = ARMS[k], c = g.arms[k]; if (st < a.stage) { host.banner(`🔒 ${a.name.toUpperCase()} AT STAGE ${a.stage}`, a.hint); sfx('buzz'); return false; } if (c.n <= 0) { host.banner(`${a.icon} ${a.name.toUpperCase()} RECHARGING`, a.hint); sfx('buzz'); return false; }
     c.n -= 1; S.combo = S.comboT > 0 ? S.combo + 1 : 1; S.comboT = 3; const p = pts * fibMult(S.combo); host.add(p); killsN += 1; g.fx.push({ kind: 'text', x: ex, y: ey - 22, text: `${a.icon} ${what} +${p}`, life: 1.1, big: true, col: '#C9FFF8' }); g.fx.push({ kind: 'ring', x: ex, y: ey, r: 4, R: 36, life: 0.4 }); sfx(k === 'emp' ? 'flash' : k === 'frost' ? 'chime' : 'boom', { size: 0.7 }); renderBar(); return true; };
-  const b = g.balloons.find((q) => near(q.x, q.y + 6, 26)); if (b) { if (kill('flak', b.x, b.y, 150, 'BALLOON')) b.hp = 0; return true; }
-  const m = g.meteors.find((q) => near(q.x, q.y, 26)); if (m) { if (kill('flak', m.x, m.y, 120, 'METEOR')) g.meteors.splice(g.meteors.indexOf(m), 1); return true; }
-  const w = g.worms.find((q) => { const h = wormHead(q); return near(h.x, h.y, 30); }); if (w) { const h = wormHead(w); if (kill('frost', h.x, h.y, w.phase === 'dig' ? 300 : 250, w.phase === 'dig' ? 'WORM FROZEN UNDERGROUND' : 'WORM FROZEN')) w.hp = 0; return true; }
-  const mo = g.moles.find((q) => q.t > 0.3 && near(q.x, hAt(q.x) - 8, 24)); if (mo) { if (kill('emp', mo.x, hAt(mo.x) - 6, 200, 'MOLE')) mo.hp = 0; return true; }
-  const l = g.lakes.find((q) => q.serpent && near(q.serpent.x, q.y - 26, 26)); if (l) { if (kill('emp', l.serpent.x, l.y - 26, 220, 'SERPENT')) l.serpent.hp = 0; return true; }
+  const b = g.balloons.find((q) => near(q.x, q.y + 6, 38)); if (b) { if (kill('flak', b.x, b.y, 150, 'BALLOON')) b.hp = 0; return true; }
+  const m = g.meteors.find((q) => near(q.x, q.y, 38)); if (m) { if (kill('flak', m.x, m.y, 120, 'METEOR')) g.meteors.splice(g.meteors.indexOf(m), 1); return true; }
+  const w = g.worms.find((q) => { const h = wormHead(q); return near(h.x, h.y, 40); }); if (w) { const h = wormHead(w); if (kill('frost', h.x, h.y, w.phase === 'dig' ? 300 : 250, w.phase === 'dig' ? 'WORM FROZEN UNDERGROUND' : 'WORM FROZEN')) w.hp = 0; return true; }
+  const mo = g.moles.find((q) => q.t > 0.3 && near(q.x, hAt(q.x) - 8, 36)); if (mo) { if (kill('emp', mo.x, hAt(mo.x) - 6, 200, 'MOLE')) mo.hp = 0; return true; }
+  const l = g.lakes.find((q) => q.serpent && near(q.serpent.x, q.y - 26, 38)); if (l) { if (kill('emp', l.serpent.x, l.y - 26, 220, 'SERPENT')) l.serpent.hp = 0; return true; }
   return false;
 }
 function fire(dx, dy) {
@@ -163,10 +163,10 @@ function update(dt) {
   g.shells = g.shells.filter((s) => { s.vy += G * dt; s.vx += g.wind * dt * 0.6; s.x += s.vx * dt; s.y += s.vy * dt; if (s.x < -20 || s.x > W + 20) return false;
     if (s.mine) {   // your shells against what the world sent: moles, serpents, balloons
       const hit = (x, y, r, pts, what) => { if (Math.hypot(s.x - x, s.y - y) < r) { S.combo = S.comboT > 0 ? S.combo + 1 : 1; S.comboT = 3; const p = pts * fibMult(S.combo); host.add(p); killsN += 1; g.fx.push({ kind: 'text', x, y: y - 22, text: `${what} +${p}`, life: 1.1, big: true, col: '#FFE08A' }); g.fx.push({ kind: 'ring', x, y, r: 4, R: 30, life: 0.35 }); sfx('cheer', { delay: 0.05 }); return true; } return false; };
-      const m = g.moles.find((q) => q.t > 0.5 && hit(q.x, hAt(q.x) - 6, 16, 120, '🕳️ MOLE')); if (m) { m.hp = 0; return false; }
-      const l = g.lakes.find((q) => q.serpent && hit(q.serpent.x, q.y - 26, 18, 200, '🌊 SERPENT')); if (l) { l.serpent.hp = 0; return false; }
-      const b = g.balloons.find((q) => hit(q.x, q.y, 16, 150, '🎈 BALLOON')); if (b) { b.hp = 0; return false; }
-      const w = g.worms.find((q) => q.phase === 'up' && hit(q.x, hAt(q.x) - 24, 18, 180, '🪱 WORM')); if (w) { w.hp = 0; return false; }
+      const m = g.moles.find((q) => q.t > 0.5 && hit(q.x, hAt(q.x) - 6, 26, 120, '🕳️ MOLE'));   // near misses count if (m) { m.hp = 0; return false; }
+      const l = g.lakes.find((q) => q.serpent && hit(q.serpent.x, q.y - 26, 28, 200, '🌊 SERPENT')); if (l) { l.serpent.hp = 0; return false; }
+      const b = g.balloons.find((q) => hit(q.x, q.y, 28, 150, '🎈 BALLOON')); if (b) { b.hp = 0; return false; }
+      const w = g.worms.find((q) => q.phase === 'up' && hit(q.x, hAt(q.x) - 24, 28, 180, '🪱 WORM')); if (w) { w.hp = 0; return false; }
     } if (s.y >= hAt(s.x)) { boom(s.x, s.y, s.big ? 34 : 22, s.mine); return false; } return true; });
   g.meteors = g.meteors.filter((m) => { m.y += m.vy * dt; m.x += m.vx * dt; m.vy += 120 * dt; if (m.y >= hAt(m.x)) { boom(m.x, m.y, 40, false); g.tanks.filter((t) => Math.abs(t.x - m.x) < 46).forEach((t) => { g.tanks.splice(g.tanks.indexOf(t), 1); killsN += 1; host.add(75); g.fx.push({ kind: 'text', x: t.x, y: m.y - 30, text: 'FLATTENED +75', life: 1 }); }); return false; } return true; });
   g.tanks.forEach((t) => { if (t.flash > 0) t.flash -= dt; });
