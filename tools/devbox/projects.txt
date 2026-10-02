@@ -1,0 +1,3 @@
+# One project per line: <git url> [folder]. Lines starting with # are ignored.
+# bootstrap.sh clones each into ~/dev/<folder> (default: the repo name).
+git@github.com:byndbelief/game-room.git r4box
