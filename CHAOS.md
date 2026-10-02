@@ -205,7 +205,8 @@ lanes and drop a bomb over your boat (tap the plane, +150, or the bomb, +50); fr
 surface, fire a torpedo and dive (tap one while it's up, +250). From Stage 2 your gunboat sails to the
 middle of the sea and the lanes spread above and below it, so the ships, planes, subs and torpedoes come
 from all sides. Taps and shells in Salvo and Hilltop are forgiving: a near miss still counts. Shells in flight hit what they
-meet: in Hilltop a shell that touches a ☄️ meteor breaks it up (120); in Salvo a shell takes a plane, a bomb, a
+meet: in Hilltop a shell that touches a ☄️ meteor breaks it up (120) and one that meets a falling 💣 bomb or
+enemy shell intercepts it (60), and the 🎯 target takes those on a tap too; in Salvo a shell takes a plane, a bomb, a
 torpedo or a surfaced sub on its way, and one passing low over an enemy ship lands on it. Fractal Dash: from Stage 2 Fig
 runs from the middle of the screen, so drones hunt from behind as well as ahead; a dash takes a drone on a
 near miss and shards come to you. Squirrel Chaos: from Stage 2 Fig and the stapler climb to a perch in the
@@ -249,6 +250,10 @@ hearts are gone. Healing (a dive, a new day, the mirror) refills the organ's liv
 In Squirrel Chaos a staple takes the first squirrel in its path, not just the one where it lands; a
 near miss takes an acorn or a pinecone too; 📦 crates are easy: they drift down slowly,
 wait a while, and a tap on one opens it with no staple spent.
+
+**Fig watches from the corner.** The pal in the corner is outside the field but not out of it: it glances
+toward wherever you touch, turns to look where things happen, bounces at a kill, winks at a score, flinches at
+a near miss and beams at a pickup, in every organ.
 
 **You are Fig.** In every organ the thing you steer is Fig, in the run's current mood: rolled up into
 Putt's ball, at the wheel of Hilltop's tank, working the stapler in Squirrel Chaos, running Fractal

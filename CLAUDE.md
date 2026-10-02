@@ -808,6 +808,10 @@ fractal.js `drone` obstacles in `g.obs` (killed by a dash, else `hurt('droned')`
 `planes`/`bombs`/`subs` (a sub pushes a real torpedo into `g.torps`; `fire()` tests them before the
 ammo path), putt.js `g.gopher` (`restT` counts the ball's stillness; `shoo()` from `pointer`). Each
 `__xx()` debug reports the counts. Tests: `t_wide`, `t_wide2`.
+**Fig watches the field (shell.js `host.cue(kind, x)`).** Organs call `host.cue?.('kill'|'score'|'near'|
+'pickup'|'look', x)` with x in world units; the shell turns the pal to face that side (`x < W × 0.3` → left)
+and forces a mood (`big`, `fib`, `peak`, `gift`). A pointer-down cues `look`. Hilltop: my shells also
+intercept enemy shells within 22 (60 pts) and the target takes one on a tap within 34.
 **Fig is the player, notices go through Fig (shell.js, organs).** `banner(t, sub)` now shows `t` as a
 small pill beside the pal (`.sbanner`, left of the field under the score; `sub` only lands in the
 pill's `title`) and cues the pal: `CUE` maps the title's mark to a `pal.force(mood)` (🌻 golden, ✨

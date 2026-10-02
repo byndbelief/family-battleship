@@ -139,7 +139,7 @@ function update(dt) {
       if (o.struck) { o.flash -= dt; return o.flash > 0; }
     } else if (o.type === 'drone') {
       o.x -= o.vx * dt; o.ph += dt * 3; const dy = (groundY(o.x) - o.lift + Math.sin(o.ph) * 8) - g.py, dx = o.x - px;
-      if (Math.hypot(dx, dy) < R + (g.dashing ? 20 : 11)) { if (g.dashing) { host.add(150); for (let i = 0; i < 10; i++) g.parts.push({ x: o.x, y: g.py + dy, vx: (Math.random() - 0.5) * 260, vy: (Math.random() - 0.8) * 260, t: 0, life: 0.5, c: '#FF5FB0' }); sfx('boom', { size: 0.6 }); return false; } if (g.inv <= 0) hurt('droned'); }
+      if (Math.hypot(dx, dy) < R + (g.dashing ? 20 : 11)) { if (g.dashing) { host.add(150); host.cue?.('kill', o.x - g.cam); for (let i = 0; i < 10; i++) g.parts.push({ x: o.x, y: g.py + dy, vx: (Math.random() - 0.5) * 260, vy: (Math.random() - 0.8) * 260, t: 0, life: 0.5, c: '#FF5FB0' }); sfx('boom', { size: 0.6 }); return false; } if (g.inv <= 0) hurt('droned'); }
     } else if (o.type === 'spike' && g.inv <= 0 && !g.dashing) {
       const w = o.n * 14;
       if (px + R * 0.6 > o.x && px - R * 0.6 < o.x + w && g.py + R > groundY(o.x + w / 2) + quake - 15) hurt('spiked');
@@ -153,7 +153,7 @@ function update(dt) {
 }
 function collect(x, y) {
   const g = game;
-  S.combo = S.comboT > 0 ? S.combo + 1 : 1; S.comboT = 1.6;
+  S.combo = S.comboT > 0 ? S.combo + 1 : 1; S.comboT = 1.6; host.cue?.('score', x - g.cam);
   const pts = 50 * fibMult(S.combo); g.shards += pts; host.add(pts);   // 🌻 combos count in Fibonacci: 1, 2, 3, 5, 8, 13, 21…
   for (let i = 0; i < 8; i++) g.parts.push({ x, y, vx: (Math.random() - 0.5) * 220, vy: (Math.random() - 0.8) * 220, t: 0, life: 0.5, c: PALETTES[(depth - 1) % PALETTES.length].shard });
   sfx('chime', { hi: S.combo > 3 });
@@ -161,7 +161,7 @@ function collect(x, y) {
 function puff(x, y, n) { for (let i = 0; i < n; i++) game.parts.push({ x, y, vx: (Math.random() - 0.5) * 120, vy: -Math.random() * 80, t: 0, life: 0.3, c: '#ffffff88' }); }
 function hurt(how) {
   const g = game;
-  g.inv = 1.4; g.shake = 1; sfx('thud');
+  g.inv = 1.4; g.shake = 1; sfx('thud'); host.cue?.('near', PX);
   for (let i = 0; i < 12; i++) g.parts.push({ x: g.cam + PX, y: g.py, vx: (Math.random() - 0.5) * 300, vy: (Math.random() - 0.7) * 300, t: 0, life: 0.6, c: '#FF5FB0' });
   if (host.hurt(how)) { g.ko = how; return true; }
   host.banner(how === 'spiked' ? 'OUCH' : how === 'zapped' ? 'ZAP' : how === 'droned' ? 'DRONED · dash through them' : 'SPLASH', `${S.hearts} ${S.hearts === 1 ? 'heart' : 'hearts'} left`);

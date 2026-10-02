@@ -107,6 +107,9 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     hurt: (how) => { S.combo = 0; S.comboT = 0; pal.hurt(); if (!active) return false; S.lives[active.key] = livesOf(active.key) - 1; if (S.lives[active.key] <= 0) resetPending = how; return false; },
     over, ui: (html) => { $('oui').innerHTML = html || ''; return $('oui'); },
     organ: () => active?.key, activeBeat: () => active?.beat || 1, stage: () => stageOf() + 1,   // 🎚️ the run's stage, for organs that grow with it
+    // 🟢 Fig in the corner watches the field from outside it: organs cue it on what happens and where (x in world units),
+    // it turns to look that way and acts it out — a kill bounces it, a score winks, a near miss makes it flinch, a pickup is a gift
+    cue: (kind, x) => { if (x != null) pal.set({ face: x < host.W * 0.3 ? -1 : 1 }); if (kind === 'kill') pal.force('big', 0.9); else if (kind === 'score') pal.force('fib', 0.8); else if (kind === 'near') pal.force('peak', 0.6); else if (kind === 'pickup') pal.force('gift', 1.2); else if (kind === 'look') { /* just the glance */ } },
   };
   // ---------------------------------------------------------------- sizing
   function size() {
@@ -325,7 +328,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   function showOver(html) { $('overCard').innerHTML = html; $('over').hidden = false; const a = $('again'); if (a) a.onclick = startRun; }
   // ---------------------------------------------------------------- input: the shell listens, the organ decides
   const toWorld = (e) => { const r = cv.getBoundingClientRect(); const sx = cv.width / r.width, sy = cv.height / r.height; let x = ((e.clientX - r.left) * sx - host.ox) / host.k; if (lens?.kind === 'mirror') x = host.W - x; return { x: Math.max(0, Math.min(host.W, x)), y: Math.max(0, Math.min(host.H, ((e.clientY - r.top) * sy - host.oy) / host.k)) }; };   // through the zoom-out (and a mirror lens), clamped to the world
-  const fwd = (type) => (e) => { if (type === 'down') e.preventDefault(); if (running && !S.over && active) active.pointer(type, toWorld(e), e); };
+  const fwd = (type) => (e) => { if (type === 'down') e.preventDefault(); if (running && !S.over && active) { const p = toWorld(e); if (type === 'down') host.cue('look', p.x); active.pointer(type, p, e); } };   // Fig glances at where you touch
   cv.addEventListener('pointerdown', fwd('down')); cv.addEventListener('pointermove', fwd('move'));
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => cv.addEventListener(ev, fwd('up')));
   addEventListener('keydown', (e) => { if (running && !S.over) active?.keydown?.(e); });

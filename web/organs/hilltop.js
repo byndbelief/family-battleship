@@ -62,7 +62,7 @@ let bar = null;
 function renderBar() { if (!bar || !g) return; const a = g.arty && ARTY[g.arty.kind]; bar.innerHTML = a ? `<button type="button" class="on" aria-label="${a.name}, ${g.arty.n} rounds" title="${a.desc}">${a.icon}<b>${g.arty.n}</b></button>` : ''; }
 function allyDrone() { const fromLeft = Math.random() < 0.5; g.drones.push({ x: fromLeft ? -30 : W + 30, y: 60 + Math.random() * 30, vx: (fromLeft ? 1 : -1) * 90, dropped: false }); }
 function dropCrate(x) { const kinds = Object.keys(ARTY), kind = kinds[Math.floor(Math.random() * kinds.length)]; g.drops.push({ x: Math.max(30, Math.min(W - 30, x)), y: 70, kind, down: true, life: 20 }); }
-function pickUp(c) { g.drops.splice(g.drops.indexOf(c), 1); const a = ARTY[c.kind]; g.arty = { kind: c.kind, n: a.n }; host.banner(`${a.icon} ${a.name.toUpperCase()} · ${a.n} ROUNDS`, a.desc); sfx('chime'); renderBar(); g.fx.push({ kind: 'ring', x: c.x, y: c.y, r: 4, R: 30, life: 0.35 }); }
+function pickUp(c) { g.drops.splice(g.drops.indexOf(c), 1); const a = ARTY[c.kind]; g.arty = { kind: c.kind, n: a.n }; host.cue?.('pickup', c.x); host.banner(`${a.icon} ${a.name.toUpperCase()} · ${a.n} ROUNDS`, a.desc); sfx('chime'); renderBar(); g.fx.push({ kind: 'ring', x: c.x, y: c.y, r: 4, R: 30, life: 0.35 }); }
 // 🪱 magma worms (Stage 3+), up from the earth's core: one starts at the very bottom of the world and tunnels up
 // through the dirt (the zoom-out is what lets you watch it coming), breaks the surface, rears up and spits lava.
 function worm() { let x; for (let i = 0; i < 8; i++) { x = 40 + Math.random() * (W - 80); if (Math.abs(x - g.me.x) > 70 && !inLake(x)) break; } g.worms.push({ x, y: H() + 10, phase: 'dig', t: 0, hp: 1, fired: false, spd: 60 + 14 * stage() }); }
@@ -93,11 +93,12 @@ function meteor(x) { g.meteors.push({ x, y: -20, vy: 160 + Math.random() * 80, v
 function tap(x, y) {
   if (!g || S.over) return false; const near = (ex, ey, r) => Math.hypot(ex - x, ey - y) < r;
   const crate = g.drops.find((c) => near(c.x, c.y, 34)); if (crate) { pickUp(crate); return true; }
-  const kill = (icon, ex, ey, pts, what, bolt) => { S.combo = S.comboT > 0 ? S.combo + 1 : 1; S.comboT = 3; const p = pts * fibMult(S.combo); host.add(p); killsN += 1;
+  const kill = (icon, ex, ey, pts, what, bolt) => { S.combo = S.comboT > 0 ? S.combo + 1 : 1; S.comboT = 3; const p = pts * fibMult(S.combo); host.add(p); killsN += 1; host.cue?.('kill', ex);
     g.fx.push({ kind: 'text', x: ex, y: ey - 22, text: `${icon} ${what} +${p}`, life: 1.1, big: true, col: '#C9FFF8' }); g.fx.push({ kind: 'ring', x: ex, y: ey, r: 4, R: 36, life: 0.4 });
     if (bolt) { const pts2 = [[ex + (Math.random() - 0.5) * 40, -20]]; let yy = -20; while (yy < ey - 16) { yy += 28; pts2.push([ex + (Math.random() - 0.5) * 26, yy]); } pts2.push([ex, ey]); g.bolts.push({ pts: pts2, life: 0.3 }); sfx('flash'); } else sfx('boom', { size: 0.7 }); return true; };
   const b = g.balloons.find((q) => near(q.x, q.y + 6, 38)); if (b) { kill('🎯', b.x, b.y, 150, 'BALLOON'); b.hp = 0; return true; }
   const m = g.meteors.find((q) => near(q.x, q.y, 38)); if (m) { kill('🎯', m.x, m.y, 120, 'METEOR'); g.meteors.splice(g.meteors.indexOf(m), 1); return true; }
+  const es = g.shells.find((q) => !q.mine && near(q.x, q.y, 34)); if (es) { kill('🎯', es.x, es.y, 60, 'INTERCEPTED'); g.shells.splice(g.shells.indexOf(es), 1); return true; }   // 🎯 a falling bomb or shell under your finger
   const w = g.worms.find((q) => { const h = wormHead(q); return near(h.x, h.y, 40); }); if (w) { const h = wormHead(w); kill('⚡', h.x, h.y, w.phase === 'dig' ? 300 : 250, w.phase === 'dig' ? 'WORM, UNDERGROUND' : 'WORM', true); w.hp = 0; return true; }
   const mo = g.moles.find((q) => q.t > 0.3 && near(q.x, hAt(q.x) - 8, 36)); if (mo) { kill('⚡', mo.x, hAt(mo.x) - 6, 200, 'MOLE', true); mo.hp = 0; return true; }
   const l = g.lakes.find((q) => q.serpent && near(q.serpent.x, q.y - 26, 38)); if (l) { kill('⚡', l.serpent.x, l.y - 26, 220, 'SERPENT', true); l.serpent.hp = 0; return true; }
@@ -131,7 +132,7 @@ function boom(x, y, r, mine) {
   } else if (Math.abs(g.me.x - x) < r + TANK_W / 2) {
     if (g.shield) { g.shield = 0; g.fx.push({ kind: 'text', x: g.me.x, y: hAt(g.me.x) - 30, text: '🛡️ BOUNCED', life: 1 }); sfx('clack'); return; }
     S.combo = 0; navigator.vibrate?.(100);
-    g.hurtT = 1.2; host.hurt('shelled') || host.banner('DIRECT HIT', `${S.hearts} ${S.hearts === 1 ? 'heart' : 'hearts'} left`);
+    g.hurtT = 1.2; host.cue?.('near', g.me.x); host.hurt('shelled') || host.banner('DIRECT HIT', `${S.hearts} ${S.hearts === 1 ? 'heart' : 'hearts'} left`);
   }
 }
 function update(dt) {
@@ -172,12 +173,13 @@ function update(dt) {
     if (s.homing && s.vy > -60) { let best = null, bd = 1e9; g.tanks.forEach((t) => { const d = Math.abs(t.x - s.x); if (d < bd) { bd = d; best = t; } }); if (best) s.vx += Math.sign(best.x - s.x) * 420 * dt; }   // 🎯 guided: it leans toward the nearest tank on the way down
     s.x += s.vx * dt; s.y += s.vy * dt; if (s.x < -20 || s.x > W + 20) return false;
     if (s.mine) {   // your shells against what the world sent: moles, serpents, balloons
-      const hit = (x, y, r, pts, what) => { if (Math.hypot(s.x - x, s.y - y) < r) { S.combo = S.comboT > 0 ? S.combo + 1 : 1; S.comboT = 3; const p = pts * fibMult(S.combo); host.add(p); killsN += 1; g.fx.push({ kind: 'text', x, y: y - 22, text: `${what} +${p}`, life: 1.1, big: true, col: '#FFE08A' }); g.fx.push({ kind: 'ring', x, y, r: 4, R: 30, life: 0.35 }); sfx('cheer', { delay: 0.05 }); return true; } return false; };
+      const hit = (x, y, r, pts, what) => { if (Math.hypot(s.x - x, s.y - y) < r) { S.combo = S.comboT > 0 ? S.combo + 1 : 1; S.comboT = 3; const p = pts * fibMult(S.combo); host.add(p); killsN += 1; host.cue?.('kill', x); g.fx.push({ kind: 'text', x, y: y - 22, text: `${what} +${p}`, life: 1.1, big: true, col: '#FFE08A' }); g.fx.push({ kind: 'ring', x, y, r: 4, R: 30, life: 0.35 }); sfx('cheer', { delay: 0.05 }); return true; } return false; };
       const m = g.moles.find((q) => q.t > 0.5 && hit(q.x, hAt(q.x) - 6, 26, 120, '🕳️ MOLE'));   // near misses count if (m) { m.hp = 0; return false; }
       const l = g.lakes.find((q) => q.serpent && hit(q.serpent.x, q.y - 26, 28, 200, '🌊 SERPENT')); if (l) { l.serpent.hp = 0; return false; }
       const b = g.balloons.find((q) => hit(q.x, q.y, 28, 150, '🎈 BALLOON')); if (b) { b.hp = 0; return false; }
       const w = g.worms.find((q) => q.phase === 'up' && hit(q.x, hAt(q.x) - 24, 28, 180, '🪱 WORM')); if (w) { w.hp = 0; return false; }
       const mt = g.meteors.find((q) => hit(q.x, q.y, 30, 120, '☄️ METEOR')); if (mt) { g.meteors.splice(g.meteors.indexOf(mt), 1); boom(s.x, s.y, 18, false); return false; }   // ☄️ a shell that meets a meteor breaks it up
+      const es = g.shells.find((q) => !q.mine && hit(q.x, q.y, 22, 60, '💣 INTERCEPTED')); if (es) { g.shells.splice(g.shells.indexOf(es), 1); boom(s.x, s.y, 14, false); return false; }   // 💣 and one that meets a falling bomb or shell
     } if (s.y >= hAt(s.x)) { boom(s.x, s.y, s.napalm ? 52 : s.big ? 34 : 22, s.mine); if (s.napalm) for (let i = 0; i < 30; i++) g.fx.push({ kind: 'dot', x: s.x + (Math.random() - 0.5) * 100, y: hAt(s.x + (Math.random() - 0.5) * 100) - 4, vx: (Math.random() - 0.5) * 30, vy: -60 - Math.random() * 90, c: ['#FF5A3A', '#FFB347', '#FFE08A'][i % 3], life: 0.9 + Math.random() * 0.6, r: 3 }); return false; } return true; });
   g.meteors = g.meteors.filter((m) => { m.y += m.vy * dt; m.x += m.vx * dt; m.vy += 120 * dt; if (m.y >= hAt(m.x)) { boom(m.x, m.y, 40, false); g.tanks.filter((t) => Math.abs(t.x - m.x) < 46).forEach((t) => { g.tanks.splice(g.tanks.indexOf(t), 1); killsN += 1; host.add(75); g.fx.push({ kind: 'text', x: t.x, y: m.y - 30, text: 'FLATTENED +75', life: 1 }); }); return false; } return true; });
   g.tanks.forEach((t) => { if (t.flash > 0) t.flash -= dt; });
