@@ -231,7 +231,7 @@ tap a bumper, a sand trap or a pond to fix it; the par is re-estimated.
 **A gentle start, in every organ.** The first stretch of a run teaches the organ before the world fills.
 Putt's ⛳ **courses** are corridors: a fairway of straight legs from the tee to the cup. Course 1 is one
 short straight leg, a single putt (par 1); Course 2 adds a bend, Course 3 is an S, then more bends, longer
-legs and a wider fairway (44 → 84), with bumpers (course 3+), sand (2+) and water (5+) on the way. Every
+legs and a much wider fairway (44, 60, 76 … 150), with bumpers (course 3+), sand (2+) and water (5+) on the way. Every
 fairway sits centred in the field. Par is the bends + 1 (+1 for two
 or more bumpers, +1 for water), par + 2 putts allowed; make the course's par over three holes and you move
 up, miss it and you play it again; birdies and eagles pay, and a course made pays 300 × the course.

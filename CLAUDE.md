@@ -866,7 +866,7 @@ the hazard under it and re-runs `parOf()`; `__pt()` has `fix`, `bumps`. Tests: `
 **A gentle start** (organs read `host.stage()` and their own level): putt.js fairways are corridors
 (`g.path` polyline, `g.pw` width; `corridor(bends, course)` retries a turning walk inside the world,
 `nearest()` gives the wall for the bounce and the gopher's drop, `spot(margin)` places hazards on the
-fairway, `tee()`), `centred()` moves the walk to the field's middle, `bendsOf(course)` 0/1/2/2–4, `widthOf` 44 → 84 and legs
+fairway, `tee()`), `centred()` moves the walk to the field's middle, `bendsOf(course)` 0/1/2/2–4, `widthOf` 44 + 16/course to 150 (the walk's bounds inset by half of it) and legs
 130 → 300 (shrunk on retries until the walk fits), `parOf()` = bends + 1 (+ hazards, +1 from course 4),
 so course 1 is par 1; squirrel.js `grow()` plants `min(3, lvl)` trunks and `onBeat`/`spawn` hold Day 1
 to one small squirrel, no acorns, caps 1/4/8/16; hilltop `addTank` cap 2 in Stage 1, `fireT` runs at

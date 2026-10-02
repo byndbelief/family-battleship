@@ -24,10 +24,10 @@ const hash = (i) => { let x = (Math.imul(i | 0, 374761393) + 668265263) | 0; x =
 // with bumpers (course 3+), sand (2+) and water (5+) on the way. The par is the bends + 1 (+1 for two or more
 // bumpers, +1 for water). Make the course's par and you move up; miss it and you play that course again.
 const bendsOf = (c) => (c <= 1 ? 0 : c === 2 ? 1 : c === 3 ? 2 : Math.min(4, 2 + Math.floor(Math.random() * 2) + (c >= 5 ? 1 : 0)));
-const widthOf = (c) => Math.min(84, 44 + 7 * (c - 1));   // the fairway widens as the courses go on (and the legs get longer)
+const widthOf = (c) => Math.min(150, 44 + 16 * (c - 1));   // the fairway widens a lot as the courses go on (44, 60, 76 … 150), and the legs get longer
 function corridor(bends, c) {   // legs from the bottom middle, turning 60–105° at each bend; retried with shorter legs until it fits the world
   // the map widens with the courses: the walk may use a wider and wider slice of the field, and later courses lean sideways
-  const span = Math.min(1, 0.4 + 0.12 * c), B = { x0: Math.max(30, W / 2 - (W / 2 - 30) * span), x1: Math.min(W - 30, W / 2 + (W / 2 - 30) * span), y0: 80, y1: H() - 70 };
+  const m = widthOf(c) / 2 + 10, span = Math.min(1, 0.4 + 0.12 * c), B = { x0: Math.max(m, W / 2 - (W / 2 - m) * span), x1: Math.min(W - m, W / 2 + (W / 2 - m) * span), y0: 60 + m, y1: H() - 50 - m };   // the bounds keep the whole band inside the field
   for (let tries = 0; tries < 60; tries++) {
     const pts = [{ x: W / 2 + (Math.random() - 0.5) * (bends ? 140 : 20), y: B.y1 - 10 }]; let a = -Math.PI / 2, ok = true, turn = Math.random() < 0.5 ? 1 : -1;
     for (let i = 0; i <= bends; i++) {
@@ -40,7 +40,7 @@ function corridor(bends, c) {   // legs from the bottom middle, turning 60–105
   return centred([{ x: W / 2, y: H() - 80 }, { x: W / 2, y: H() - 230 }]);
 }
 function centred(pts) {   // the fairway sits in the middle of the field, not wherever the walk left it
-  const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y), dx = W / 2 - (Math.min(...xs) + Math.max(...xs)) / 2, dy = (80 + H() - 70) / 2 - (Math.min(...ys) + Math.max(...ys)) / 2;
+  const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y), dx = W / 2 - (Math.min(...xs) + Math.max(...xs)) / 2, dy = (60 + H() - 50) / 2 - (Math.min(...ys) + Math.max(...ys)) / 2;
   return pts.map((p) => ({ x: p.x + dx, y: p.y + dy }));
 }
 const nearest = (x, y) => { let best = null; for (let i = 0; i < g.path.length - 1; i++) { const p = g.path[i], q = g.path[i + 1], dx = q.x - p.x, dy = q.y - p.y, L2 = dx * dx + dy * dy || 1; let t = ((x - p.x) * dx + (y - p.y) * dy) / L2; t = Math.max(0, Math.min(1, t)); const nx = p.x + dx * t, ny = p.y + dy * t, d = Math.hypot(x - nx, y - ny); if (!best || d < best.d) best = { x: nx, y: ny, d, i, t }; } return best; };
