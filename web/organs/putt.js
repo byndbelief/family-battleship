@@ -46,7 +46,7 @@ const nearest = (x, y) => { let best = null; for (let i = 0; i < g.path.length -
 const tee = () => ({ x: g.path[0].x, y: g.path[0].y });
 function parOf() { let p = 1 + (g.path.length - 2) + (g.course >= 4 ? 1 : 0); if (g.bumpers.length >= 2) p += 1; if (g.water.length) p += 1; return Math.max(1, Math.min(6, p)); }
 const PUTTS_OF = () => (g?.par || 3) + 2;
-function newGame() { g = { ball: null, v: { x: 0, y: 0 }, cups: [], bumpers: [], sand: [], water: [], fx: [], putts: 0, hole: 0, course: 1, courseHole: 0, coursePar: 0, courseStrokes: 0, par: 3, twist: null, time: 0, seed: Math.floor(Math.random() * 1e6), wind: 0, guide: 0, free: 0, gold: false, gopher: null, gopherT: 3, restT: 0 }; sunkN = 0; puttsN = 0; newCup(); }
+function newGame() { g = { ball: null, v: { x: 0, y: 0 }, cups: [], bumpers: [], sand: [], water: [], fx: [], putts: 0, hole: 0, course: 1, courseHole: 0, coursePar: 0, courseStrokes: 0, par: 3, twist: null, time: 0, seed: Math.floor(Math.random() * 1e6), wind: 0, guide: 0, free: 0, gold: false, gopher: null, gopherT: 3, restT: 0, fixes: 0 }; sunkN = 0; puttsN = 0; newCup(); }
 function spot(margin = 10) {   // a point on the fairway, `margin` in from its edge, off the tee and the cup
   for (let k = 0; k < 24; k++) { const i = Math.floor(Math.random() * (g.path.length - 1)), p = g.path[i], q = g.path[i + 1], t = 0.15 + Math.random() * 0.7, nx = -(q.y - p.y), ny = q.x - p.x, L = Math.hypot(nx, ny) || 1, off = (Math.random() - 0.5) * Math.max(0, g.pw - 2 * margin); const sp = { x: p.x + (q.x - p.x) * t + nx / L * off, y: p.y + (q.y - p.y) * t + ny / L * off }; if ((!g.ball || Math.hypot(sp.x - g.ball.x, sp.y - g.ball.y) > 40) && (!g.cups[0] || Math.hypot(sp.x - g.cups[0].x, sp.y - g.cups[0].y) > 36)) return sp; }
   const e = g.path[g.path.length - 1]; return { x: e.x, y: e.y };
@@ -60,6 +60,7 @@ function newCup(three = false) {
   g.sand = []; if (g.course >= 2 && Math.random() < 0.6) { const sp = spot(8); g.sand.push({ x: sp.x, y: sp.y, rx: 26, ry: 16 }); }
   g.water = []; if (g.course >= 5) { const sp = spot(10); g.water.push({ x: sp.x, y: sp.y, rx: 22, ry: 14 }); }
   g.par = parOf(); g.courseHole += 1; g.coursePar += g.par;
+  g.fixes = g.course <= 1 ? 0 : g.course <= 3 ? 1 : g.course <= 5 ? 2 : 3;   // 🔧 repairs a hole: tap a hazard to fix it
   if (g.courseHole === 1) host.banner(`⛳ COURSE ${g.course}`, `three holes · make par to move up`);
 }
 // after a cup: the hole's score against par, and the course's
@@ -99,6 +100,17 @@ function putt(dx, dy) {
   g.v = { x: -Math.cos(a) * p, y: -Math.sin(a) * p };
   if (g.free > 0) { g.free -= 1; g.fx.push({ kind: 'text', x: g.ball.x, y: g.ball.y - 16, text: '🌻 free putt', life: 0.9 }); } else g.putts += 1;
   puttsN += 1; sfx('putt', { power: d / 150 });
+}
+// 🔧 a tap on a bumper, a sand trap or a pond fixes it, while the hole's repairs last
+function fix(x, y) {
+  if (!g || S.over) return false;
+  const bi = g.bumpers.findIndex((b) => Math.hypot(b.x - x, b.y - y) < b.r + 8), si = g.sand.findIndex((s) => ((x - s.x) / (s.rx + 6)) ** 2 + ((y - s.y) / (s.ry + 6)) ** 2 < 1), wi = g.water.findIndex((w) => ((x - w.x) / (w.rx + 6)) ** 2 + ((y - w.y) / (w.ry + 6)) ** 2 < 1);
+  if (bi < 0 && si < 0 && wi < 0) return false;
+  if (g.fixes <= 0) { host.banner('🔧 NO REPAIRS LEFT', 'this hole is out of fixes'); sfx('buzz'); return true; }
+  g.fixes -= 1; let what;
+  if (bi >= 0) { what = g.bumpers.splice(bi, 1)[0]; } else if (si >= 0) { what = g.sand.splice(si, 1)[0]; } else { what = g.water.splice(wi, 1)[0]; }
+  g.fx.push({ kind: 'text', x: what.x, y: what.y - 16, text: `🔧 FIXED · ${g.fixes} left`, life: 1 }); for (let i = 0; i < 10; i++) { const a = Math.random() * 6.28, v = 40 + Math.random() * 90; g.fx.push({ kind: 'dot', x: what.x, y: what.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 50, c: '#A8E08A', life: 0.6, r: 2 }); }
+  sfx('clack'); g.par = parOf(); return true;
 }
 function shoo() { const gp = g.gopher; g.gopher = null; host.add(100); g.fx.push({ kind: 'text', x: gp.x, y: gp.y - 16, text: 'SHOO! +100', life: 0.9 }); sfx('clack'); }
 function pickUp() {
@@ -202,11 +214,11 @@ const organ = {
   enter(from) { if (!g) newGame(); host.ui(''); drag = null; if (from) { g.v = { x: 0, y: 0 }; } },
   leave() { drag = null; return g?.ball ? { x: g.ball.x, y: g.ball.y } : null; },
   update, draw, onBeat,
-  pointer(type, p) { if (type === 'down') { if (g?.gopher && Math.hypot(g.gopher.x - p.x, g.gopher.y - p.y) < 30) return shoo(); drag = { x0: p.x, y0: p.y, x: p.x, y: p.y }; } else if (type === 'move') { if (drag) { drag.x = p.x; drag.y = p.y; } } else if (drag) { putt(drag.x - drag.x0, drag.y - drag.y0); drag = null; } },
-  hudLine: () => (g ? `⛳ course ${g.course} · ${g.courseHole}/3` : ''),
+  pointer(type, p) { if (type === 'down') { if (g?.gopher && Math.hypot(g.gopher.x - p.x, g.gopher.y - p.y) < 30) return shoo(); drag = { x0: p.x, y0: p.y, x: p.x, y: p.y }; } else if (type === 'move') { if (drag) { drag.x = p.x; drag.y = p.y; } } else if (drag) { if (Math.hypot(drag.x - drag.x0, drag.y - drag.y0) < 8) fix(drag.x0, drag.y0); else putt(drag.x - drag.x0, drag.y - drag.y0); drag = null; } },
+  hudLine: () => (g ? `⛳ course ${g.course} · ${g.courseHole}/3${g.fixes ? ` · 🔧${g.fixes}` : ''}` : ''),
   level: () => g?.course || 1,
   overText: (how) => (how === 'picked up' ? ['⛳ PICKED UP', 'Too many cups walked away from.'] : ['RUN OVER', '']),
   endStats: () => (g ? `⛳ ${sunkN} cups in ${puttsN} putts` : ''),
-  debug: () => g && ({ jump: (c) => { g.course = c; g.courseHole = 0; g.coursePar = 0; g.courseStrokes = 0; g.ball = null; newCup(); }, gopher: g.gopher, bends: g.path.length - 2, pw: g.pw, path: g.path, ball: g.ball, v: g.v, cups: g.cups, putts: g.putts, sunk: sunkN, par: g.par, course: g.course, courseHole: g.courseHole, allowed: PUTTS_OF(), twist: g.twist?.kind || null, bumpers: g.bumpers.length, W, H: H(), putt }),
+  debug: () => g && ({ fix, fixes: g.fixes, bumps: g.bumpers, sand: g.sand, water: g.water, jump: (c) => { g.course = c; g.courseHole = 0; g.coursePar = 0; g.courseStrokes = 0; g.ball = null; newCup(); }, gopher: g.gopher, bends: g.path.length - 2, pw: g.pw, path: g.path, ball: g.ball, v: g.v, cups: g.cups, putts: g.putts, sunk: sunkN, par: g.par, course: g.course, courseHole: g.courseHole, allowed: PUTTS_OF(), twist: g.twist?.kind || null, bumpers: g.bumpers.length, W, H: H(), putt }),
 };
 export default organ;

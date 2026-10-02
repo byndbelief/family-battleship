@@ -30,7 +30,7 @@ function ridge(seed) {
 const SP = () => W / 100;
 const hAt = (x) => { const i = Math.max(0, Math.min(99, x / SP())), a = Math.floor(i), t = i - a; return g.h[a] + (g.h[Math.min(100, a + 1)] - g.h[a]) * t; };
 const stage = () => host.stage?.() || 1;   // 🎚️ the run's stage: the world grows and fills around you
-function newGame() { g = { h: [], tanks: [], shells: [], fx: [], meteors: [], moles: [], lakes: [], balloons: [], moleT: 4, serpT: 3, balloonT: 5, centred: false, me: { x: 44 }, wind: 0, twist: null, time: 0, fireT: 3, shield: 0, split: 0, big: 0, seed: Math.floor(Math.random() * 1e6), night: 0 }; g.h = ridge(g.seed); killsN = 0; shotsN = 0; addTank(); }
+function newGame() { g = { h: [], tanks: [], shells: [], fx: [], meteors: [], moles: [], lakes: [], balloons: [], worms: [], wormT: 4, moleT: 4, serpT: 3, balloonT: 5, arms: { flak: { n: 3, t: 0 }, frost: { n: 2, t: 0 }, emp: { n: 2, t: 0 } }, centred: false, me: { x: 44 }, wind: 0, twist: null, time: 0, fireT: 3, shield: 0, split: 0, big: 0, seed: Math.floor(Math.random() * 1e6), night: 0 }; g.h = ridge(g.seed); killsN = 0; shotsN = 0; addTank(); }
 function addTank(gold = false, quiet = false) {
   if (g.tanks.length >= (stage() === 1 ? 2 : 5 + Math.min(3, stage() - 1))) return;   // Stage 1: two at most
   // Stage 1: they line up on the right. From Stage 2 they come from both sides, never within 70 of you.
@@ -51,6 +51,18 @@ function carveLake() {
   g.lakes.push({ x0, x1, y, serpent: null }); g.fx.push({ kind: 'text', x: (x0 + x1) / 2, y: y - 30, text: '🌊 a lake', life: 1.2 });
 }
 function serpent() { const l = g.lakes[Math.floor(Math.random() * g.lakes.length)]; if (!l || l.serpent) return; l.serpent = { x: l.x0 + 20 + Math.random() * (l.x1 - l.x0 - 40), t: 0, hp: 1, fired: false }; sfx('splash'); }
+// 🛡️ THE ARSENAL grows with the stage, one weapon a domain, used by tapping the enemy itself: 🎯 flak for what
+// flies (Stage 2), ❄️ frost for what comes up from the core (Stage 3), ⚡ EMP for what crawls on the ground
+// (Stage 4). Each has a few charges that come back over time. The cannon (drag) still works on everything.
+const ARMS = { flak: { icon: '🎯', name: 'Flak', stage: 2, max: 3, cd: 5, hint: 'tap a balloon or a meteor' }, frost: { icon: '❄️', name: 'Frost', stage: 3, max: 2, cd: 7, hint: 'tap a magma worm' }, emp: { icon: '⚡', name: 'EMP', stage: 4, max: 2, cd: 8, hint: 'tap a mole or a serpent' } };
+let bar = null;
+function renderBar() {
+  if (!bar || !g) return; const st = stage();
+  bar.innerHTML = Object.entries(ARMS).map(([k, a]) => { const on = st >= a.stage, n = g.arms[k].n; return `<button type="button" data-a="${k}" class="${on && n > 0 ? 'on' : ''}" ${on ? '' : 'disabled'} aria-label="${a.name}${on ? `, ${n} charges` : `, from Stage ${a.stage}`}" title="${a.hint}">${on ? a.icon : '🔒'}<b>${on ? n : `S${a.stage}`}</b></button>`; }).join('');
+  bar.dataset.st = st; bar.querySelectorAll('[data-a]').forEach((b) => { b.onclick = (e) => { e.stopPropagation(); const a = ARMS[b.dataset.a]; host.banner(`${a.icon} ${a.name.toUpperCase()}`, a.hint); sfx('click'); }; });
+}
+// 🪱 magma worms (Stage 3+), up from the earth's core: the ground cracks and glows, then the worm rears up and spits lava
+function worm() { let x; for (let i = 0; i < 8; i++) { x = 40 + Math.random() * (W - 80); if (Math.abs(x - g.me.x) > 70 && !inLake(x)) break; } g.worms.push({ x, t: 0, hp: 1, fired: false }); }
 function balloon() { const fromLeft = Math.random() < 0.5; g.balloons.push({ x: fromLeft ? -20 : W + 20, y: 50 + Math.random() * 60, vx: (fromLeft ? 1 : -1) * (30 + Math.random() * 25 + 8 * stage()), hp: 1, dropped: false }); }
 const enemyShell = (x, y, tx, speed = 240) => { const dx = tx - x; const a = -1.9 - Math.random() * 0.5; g.shells.push({ x, y, vx: Math.cos(a) * speed * Math.sign(dx || 1), vy: Math.sin(a) * speed, mine: false }); };
 function onBeat(ev) {
@@ -73,6 +85,18 @@ function twist() {
   if (kind === 'gale') g.wind = (Math.random() < 0.5 ? -1 : 1) * 110;
 }
 function meteor(x) { g.meteors.push({ x, y: -20, vy: 160 + Math.random() * 80, vx: (Math.random() - 0.5) * 60 }); }
+// a tap on an enemy: the weapon for its domain, if the stage has brought it and a charge is left
+function tap(x, y) {
+  if (!g || S.over) return; const st = stage(), near = (ex, ey, r) => Math.hypot(ex - x, ey - y) < r;
+  const kill = (k, ex, ey, pts, what) => { const a = ARMS[k], c = g.arms[k]; if (st < a.stage) { host.banner(`🔒 ${a.name.toUpperCase()} AT STAGE ${a.stage}`, a.hint); sfx('buzz'); return false; } if (c.n <= 0) { host.banner(`${a.icon} ${a.name.toUpperCase()} RECHARGING`, a.hint); sfx('buzz'); return false; }
+    c.n -= 1; S.combo = S.comboT > 0 ? S.combo + 1 : 1; S.comboT = 3; const p = pts * fibMult(S.combo); host.add(p); killsN += 1; g.fx.push({ kind: 'text', x: ex, y: ey - 22, text: `${a.icon} ${what} +${p}`, life: 1.1, big: true, col: '#C9FFF8' }); g.fx.push({ kind: 'ring', x: ex, y: ey, r: 4, R: 36, life: 0.4 }); sfx(k === 'emp' ? 'flash' : k === 'frost' ? 'chime' : 'boom', { size: 0.7 }); renderBar(); return true; };
+  const b = g.balloons.find((q) => near(q.x, q.y + 6, 26)); if (b) { if (kill('flak', b.x, b.y, 150, 'BALLOON')) b.hp = 0; return true; }
+  const m = g.meteors.find((q) => near(q.x, q.y, 26)); if (m) { if (kill('flak', m.x, m.y, 120, 'METEOR')) g.meteors.splice(g.meteors.indexOf(m), 1); return true; }
+  const w = g.worms.find((q) => near(q.x, hAt(q.x) - 18, 30)); if (w) { if (kill('frost', w.x, hAt(w.x) - 24, 250, 'WORM FROZEN')) w.hp = 0; return true; }
+  const mo = g.moles.find((q) => q.t > 0.3 && near(q.x, hAt(q.x) - 8, 24)); if (mo) { if (kill('emp', mo.x, hAt(mo.x) - 6, 200, 'MOLE')) mo.hp = 0; return true; }
+  const l = g.lakes.find((q) => q.serpent && near(q.serpent.x, q.y - 26, 26)); if (l) { if (kill('emp', l.serpent.x, l.y - 26, 220, 'SERPENT')) l.serpent.hp = 0; return true; }
+  return false;
+}
 function fire(dx, dy) {
   if (!g || S.over) return;
   const d = Math.min(160, Math.hypot(dx, dy)); if (d < 10) return;
@@ -115,6 +139,12 @@ function update(dt) {
   if (st >= 3 && g.lakes.length < Math.min(2, st - 2)) carveLake();
   if (g.lakes.length) { g.serpT -= dt; if (g.serpT <= 0) { g.serpT = 6.5 - st + Math.random() * 3; serpent(); } }
   if (st >= 3) { g.balloonT -= dt; if (g.balloonT <= 0 && g.balloons.length < st - 1) { g.balloonT = 8 - st + Math.random() * 4; balloon(); } }
+  if (st >= 3) { g.wormT -= dt; if (g.wormT <= 0 && g.worms.length < st - 2) { g.wormT = 9 - st + Math.random() * 4; worm(); } }
+  g.worms = g.worms.filter((w) => { w.t += dt; if (w.t < 1.2 && Math.random() < dt * 14) g.fx.push({ kind: 'dot', x: w.x + (Math.random() - 0.5) * 24, y: hAt(w.x), vx: (Math.random() - 0.5) * 40, vy: -120 - Math.random() * 80, c: ['#FF5A3A', '#FFB347', '#FFE08A'][Math.floor(Math.random() * 3)], life: 0.5, r: 2 });
+    if (w.t > 2 && !w.fired && w.t < 3.4) { w.fired = true; enemyShell(w.x, hAt(w.x) - 34, g.me.x, 260 + 20 * st); sfx('thud'); } return w.t < 4.2 && w.hp > 0; });
+  // the arsenal's charges come back over time; the bar follows
+  Object.entries(ARMS).forEach(([k, a]) => { const c = g.arms[k]; if (c.n < a.max) { c.t += dt; if (c.t >= a.cd) { c.t = 0; c.n += 1; renderBar(); } } });
+  if (bar && bar.dataset.st !== String(st)) renderBar();
   g.moles = g.moles.filter((m) => { m.t += dt; if (m.t > 0.9 && !m.fired && m.t < 2.4) { m.fired = true; enemyShell(m.x, hAt(m.x) - 6, g.me.x, 220 + 20 * st); } if (m.t < 0.9 && Math.random() < dt * 8) g.fx.push({ kind: 'dot', x: m.x + (Math.random() - 0.5) * 14, y: hAt(m.x), vx: (Math.random() - 0.5) * 60, vy: -90 - Math.random() * 60, c: '#5A3B1F', life: 0.5, r: 2 }); return m.t < 3 && m.hp > 0; });
   g.lakes.forEach((l) => { const s = l.serpent; if (!s) return; s.t += dt; if (s.t > 0.7 && !s.fired) { s.fired = true; enemyShell(s.x, l.y - 26, g.me.x, 200 + 20 * st); } if (s.t > 2.2 || s.hp <= 0) l.serpent = null; });
   g.balloons = g.balloons.filter((b) => { b.x += b.vx * dt; if (!b.dropped && Math.abs(b.x - g.me.x) < 16 + st * 4) { b.dropped = true; g.shells.push({ x: b.x, y: b.y + 14, vx: 0, vy: 40, mine: false }); } return b.x > -30 && b.x < W + 30 && b.hp > 0; });
@@ -132,6 +162,7 @@ function update(dt) {
       const m = g.moles.find((q) => q.t > 0.5 && hit(q.x, hAt(q.x) - 6, 16, 120, '🕳️ MOLE')); if (m) { m.hp = 0; return false; }
       const l = g.lakes.find((q) => q.serpent && hit(q.serpent.x, q.y - 26, 18, 200, '🌊 SERPENT')); if (l) { l.serpent.hp = 0; return false; }
       const b = g.balloons.find((q) => hit(q.x, q.y, 16, 150, '🎈 BALLOON')); if (b) { b.hp = 0; return false; }
+      const w = g.worms.find((q) => q.t > 1.2 && hit(q.x, hAt(q.x) - 24, 18, 180, '🪱 WORM')); if (w) { w.hp = 0; return false; }
     } if (s.y >= hAt(s.x)) { boom(s.x, s.y, s.big ? 34 : 22, s.mine); return false; } return true; });
   g.meteors = g.meteors.filter((m) => { m.y += m.vy * dt; m.x += m.vx * dt; m.vy += 120 * dt; if (m.y >= hAt(m.x)) { boom(m.x, m.y, 40, false); g.tanks.filter((t) => Math.abs(t.x - m.x) < 46).forEach((t) => { g.tanks.splice(g.tanks.indexOf(t), 1); killsN += 1; host.add(75); g.fx.push({ kind: 'text', x: t.x, y: m.y - 30, text: 'FLATTENED +75', life: 1 }); }); return false; } return true; });
   g.tanks.forEach((t) => { if (t.flash > 0) t.flash -= dt; });
@@ -169,6 +200,11 @@ function draw(t) {
   g.lakes.forEach((l) => { ctx.fillStyle = '#2E6FA8'; ctx.beginPath(); ctx.moveTo(l.x0, l.y); for (let x = l.x0; x <= l.x1; x += 8) ctx.lineTo(x, l.y - 3 + Math.sin(x / 14 + t / 300) * 2); ctx.lineTo(l.x1, l.y + 12); ctx.lineTo(l.x0, l.y + 12); ctx.closePath(); ctx.fill();
     const s = l.serpent; if (s) { const up = Math.min(1, s.t / 0.5) * (s.t > 1.7 ? Math.max(0, (2.2 - s.t) / 0.5) : 1), h = 34 * up; ctx.strokeStyle = '#3FA86B'; ctx.lineWidth = 7; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(s.x - 14, l.y + 4); ctx.quadraticCurveTo(s.x - 6, l.y - h * 0.9, s.x, l.y - h); ctx.stroke(); ctx.fillStyle = '#3FA86B'; ctx.beginPath(); ctx.arc(s.x + 2, l.y - h, 7, 0, 7); ctx.fill(); ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(s.x + 4, l.y - h - 2, 2.2, 0, 7); ctx.fill(); } });
   g.moles.forEach((m) => { const up = m.t < 0.9 ? m.t / 0.9 : m.t > 2.4 ? Math.max(0, (3 - m.t) / 0.6) : 1, y = hAt(m.x), rr = 11; ctx.save(); ctx.beginPath(); ctx.rect(m.x - 20, y - 40, 40, 40); ctx.clip(); ctx.fillStyle = '#6B4A2B'; ctx.beginPath(); ctx.arc(m.x, y + rr - rr * 1.6 * up, rr, Math.PI, 0); ctx.fill(); ctx.fillStyle = '#F7B5C8'; ctx.beginPath(); ctx.arc(m.x, y + rr - rr * 1.6 * up - 2, 3, 0, 7); ctx.fill(); ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(m.x - 4, y + rr - rr * 1.6 * up - 5, 1.6, 0, 7); ctx.arc(m.x + 4, y + rr - rr * 1.6 * up - 5, 1.6, 0, 7); ctx.fill(); ctx.restore(); });
+  g.worms.forEach((w) => { const y = hAt(w.x); if (w.t < 1.2) { ctx.strokeStyle = `rgba(255,90,58,${0.4 + 0.6 * Math.abs(Math.sin(w.t * 12))})`; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(w.x - 16, y - 1); ctx.lineTo(w.x - 6, y + 4); ctx.lineTo(w.x + 2, y - 2); ctx.lineTo(w.x + 14, y + 3); ctx.stroke(); return; }
+    const up = w.t < 2 ? (w.t - 1.2) / 0.8 : w.t > 3.4 ? Math.max(0, (4.2 - w.t) / 0.8) : 1, h = 36 * up; ctx.save(); ctx.beginPath(); ctx.rect(w.x - 24, y - 50, 48, 50); ctx.clip();
+    const gr = ctx.createLinearGradient(0, y, 0, y - h); gr.addColorStop(0, '#7A1F0E'); gr.addColorStop(1, '#FFB347'); ctx.strokeStyle = gr; ctx.lineWidth = 12; ctx.lineCap = 'round'; ctx.beginPath(); for (let i = 0; i <= 6; i++) { const yy = y - (h * i) / 6; ctx[i ? 'lineTo' : 'moveTo'](w.x + Math.sin(w.t * 6 + i) * 4 * up, yy); } ctx.stroke();
+    ctx.strokeStyle = '#FF5A3A88'; ctx.lineWidth = 2; for (let i = 1; i < 6; i++) { const yy = y - (h * i) / 6; ctx.beginPath(); ctx.moveTo(w.x - 6 + Math.sin(w.t * 6 + i) * 4 * up, yy); ctx.lineTo(w.x + 6 + Math.sin(w.t * 6 + i) * 4 * up, yy); ctx.stroke(); }
+    ctx.fillStyle = '#FFF3C4'; ctx.beginPath(); ctx.arc(w.x - 3 + Math.sin(w.t * 6 + 6) * 4 * up, y - h - 1, 1.8, 0, 7); ctx.arc(w.x + 3 + Math.sin(w.t * 6 + 6) * 4 * up, y - h - 1, 1.8, 0, 7); ctx.fill(); ctx.restore(); });
   g.balloons.forEach((b) => { ctx.strokeStyle = '#ffffff88'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(b.x, b.y + 12); ctx.lineTo(b.x, b.y + 22); ctx.stroke(); ctx.fillStyle = '#E0453A'; ctx.beginPath(); ctx.ellipse(b.x, b.y, 11, 14, 0, 0, 7); ctx.fill(); ctx.fillStyle = '#5A3B1F'; ctx.fillRect(b.x - 4, b.y + 22, 8, 6); if (!b.dropped) { ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(b.x, b.y + 28, 3, 0, 7); ctx.fill(); } });
   g.tanks.forEach((tk) => { if (night > 0.5 && tk.flash <= 0) return; drawTank(tk.x, tk.hue, tk.flash, false, tk.gold); if (tk.quiet) { ctx.fillStyle = '#C9B8FF'; ctx.font = '11px system-ui'; ctx.fillText('🔁', tk.x, hAt(tk.x) - 28); } });
   drawTank(g.me.x, 0, 0, true, false);
@@ -186,15 +222,15 @@ const organ = {
   glitch(on, pal) { if (g) { g.glitch = on; g.glitchPal = pal; } },
   init(h) { host = h; ctx = h.ctx; S = h.S; sfx = h.sfx; window.__ht = organ.debug; },
   start() { newGame(); },
-  enter(from) { if (!g) newGame(); host.ui(''); drag = null; if (from) { g.shells = g.shells.filter((s) => s.mine); g.fireT = Math.max(g.fireT, 1.5); if (!g.tanks.length) addTank(); } },
-  leave() { drag = null; return g ? { x: g.me.x, y: hAt(g.me.x) - 10 } : null; },
+  enter(from) { if (!g) newGame(); bar = host.ui('<div class="wbar" id="hbar" aria-label="Arsenal"></div>').querySelector('.wbar'); renderBar(); drag = null; if (from) { g.shells = g.shells.filter((s) => s.mine); g.fireT = Math.max(g.fireT, 1.5); if (!g.tanks.length) addTank(); } },
+  leave() { bar = null; drag = null; return g ? { x: g.me.x, y: hAt(g.me.x) - 10 } : null; },
   update, draw, onBeat,
-  pointer(type, p) { if (type === 'down') drag = { x0: p.x, y0: p.y, x: p.x, y: p.y }; else if (type === 'move') { if (drag) { drag.x = p.x; drag.y = p.y; } } else if (drag) { fire(drag.x - drag.x0, drag.y - drag.y0); drag = null; } },
+  pointer(type, p) { if (type === 'down') drag = { x0: p.x, y0: p.y, x: p.x, y: p.y }; else if (type === 'move') { if (drag) { drag.x = p.x; drag.y = p.y; } } else if (drag) { if (Math.hypot(drag.x - drag.x0, drag.y - drag.y0) < 10) tap(drag.x0, drag.y0); else fire(drag.x - drag.x0, drag.y - drag.y0); drag = null; } },
   hudLine: () => (g ? `💥 ${killsN} K.O. · ${g.tanks.length} dug in` : ''),
   level: () => 1 + Math.floor(killsN / 5),
   overText: (how) => (how === 'shelled' ? ['💥 KNOCKED OUT', 'Too many direct hits.'] : ['RUN OVER', '']),
   endStats: () => (g ? `💥 ${killsN} K.O. from ${shotsN} shells` : ''),
-  debug: () => g && ({ ...(() => ({ me: g.me.x, tanks: g.tanks.length, moles: g.moles.length, lakes: g.lakes.length, balloons: g.balloons.length, stage: stage() }))() }),
+  debug: () => g && ({ ...(() => ({ me: g.me.x, tanks: g.tanks.length, moles: g.moles.length, lakes: g.lakes.length, balloons: g.balloons.length, worms: g.worms.length, wormsAt: g.worms.map((w) => ({ x: w.x, y: hAt(w.x) - 18, t: w.t })), arms: JSON.parse(JSON.stringify(g.arms)), tap, stage: stage() }))() }),
   debug0: () => g && ({ tanks: g.tanks.map((t) => ({ x: t.x, y: hAt(t.x), gold: t.gold, quiet: t.quiet })), me: { x: g.me.x, y: hAt(g.me.x) }, shells: g.shells.length, kills: killsN, wind: g.wind, twist: g.twist?.kind || null, W, H: H(), fire }),
 };
 export default organ;

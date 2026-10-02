@@ -205,6 +205,14 @@ lanes and drop a bomb over your boat (tap the plane, +150, or the bomb, +50); fr
 surface, fire a torpedo and dive (tap one while it's up, +250). Putt: from Stage 2 a 🐹 gopher pops up
 while your ball sits still, runs over and drags it off (+1 putt) unless you tap it first (+100).
 
+**The arsenal grows with the stage (Hilltop).** New enemies bring new weapons, used by tapping the enemy
+itself: 🎯 flak from Stage 2 for what flies (balloons, meteors), ❄️ frost from Stage 3 for what comes up
+from the earth's core (🪱 magma worms: the ground cracks and glows, the worm rears up and spits lava), ⚡
+EMP from Stage 4 for what crawls (moles, serpents). Each has a few charges that come back over time (the
+bar bottom-right; locked ones show the stage they arrive at). The cannon (drag) still works on everything.
+**Putt repairs.** From course 2 each hole comes with repairs (🔧 1, then 2 from course 4, 3 from course 6):
+tap a bumper, a sand trap or a pond to fix it; the par is re-estimated.
+
 **A gentle start, in every organ.** The first stretch of a run teaches the organ before the world fills.
 Putt's ⛳ **courses** are corridors: a fairway of straight legs from the tee to the cup. Course 1 is one
 short straight leg, a single putt (par 1); Course 2 adds a bend, Course 3 is an S, then more bends, longer

@@ -834,6 +834,13 @@ are dead code kept for the shape). The HUD hearts line carries `<small>` with th
 ●/○ lives. `__shell().lives`. Test: `t_lives`. squirrel.js: the staples filter checks each flight frame
 for a squirrel within `RAD + 5` (nail 3) of the staple and `strike`s it; tap/landing radii for acorns,
 cones and crates are tight (12–16).
+**Hilltop's arsenal and worms.** `ARMS` (flak/frost/emp: stage, max charges, cooldown, hint), `g.arms[k]
+= {n, t}` recharging in `update`, `renderBar()` into `host.ui` (`.wbar`, re-rendered when the stage
+changes), `tap(x, y)` on a pointer-up that moved < 10 (else `fire`): finds the enemy under the tap and
+`kill()`s it with its domain's arm (locked → a Fig cue, empty → buzz). `g.worms` (Stage 3+, cap st − 2):
+1.2 s crack, rear up, spit at 2 s, sink by 4.2 s; shells hit them too (180). `__ht()` has `wormsAt`,
+`arms`, `tap`. putt.js: `g.fixes` per hole (0/1/2/3 by course), `fix(x, y)` on a pointer-up that moved
+< 8 removes the hazard under it and re-runs `parOf()`; `__pt()` has `fix`, `bumps`. Test: `t_arms`.
 **A gentle start** (organs read `host.stage()` and their own level): putt.js fairways are corridors
 (`g.path` polyline, `g.pw` width; `corridor(bends, course)` retries a turning walk inside the world,
 `nearest()` gives the wall for the bounce and the gopher's drop, `spot(margin)` places hazards on the
