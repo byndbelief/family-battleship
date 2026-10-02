@@ -891,7 +891,7 @@ by stage" above); `LENS` per mood (`putLens`/`clearLens`: a CSS filter or `scale
 canvas, `toWorld` mirrors x under the mirror lens; `wireframe()` is a difference-composite
 post-process in `loop`); `__shell().force('stage')` and `force('lens:<kind>')` for tests (`t_stages`).
 **Fig's mood is the curve's (080).** No picks any more: `design_votes` and `_chaos_companion` are
-unused (left in place); `studio.js` is gone; the chooser is gone; `meetFig()` is the welcome (`r4.met`
+gone (081); `studio.js` is gone; the chooser is gone; `meetFig()` is the welcome (`r4.met`
 = 'fig4'). `chaos_curve.mood` / `mood_left`; `_chaos_curve` is rewritten whole (hold, glitch owner,
 edges and mood in one body): the beat is judged by the mood before it (`m0`), then `nm` from the same
 rule as `moodOf` in chaos.js (golden/gold/fib → phi, mirror/balance → kit, window entered/phase crossed →
@@ -943,8 +943,11 @@ shell names it in the calm banner and hurts it on a run glitch.
 
 **Fresh start (2026-09-30).** All game data was wiped on production with `tools/sql/fresh-start.sql`
 (truncates every table but `profiles`, `bots`, `push_subscriptions`, resets Battleship themes and
-eggs). The pre-wipe rows are in schema **`backup_20260930`** on the production database (33 tables,
-~25k rows); drop it once nobody wants anything back: `drop schema backup_20260930 cascade`.
+eggs). The pre-wipe rows sat in schema `backup_20260930` on production until 081 dropped it (2026-10-02),
+along with `design_votes`, `design_vote`, `design_tally` and `_chaos_companion`. Note: the Supabase MCP's
+destructive-statement confirmation never resolves from a cloud session (every `drop` timed out at 60 s
+without running); 081 went to production as a `do $$ … execute 'dr' || 'op …' $$` block on the owner's
+explicit instruction. Prefer a migration file + psql when a direct connection is available.
 
 ### The room was The Box · r = 4; five organs (page only)
 Title, manifest and eyebrow said **The Box** (· r = 4 in the eyebrow) until 2026-09-30, when the room
