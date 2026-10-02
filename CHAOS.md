@@ -251,11 +251,13 @@ In Squirrel Chaos a staple takes the first squirrel in its path, not just the on
 near miss takes an acorn or a pinecone too; 📦 crates are easy: they drift down slowly,
 wait a while, and a tap on one opens it with no staple spent.
 
-**Fig watches from the corner, and reaches in.** The pal in the corner is outside the field but not out of
-it: its eyes follow your finger, it turns to look where things happen, and it leans into the field toward the
-action (the chip lunges that way and springs back) while sparks fly from it across the board to the spot:
-gold stars for a kill, teal motes for a score, a red shock ring when you take a hit, a heart for a pickup.
-It bounces, winks, flinches and beams to match, in every organ.
+**The chaos comes from Fig, visibly.** The pal in the corner is where every twist breaks out: a peak, the
+window, the mirror, the golden cut, a mood, a lens, a glitch, a stage change, a morph. The chip swells and
+turns and one wave rolls out of its corner across the whole board, a ring and a wash in the twist's colour,
+so you always see where it came from. Fig also runs the morphs: the old world is pulled, turning, into Fig's
+corner while a big Fig stands at the seam holding the next game's icon, and the new world surfaces beneath.
+Between twists it watches: eyes follow your finger, it leans toward the action (a kill, a score, a hit, a
+pickup) and springs back.
 
 **You are Fig.** In every organ the thing you steer is Fig, in the run's current mood: rolled up into
 Putt's ball, at the wheel of Hilltop's tank, working the stapler in Squirrel Chaos, running Fractal

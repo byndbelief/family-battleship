@@ -90,7 +90,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   let calm = 0;
   // ⚡ a glitch: seconds left of the flicker a held peak sets off (the theme is another organ's meanwhile)
   let glitchT = 0;
-  function glitchRun() { if (S.over) return; glitchT = 1.1; const others = organs.filter((o) => o !== active && o.theme); const th = others[Math.floor(Math.random() * others.length)]; if (th) applyTheme(th.theme); active.glitch?.(true, S.curve.mood); pal.hurt(); sfx('buzz'); banner(NEWS.glitch[0], `${PAL[S.curve.mood || 'calm'].name}'s mind flickers: nothing changed. Probably.`); }
+  function glitchRun() { if (S.over) return; glitchT = 1.1; wave('glitch', true); const others = organs.filter((o) => o !== active && o.theme); const th = others[Math.floor(Math.random() * others.length)]; if (th) applyTheme(th.theme); active.glitch?.(true, S.curve.mood); pal.hurt(); sfx('buzz'); banner(NEWS.glitch[0], `${PAL[S.curve.mood || 'calm'].name}'s mind flickers: nothing changed. Probably.`); }
   function tear() {   // slices of the frame shoved sideways, and a colour band, for the glitch's life
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
     for (let i = 0; i < 5; i++) { const y = Math.random() * cv.height, h = (6 + Math.random() * 34) * host.dpr, dx = (Math.random() < 0.5 ? -1 : 1) * (6 + Math.random() * 18) * host.dpr; ctx.drawImage(cv, 0, y, cv.width, h, dx, y, cv.width, h); }
@@ -110,34 +110,35 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     // 🟢 Fig in the corner watches the field from outside it: organs cue it on what happens and where (x in world units),
     // it turns to look that way and acts it out — a kill bounces it, a score winks, a near miss makes it flinch, a pickup is a gift
     cue: (kind, x, y) => { if (x != null) pal.set({ face: x < host.W * 0.3 ? -1 : 1 }); if (kind === 'kill') pal.force('big', 0.9); else if (kind === 'score') pal.force('fib', 0.8); else if (kind === 'near') pal.force('peak', 0.6); else if (kind === 'pickup') pal.force('gift', 1.2);
-      if (x != null) { lunge(kind, x, y); if (kind !== 'look' && y != null) sparks(kind, x, y); } },
+      if (x != null) lunge(kind, x, y); },
   };
-  // 🟢 Fig reaches into the field: the chip lunges toward the action (a nudge of its canvas toward where it happened, then
-  // back), and sparks fly from Fig across the board to the spot — gold stars for a kill, teal motes for a score, a red
-  // shock ring for a near miss, a heart for a pickup. Drawn by the shell over the organ, in device pixels.
-  let lungeT = null, figfx = [];
+  // 🟢 Fig is where the chaos comes from. The chip lunges toward the action (a nudge of its canvas, then back); and every
+  // twist of the curve — a peak, the window, the mirror, the golden cut, a mood, a glitch, a stage, a morph — breaks out of
+  // Fig as one wave that crosses the whole board: a ring and a wash of the mood's colour, from the corner outward, while
+  // the chip swells. You can't miss where it came from.
+  let lungeT = null, waves = [];
   const palPt = () => { const r = $('spal').getBoundingClientRect(), c = cv.getBoundingClientRect(); return { x: (r.left + r.width / 2 - c.left) * (cv.width / c.width), y: (r.top + r.height * 0.56 - c.top) * (cv.height / c.height) }; };
+  const MOODC = { calm: '#3DD6C6', fig: '#FF5FB0', kit: '#C9B8FF', bit: '#9BE7FF', phi: '#F5C542' };
   function lunge(kind, x, y) {
     const r = $('spal').getBoundingClientRect(), c = cv.getBoundingClientRect(), tx = c.left + ((x * host.k + host.ox) / host.dpr), ty = c.top + (((y ?? host.H * 0.5) * host.k + host.oy) / host.dpr);
     const dx = tx - (r.left + r.width / 2), dy = ty - (r.top + r.height / 2), d = Math.hypot(dx, dy) || 1, amt = kind === 'look' ? 6 : kind === 'near' ? -10 : 16;
     const el = $('spal'); el.style.transition = 'transform .12s ease-out'; el.style.transform = `translate(${(dx / d) * amt}px, ${(dy / d) * amt}px) scale(${kind === 'kill' ? 1.25 : kind === 'near' ? 0.9 : 1.1})`;
     clearTimeout(lungeT); lungeT = setTimeout(() => { el.style.transition = 'transform .35s cubic-bezier(.3,1.6,.5,1)'; el.style.transform = ''; }, 140);
   }
-  function sparks(kind, x, y) {
-    const from = palPt(), to = { x: x * host.k + host.ox, y: y * host.k + host.oy }, d = host.dpr;
-    const n = kind === 'kill' ? 9 : kind === 'score' ? 6 : kind === 'pickup' ? 1 : 1;
-    for (let i = 0; i < n; i++) figfx.push({ kind, x0: from.x, y0: from.y, x1: to.x, y1: to.y, t: -i * 0.03, dur: kind === 'near' ? 0.5 : 0.45 + Math.random() * 0.2, arc: (Math.random() - 0.5) * 140 * d, s: (kind === 'pickup' ? 14 : 4 + Math.random() * 4) * d, spin: Math.random() * 6 });
+  function wave(kind, big = false) {   // a twist breaks out of Fig: the chip swells, a ring and a wash cross the board from its corner
+    const col = kind === 'glitch' ? '#FF5A3A' : kind === 'golden' ? '#F5C542' : kind === 'mirror' ? '#C9B8FF' : kind === 'window' ? '#9BE7FF' : MOODC[S.curve.mood] || '#3DD6C6';
+    waves.push({ t: 0, dur: big ? 1.1 : 0.8, col, from: palPt(), big });
+    const el = $('spal'); el.style.transition = 'transform .14s ease-out'; el.style.transform = `scale(${big ? 1.7 : 1.45}) rotate(${kind === 'mirror' ? -12 : 8}deg)`;
+    clearTimeout(lungeT); lungeT = setTimeout(() => { el.style.transition = 'transform .5s cubic-bezier(.3,1.6,.5,1)'; el.style.transform = ''; }, big ? 320 : 220);
   }
-  function drawFigfx(dt) {
-    if (!figfx.length) return; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
-    figfx = figfx.filter((f) => { f.t += dt; if (f.t < 0) return true; const e = Math.min(1, f.t / f.dur), ee = e * e * (3 - 2 * e);
-      if (f.kind === 'near') { const r = 10 * host.dpr + ee * 60 * host.dpr; ctx.globalAlpha = 1 - e; ctx.strokeStyle = '#FF5A3A'; ctx.lineWidth = 3 * host.dpr; ctx.beginPath(); ctx.arc(f.x0, f.y0, r, 0, 7); ctx.stroke(); return e < 1; }
-      const x = f.x0 + (f.x1 - f.x0) * ee, y = f.y0 + (f.y1 - f.y0) * ee - Math.sin(e * Math.PI) * f.arc;
-      ctx.globalAlpha = e < 0.85 ? 1 : (1 - e) / 0.15; ctx.save(); ctx.translate(x, y); ctx.rotate(f.spin + e * 6);
-      if (f.kind === 'kill') { ctx.fillStyle = '#F5C542'; ctx.shadowColor = '#F5C542'; ctx.shadowBlur = 8 * host.dpr; ctx.beginPath(); for (let k = 0; k < 10; k++) { const a = (k / 10) * 6.28, rr = k % 2 ? f.s * 0.45 : f.s; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } ctx.closePath(); ctx.fill(); }
-      else if (f.kind === 'score') { ctx.fillStyle = '#3DD6C6'; ctx.shadowColor = '#3DD6C6'; ctx.shadowBlur = 6 * host.dpr; ctx.beginPath(); ctx.arc(0, 0, f.s * 0.6, 0, 7); ctx.fill(); }
-      else { ctx.fillStyle = '#FF5FB0'; ctx.font = `${Math.round(f.s)}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('💚', 0, 0); }
-      ctx.restore(); return e < 1; });
+  function drawWaves(dt) {
+    if (!waves.length) return; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const R = Math.hypot(cv.width, cv.height) * 1.05;
+    waves = waves.filter((w) => { w.t += dt; const e = Math.min(1, w.t / w.dur), ee = 1 - (1 - e) * (1 - e), r = 8 * host.dpr + ee * R;
+      const g = ctx.createRadialGradient(w.from.x, w.from.y, Math.max(0, r - 90 * host.dpr), w.from.x, w.from.y, r); g.addColorStop(0, w.col + '00'); g.addColorStop(0.85, w.col + (w.big ? '66' : '44')); g.addColorStop(1, w.col + '00');
+      ctx.globalAlpha = 1 - e * e; ctx.fillStyle = g; ctx.fillRect(0, 0, cv.width, cv.height);
+      ctx.strokeStyle = w.col; ctx.lineWidth = (w.big ? 6 : 3.5) * host.dpr; ctx.globalAlpha = (1 - e) * 0.9; ctx.beginPath(); ctx.arc(w.from.x, w.from.y, r, 0, 7); ctx.stroke();
+      return e < 1; });
     ctx.restore();
   }
   // ---------------------------------------------------------------- sizing
@@ -219,19 +220,19 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     const held = calm > 0, st0 = stageOf(), stg = STAGES[st0];
     const frozen = !held && stg.climbEvery > 1 && (S.beats % stg.climbEvery) !== 0;   // 🎚️ an early stage: r climbs only every few beats
     const ev = stepCurve(S.curve, { hold: held, freeze: frozen }); S.beats += 1; tenure += 1; tally(ev, S.tally);
-    if (stageOf() !== st0) { const ns = STAGES[stageOf()]; banner(`🎚️ ${ns.name.toUpperCase()}`, st0 === 0 ? 'r climbs faster now · the board zooms out' : st0 === 1 ? 'r climbs every beat · the board zooms out' : 'the top of the curve · the whole board'); sfx('twist'); zoomTo = ns.zoom; widenTo = ns.widen; }
+    if (stageOf() !== st0) { const ns = STAGES[stageOf()]; wave('stage', true); banner(`🎚️ ${ns.name.toUpperCase()}`, st0 === 0 ? 'r climbs faster now · the board zooms out' : st0 === 1 ? 'r climbs every beat · the board zooms out' : 'the top of the curve · the whole board'); sfx('twist'); zoomTo = ns.zoom; widenTo = ns.widen; }
     // 🟢 Fig's mood moved: say so, recolour the room, and its pillar's events pay double (the bond, in points)
-    if (ev.moodChanged) { banner(`🟢 ${MOOD_NAME[ev.mood]}`, st0 < 2 && ev.mood !== 'calm' ? `${MOOD_SAY[ev.mood]} · a hint of what's coming` : MOOD_SAY[ev.mood]); applyPalTheme(ev.mood);
+    if (ev.moodChanged) { wave('mood'); banner(`🟢 ${MOOD_NAME[ev.mood]}`, st0 < 2 && ev.mood !== 'calm' ? `${MOOD_SAY[ev.mood]} · a hint of what's coming` : MOOD_SAY[ev.mood]); applyPalTheme(ev.mood);
       // 🔍 a lens, sometimes: a hint in the early stages, a stretch later
-      const L = LENS[ev.mood]; if (L && !lens && Math.random() < [0.5, 0.65, 0.85, 1][st0]) { putLens(L[0], stg.lens); setTimeout(() => banner(L[1], L[2]), 900); sfx('buzz'); } }
+      const L = LENS[ev.mood]; if (L && !lens && Math.random() < [0.5, 0.65, 0.85, 1][st0]) { putLens(L[0], stg.lens); wave('lens', true); setTimeout(() => banner(L[1], L[2]), 900); sfx('buzz'); } }
     { const B = PAL[ev.mood]?.boosts || []; let bond = 0; for (const k of B) { if (k === 'r4' ? ev.crossed.some((p) => p.name === 'r = 4') : k === 'phase' ? ev.crossed.length > 0 : ev[k]) bond += WEIGHTS[k] || 0; } if (bond) S.tally.bond = (S.tally.bond || 0) + bond; }
     if (held) { calm -= 1; if (calm === CALM.WARN) { banner(...NEWS.again); sfx('tick'); } else if (ev.glitch) glitchRun(); }
     pal.set({ r: S.curve.r, mood: ev.mood }); pal.react(ev);
-    ev.crossed.forEach((p) => banner(p.name, p.say));
-    if (ev.enteredWindow) banner(...NEWS.window);
-    if (ev.mirror) banner(...NEWS.mirror);
+    ev.crossed.forEach((p) => banner(p.name, p.say)); if (ev.crossed.length || ev.peak || ev.big) wave('peak');
+    if (ev.enteredWindow) { wave('window'); banner(...NEWS.window); }
+    if (ev.mirror) { wave('mirror'); banner(...NEWS.mirror); }
     if (ev.balance) banner(...NEWS.balance);
-    if (ev.golden) banner(...NEWS.golden);
+    if (ev.golden) { wave('golden'); banner(...NEWS.golden); }
     active.onBeat(ev);
     if (morphs && !transition && !S.over && !held) {   // 🧘 nothing morphs during a calm
       let to = null, why = '';
@@ -249,8 +250,8 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     lastUsed.set(active, S.beats); prev = active; active = to; tenure = 0; S.morphs += 1;
     active.enter(prev.key, anchor);
     applyTheme(); openCalm();
-    transition = { t: 0, dur: reduceMotion ? 0.05 : (why === 'golden' ? 1.1 : 0.7), snap, why, anchor };
-    banner(`${to.icon} ${to.name.toUpperCase()}`, `${to.verb} · ${WHY[why]}`); sfx(why === 'golden' ? 'birdie' : 'twist');
+    transition = { t: 0, dur: reduceMotion ? 0.05 : (why === 'golden' ? 1.1 : 0.8), snap, why, anchor, fig: palPt() };
+    wave('morph', true); banner(`${to.icon} ${to.name.toUpperCase()}`, `${to.verb} · ${WHY[why]}`); sfx(why === 'golden' ? 'birdie' : 'twist');
   }
   function applyTheme(th = active?.theme) { if (!th) return; Object.entries(th).forEach(([k, v]) => stage.style.setProperty(`--${k}`, v)); }
   // ---------------------------------------------------------------- the loop
@@ -315,12 +316,16 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     (active || organs[0]).draw(t);
     if (transition) {   // the old world zooms away from where you were, and the new one is underneath
       transition.t += dt; const p = Math.min(1, transition.t / transition.dur), e = p * p * (3 - 2 * p);
-      const ax = (transition.anchor?.x ?? host.W / 2) * host.k + host.ox, ay = (transition.anchor?.y ?? host.H / 2) * host.k + host.oy, z = 1 + e * (transition.why === 'golden' ? 6 : 2.2);
-      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1 - e; ctx.translate(ax, ay); ctx.scale(z, z); ctx.translate(-ax, -ay); ctx.drawImage(transition.snap, 0, 0); ctx.restore();
+      // 🟢 Fig pulls the old world into its corner (it shrinks toward the chip and turns), and stands big at the seam while the new one surfaces
+      const fx = transition.fig?.x ?? 0, fy = transition.fig?.y ?? 0, z = 1 - e * 0.92, rot = e * (transition.why === 'mirror' ? -0.6 : 0.6);
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1 - e * e; ctx.translate(fx, fy); ctx.rotate(rot); ctx.scale(z, z); ctx.translate(-fx, -fy); ctx.drawImage(transition.snap, 0, 0); ctx.restore();
+      { const a = Math.sin(p * Math.PI), sz = (40 + 30 * a) * host.dpr; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = Math.min(1, a * 1.4);
+        drawPal(S.curve.mood || 'calm', ctx, { x: cv.width / 2, y: cv.height * 0.42, s: sz, t: transition.t, r: S.curve.r, face: 1, mood: transition.why === 'golden' ? 'golden' : transition.why === 'mirror' ? 'mirror' : 'big', mp: p });
+        ctx.font = `${Math.round(sz * 0.9)}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(active.icon, cv.width / 2 + sz * 1.3, cv.height * 0.42 - sz * 0.9); ctx.restore(); }
       if (p >= 1) transition = null;
     }
     if (glitchT > 0) { glitchT -= dt; if (!reduceMotion) tear(); if (glitchT <= 0) { applyTheme(); active?.glitch?.(false); } }
-    if (!reduceMotion) drawFigfx(dt);
+    if (!reduceMotion) drawWaves(dt);
     if (lens?.kind === 'wire') wireframe();
     requestAnimationFrame(loop);
   }

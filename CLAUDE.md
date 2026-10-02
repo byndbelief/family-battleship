@@ -808,13 +808,15 @@ fractal.js `drone` obstacles in `g.obs` (killed by a dash, else `hurt('droned')`
 `planes`/`bombs`/`subs` (a sub pushes a real torpedo into `g.torps`; `fire()` tests them before the
 ammo path), putt.js `g.gopher` (`restT` counts the ball's stillness; `shoo()` from `pointer`). Each
 `__xx()` debug reports the counts. Tests: `t_wide`, `t_wide2`.
-**Fig watches the field and reaches in (shell.js `host.cue(kind, x, y)`).** Organs call
-`host.cue?.('kill'|'score'|'near'|'pickup'|'look', x, y)` in world units; the shell turns the pal to face
-that side (`x < W × 0.3` → left), forces a mood (`big`, `fib`, `peak`, `gift`), `lunge()`s the `#spal`
-canvas a few px toward the spot (CSS transform, springs back after 140 ms) and, with a y, `sparks()`
-particles from the chip (`palPt()`, device px) to the spot, drawn by `drawFigfx` after the organ (stars /
-motes / a shock ring at Fig / a 💚). A pointer-down cues `look`; a drag/touch move sets the pal's face.
-Test: `t_fig` (a worm tap sets a translate+scale transform on `#spal`, cleared ~0.5 s later). Hilltop: my shells also
+**The chaos comes from Fig (shell.js).** `wave(kind, big)` pushes a wave from `palPt()` (the chip's centre
+in device px) that `drawWaves` draws after the organ: a radial wash plus a ring expanding to the board's
+diagonal over 0.8 s (1.1 s big), coloured by kind (`glitch` red, `golden` gold, `mirror` lavender, `window`
+sky, else `MOODC[mood]`), while the chip scales 1.45× (1.7× big) with a tilt and springs back. Called from
+`beat()` on mood change, crossings/peak/big, the window, the mirror, the golden cut, a lens, a stage change;
+from `glitchRun()`; and from `morphTo()`, which also records `fig: palPt()` so the transition shrinks and
+turns the old snapshot into Fig's corner and draws a big `drawPal` at the seam with `active.icon`. `host.cue
+(kind, x, y)` keeps the glance, the mood and `lunge()` (no sparks any more). A pointer-down cues `look`; a
+drag sets the pal's face. Tests: `t_wave` (a forced glitch sets `scale(1.7)` on `#spal`), `t_fig`. Hilltop: my shells also
 intercept enemy shells within 22 (60 pts) and the target takes one on a tap within 34.
 **Fig is the player, notices go through Fig (shell.js, organs).** `banner(t, sub)` now shows `t` as a
 small pill beside the pal (`.sbanner`, left of the field under the score; `sub` only lands in the
