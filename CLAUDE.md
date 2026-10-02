@@ -808,16 +808,14 @@ fractal.js `drone` obstacles in `g.obs` (killed by a dash, else `hurt('droned')`
 `planes`/`bombs`/`subs` (a sub pushes a real torpedo into `g.torps`; `fire()` tests them before the
 ammo path), putt.js `g.gopher` (`restT` counts the ball's stillness; `shoo()` from `pointer`). Each
 `__xx()` debug reports the counts. Tests: `t_wide`, `t_wide2`.
-**The chaos comes from Fig (shell.js).** `wave(kind, big)` pushes a wave from `palPt()` (the chip's centre
-in device px) that `drawWaves` draws after the organ: a radial wash plus a ring expanding to the board's
-diagonal over 0.8 s (1.1 s big), coloured by kind (`glitch` red, `golden` gold, `mirror` lavender, `window`
-sky, else `MOODC[mood]`), while the chip scales 1.45× (1.7× big) with a tilt and springs back. Called from
-`beat()` on mood change, crossings/peak/big, the window, the mirror, the golden cut, a lens, a stage change;
-from `glitchRun()`; and from `morphTo()`, which also records `fig: palPt()` so the transition shrinks and
-turns the old snapshot into Fig's corner and draws a big `drawPal` at the seam with `active.icon`. `host.cue
-(kind, x, y)` keeps the glance, the mood and `lunge()` (no sparks any more). A pointer-down cues `look`; a
-drag sets the pal's face. Tests: `t_wave` (a forced glitch sets `scale(1.7)` on `#spal`), `t_fig`. Hilltop: my shells also
-intercept enemy shells within 22 (60 pts) and the target takes one on a tap within 34.
+**The chaos comes from Fig (shell.js).** `react(kind)` is the only thing that happens during play: a CSS scale
+(1.35, kill 1.5, glitch/stage/lens 1.9, near 0.8) and tilt on `#spal`, springing back after 240–360 ms;
+`wave(kind)` calls it and only pushes a board wave while `flyT` is set (a morph in progress). `host.cue(kind,
+x, y)` sets the face and mood and calls `react`; nothing is drawn in the field for a cue. `morphTo` calls
+`fly(dur)`: the chip is translated to the field's middle at 2.6× with a full turn for the transition's
+length, then springs back; the transition shrinks and turns the old snapshot toward that point (no separate
+big Fig); `drawWaves` draws the morph wave from there. Tests: `t_wave` (a glitch sets `scale(1.9)`; a morph
+sets a translate + `scale(2.6)` that clears after it), `t_fig`.
 **Fig is the player, notices go through Fig (shell.js, organs).** `banner(t, sub)` now shows `t` as a
 small pill beside the pal (`.sbanner`, left of the field under the score; `sub` only lands in the
 pill's `title`) and cues the pal: `CUE` maps the title's mark to a `pal.force(mood)` (🌻 golden, ✨

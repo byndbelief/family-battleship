@@ -110,36 +110,45 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     // 🟢 Fig in the corner watches the field from outside it: organs cue it on what happens and where (x in world units),
     // it turns to look that way and acts it out — a kill bounces it, a score winks, a near miss makes it flinch, a pickup is a gift
     cue: (kind, x, y) => { if (x != null) pal.set({ face: x < host.W * 0.3 ? -1 : 1 }); if (kind === 'kill') pal.force('big', 0.9); else if (kind === 'score') pal.force('fib', 0.8); else if (kind === 'near') pal.force('peak', 0.6); else if (kind === 'pickup') pal.force('gift', 1.2);
-      if (x != null) lunge(kind, x, y); },
+      if (kind !== 'look') react(kind); },
   };
-  // 🟢 Fig is where the chaos comes from. The chip lunges toward the action (a nudge of its canvas, then back); and every
-  // twist of the curve — a peak, the window, the mirror, the golden cut, a mood, a glitch, a stage, a morph — breaks out of
-  // Fig as one wave that crosses the whole board: a ring and a wash of the mood's colour, from the corner outward, while
-  // the chip swells. You can't miss where it came from.
-  let lungeT = null, waves = [];
+  // 🟢 Fig is where the chaos comes from. During play it stays in its corner and only reacts there, big: every twist of
+  // the curve (a peak, the window, the mirror, the golden cut, a mood, a lens, a glitch, a stage) makes the chip swell and
+  // turn, and what it causes on the board (the glitch tear, the lens, the twist itself) is the only trace of it in the
+  // field. A morph is different: Fig leaves the corner, flies into the field, pulls the old world into itself with a
+  // wave, and comes back to the corner as the new world surfaces. No particles, ever.
+  let lungeT = null, waves = [], flyT = null;
   const palPt = () => { const r = $('spal').getBoundingClientRect(), c = cv.getBoundingClientRect(); return { x: (r.left + r.width / 2 - c.left) * (cv.width / c.width), y: (r.top + r.height * 0.56 - c.top) * (cv.height / c.height) }; };
   const MOODC = { calm: '#3DD6C6', fig: '#FF5FB0', kit: '#C9B8FF', bit: '#9BE7FF', phi: '#F5C542' };
-  function lunge(kind, x, y) {
-    const r = $('spal').getBoundingClientRect(), c = cv.getBoundingClientRect(), tx = c.left + ((x * host.k + host.ox) / host.dpr), ty = c.top + (((y ?? host.H * 0.5) * host.k + host.oy) / host.dpr);
-    const dx = tx - (r.left + r.width / 2), dy = ty - (r.top + r.height / 2), d = Math.hypot(dx, dy) || 1, amt = kind === 'look' ? 6 : kind === 'near' ? -10 : 16;
-    const el = $('spal'); el.style.transition = 'transform .12s ease-out'; el.style.transform = `translate(${(dx / d) * amt}px, ${(dy / d) * amt}px) scale(${kind === 'kill' ? 1.25 : kind === 'near' ? 0.9 : 1.1})`;
-    clearTimeout(lungeT); lungeT = setTimeout(() => { el.style.transition = 'transform .35s cubic-bezier(.3,1.6,.5,1)'; el.style.transform = ''; }, 140);
+  function react(kind) {   // in the corner only: a swell and a tilt, bigger for the bigger twists, then back
+    if (flyT) return;
+    const big = kind === 'glitch' || kind === 'stage' || kind === 'lens', sc = kind === 'near' ? 0.8 : big ? 1.9 : kind === 'kill' ? 1.5 : 1.35, rot = kind === 'mirror' ? -16 : kind === 'near' ? 6 : 10;
+    const el = $('spal'); el.style.transition = 'transform .14s ease-out'; el.style.transform = `scale(${sc}) rotate(${rot}deg)`;
+    clearTimeout(lungeT); lungeT = setTimeout(() => { el.style.transition = 'transform .55s cubic-bezier(.3,1.6,.5,1)'; el.style.transform = ''; }, big ? 360 : 240);
   }
-  function wave(kind, big = false) {   // a twist breaks out of Fig: the chip swells, a ring and a wash cross the board from its corner
+  function wave(kind, big = false) {   // the corner reaction; a wave onto the board only while Fig is out in the field (a morph)
+    react(kind); if (!flyT) return;
     const col = kind === 'glitch' ? '#FF5A3A' : kind === 'golden' ? '#F5C542' : kind === 'mirror' ? '#C9B8FF' : kind === 'window' ? '#9BE7FF' : MOODC[S.curve.mood] || '#3DD6C6';
-    waves.push({ t: 0, dur: big ? 1.1 : 0.8, col, from: palPt(), big });
-    const el = $('spal'); el.style.transition = 'transform .14s ease-out'; el.style.transform = `scale(${big ? 1.7 : 1.45}) rotate(${kind === 'mirror' ? -12 : 8}deg)`;
-    clearTimeout(lungeT); lungeT = setTimeout(() => { el.style.transition = 'transform .5s cubic-bezier(.3,1.6,.5,1)'; el.style.transform = ''; }, big ? 320 : 220);
+    waves.push({ t: 0, dur: 1, col, from: { x: cv.width / 2, y: cv.height * 0.42 }, big });
   }
   function drawWaves(dt) {
     if (!waves.length) return; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
-    const R = Math.hypot(cv.width, cv.height) * 1.05;
+    const R = Math.hypot(cv.width, cv.height) * 0.7;
     waves = waves.filter((w) => { w.t += dt; const e = Math.min(1, w.t / w.dur), ee = 1 - (1 - e) * (1 - e), r = 8 * host.dpr + ee * R;
-      const g = ctx.createRadialGradient(w.from.x, w.from.y, Math.max(0, r - 90 * host.dpr), w.from.x, w.from.y, r); g.addColorStop(0, w.col + '00'); g.addColorStop(0.85, w.col + (w.big ? '66' : '44')); g.addColorStop(1, w.col + '00');
+      const g = ctx.createRadialGradient(w.from.x, w.from.y, Math.max(0, r - 90 * host.dpr), w.from.x, w.from.y, r); g.addColorStop(0, w.col + '00'); g.addColorStop(0.85, w.col + '66'); g.addColorStop(1, w.col + '00');
       ctx.globalAlpha = 1 - e * e; ctx.fillStyle = g; ctx.fillRect(0, 0, cv.width, cv.height);
-      ctx.strokeStyle = w.col; ctx.lineWidth = (w.big ? 6 : 3.5) * host.dpr; ctx.globalAlpha = (1 - e) * 0.9; ctx.beginPath(); ctx.arc(w.from.x, w.from.y, r, 0, 7); ctx.stroke();
+      ctx.strokeStyle = w.col; ctx.lineWidth = 6 * host.dpr; ctx.globalAlpha = (1 - e) * 0.9; ctx.beginPath(); ctx.arc(w.from.x, w.from.y, r, 0, 7); ctx.stroke();
       return e < 1; });
     ctx.restore();
+  }
+  // 🟢 the morph is Fig's: the chip flies from the corner to the middle of the field, grows, the old world is pulled into it,
+  // and it flies back as the new world surfaces underneath
+  function fly(dur) {
+    const el = $('spal'), r = el.getBoundingClientRect(), c = cv.getBoundingClientRect();
+    const dx = (c.left + c.width / 2) - (r.left + r.width / 2), dy = (c.top + c.height * 0.42) - (r.top + r.height / 2);
+    clearTimeout(lungeT); clearTimeout(flyT);
+    el.style.transition = 'transform .3s cubic-bezier(.2,.9,.3,1.2)'; el.style.transform = `translate(${dx}px, ${dy}px) scale(2.6) rotate(360deg)`;
+    flyT = setTimeout(() => { el.style.transition = 'transform .45s cubic-bezier(.3,1.4,.5,1)'; el.style.transform = ''; flyT = setTimeout(() => { flyT = null; }, 450); }, Math.max(300, dur * 1000 - 200));
   }
   // ---------------------------------------------------------------- sizing
   function size() {
@@ -250,8 +259,8 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     lastUsed.set(active, S.beats); prev = active; active = to; tenure = 0; S.morphs += 1;
     active.enter(prev.key, anchor);
     applyTheme(); openCalm();
-    transition = { t: 0, dur: reduceMotion ? 0.05 : (why === 'golden' ? 1.1 : 0.8), snap, why, anchor, fig: palPt() };
-    wave('morph', true); banner(`${to.icon} ${to.name.toUpperCase()}`, `${to.verb} · ${WHY[why]}`); sfx(why === 'golden' ? 'birdie' : 'twist');
+    transition = { t: 0, dur: reduceMotion ? 0.05 : (why === 'golden' ? 1.1 : 0.9), snap, why, anchor };
+    if (!reduceMotion) fly(transition.dur); wave('morph', true); banner(`${to.icon} ${to.name.toUpperCase()}`, `${to.verb} · ${WHY[why]}`); sfx(why === 'golden' ? 'birdie' : 'twist');
   }
   function applyTheme(th = active?.theme) { if (!th) return; Object.entries(th).forEach(([k, v]) => stage.style.setProperty(`--${k}`, v)); }
   // ---------------------------------------------------------------- the loop
@@ -316,12 +325,9 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     (active || organs[0]).draw(t);
     if (transition) {   // the old world zooms away from where you were, and the new one is underneath
       transition.t += dt; const p = Math.min(1, transition.t / transition.dur), e = p * p * (3 - 2 * p);
-      // 🟢 Fig pulls the old world into its corner (it shrinks toward the chip and turns), and stands big at the seam while the new one surfaces
-      const fx = transition.fig?.x ?? 0, fy = transition.fig?.y ?? 0, z = 1 - e * 0.92, rot = e * (transition.why === 'mirror' ? -0.6 : 0.6);
+      // 🟢 Fig (the chip itself, flown into the middle of the field) pulls the old world into itself: it shrinks toward Fig and turns
+      const fx = cv.width / 2, fy = cv.height * 0.42, z = 1 - e * 0.94, rot = e * (transition.why === 'mirror' ? -0.7 : 0.7);
       ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1 - e * e; ctx.translate(fx, fy); ctx.rotate(rot); ctx.scale(z, z); ctx.translate(-fx, -fy); ctx.drawImage(transition.snap, 0, 0); ctx.restore();
-      { const a = Math.sin(p * Math.PI), sz = (40 + 30 * a) * host.dpr; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = Math.min(1, a * 1.4);
-        drawPal(S.curve.mood || 'calm', ctx, { x: cv.width / 2, y: cv.height * 0.42, s: sz, t: transition.t, r: S.curve.r, face: 1, mood: transition.why === 'golden' ? 'golden' : transition.why === 'mirror' ? 'mirror' : 'big', mp: p });
-        ctx.font = `${Math.round(sz * 0.9)}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(active.icon, cv.width / 2 + sz * 1.3, cv.height * 0.42 - sz * 0.9); ctx.restore(); }
       if (p >= 1) transition = null;
     }
     if (glitchT > 0) { glitchT -= dt; if (!reduceMotion) tear(); if (glitchT <= 0) { applyTheme(); active?.glitch?.(false); } }
