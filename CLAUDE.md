@@ -943,6 +943,9 @@ curve box at the last move (`curveMood(curve)` reads the mood off `hist`/`hold`)
 the middle of every `glitch()` (`#glitchPal`, a driven `palWidget` at r = 4 with `hurt()`), and the
 shell names it in the calm banner and hurts it on a run glitch.
 
+**Solo score cap (082).** `solo_submit` and the `solo_scores` check both capped a score at 1,000,000 (063,
+from the single-game days); a Chaos Run passed it and the save failed with "Bad score". Both are 2,000,000,000
+now (the int range), patched in place. Applied to production 2026-10-02.
 **Fresh start (2026-09-30).** All game data was wiped on production with `tools/sql/fresh-start.sql`
 (truncates every table but `profiles`, `bots`, `push_subscriptions`, resets Battleship themes and
 eggs). The pre-wipe rows sat in schema `backup_20260930` on production until 081 dropped it (2026-10-02),
