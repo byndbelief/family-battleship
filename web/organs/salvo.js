@@ -105,7 +105,16 @@ function update(dt) {
   g.ships.forEach((s) => { s.x += s.dir * s.spd * spd * dt; if ((s.dir > 0 && s.x > W + 20) || (s.dir < 0 && s.x + s.len * CELL < -20)) { s.dir *= -1; s.lane = Math.floor(Math.random() * LANES); } });
   if (g.reloadT > 0) { g.reloadT -= dt; if (g.reloadT <= 0) { g.reloadT = 0; g.ammo = AMMO; } }
   const whirl = g.twist?.kind === 'whirl' ? 1 : 0;
-  g.shells = g.shells.filter((s) => { s.t += dt; if (whirl) s.x += Math.sin(g.time * 3 + s.y) * 40 * dt; if (s.t >= s.tf) { land(s.x, s.y); return false; } return true; });
+  g.shells = g.shells.filter((s) => { s.t += dt; if (whirl) s.x += Math.sin(g.time * 3 + s.y) * 40 * dt; if (s.t >= s.tf) { land(s.x, s.y); return false; }
+    // in flight: whatever the shell meets on the way takes it — a plane, a bomb, a torpedo, a surfaced sub, or an enemy ship it passes low over
+    const e = s.t / s.tf, sx = s.x0 + (s.x - s.x0) * e, sy = s.y0 + (s.y - s.y0) * e - Math.sin(e * Math.PI) * 60;
+    const take = (x, y, pts, what) => { S.combo = S.comboT > 0 ? S.combo + 1 : 1; S.comboT = 2; const p = pts * fibMult(S.combo); host.add(p); splash(x, y, '#FFE08A', 14); g.fx.push({ kind: 'text', x, y: y - 12, text: `${what} +${p}`, life: 0.9 }); sfx('boom', { size: 0.6 }); };
+    const pl = (g.planes || []).find((q) => Math.hypot(q.x - sx, q.y - sy) < 24); if (pl) { g.planes.splice(g.planes.indexOf(pl), 1); take(pl.x, pl.y, 150, 'SHOT DOWN'); return false; }
+    const bm = (g.bombs || []).find((q) => Math.hypot(q.x - sx, q.y - sy) < 20); if (bm) { g.bombs.splice(g.bombs.indexOf(bm), 1); take(bm.x, bm.y, 50, 'DEFUSED'); return false; }
+    const tp = g.torps.find((q) => { const t2 = torpPos(q); return Math.hypot(t2.x - sx, t2.y - sy) < 20; }); if (tp) { const t2 = torpPos(tp); g.torps.splice(g.torps.indexOf(tp), 1); take(t2.x, t2.y, 25, 'DEFUSED'); return false; }
+    const sb = (g.subs || []).find((q) => q.up > 0.5 && Math.hypot(q.x - sx, q.y - sy) < 28); if (sb) { g.subs.splice(g.subs.indexOf(sb), 1); take(sb.x, sb.y, 250, 'SUB SUNK'); return false; }
+    if (e > 0.55) { const sh = g.ships.find((q) => Math.abs(laneY(q.lane) - sy) < 14 && sx > q.x - 6 && sx < q.x + q.len * CELL + 6); if (sh) { land(sx, laneY(sh.lane)); return false; } }   // low over a ship: it lands there
+    return true; });
   g.torps = g.torps.filter((t) => { t.t += dt; if (t.t >= t.tf) { const b = BOAT(); splash(b.x, b.y - 10, '#FF5A3A', 24); sfx('boom'); navigator.vibrate?.(100); g.hurtT = 1.2; host.hurt('torpedoed') || host.banner('HIT', `${S.hearts} ${S.hearts === 1 ? 'heart' : 'hearts'} left`); S.combo = 0; return false; } return true; });
   // ✈️ planes (Stage 2+) cross over the lanes (clear of the HUD chips) and drop a bomb over the boat; 🫧 submarines (Stage 3+) surface and fire a torpedo. Tap them.
   { const st = host.stage?.() || 1, b = BOAT(); if (!g.planes) { g.planes = []; g.bombs = []; g.subs = []; g.planeT = 3; g.subT = 4; }

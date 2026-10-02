@@ -177,6 +177,7 @@ function update(dt) {
       const l = g.lakes.find((q) => q.serpent && hit(q.serpent.x, q.y - 26, 28, 200, '🌊 SERPENT')); if (l) { l.serpent.hp = 0; return false; }
       const b = g.balloons.find((q) => hit(q.x, q.y, 28, 150, '🎈 BALLOON')); if (b) { b.hp = 0; return false; }
       const w = g.worms.find((q) => q.phase === 'up' && hit(q.x, hAt(q.x) - 24, 28, 180, '🪱 WORM')); if (w) { w.hp = 0; return false; }
+      const mt = g.meteors.find((q) => hit(q.x, q.y, 30, 120, '☄️ METEOR')); if (mt) { g.meteors.splice(g.meteors.indexOf(mt), 1); boom(s.x, s.y, 18, false); return false; }   // ☄️ a shell that meets a meteor breaks it up
     } if (s.y >= hAt(s.x)) { boom(s.x, s.y, s.napalm ? 52 : s.big ? 34 : 22, s.mine); if (s.napalm) for (let i = 0; i < 30; i++) g.fx.push({ kind: 'dot', x: s.x + (Math.random() - 0.5) * 100, y: hAt(s.x + (Math.random() - 0.5) * 100) - 4, vx: (Math.random() - 0.5) * 30, vy: -60 - Math.random() * 90, c: ['#FF5A3A', '#FFB347', '#FFE08A'][i % 3], life: 0.9 + Math.random() * 0.6, r: 3 }); return false; } return true; });
   g.meteors = g.meteors.filter((m) => { m.y += m.vy * dt; m.x += m.vx * dt; m.vy += 120 * dt; if (m.y >= hAt(m.x)) { boom(m.x, m.y, 40, false); g.tanks.filter((t) => Math.abs(t.x - m.x) < 46).forEach((t) => { g.tanks.splice(g.tanks.indexOf(t), 1); killsN += 1; host.add(75); g.fx.push({ kind: 'text', x: t.x, y: m.y - 30, text: 'FLATTENED +75', life: 1 }); }); return false; } return true; });
   g.tanks.forEach((t) => { if (t.flash > 0) t.flash -= dt; });

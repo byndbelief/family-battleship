@@ -849,7 +849,9 @@ are drawn under it, snakes run at the stapler's y; landing slack 12 (nail 8), in
 snake tap 44. Test: `t_mid`.
 **Salvo centres with the zoom-out.** `g.spread` eases 0 → 1 from Stage 2 in `update`; `BOAT()` y lerps
 from `H − 78` to `H × 0.52` and `laneY(i)` from the 0.2–0.7 band to 0.1–0.9 by it. Tap radii 36–44,
-`land()` ±26 of a lane and ±12 past a ship's ends. Hilltop: shell hit radii 26–28, tap radii 36–40.
+`land()` ±26 of a lane and ±12 past a ship's ends. Hilltop: shell hit radii 26–28, tap radii 36–40; my shells also break meteors within 30 (`boom` r 18 where
+they meet). Salvo shells filter: the arc position each frame (`sx, sy`) is tested against planes (24), bombs
+(20), torps (20), surfaced subs (28) via `take()`, and past `e > 0.55` against ships (`land()` on the lane).
 Test: `t_sea`.
 **Hilltop's taps, worms and artillery.** `tap(x, y)` on a pointer-up that moved < 10 (else `fire`): a crate
 within 34 → `pickUp`; balloons/meteors → `kill('🎯', …)`; worms/moles/serpents → `kill('⚡', …, true)`,
