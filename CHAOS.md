@@ -205,6 +205,13 @@ lanes and drop a bomb over your boat (tap the plane, +150, or the bomb, +50); fr
 surface, fire a torpedo and dive (tap one while it's up, +250). Putt: from Stage 2 a 🐹 gopher pops up
 while your ball sits still, runs over and drags it off (+1 putt) unless you tap it first (+100).
 
+**Fractal Dash's track is a fractal itself: a Mandelbrot coast.** Big domes sit on the base line, smaller
+bulbs hang off their rims, smaller still off those (circles on circles, the way the set's bulbs hang off its
+cardioid), and the ground is their skyline. Deeper down, and the wilder the curve, the more levels there are.
+The set's escape-time bands hug the coast, gold at the edge into deep blue. **Putt's map widens through the
+courses**: the fairway's walk may use a wider and wider slice of the field (40% on course 1, the whole
+width from course 5) and from course 4 the bends lean sideways.
+
 **The arsenal grows with the stage (Hilltop).** New enemies bring new weapons, used by tapping the enemy
 itself: 🎯 flak from Stage 2 for what flies (balloons, meteors), ❄️ frost from Stage 3 for what comes up
 from the earth's core (🪱 magma worms: one starts at the very bottom of the world and tunnels up through the

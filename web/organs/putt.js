@@ -26,13 +26,14 @@ const hash = (i) => { let x = (Math.imul(i | 0, 374761393) + 668265263) | 0; x =
 const bendsOf = (c) => (c <= 1 ? 0 : c === 2 ? 1 : c === 3 ? 2 : Math.min(4, 2 + Math.floor(Math.random() * 2) + (c >= 5 ? 1 : 0)));
 const widthOf = (c) => Math.min(84, 44 + 7 * (c - 1));   // the fairway widens as the courses go on (and the legs get longer)
 function corridor(bends, c) {   // legs from the bottom middle, turning 60–105° at each bend; retried with shorter legs until it fits the world
-  const B = { x0: 30, x1: W - 30, y0: 80, y1: H() - 70 };
+  // the map widens with the courses: the walk may use a wider and wider slice of the field, and later courses lean sideways
+  const span = Math.min(1, 0.4 + 0.12 * c), B = { x0: Math.max(30, W / 2 - (W / 2 - 30) * span), x1: Math.min(W - 30, W / 2 + (W / 2 - 30) * span), y0: 80, y1: H() - 70 };
   for (let tries = 0; tries < 60; tries++) {
     const pts = [{ x: W / 2 + (Math.random() - 0.5) * (bends ? 140 : 20), y: B.y1 - 10 }]; let a = -Math.PI / 2, ok = true, turn = Math.random() < 0.5 ? 1 : -1;
     for (let i = 0; i <= bends; i++) {
       const len = ((bends ? 100 : 130) + 22 * Math.min(c, 8) + Math.random() * 60) * Math.max(0.45, 1 - tries / 60), p = pts[pts.length - 1], q = { x: p.x + Math.cos(a) * len, y: p.y + Math.sin(a) * len };
       if (q.x < B.x0 || q.x > B.x1 || q.y < B.y0 || q.y > B.y1) { ok = false; break; }
-      pts.push(q); a += turn * (Math.PI / 3 + Math.random() * Math.PI / 4); turn = Math.random() < 0.7 ? -turn : turn;
+      pts.push(q); a += turn * (Math.PI / 3 + Math.random() * Math.PI / 4) * (c >= 4 ? 1.15 : 1); turn = Math.random() < 0.7 ? -turn : turn;
     }
     if (ok) return centred(pts);
   }

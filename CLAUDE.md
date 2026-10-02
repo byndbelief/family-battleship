@@ -834,6 +834,13 @@ are dead code kept for the shape). The HUD hearts line carries `<small>` with th
 ●/○ lives. `__shell().lives`. Test: `t_lives`. squirrel.js: the staples filter checks each flight frame
 for a squirrel within `RAD + 5` (nail 3) of the staple and `strike`s it; tap/landing radii for acorns and
 cones are tight (12–14); a tap within 30 of a crate opens it outright in `fire()`, a staple within 26.
+**Fractal Dash's ground (fractal.js `groundY`).** A base bulb every `BULB_P` (260) px along the track
+(radius 80–150, centre 0.72 r below `base = H × 0.72` so only the cap shows), each with 2–3 children on
+its rim at 0.2–0.32 r, recursively to `levels = 2 + min(3, round(rough × 1.6))`; the ground is the
+lowest circle top at x (`topOf`) plus a little noise; bulbs more than 2.2 r away are skipped, so a call
+touches three base bulbs' trees. `BANDS` are stroked under the ridge at +7, +15, … px in `draw`. putt.js
+`corridor`: `span = min(1, 0.4 + 0.12 × course)` narrows the walk's x-bounds around the middle; turns
+× 1.15 from course 4. Test: `t_coast` (ground samples, Putt spans 44 → 272 by course 6).
 **Hilltop's arsenal and worms.** `ARMS` (flak/frost/emp: stage, max charges, cooldown, hint), `g.arms[k]
 = {n, t}` recharging in `update`, `renderBar()` into `host.ui` (`.wbar`, re-rendered when the stage
 changes), `tap(x, y)` on a pointer-up that moved < 10 (else `fire`): finds the enemy under the tap and

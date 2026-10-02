@@ -37,16 +37,27 @@ let host, ctx, S, sfx, game = null, depth = 1, dashEl = null, holdT = null;
 const H = () => host.H;
 
 // ---------------------------------------------------------------- the ground
-// A fractal ridge: five octaves of value noise, the small ones louder the rougher the world (depth and
-// the chaos curve's r both roughen it). Chasms are cut out of it as obstacles.
+// The track is a fractal itself, a Mandelbrot coast: bulbs sit on a base line, smaller bulbs sit on the
+// flanks of those, smaller still on them (circles on circles, the way the set's bulbs hang off its
+// cardioid). The ground is the skyline of all of them, plus a whisper of noise. Deeper down, and the
+// wilder the curve, the more levels of bulbs there are (the roughness). Chasms are cut out of it as
+// obstacles. Drawn with the escape-time bands of the set hugging the coast (gold into blue).
 const rough = () => Math.min(1.6, 0.35 + (depth - 1) * 0.28 + Math.max(0, S.curve.r - 2.9) * 0.6);
+const BULB_P = 260;   // one base bulb every so often along the track
 function groundY(x) {
-  const g = game, s = g.seed + depth * 1000, ro = rough();
-  const base = H() * 0.68;
-  const y = base + (noise(x / 220, 1, s) - 0.5) * 90 + (noise(x / 90, 2, s) - 0.5) * 44 * ro + (noise(x / 38, 3, s) - 0.5) * 22 * ro
-    + (noise(x / 16, 4, s) - 0.5) * 10 * ro * ro + (noise(x / 7, 5, s) - 0.5) * 5 * ro * ro;
+  const g = game, s = g.seed + depth * 1000, ro = rough(), levels = 2 + Math.min(3, Math.round(ro * 1.6));
+  const base = H() * 0.72; let top = base;
+  // the circle's top at x, if x is under it
+  const topOf = (cx, cy, r) => { const dx = x - cx; return Math.abs(dx) < r ? cy - Math.sqrt(r * r - dx * dx) : Infinity; };
+  // a bulb and its children: two or three on its upper flanks, radius × 0.4, down to `levels`
+  const bulb = (cx, cy, r, lvl, h) => { if (Math.abs(x - cx) > r * 2.2) return; const t = topOf(cx, cy, r); if (t < top) top = t; if (lvl >= levels) return;
+    const n = 2 + (hash(h) < 0.5 ? 1 : 0); for (let i = 0; i < n; i++) { const a = Math.PI * (0.28 + 0.44 * (i + 0.5) / n) + (hash(h * 7 + i) - 0.5) * 0.2, rc = r * (0.2 + hash(h * 3 + i) * 0.12); bulb(cx + Math.cos(a) * (r + rc * 0.6), cy - Math.sin(a) * (r + rc * 0.6), rc, lvl + 1, h * 31 + i + 1); } };   // the children sit on the rim, so the dome stays a dome
+  const i0 = Math.floor(x / BULB_P);
+  for (let i = i0 - 1; i <= i0 + 1; i++) { const h = i * 1103 + s, r = 80 + hash(h) * 70, cx = i * BULB_P + BULB_P / 2 + (hash(h + 1) - 0.5) * 80; bulb(cx, base + r * 0.72, r, 1, h); }   // only the cap rises out of the base line: gentle domes
+  const y = top + (noise(x / 38, 3, s) - 0.5) * 6 * ro + (noise(x / 9, 5, s) - 0.5) * 3 * ro;
   return Math.max(H() * 0.34, Math.min(H() - 40, y));
 }
+const BANDS = ['#F5C542', '#FFB347', '#9BD1FF', '#5A8CFF', '#2B4FD6', '#17307F'];   // the set's escape-time bands, hugging the coast
 const inGap = (x) => game.obs.find((o) => o.type === 'gap' && x > o.x && x < o.x + o.w);
 
 // ---------------------------------------------------------------- a run
@@ -214,6 +225,12 @@ function draw(t) {
   }
   if (open) { ctx.lineTo(W + 6, Hh + 10); ctx.closePath(); }
   ctx.fill(); ctx.stroke();
+  // the escape-time bands: the coast's own shape, repeated down into the ground, gold at the edge into deep blue
+  ctx.save(); ctx.lineWidth = 3; ctx.lineJoin = 'round';
+  BANDS.forEach((col, bi) => { ctx.strokeStyle = col; ctx.globalAlpha = 0.55 - bi * 0.07; ctx.beginPath(); let on = false;
+    for (let sx = -6; sx <= W + 6; sx += 5) { const wx = g.cam + sx; if (inGap(wx)) { on = false; continue; } const y = groundY(wx) + quake + 7 + bi * 8 + Math.sin(wx / 23 + bi) * 1.5; if (!on) { ctx.moveTo(sx, y); on = true; } else ctx.lineTo(sx, y); }
+    ctx.stroke(); });
+  ctx.restore();
   // Chasm glow (the deep is bright).
   g.obs.forEach((o) => { if (o.type !== 'gap') return; const x0 = o.x - g.cam, gr = ctx.createLinearGradient(0, Hh * 0.7, 0, Hh); gr.addColorStop(0, '#0000'); gr.addColorStop(1, pal.edge + '66'); ctx.fillStyle = gr; ctx.fillRect(x0, Hh * 0.5, o.w, Hh * 0.5); });
   // Spikes, bolts and shards.
