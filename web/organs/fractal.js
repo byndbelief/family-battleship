@@ -66,7 +66,7 @@ function newGame() {
   game = { seed: Math.floor(Math.random() * 1e6), cam: 0, speed: 175, time: 0, dive: null, ko: false,
     py: 0, vy: 0, onGround: true, jumps: 0, dash: DASH_MAX, dashing: false, inv: 0,
     dist: 0, paid: 0, shards: 0, obs: [], parts: [], twist: null, twistAt: -9, dark: 0, shake: 0, fog: 0 };
-  game.py = groundY(PX) - R;
+  game.py = groundY(PX) - R; game.centred = false;
 }
 // One beat of the chaos curve (the box, CHAOS.md): what x lands on decides what's coming up the road.
 function onBeat(ev) {
@@ -104,8 +104,10 @@ function update(dt) {
     if (g.twist.k === 'bolt' && Math.random() < dt * 2.2) g.obs.push({ type: 'bolt', x: g.cam + PX + 50 + Math.random() * (W - 110), t: 0.9, flash: 0 });
     if (g.twist.k === 'storm' && Math.random() < dt * 1.7) g.obs.push({ type: 'spike', x: g.cam + W + 60, n: 2 + Math.floor(Math.random() * 3) });
     if (g.twist.t >= g.twist.dur) g.twist = null; }
-  // 🛸 drones (Stage 2+): they fly in from the right at jump height and hunt you; a dash smashes them, anything else stings
-  { const st = host.stage?.() || 1; if (st >= 2 && Math.random() < dt * (0.12 + st * 0.08) && g.obs.filter((o) => o.type === 'drone').length < st) g.obs.push({ type: 'drone', x: g.cam + W + 40, lift: 40 + Math.random() * 60, vx: 50 + st * 25, ph: Math.random() * 6.28 }); }
+  // 🎚️ as the board zooms out (Stage 2+) you run from the middle of the screen, so the road shows behind you too
+  { const st = host.stage?.() || 1, to = st >= 2 ? W * 0.5 : 96; if (Math.abs(PX - to) > 0.5) { PX += (to - PX) * Math.min(1, dt * 0.8); if (!g.centred && st >= 2) { g.centred = true; host.banner('🎯 TO THE MIDDLE', 'they come from behind you too'); } }
+    // 🛸 drones (Stage 2+): they fly in at jump height and hunt you, from ahead and, once you're in the middle, from behind; a dash smashes them, anything else stings
+    if (st >= 2 && Math.random() < dt * (0.12 + st * 0.08) && g.obs.filter((o) => o.type === 'drone').length < st) { const behind = g.centred && Math.random() < 0.4; g.obs.push({ type: 'drone', x: behind ? g.cam - 40 : g.cam + W + 40, lift: 40 + Math.random() * 60, vx: (behind ? -1 : 1) * (50 + st * 25), ph: Math.random() * 6.28 }); } }
   const gust = g.twist?.k === 'gust' ? 1.9 : 1, moon = g.twist?.k === 'moon' ? 0.45 : 1;
   g.fog += ((g.twist?.k === 'fog' ? 1 : 0) - g.fog) * Math.min(1, dt * 3);
   g.dark += ((g.twist?.k === 'dark' ? 1 : 0) - g.dark) * Math.min(1, dt * 3);
@@ -130,19 +132,19 @@ function update(dt) {
     if (o.type === 'shard') {
       if (o.fall) o.lift = Math.max(6, o.lift - dt * 90);
       const sy = groundY(o.x) - o.lift, dx = o.x - px, dy = sy - g.py;
-      if (Math.hypot(dx, dy) < R + 12) { collect(o.x, sy); return false; }
+      if (Math.hypot(dx, dy) < R + 20) { collect(o.x, sy); return false; }   // shards come to you
     } else if (o.type === 'bolt') {
       o.t -= dt;
       if (o.t <= 0 && !o.struck) { o.struck = true; o.flash = 0.3; sfx('thud'); if (Math.abs(o.x - px) < 24 && g.inv <= 0) hurt('zapped'); }
       if (o.struck) { o.flash -= dt; return o.flash > 0; }
     } else if (o.type === 'drone') {
       o.x -= o.vx * dt; o.ph += dt * 3; const dy = (groundY(o.x) - o.lift + Math.sin(o.ph) * 8) - g.py, dx = o.x - px;
-      if (Math.hypot(dx, dy) < R + 11) { if (g.dashing) { host.add(150); for (let i = 0; i < 10; i++) g.parts.push({ x: o.x, y: g.py + dy, vx: (Math.random() - 0.5) * 260, vy: (Math.random() - 0.8) * 260, t: 0, life: 0.5, c: '#FF5FB0' }); sfx('boom', { size: 0.6 }); return false; } if (g.inv <= 0) hurt('droned'); }
+      if (Math.hypot(dx, dy) < R + (g.dashing ? 20 : 11)) { if (g.dashing) { host.add(150); for (let i = 0; i < 10; i++) g.parts.push({ x: o.x, y: g.py + dy, vx: (Math.random() - 0.5) * 260, vy: (Math.random() - 0.8) * 260, t: 0, life: 0.5, c: '#FF5FB0' }); sfx('boom', { size: 0.6 }); return false; } if (g.inv <= 0) hurt('droned'); }
     } else if (o.type === 'spike' && g.inv <= 0 && !g.dashing) {
       const w = o.n * 14;
       if (px + R * 0.6 > o.x && px - R * 0.6 < o.x + w && g.py + R > groundY(o.x + w / 2) + quake - 15) hurt('spiked');
     }
-    return o.x + (o.w || o.n * 14 || 0) > g.cam - 60;
+    return o.type === 'drone' ? o.x > g.cam - 80 && o.x < g.cam + W + 80 : o.x + (o.w || o.n * 14 || 0) > g.cam - 60;
   });
   g.parts = g.parts.filter((p) => { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 600 * dt; return p.t < p.life; });
   if (g.dashing && Math.random() < dt * 40) g.parts.push({ x: px - R, y: g.py + (Math.random() - 0.5) * R, vx: -v * 0.5, vy: (Math.random() - 0.5) * 60, t: 0, life: 0.35, c: '#3DF2E0' });

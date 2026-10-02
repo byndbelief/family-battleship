@@ -841,6 +841,12 @@ lowest circle top at x (`topOf`) plus a little noise; bulbs more than 2.2 r away
 touches three base bulbs' trees. `BANDS` are stroked under the ridge at +7, +15, … px in `draw`. putt.js
 `corridor`: `span = min(1, 0.4 + 0.12 × course)` narrows the walk's x-bounds around the middle; turns
 × 1.15 from course 4. Test: `t_coast` (ground samples, Putt spans 44 → 272 by course 6).
+**Fractal Dash and Squirrel Chaos centre with the zoom-out.** fractal.js: `PX` is a `let` eased to `W × 0.5`
+from Stage 2 (`g.centred`), drones spawn behind (`x = cam − 40`, negative `vx`) 40% of the time once
+centred and are culled off either edge; dash-kill radius `R + 20`, shard radius `R + 20`. squirrel.js:
+`STAPLER().y` lerps to `H × 0.47` above the ground by `game.perch` (eased from Stage 2), a plank and post
+are drawn under it, snakes run at the stapler's y; landing slack 12 (nail 8), in-flight `RAD + 9`, owl tap 40,
+snake tap 44. Test: `t_mid`.
 **Salvo centres with the zoom-out.** `g.spread` eases 0 → 1 from Stage 2 in `update`; `BOAT()` y lerps
 from `H − 78` to `H × 0.52` and `laneY(i)` from the 0.2–0.7 band to 0.1–0.9 by it. Tap radii 36–44,
 `land()` ±26 of a lane and ±12 past a ship's ends. Hilltop: shell hit radii 26–28, tap radii 36–40.

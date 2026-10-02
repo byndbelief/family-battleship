@@ -204,7 +204,11 @@ through one for +150, touch it any other way and it stings. Salvo: from Stage 2 
 lanes and drop a bomb over your boat (tap the plane, +150, or the bomb, +50); from Stage 3 🫧 submarines
 surface, fire a torpedo and dive (tap one while it's up, +250). From Stage 2 your gunboat sails to the
 middle of the sea and the lanes spread above and below it, so the ships, planes, subs and torpedoes come
-from all sides. Taps and shells in Salvo and Hilltop are forgiving: a near miss still counts. Putt: from Stage 2 a 🐹 gopher pops up
+from all sides. Taps and shells in Salvo and Hilltop are forgiving: a near miss still counts. Fractal Dash: from Stage 2 Fig
+runs from the middle of the screen, so drones hunt from behind as well as ahead; a dash takes a drone on a
+near miss and shards come to you. Squirrel Chaos: from Stage 2 Fig and the stapler climb to a perch in the
+middle of the wood, so squirrels, owls, cones and snakes come from above and below; staples land on a near
+miss. Putt: from Stage 2 a 🐹 gopher pops up
 while your ball sits still, runs over and drags it off (+1 putt) unless you tap it first (+100).
 
 **Fractal Dash's track is a fractal itself: a Mandelbrot coast.** Big domes sit on the base line, smaller

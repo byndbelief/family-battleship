@@ -39,7 +39,9 @@ const WORDS = ['KA-CHUNK!', 'THWACK!', 'SHUNK!', 'PINNED!', 'CLICK-CLACK!', 'YOI
 
 let host, ctx, S, sfx, forest = null, game = null, level = 1, hold = null, bar = null;
 const H = () => host.H;
-const STAPLER = () => ({ x: W / 2, y: H() - 14 });
+// 🎚️ as the board zooms out (Stage 2+) Fig and the stapler climb to a perch in the middle of the wood (`game.perch` 0 → 1), so
+// squirrels, owls and snakes come from above and below alike
+const STAPLER = () => ({ x: W / 2, y: H() - 14 - (H() * 0.47 - 14) * (game?.perch || 0) });
 
 // ---------------------------------------------------------------- the fractal forest
 // Three trees, each a trunk that forks and forks again (2, now and then 3 ways, each branch 0.618 as
@@ -82,7 +84,7 @@ function newGame() {
   forest = grow((Date.now() & 0xffffff) | 1, level);
   game = { ammo: AMMO, reloadT: 0, time: 0, squirrels: [], staples: [], pins: [], fx: [], stuck: [], leaves: [],
     twist: null, speed: 1, dive: null, hits: 0, shots: 0, weapon: 'staple', arsenal: {}, stun: 0, shake: 0, hitstop: 0, acorns: [], crates: [], crateT: 5, bombs: [], bolts: [],
-    kept: [], whisperT: 9, glitch: 0, owls: [], cones: [], snakes: [], owlT: 3, snakeT: 4, eye: { open: 0, blink: 0, blinkT: 4 }, stare: 0, ko: false };
+    kept: [], whisperT: 9, glitch: 0, perch: 0, centred: false, owls: [], cones: [], snakes: [], owlT: 3, snakeT: 4, eye: { open: 0, blink: 0, blinkT: 4 }, stare: 0, ko: false };
 }
 function onBeat(ev) {
   const g = game, c = S.curve;
@@ -191,9 +193,9 @@ function bonk() {
 function fire(x, y) {
   if (!game || S.over || game.dive) return;
   const st = STAPLER(), w = game.weapon;
-  const owl = game.owls?.find((o) => Math.hypot(o.x - x, o.y - y) < 30); if (owl) { game.owls.splice(game.owls.indexOf(owl), 1); add(150, owl, 'HOOT!'); tufts(owl.x, owl.y, 8); sfx('clack'); return; }
+  const owl = game.owls?.find((o) => Math.hypot(o.x - x, o.y - y) < 40); if (owl) { game.owls.splice(game.owls.indexOf(owl), 1); add(150, owl, 'HOOT!'); tufts(owl.x, owl.y, 8); sfx('clack'); return; }
   const cone = game.cones?.find((c) => Math.hypot(c.x - x, c.y - y) < 28); if (cone) { game.cones.splice(game.cones.indexOf(cone), 1); add(60, cone, 'SWAT!'); burst(cone.x, cone.y, ['#8A5A2B', '#5A3B1F'], 8); sfx('clack'); return; }
-  const snake = game.snakes?.find((s) => Math.abs(s.x - x) < 34 && Math.abs(st.y - 12 - y) < 32); if (snake) { game.snakes.splice(game.snakes.indexOf(snake), 1); add(120, { x: snake.x, y: st.y - 14 }, 'SHOO!'); burst(snake.x, st.y - 8, ['#5CB85C', '#2E7D4F'], 10); sfx('thud'); return; }
+  const snake = game.snakes?.find((s) => Math.abs(s.x - x) < 44 && Math.abs(st.y - 12 - y) < 40); if (snake) { game.snakes.splice(game.snakes.indexOf(snake), 1); add(120, { x: snake.x, y: st.y - 14 }, 'SHOO!'); burst(snake.x, st.y - 8, ['#5CB85C', '#2E7D4F'], 10); sfx('thud'); return; }
   // 📦 a crate under your finger opens on the tap itself, no staple spent; acorns and pinecones go on a near miss too
   const crate = game.crates.find((c) => Math.hypot(c.x - x, c.y - y) < 30); if (crate) { openCrate(crate); return; }
   const target = game.acorns.some((a) => { const q = acornPos(a); return Math.hypot(q.x - x, q.y - y) < 30; });
@@ -245,7 +247,7 @@ function fire(x, y) {
   }
 }
 function reload() { if (game.reloadT > 0 || game.ammo === AMMO) return; game.reloadT = RELOAD_S; sfx('tick'); }
-function land(s) { if (!hitAt(s.x, s.y, s.nail ? 4 : 7)) { const onTree = forest.segs.some((sg) => segDist(s.x, s.y, sg) < sg.w / 2 + 3); if (onTree) game.stuck.push({ x: s.x, y: s.y, a: Math.random() * 3, life: 4 }); S.combo = 0; burst(s.x, s.y, ['#E9E4D0', '#9AA7B0'], 6); } }
+function land(s) { if (!hitAt(s.x, s.y, s.nail ? 8 : 12)) { const onTree = forest.segs.some((sg) => segDist(s.x, s.y, sg) < sg.w / 2 + 3); if (onTree) game.stuck.push({ x: s.x, y: s.y, a: Math.random() * 3, life: 4 }); S.combo = 0; burst(s.x, s.y, ['#E9E4D0', '#9AA7B0'], 6); } }
 function hitAt(x, y, slack, quiet = false) {
   if (!game || S.over) return false;
   const crate = game.crates.find((c) => Math.hypot(c.x - x, c.y - y) < 26);   // a staple near a crate opens it too
@@ -334,6 +336,7 @@ function update(dt) {
     return;
   }
   if (g.hitstop > 0) { g.hitstop -= dt; return; }   // a beat of freeze on a big combo
+  { const st = host.stage?.() || 1, to = st >= 2 ? 1 : 0; g.perch += (to - g.perch) * Math.min(1, dt * 0.8); if (to && !g.centred) { g.centred = true; host.banner('🎯 UP TO THE PERCH', 'they come from above and below now'); } }
   g.time += dt;
   if (g.time >= level * LEVEL_S) return endLevel();
   if (g.stun > 0) g.stun -= dt;
@@ -370,7 +373,7 @@ function update(dt) {
   g.staples = g.staples.filter((s) => { s.t += dt; if (s.t >= s.tf) { land(s); return false; }
     // 📎 in flight: the first squirrel in the staple's path takes it (the falling things only count where it lands)
     const e = s.t / s.tf, sx = s.x0 + (s.x - s.x0) * e, sy = s.y0 + (s.y - s.y0) * e; let best = null, bd = Infinity;
-    g.squirrels.forEach((sq) => { const p = sqPos(sq), d = Math.hypot(p.x - sx, p.y - sy); if (d < RAD[sq.size] + (s.nail ? 3 : 5) && d < bd) { bd = d; best = sq; } });
+    g.squirrels.forEach((sq) => { const p = sqPos(sq), d = Math.hypot(p.x - sx, p.y - sy); if (d < RAD[sq.size] + (s.nail ? 7 : 9) && d < bd) { bd = d; best = sq; } });
     if (best) { strike(best, false); return false; }
     return true; });
   g.pins.forEach((p) => { p.t += dt; }); g.pins = g.pins.filter((p) => { if (p.t > 0.9) { burst(p.x, p.y, p.gold ? ['#F5C542', '#FFF3C4'] : ['#C98B4A', '#8A5A2B', '#F2E3C0'], 16); if (!p.gold) { g.kept.push({ x: p.x, y: p.y, face: p.face, tw: 0 }); if (g.kept.length > 40) g.kept.shift(); } return false; } return true; });
@@ -413,7 +416,7 @@ function draw(t) {
     game.acorns.forEach((a) => drawAcorn(acornPos(a), a.spin));
     (game.owls || []).forEach((o) => { ctx.save(); ctx.translate(o.x, o.y); ctx.scale(o.dir, 1); const fl = Math.sin(o.flap) * 6; ctx.fillStyle = '#6B5235'; ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(-26, -6 - fl); ctx.lineTo(-10, 6); ctx.closePath(); ctx.fill(); ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(26, -6 + fl); ctx.lineTo(10, 6); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#8B6B45'; ctx.beginPath(); ctx.ellipse(0, 0, 11, 9, 0, 0, 7); ctx.fill(); ctx.fillStyle = '#FFE08A'; ctx.beginPath(); ctx.arc(-4, -2, 3, 0, 7); ctx.arc(4, -2, 3, 0, 7); ctx.fill(); ctx.fillStyle = '#1B1B22'; ctx.beginPath(); ctx.arc(-4, -2, 1.3, 0, 7); ctx.arc(4, -2, 1.3, 0, 7); ctx.fill(); ctx.fillStyle = '#E4572E'; ctx.beginPath(); ctx.moveTo(-2, 2); ctx.lineTo(2, 2); ctx.lineTo(0, 6); ctx.closePath(); ctx.fill(); ctx.restore(); });
     (game.cones || []).forEach((c) => { ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.spin); ctx.fillStyle = '#5A3B1F'; ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(6, 8); ctx.lineTo(-6, 8); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#8A5A2B'; for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(0, -4 + i * 5, 2 + i, 0, 7); ctx.fill(); } ctx.restore(); });
-    (game.snakes || []).forEach((s) => { const y = forest.ground - 4; ctx.strokeStyle = '#5CB85C'; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.beginPath(); for (let i = 0; i <= 8; i++) { const x = s.x - s.dir * i * 5; ctx[i ? 'lineTo' : 'moveTo'](x, y + Math.sin(s.ph + i) * 3); } ctx.stroke(); ctx.fillStyle = '#2E7D4F'; ctx.beginPath(); ctx.arc(s.x, y, 4.5, 0, 7); ctx.fill(); ctx.fillStyle = '#FF2A2A'; ctx.beginPath(); ctx.arc(s.x + s.dir * 2, y - 1.5, 1.2, 0, 7); ctx.fill(); });
+    (game.snakes || []).forEach((s) => { const y = STAPLER().y - 4; ctx.strokeStyle = '#5CB85C'; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.beginPath(); for (let i = 0; i <= 8; i++) { const x = s.x - s.dir * i * 5; ctx[i ? 'lineTo' : 'moveTo'](x, y + Math.sin(s.ph + i) * 3); } ctx.stroke(); ctx.fillStyle = '#2E7D4F'; ctx.beginPath(); ctx.arc(s.x, y, 4.5, 0, 7); ctx.fill(); ctx.fillStyle = '#FF2A2A'; ctx.beginPath(); ctx.arc(s.x + s.dir * 2, y - 1.5, 1.2, 0, 7); ctx.fill(); });
     game.bombs.forEach((b) => { const e = b.t / b.tf, x = b.x0 + (b.x - b.x0) * e, y = b.y0 + (b.y - b.y0) * e - Math.sin(e * Math.PI) * 90; ctx.font = '20px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🧨', x, y); ctx.textBaseline = 'alphabetic'; });
     game.bolts.forEach((b) => { ctx.save(); ctx.globalAlpha = Math.min(1, b.life * 4); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       const col = b.col || '#9BE7FF', path = () => { ctx.beginPath(); if (b.pts) b.pts.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x, y)); else b.lines.forEach(([a, c, dd, e]) => { ctx.moveTo(a, c); ctx.lineTo(dd, e); }); };
@@ -527,6 +530,9 @@ function drawStaple(x, y, a, alpha) {
 }
 function drawStapler() {
   const st = STAPLER(), g = game;
+  if (g.perch > 0.01) {   // the perch: a plank on a post up from the ground, for the stapler to sit on
+    ctx.fillStyle = '#5A3B1F'; ctx.fillRect(st.x - 3, st.y + 4, 6, forest.ground - st.y); ctx.fillStyle = '#8A5A2B'; ctx.beginPath(); ctx.roundRect(st.x - 58, st.y + 2, 116, 8, 3); ctx.fill();
+  }
   ctx.save(); ctx.translate(st.x, st.y); if (g.stun > 0) ctx.rotate(Math.sin(g.stun * 40) * 0.12);
   if (g.weapon !== 'staple') { ctx.font = '18px serif'; ctx.textAlign = 'center'; ctx.fillText(WEAPONS[g.weapon].icon, 0, -26); }
   // 🟢 Fig works the stapler: behind it, leaning in, dizzy when bonked
@@ -566,7 +572,7 @@ const organ = {
   level: () => level,
   overText: (how) => (how === 'sleeps' ? ['🌘 IT SLEEPS AGAIN', 'For now. It counted every one.'] : how === 'bonked' ? ['💫 KNOCKED OUT', 'Too many acorns to the head. The forest keeps your staples.'] : ['RUN OVER', '']),
   endStats: () => (game ? `🐿️ ${game.hits} hits from ${game.shots} staples${game.shots ? ` (${Math.round((100 * game.hits) / game.shots)}%)` : ''}, day ${level}` : ''),
-  debug: () => game && ({ score: S.score, level, trunks: forest?.trunks.length, squirrels: game.squirrels.length, owls: game.owls?.length || 0, cones: game.cones?.length || 0, snakes: game.snakes?.length || 0, W, kept: game.kept.length, glitch: game.glitch, eye: game.eye.open, twist: game.twist?.kind || null, stare: game.stare, whispers: game.fx.filter((f) => f.kind === 'whisper').length,
+  debug: () => game && ({ score: S.score, level, perch: game.perch, stapler: STAPLER(), trunks: forest?.trunks.length, squirrels: game.squirrels.length, owls: game.owls?.length || 0, cones: game.cones?.length || 0, snakes: game.snakes?.length || 0, W, kept: game.kept.length, glitch: game.glitch, eye: game.eye.open, twist: game.twist?.kind || null, stare: game.stare, whispers: game.fx.filter((f) => f.kind === 'whisper').length,
     skipTo: (l) => { level = l - 1; game.time = level * LEVEL_S; }, forceTwist: (k) => { game.twist = { kind: k, until: game.time + 6, wind: 70 }; if (k === 'stare') game.stare = 1.6; if (k === 'static') game.glitch = 6; },
     hearts: S.hearts, weapon: game.weapon, arsenal: { ...game.arsenal }, crates: game.crates.map((c) => ({ x: c.x, y: c.y, w: c.w })), acorns: game.acorns.map(acornPos), ammo: game.ammo, dive: !!game.dive, over: S.over, r: S.curve.r,
     squirrels: game.squirrels.map((sq) => ({ ...sqPos(sq), size: sq.size, hop: !!sq.hop })), W, H: H() }),
