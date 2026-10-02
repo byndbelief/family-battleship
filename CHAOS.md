@@ -232,7 +232,8 @@ the run's hearts, `⛳ ●●○`). Lose them and that organ starts over at its 
 Depth 1, two tanks, three ships) and the run pays one of its own three hearts; the run ends when the run's
 hearts are gone. Healing (a dive, a new day, the mirror) refills the organ's lives, not the run's hearts.
 In Squirrel Chaos a staple takes the first squirrel in its path, not just the one where it lands; the
-things that fall (acorns, pinecones, crates) only count on a direct hit.
+things that bite (acorns, pinecones) only count on a direct hit; 📦 crates are easy: they drift down slowly,
+wait a while, and a tap on one opens it with no staple spent.
 
 **You are Fig.** In every organ the thing you steer is Fig, in the run's current mood: rolled up into
 Putt's ball, at the wheel of Hilltop's tank, working the stapler in Squirrel Chaos, running Fractal
