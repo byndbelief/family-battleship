@@ -30,7 +30,7 @@ function ridge(seed) {
 const SP = () => W / 100;
 const hAt = (x) => { const i = Math.max(0, Math.min(99, x / SP())), a = Math.floor(i), t = i - a; return g.h[a] + (g.h[Math.min(100, a + 1)] - g.h[a]) * t; };
 const stage = () => host.stage?.() || 1;   // 🎚️ the run's stage: the world grows and fills around you
-function newGame() { g = { h: [], tanks: [], shells: [], fx: [], meteors: [], moles: [], lakes: [], balloons: [], worms: [], wormT: 4, moleT: 4, serpT: 3, balloonT: 5, arms: { flak: { n: 3, t: 0 }, frost: { n: 2, t: 0 }, emp: { n: 2, t: 0 } }, centred: false, me: { x: 44 }, wind: 0, twist: null, time: 0, fireT: 3, shield: 0, split: 0, big: 0, seed: Math.floor(Math.random() * 1e6), night: 0 }; g.h = ridge(g.seed); killsN = 0; shotsN = 0; addTank(); }
+function newGame() { g = { h: [], tanks: [], shells: [], fx: [], meteors: [], moles: [], lakes: [], balloons: [], worms: [], drones: [], drops: [], arty: null, droneT: 8, bolts: [], wormT: 4, moleT: 4, serpT: 3, balloonT: 5, centred: false, me: { x: 44 }, wind: 0, twist: null, time: 0, fireT: 3, shield: 0, split: 0, big: 0, seed: Math.floor(Math.random() * 1e6), night: 0 }; g.h = ridge(g.seed); killsN = 0; shotsN = 0; addTank(); }
 function addTank(gold = false, quiet = false) {
   if (g.tanks.length >= (stage() === 1 ? 2 : 5 + Math.min(3, stage() - 1))) return;   // Stage 1: two at most
   // Stage 1: they line up on the right. From Stage 2 they come from both sides, never within 70 of you.
@@ -51,16 +51,18 @@ function carveLake() {
   g.lakes.push({ x0, x1, y, serpent: null }); g.fx.push({ kind: 'text', x: (x0 + x1) / 2, y: y - 30, text: '🌊 a lake', life: 1.2 });
 }
 function serpent() { const l = g.lakes[Math.floor(Math.random() * g.lakes.length)]; if (!l || l.serpent) return; l.serpent = { x: l.x0 + 20 + Math.random() * (l.x1 - l.x0 - 40), t: 0, hp: 1, fired: false }; sfx('splash'); }
-// 🛡️ THE ARSENAL grows with the stage, one weapon a domain, used by tapping the enemy itself: 🎯 flak for what
-// flies (Stage 2), ❄️ frost for what comes up from the core (Stage 3), ⚡ EMP for what crawls on the ground
-// (Stage 4). Each has a few charges that come back over time. The cannon (drag) still works on everything.
-const ARMS = { flak: { icon: '🎯', name: 'Flak', stage: 2, max: 3, cd: 5, hint: 'tap a balloon or a meteor' }, frost: { icon: '❄️', name: 'Frost', stage: 3, max: 2, cd: 7, hint: 'tap a magma worm' }, emp: { icon: '⚡', name: 'EMP', stage: 4, max: 2, cd: 8, hint: 'tap a mole or a serpent' } };
+// ⚡🎯 TAPS: a tap on an enemy is a weapon of its own, unlimited. Lightning strikes what is on or under the ground
+// (moles, serpents, magma worms, even one still tunnelling), a target locks what flies (balloons, meteors) and it
+// drops. The cannon (drag) still works on everything.
+// 📦 ARTILLERY: from Stage 2 an ally drone crosses now and then and drops a crate near you; tap the crate to pick up
+// a few rounds of a heavier shell the cannon then fires: 🧨 cluster (three), 💣 heavy (a bigger crater), 🔥 napalm
+// (a wide burn), 🎯 guided (steers to the nearest tank). The bar bottom-right shows what's loaded.
+const ARTY = { cluster: { icon: '🧨', name: 'Cluster', n: 4, desc: 'three shells a shot' }, heavy: { icon: '💣', name: 'Heavy', n: 3, desc: 'a bigger crater' }, napalm: { icon: '🔥', name: 'Napalm', n: 3, desc: 'a wide burn' }, guided: { icon: '🎯', name: 'Guided', n: 4, desc: 'steers to the nearest tank' } };
 let bar = null;
-function renderBar() {
-  if (!bar || !g) return; const st = stage();
-  bar.innerHTML = Object.entries(ARMS).map(([k, a]) => { const on = st >= a.stage, n = g.arms[k].n; return `<button type="button" data-a="${k}" class="${on && n > 0 ? 'on' : ''}" ${on ? '' : 'disabled'} aria-label="${a.name}${on ? `, ${n} charges` : `, from Stage ${a.stage}`}" title="${a.hint}">${on ? a.icon : '🔒'}<b>${on ? n : `S${a.stage}`}</b></button>`; }).join('');
-  bar.dataset.st = st; bar.querySelectorAll('[data-a]').forEach((b) => { b.onclick = (e) => { e.stopPropagation(); const a = ARMS[b.dataset.a]; host.banner(`${a.icon} ${a.name.toUpperCase()}`, a.hint); sfx('click'); }; });
-}
+function renderBar() { if (!bar || !g) return; const a = g.arty && ARTY[g.arty.kind]; bar.innerHTML = a ? `<button type="button" class="on" aria-label="${a.name}, ${g.arty.n} rounds" title="${a.desc}">${a.icon}<b>${g.arty.n}</b></button>` : ''; }
+function allyDrone() { const fromLeft = Math.random() < 0.5; g.drones.push({ x: fromLeft ? -30 : W + 30, y: 60 + Math.random() * 30, vx: (fromLeft ? 1 : -1) * 90, dropped: false }); }
+function dropCrate(x) { const kinds = Object.keys(ARTY), kind = kinds[Math.floor(Math.random() * kinds.length)]; g.drops.push({ x: Math.max(30, Math.min(W - 30, x)), y: 70, kind, down: true, life: 20 }); }
+function pickUp(c) { g.drops.splice(g.drops.indexOf(c), 1); const a = ARTY[c.kind]; g.arty = { kind: c.kind, n: a.n }; host.banner(`${a.icon} ${a.name.toUpperCase()} · ${a.n} ROUNDS`, a.desc); sfx('chime'); renderBar(); g.fx.push({ kind: 'ring', x: c.x, y: c.y, r: 4, R: 30, life: 0.35 }); }
 // 🪱 magma worms (Stage 3+), up from the earth's core: one starts at the very bottom of the world and tunnels up
 // through the dirt (the zoom-out is what lets you watch it coming), breaks the surface, rears up and spits lava.
 function worm() { let x; for (let i = 0; i < 8; i++) { x = 40 + Math.random() * (W - 80); if (Math.abs(x - g.me.x) > 70 && !inLake(x)) break; } g.worms.push({ x, y: H() + 10, phase: 'dig', t: 0, hp: 1, fired: false, spd: 60 + 14 * stage() }); }
@@ -87,25 +89,29 @@ function twist() {
   if (kind === 'gale') g.wind = (Math.random() < 0.5 ? -1 : 1) * 110;
 }
 function meteor(x) { g.meteors.push({ x, y: -20, vy: 160 + Math.random() * 80, vx: (Math.random() - 0.5) * 60 }); }
-// a tap on an enemy: the weapon for its domain, if the stage has brought it and a charge is left
+// a tap: a crate picks up; an enemy in the air takes a 🎯 target, one on or under the ground takes ⚡ lightning
 function tap(x, y) {
-  if (!g || S.over) return; const st = stage(), near = (ex, ey, r) => Math.hypot(ex - x, ey - y) < r;
-  const kill = (k, ex, ey, pts, what) => { const a = ARMS[k], c = g.arms[k]; if (st < a.stage) { host.banner(`🔒 ${a.name.toUpperCase()} AT STAGE ${a.stage}`, a.hint); sfx('buzz'); return false; } if (c.n <= 0) { host.banner(`${a.icon} ${a.name.toUpperCase()} RECHARGING`, a.hint); sfx('buzz'); return false; }
-    c.n -= 1; S.combo = S.comboT > 0 ? S.combo + 1 : 1; S.comboT = 3; const p = pts * fibMult(S.combo); host.add(p); killsN += 1; g.fx.push({ kind: 'text', x: ex, y: ey - 22, text: `${a.icon} ${what} +${p}`, life: 1.1, big: true, col: '#C9FFF8' }); g.fx.push({ kind: 'ring', x: ex, y: ey, r: 4, R: 36, life: 0.4 }); sfx(k === 'emp' ? 'flash' : k === 'frost' ? 'chime' : 'boom', { size: 0.7 }); renderBar(); return true; };
-  const b = g.balloons.find((q) => near(q.x, q.y + 6, 38)); if (b) { if (kill('flak', b.x, b.y, 150, 'BALLOON')) b.hp = 0; return true; }
-  const m = g.meteors.find((q) => near(q.x, q.y, 38)); if (m) { if (kill('flak', m.x, m.y, 120, 'METEOR')) g.meteors.splice(g.meteors.indexOf(m), 1); return true; }
-  const w = g.worms.find((q) => { const h = wormHead(q); return near(h.x, h.y, 40); }); if (w) { const h = wormHead(w); if (kill('frost', h.x, h.y, w.phase === 'dig' ? 300 : 250, w.phase === 'dig' ? 'WORM FROZEN UNDERGROUND' : 'WORM FROZEN')) w.hp = 0; return true; }
-  const mo = g.moles.find((q) => q.t > 0.3 && near(q.x, hAt(q.x) - 8, 36)); if (mo) { if (kill('emp', mo.x, hAt(mo.x) - 6, 200, 'MOLE')) mo.hp = 0; return true; }
-  const l = g.lakes.find((q) => q.serpent && near(q.serpent.x, q.y - 26, 38)); if (l) { if (kill('emp', l.serpent.x, l.y - 26, 220, 'SERPENT')) l.serpent.hp = 0; return true; }
+  if (!g || S.over) return false; const near = (ex, ey, r) => Math.hypot(ex - x, ey - y) < r;
+  const crate = g.drops.find((c) => near(c.x, c.y, 34)); if (crate) { pickUp(crate); return true; }
+  const kill = (icon, ex, ey, pts, what, bolt) => { S.combo = S.comboT > 0 ? S.combo + 1 : 1; S.comboT = 3; const p = pts * fibMult(S.combo); host.add(p); killsN += 1;
+    g.fx.push({ kind: 'text', x: ex, y: ey - 22, text: `${icon} ${what} +${p}`, life: 1.1, big: true, col: '#C9FFF8' }); g.fx.push({ kind: 'ring', x: ex, y: ey, r: 4, R: 36, life: 0.4 });
+    if (bolt) { const pts2 = [[ex + (Math.random() - 0.5) * 40, -20]]; let yy = -20; while (yy < ey - 16) { yy += 28; pts2.push([ex + (Math.random() - 0.5) * 26, yy]); } pts2.push([ex, ey]); g.bolts.push({ pts: pts2, life: 0.3 }); sfx('flash'); } else sfx('boom', { size: 0.7 }); return true; };
+  const b = g.balloons.find((q) => near(q.x, q.y + 6, 38)); if (b) { kill('🎯', b.x, b.y, 150, 'BALLOON'); b.hp = 0; return true; }
+  const m = g.meteors.find((q) => near(q.x, q.y, 38)); if (m) { kill('🎯', m.x, m.y, 120, 'METEOR'); g.meteors.splice(g.meteors.indexOf(m), 1); return true; }
+  const w = g.worms.find((q) => { const h = wormHead(q); return near(h.x, h.y, 40); }); if (w) { const h = wormHead(w); kill('⚡', h.x, h.y, w.phase === 'dig' ? 300 : 250, w.phase === 'dig' ? 'WORM, UNDERGROUND' : 'WORM', true); w.hp = 0; return true; }
+  const mo = g.moles.find((q) => q.t > 0.3 && near(q.x, hAt(q.x) - 8, 36)); if (mo) { kill('⚡', mo.x, hAt(mo.x) - 6, 200, 'MOLE', true); mo.hp = 0; return true; }
+  const l = g.lakes.find((q) => q.serpent && near(q.serpent.x, q.y - 26, 38)); if (l) { kill('⚡', l.serpent.x, l.y - 26, 220, 'SERPENT', true); l.serpent.hp = 0; return true; }
   return false;
 }
 function fire(dx, dy) {
   if (!g || S.over) return;
   const d = Math.min(160, Math.hypot(dx, dy)); if (d < 10) return;
   const a = Math.atan2(-dy, -dx), p = 240 + d * 2.9, my = hAt(g.me.x) - 10;
-  const shots = g.split ? [-0.12, 0, 0.12] : [0];
-  shots.forEach((da) => g.shells.push({ x: g.me.x, y: my, vx: Math.cos(a + da) * p, vy: Math.sin(a + da) * p, mine: true, big: !!g.big }));
+  const kind = g.arty?.n > 0 ? g.arty.kind : null;   // 📦 a loaded artillery round, if any
+  const shots = g.split || kind === 'cluster' ? [-0.12, 0, 0.12] : [0];
+  shots.forEach((da) => g.shells.push({ x: g.me.x, y: my, vx: Math.cos(a + da) * p, vy: Math.sin(a + da) * p, mine: true, big: !!g.big || kind === 'heavy', napalm: kind === 'napalm', homing: kind === 'guided' }));
   if (g.split) { g.split = 0; g.fx.push({ kind: 'text', x: g.me.x, y: my - 24, text: '✨ FRACTAL SHELL', life: 1 }); }
+  if (kind) { g.arty.n -= 1; g.fx.push({ kind: 'text', x: g.me.x, y: my - 24, text: `${ARTY[kind].icon} ${ARTY[kind].name.toUpperCase()}`, life: 0.9 }); if (g.arty.n <= 0) g.arty = null; renderBar(); }
   g.big = 0; shotsN += 1; sfx('cannon');
 }
 // a crater digs the hill, but never more than 70 below where it stood fresh: you keep a hill to stand on
@@ -146,9 +152,11 @@ function update(dt) {
     if (w.phase === 'dig') { w.y -= w.spd * dt; if (Math.random() < dt * 10) g.fx.push({ kind: 'dot', x: w.x + (Math.random() - 0.5) * 18, y: w.y - 6, vx: (Math.random() - 0.5) * 50, vy: -40 - Math.random() * 40, c: ['#5A3B1F', '#FF5A3A'][Math.floor(Math.random() * 2)], life: 0.5, r: 2 });
       if (w.y <= hAt(w.x)) { w.phase = 'up'; w.t = 0; sfx('thud'); for (let i = 0; i < 12; i++) g.fx.push({ kind: 'dot', x: w.x + (Math.random() - 0.5) * 24, y: hAt(w.x), vx: (Math.random() - 0.5) * 80, vy: -120 - Math.random() * 100, c: ['#FF5A3A', '#FFB347', '#5A3B1F'][i % 3], life: 0.6, r: 2.5 }); } return w.hp > 0; }
     if (w.t > 1 && !w.fired && w.t < 2.4) { w.fired = true; enemyShell(w.x, hAt(w.x) - 34, g.me.x, 260 + 20 * st); sfx('thud'); } return w.t < 3.2 && w.hp > 0; });
-  // the arsenal's charges come back over time; the bar follows
-  Object.entries(ARMS).forEach(([k, a]) => { const c = g.arms[k]; if (c.n < a.max) { c.t += dt; if (c.t >= a.cd) { c.t = 0; c.n += 1; renderBar(); } } });
-  if (bar && bar.dataset.st !== String(st)) renderBar();
+  // 📦 ally drones (Stage 2+): across the sky, a crate near you; the crate floats down to the ridge and waits
+  if (st >= 2) { g.droneT -= dt; if (g.droneT <= 0 && !g.drones.length) { g.droneT = 14 - st + Math.random() * 8; allyDrone(); } }
+  g.drones = g.drones.filter((d) => { d.x += d.vx * dt; if (!d.dropped && Math.abs(d.x - g.me.x) < 70) { d.dropped = true; dropCrate(g.me.x + (Math.random() - 0.5) * 140); sfx('tick'); } return d.x > -40 && d.x < W + 40; });
+  g.drops = g.drops.filter((c) => { if (c.down) { c.y += 110 * dt; if (c.y >= hAt(c.x) - 10) { c.y = hAt(c.x) - 10; c.down = false; } } else { c.y = hAt(c.x) - 10; c.life -= dt; } return c.life > 0; });
+  g.bolts = g.bolts.filter((bl) => { bl.life -= dt; return bl.life > 0; });
   g.moles = g.moles.filter((m) => { m.t += dt; if (m.t > 0.9 && !m.fired && m.t < 2.4) { m.fired = true; enemyShell(m.x, hAt(m.x) - 6, g.me.x, 220 + 20 * st); } if (m.t < 0.9 && Math.random() < dt * 8) g.fx.push({ kind: 'dot', x: m.x + (Math.random() - 0.5) * 14, y: hAt(m.x), vx: (Math.random() - 0.5) * 60, vy: -90 - Math.random() * 60, c: '#5A3B1F', life: 0.5, r: 2 }); return m.t < 3 && m.hp > 0; });
   g.lakes.forEach((l) => { const s = l.serpent; if (!s) return; s.t += dt; if (s.t > 0.7 && !s.fired) { s.fired = true; enemyShell(s.x, l.y - 26, g.me.x, 200 + 20 * st); } if (s.t > 2.2 || s.hp <= 0) l.serpent = null; });
   g.balloons = g.balloons.filter((b) => { b.x += b.vx * dt; if (!b.dropped && Math.abs(b.x - g.me.x) < 16 + st * 4) { b.dropped = true; g.shells.push({ x: b.x, y: b.y + 14, vx: 0, vy: 40, mine: false }); } return b.x > -30 && b.x < W + 30 && b.hp > 0; });
@@ -160,14 +168,16 @@ function update(dt) {
   if (st === 1) g.wind *= Math.max(0, 1 - dt * 2);
   if (g.fireT <= 0) { g.fireT = 2.2 + Math.random() * 2; const t = g.tanks.filter((q) => !q.quiet)[Math.floor(Math.random() * g.tanks.filter((q) => !q.quiet).length)];
     if (t) { const dx = g.me.x - t.x, p = 300 + Math.random() * 120, a = -2.2 - Math.random() * 0.5; t.flash = 0.35; g.shells.push({ x: t.x, y: hAt(t.x) - 10, vx: Math.cos(a) * p * Math.sign(dx) * -1 * -1, vy: Math.sin(a) * p, mine: false }); const s = g.shells[g.shells.length - 1]; s.vx = -Math.abs(s.vx) * (0.8 + Math.random() * 0.5); sfx('cannon'); } }
-  g.shells = g.shells.filter((s) => { s.vy += G * dt; s.vx += g.wind * dt * 0.6; s.x += s.vx * dt; s.y += s.vy * dt; if (s.x < -20 || s.x > W + 20) return false;
+  g.shells = g.shells.filter((s) => { s.vy += G * dt; s.vx += g.wind * dt * 0.6;
+    if (s.homing && s.vy > -60) { let best = null, bd = 1e9; g.tanks.forEach((t) => { const d = Math.abs(t.x - s.x); if (d < bd) { bd = d; best = t; } }); if (best) s.vx += Math.sign(best.x - s.x) * 420 * dt; }   // 🎯 guided: it leans toward the nearest tank on the way down
+    s.x += s.vx * dt; s.y += s.vy * dt; if (s.x < -20 || s.x > W + 20) return false;
     if (s.mine) {   // your shells against what the world sent: moles, serpents, balloons
       const hit = (x, y, r, pts, what) => { if (Math.hypot(s.x - x, s.y - y) < r) { S.combo = S.comboT > 0 ? S.combo + 1 : 1; S.comboT = 3; const p = pts * fibMult(S.combo); host.add(p); killsN += 1; g.fx.push({ kind: 'text', x, y: y - 22, text: `${what} +${p}`, life: 1.1, big: true, col: '#FFE08A' }); g.fx.push({ kind: 'ring', x, y, r: 4, R: 30, life: 0.35 }); sfx('cheer', { delay: 0.05 }); return true; } return false; };
       const m = g.moles.find((q) => q.t > 0.5 && hit(q.x, hAt(q.x) - 6, 26, 120, '🕳️ MOLE'));   // near misses count if (m) { m.hp = 0; return false; }
       const l = g.lakes.find((q) => q.serpent && hit(q.serpent.x, q.y - 26, 28, 200, '🌊 SERPENT')); if (l) { l.serpent.hp = 0; return false; }
       const b = g.balloons.find((q) => hit(q.x, q.y, 28, 150, '🎈 BALLOON')); if (b) { b.hp = 0; return false; }
       const w = g.worms.find((q) => q.phase === 'up' && hit(q.x, hAt(q.x) - 24, 28, 180, '🪱 WORM')); if (w) { w.hp = 0; return false; }
-    } if (s.y >= hAt(s.x)) { boom(s.x, s.y, s.big ? 34 : 22, s.mine); return false; } return true; });
+    } if (s.y >= hAt(s.x)) { boom(s.x, s.y, s.napalm ? 52 : s.big ? 34 : 22, s.mine); if (s.napalm) for (let i = 0; i < 30; i++) g.fx.push({ kind: 'dot', x: s.x + (Math.random() - 0.5) * 100, y: hAt(s.x + (Math.random() - 0.5) * 100) - 4, vx: (Math.random() - 0.5) * 30, vy: -60 - Math.random() * 90, c: ['#FF5A3A', '#FFB347', '#FFE08A'][i % 3], life: 0.9 + Math.random() * 0.6, r: 3 }); return false; } return true; });
   g.meteors = g.meteors.filter((m) => { m.y += m.vy * dt; m.x += m.vx * dt; m.vy += 120 * dt; if (m.y >= hAt(m.x)) { boom(m.x, m.y, 40, false); g.tanks.filter((t) => Math.abs(t.x - m.x) < 46).forEach((t) => { g.tanks.splice(g.tanks.indexOf(t), 1); killsN += 1; host.add(75); g.fx.push({ kind: 'text', x: t.x, y: m.y - 30, text: 'FLATTENED +75', life: 1 }); }); return false; } return true; });
   g.tanks.forEach((t) => { if (t.flash > 0) t.flash -= dt; });
   g.fx.forEach((f) => { f.life -= dt; if (f.kind === 'dot') { f.x += f.vx * dt; f.y += f.vy * dt; f.vy += 300 * dt; } else if (f.kind === 'ring') f.r += (f.R - f.r) * Math.min(1, dt * 14); else f.y -= 24 * dt; });
@@ -224,7 +234,12 @@ function draw(t) {
   if (g.shield) { ctx.strokeStyle = '#7FD3F7'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(g.me.x, hAt(g.me.x) - 10, 22, 0, 7); ctx.stroke(); }
   if (drag) { const dx = drag.x - drag.x0, dy = drag.y - drag.y0, d = Math.min(160, Math.hypot(dx, dy)), a = Math.atan2(-dy, -dx), my = hAt(g.me.x) - 10; ctx.strokeStyle = `rgba(255,${230 - d},120,0.9)`; ctx.lineWidth = 3; ctx.setLineDash([5, 5]); ctx.beginPath(); ctx.moveTo(g.me.x, my);
     let px = g.me.x, py = my, vx = Math.cos(a) * (240 + d * 2.9), vy = Math.sin(a) * (240 + d * 2.9); for (let i = 0; i < 26; i++) { vy += G * 0.04; vx += g.wind * 0.04 * 0.6; px += vx * 0.04; py += vy * 0.04; ctx.lineTo(px, py); if (py > hAt(px)) break; } ctx.stroke(); ctx.setLineDash([]); }
-  g.shells.forEach((s) => { ctx.fillStyle = s.mine ? '#3DD6C6' : '#FF8A3D'; ctx.beginPath(); ctx.arc(s.x, s.y, s.big ? 6 : 4, 0, 7); ctx.fill(); });
+  g.shells.forEach((s) => { ctx.fillStyle = s.napalm ? '#FF5A3A' : s.homing ? '#FFE08A' : s.mine ? '#3DD6C6' : '#FF8A3D'; ctx.beginPath(); ctx.arc(s.x, s.y, s.big ? 6 : 4, 0, 7); ctx.fill(); if (s.napalm) { ctx.strokeStyle = '#FFB34788'; ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.x - s.vx * 0.05, s.y - s.vy * 0.05); ctx.stroke(); } });
+  g.drones.forEach((d) => { ctx.save(); ctx.translate(d.x, d.y); ctx.scale(Math.sign(d.vx), 1); ctx.fillStyle = '#3DD6C6'; ctx.beginPath(); ctx.roundRect(-12, -5, 24, 10, 4); ctx.fill(); ctx.strokeStyle = '#C9FFF8'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-16, -8); ctx.lineTo(16, -8); ctx.stroke(); const sp = (t / 30) % 6.28; ctx.beginPath(); ctx.ellipse(-14, -8, 7 * Math.abs(Math.cos(sp)), 1.5, 0, 0, 7); ctx.ellipse(14, -8, 7 * Math.abs(Math.sin(sp)), 1.5, 0, 0, 7); ctx.stroke(); ctx.fillStyle = '#fff'; ctx.font = '9px system-ui'; ctx.textAlign = 'center'; ctx.fillText('ALLY', 0, 3); ctx.restore(); });
+  g.drops.forEach((c) => { const a = ARTY[c.kind]; if (c.down) { ctx.fillStyle = '#C9FFF8'; ctx.beginPath(); ctx.arc(c.x, c.y - 22, 16, Math.PI, 0); ctx.fill(); ctx.strokeStyle = '#ffffff88'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(c.x - 14, c.y - 22); ctx.lineTo(c.x - 8, c.y - 8); ctx.moveTo(c.x + 14, c.y - 22); ctx.lineTo(c.x + 8, c.y - 8); ctx.stroke(); }
+    const blink = !c.down && c.life < 3 && Math.sin(t / 80) > 0; ctx.fillStyle = blink ? '#FFE08A' : '#8A5A2B'; ctx.beginPath(); ctx.roundRect(c.x - 10, c.y - 8, 20, 16, 3); ctx.fill(); ctx.strokeStyle = '#F5C542'; ctx.lineWidth = 1.5; ctx.strokeRect(c.x - 10, c.y - 8, 20, 16); ctx.font = '12px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(a.icon, c.x, c.y); ctx.textBaseline = 'alphabetic';
+    if (!c.down) { ctx.fillStyle = '#C9FFF8'; ctx.font = '900 9px system-ui'; ctx.fillText('TAP', c.x, c.y - 14); } });
+  g.bolts.forEach((bl) => { ctx.save(); ctx.globalAlpha = Math.min(1, bl.life * 4); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; const path = () => { ctx.beginPath(); bl.pts.forEach(([x, y], i) => ctx[i ? 'lineTo' : 'moveTo'](x, y)); }; ctx.strokeStyle = '#9BE7FF'; ctx.shadowColor = '#9BE7FF'; ctx.shadowBlur = 12; ctx.lineWidth = 4; path(); ctx.stroke(); ctx.shadowBlur = 0; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; path(); ctx.stroke(); ctx.restore(); });
   g.meteors.forEach((m) => { ctx.fillStyle = '#FF8A3D'; ctx.beginPath(); ctx.arc(m.x, m.y, 8, 0, 7); ctx.fill(); ctx.strokeStyle = '#FFE08A88'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(m.x - m.vx * 0.15, m.y - m.vy * 0.15); ctx.stroke(); });
   g.fx.forEach((f) => { ctx.globalAlpha = Math.max(0, Math.min(1, f.life * 1.5)); if (f.kind === 'dot') { ctx.fillStyle = f.c; ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, 7); ctx.fill(); } else if (f.kind === 'ring') { ctx.strokeStyle = '#FFC857'; ctx.lineWidth = 5 * f.life * 2; ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, 7); ctx.stroke(); } else { ctx.font = f.big ? '400 20px Bungee, Impact, sans-serif' : '900 14px Nunito, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = f.col || '#FFE08A'; ctx.strokeStyle = '#1B1030'; ctx.lineWidth = 4; ctx.strokeText(f.text, f.x, f.y); ctx.fillText(f.text, f.x, f.y); } });
   ctx.globalAlpha = 1;
@@ -235,7 +250,7 @@ const organ = {
   glitch(on, pal) { if (g) { g.glitch = on; g.glitchPal = pal; } },
   init(h) { host = h; ctx = h.ctx; S = h.S; sfx = h.sfx; window.__ht = organ.debug; },
   start() { newGame(); },
-  enter(from) { if (!g) newGame(); bar = host.ui('<div class="wbar" id="hbar" aria-label="Arsenal"></div>').querySelector('.wbar'); renderBar(); drag = null; if (from) { g.shells = g.shells.filter((s) => s.mine); g.fireT = Math.max(g.fireT, 1.5); if (!g.tanks.length) addTank(); } },
+  enter(from) { if (!g) newGame(); bar = host.ui('<div class="wbar" id="hbar" aria-label="Artillery"></div>').querySelector('.wbar'); renderBar(); drag = null; if (from) { g.shells = g.shells.filter((s) => s.mine); g.fireT = Math.max(g.fireT, 1.5); if (!g.tanks.length) addTank(); } },
   leave() { bar = null; drag = null; return g ? { x: g.me.x, y: hAt(g.me.x) - 10 } : null; },
   update, draw, onBeat,
   pointer(type, p) { if (type === 'down') drag = { x0: p.x, y0: p.y, x: p.x, y: p.y }; else if (type === 'move') { if (drag) { drag.x = p.x; drag.y = p.y; } } else if (drag) { if (Math.hypot(drag.x - drag.x0, drag.y - drag.y0) < 10) tap(drag.x0, drag.y0); else fire(drag.x - drag.x0, drag.y - drag.y0); drag = null; } },
@@ -243,7 +258,7 @@ const organ = {
   level: () => 1 + Math.floor(killsN / 5),
   overText: (how) => (how === 'shelled' ? ['💥 KNOCKED OUT', 'Too many direct hits.'] : ['RUN OVER', '']),
   endStats: () => (g ? `💥 ${killsN} K.O. from ${shotsN} shells` : ''),
-  debug: () => g && ({ ...(() => ({ me: g.me.x, tanks: g.tanks.length, moles: g.moles.length, lakes: g.lakes.length, balloons: g.balloons.length, worms: g.worms.length, wormsAt: g.worms.map((w) => ({ ...wormHead(w), phase: w.phase, t: w.t })), arms: JSON.parse(JSON.stringify(g.arms)), tap, stage: stage() }))() }),
+  debug: () => g && ({ ...(() => ({ me: g.me.x, tanks: g.tanks.length, moles: g.moles.length, lakes: g.lakes.length, balloons: g.balloons.length, worms: g.worms.length, wormsAt: g.worms.map((w) => ({ ...wormHead(w), phase: w.phase, t: w.t })), arty: g.arty, drones: g.drones.length, drops: g.drops.map((c) => ({ x: c.x, y: c.y, kind: c.kind, down: c.down })), tap, stage: stage() }))() }),
   debug0: () => g && ({ tanks: g.tanks.map((t) => ({ x: t.x, y: hAt(t.x), gold: t.gold, quiet: t.quiet })), me: { x: g.me.x, y: hAt(g.me.x) }, shells: g.shells.length, kills: killsN, wind: g.wind, twist: g.twist?.kind || null, W, H: H(), fire }),
 };
 export default organ;

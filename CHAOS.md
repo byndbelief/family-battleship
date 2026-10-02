@@ -218,13 +218,13 @@ The set's escape-time bands hug the coast, gold at the edge into deep blue. **Pu
 courses**: the fairway's walk may use a wider and wider slice of the field (40% on course 1, the whole
 width from course 5) and from course 4 the bends lean sideways.
 
-**The arsenal grows with the stage (Hilltop).** New enemies bring new weapons, used by tapping the enemy
-itself: 🎯 flak from Stage 2 for what flies (balloons, meteors), ❄️ frost from Stage 3 for what comes up
-from the earth's core (🪱 magma worms: one starts at the very bottom of the world and tunnels up through the
-dirt, glowing, so the zoomed-out board is what lets you watch it coming; it breaks the surface, rears up and
-spits lava; freeze it while it's still underground for 300), ⚡
-EMP from Stage 4 for what crawls (moles, serpents). Each has a few charges that come back over time (the
-bar bottom-right; locked ones show the stage they arrive at). The cannon (drag) still works on everything.
+**Hilltop's taps and artillery.** A tap on an enemy is a weapon of its own, unlimited and never shown: ⚡
+lightning strikes what is on or under the ground (moles, serpents, 🪱 magma worms, even one still tunnelling
+up from the core, for 300), a 🎯 target locks what flies (balloons, meteors) and it drops. The cannon (drag)
+still works on everything. From Stage 2 an ally drone crosses now and then and drops a crate near you; tap it
+to pick up a few rounds of artillery the cannon then fires: 🧨 cluster (three shells a shot), 💣 heavy (a
+bigger crater), 🔥 napalm (a wide burn), 🎯 guided (steers to the nearest tank). The bar bottom-right shows
+what's loaded and how many rounds are left.
 **Putt repairs.** From course 2 each hole comes with repairs (🔧 1, then 2 from course 4, 3 from course 6):
 tap a bumper, a sand trap or a pond to fix it; the par is re-estimated.
 

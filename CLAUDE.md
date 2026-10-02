@@ -851,15 +851,18 @@ snake tap 44. Test: `t_mid`.
 from `H − 78` to `H × 0.52` and `laneY(i)` from the 0.2–0.7 band to 0.1–0.9 by it. Tap radii 36–44,
 `land()` ±26 of a lane and ±12 past a ship's ends. Hilltop: shell hit radii 26–28, tap radii 36–40.
 Test: `t_sea`.
-**Hilltop's arsenal and worms.** `ARMS` (flak/frost/emp: stage, max charges, cooldown, hint), `g.arms[k]
-= {n, t}` recharging in `update`, `renderBar()` into `host.ui` (`.wbar`, re-rendered when the stage
-changes), `tap(x, y)` on a pointer-up that moved < 10 (else `fire`): finds the enemy under the tap and
-`kill()`s it with its domain's arm (locked → a Fig cue, empty → buzz). `g.worms` (Stage 3+, cap st − 2): `phase 'dig'`
-from `y = H() + 10` up at `spd` until `hAt(x)`, then `'up'` (rear 0.8 s, spit at 1 s, gone at 3.2 s);
-`wormHead(w)` is the tap target in either phase; the tunnel is drawn from the world's bottom; shells hit
-only surfaced worms (180). `__ht()` has `wormsAt`,
-`arms`, `tap`. putt.js: `g.fixes` per hole (0/1/2/3 by course), `fix(x, y)` on a pointer-up that moved
-< 8 removes the hazard under it and re-runs `parOf()`; `__pt()` has `fix`, `bumps`. Test: `t_arms`.
+**Hilltop's taps, worms and artillery.** `tap(x, y)` on a pointer-up that moved < 10 (else `fire`): a crate
+within 34 → `pickUp`; balloons/meteors → `kill('🎯', …)`; worms/moles/serpents → `kill('⚡', …, true)`,
+which pushes a jagged `g.bolts` entry from the sky; no charges, no gating. `g.worms` (Stage 3+, cap st − 2):
+`phase 'dig'` from `y = H() + 10` up at `spd` until `hAt(x)`, then `'up'` (rear 0.8 s, spit at 1 s, gone
+at 3.2 s); `wormHead(w)` is the tap target in either phase; shells hit only surfaced worms (180). `ARTY`
+(cluster/heavy/napalm/guided: rounds, desc); `g.drones` (ally, Stage 2+, `droneT`, one at a time) drop a
+crate (`g.drops`, falls at 110/s to the ridge, waits 20 s) within 140 of you; `pickUp` sets
+`g.arty = {kind, n}` and `renderBar()` shows it in `host.ui`'s `.wbar` (empty when nothing is loaded);
+`fire()` spends a round: cluster → three shots, heavy → `big`, napalm → `boom` r 52 + embers, guided →
+`homing` (shells lean toward the nearest tank once falling). `__ht()` has `wormsAt`, `arty`, `drops`,
+`tap`. putt.js: `g.fixes` per hole (0/1/2/3 by course), `fix(x, y)` on a pointer-up that moved < 8 removes
+the hazard under it and re-runs `parOf()`; `__pt()` has `fix`, `bumps`. Tests: `t_arty`, `t_arms`.
 **A gentle start** (organs read `host.stage()` and their own level): putt.js fairways are corridors
 (`g.path` polyline, `g.pw` width; `corridor(bends, course)` retries a turning walk inside the world,
 `nearest()` gives the wall for the bounce and the gopher's drop, `spot(margin)` places hazards on the
