@@ -165,7 +165,7 @@ function dropCrate() {
   game.crates.push({ x: 40 + Math.random() * (W - 80), y: -30, w, life: 14, sway: Math.random() * 6 });   // 📦 slow under its chute, and it waits a while on the ground
 }
 function openCrate(c) {
-  game.crates.splice(game.crates.indexOf(c), 1); host.cue?.('pickup', c.x);
+  game.crates.splice(game.crates.indexOf(c), 1); host.cue?.('pickup', c.x, c.y);
   game.arsenal[c.w] = (game.arsenal[c.w] || 0) + WEAPONS[c.w].ammo; game.weapon = c.w;
   host.banner(`${WEAPONS[c.w].icon} ${WEAPONS[c.w].name.toUpperCase()}`, WEAPONS[c.w].desc); sfx('chime'); renderBar();
   burst(c.x, c.y, ['#C98B4A', '#F5C542', '#FFF'], 18);
@@ -183,7 +183,7 @@ function throwAcorn() {
 }
 const acornPos = (a) => { const e = Math.min(1, a.t / a.tf); return { x: a.x0 + (a.x1 - a.x0) * e, y: a.y0 + (a.y1 - a.y0) * e - Math.sin(e * Math.PI) * 70 }; };
 function bonk() {
-  game.stun = 0.7; game.shake = 0.45; host.cue?.('near', STAPLER().x);
+  game.stun = 0.7; game.shake = 0.45; host.cue?.('near', STAPLER().x, STAPLER().y);
   const st = STAPLER(); comic('BONK!', st.x, st.y - 40, '#FF6B5A'); sfx('thud'); sfx('buzz', { delay: 0.1 }); navigator.vibrate?.(120);
   burst(st.x, st.y - 16, ['#8A5A2B', '#C98B4A', '#FFE08A'], 20);
   if (host.hurt('bonked')) game.ko = true;
@@ -285,7 +285,7 @@ function comic(text, x, y, col = '#FFE08A') { game.fx.push({ kind: 'text', x, y,
 function strike(best, quiet) {
   if (!game.squirrels.includes(best)) return;
   const p = sqPos(best);
-  game.hits += 1; host.cue?.('kill', p.x);
+  game.hits += 1; host.cue?.('kill', p.x, p.y);
   if (best.size > 1) {   // 🐿️🐿️ it splits: two smaller ones leap away
     game.squirrels.splice(game.squirrels.indexOf(best), 1);
     for (const d of [-1, 1]) { const kid = { ...best, size: best.size - 1, hop: null, daze: 1.4, angry: 0 }; hopTo(kid, p); kid.hop.x0 = p.x + d * 8; game.squirrels.push(kid); }

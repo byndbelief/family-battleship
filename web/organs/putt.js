@@ -108,12 +108,12 @@ function fix(x, y) {
   const bi = g.bumpers.findIndex((b) => Math.hypot(b.x - x, b.y - y) < b.r + 8), si = g.sand.findIndex((s) => ((x - s.x) / (s.rx + 6)) ** 2 + ((y - s.y) / (s.ry + 6)) ** 2 < 1), wi = g.water.findIndex((w) => ((x - w.x) / (w.rx + 6)) ** 2 + ((y - w.y) / (w.ry + 6)) ** 2 < 1);
   if (bi < 0 && si < 0 && wi < 0) return false;
   if (g.fixes <= 0) { host.banner('🔧 NO REPAIRS LEFT', 'this hole is out of fixes'); sfx('buzz'); return true; }
-  g.fixes -= 1; let what; host.cue?.('score', x);
+  g.fixes -= 1; let what; host.cue?.('score', x, y);
   if (bi >= 0) { what = g.bumpers.splice(bi, 1)[0]; } else if (si >= 0) { what = g.sand.splice(si, 1)[0]; } else { what = g.water.splice(wi, 1)[0]; }
   g.fx.push({ kind: 'text', x: what.x, y: what.y - 16, text: `🔧 FIXED · ${g.fixes} left`, life: 1 }); for (let i = 0; i < 10; i++) { const a = Math.random() * 6.28, v = 40 + Math.random() * 90; g.fx.push({ kind: 'dot', x: what.x, y: what.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 50, c: '#A8E08A', life: 0.6, r: 2 }); }
   sfx('clack'); g.par = parOf(); return true;
 }
-function shoo() { const gp = g.gopher; g.gopher = null; host.add(100); host.cue?.('score', gp.x); g.fx.push({ kind: 'text', x: gp.x, y: gp.y - 16, text: 'SHOO! +100', life: 0.9 }); sfx('clack'); }
+function shoo() { const gp = g.gopher; g.gopher = null; host.add(100); host.cue?.('score', gp.x, gp.y); g.fx.push({ kind: 'text', x: gp.x, y: gp.y - 16, text: 'SHOO! +100', life: 0.9 }); sfx('clack'); }
 function pickUp() {
   S.combo = 0; sfx('buzz');
   const dead = host.hurt('picked up'); if (dead) return;
@@ -122,7 +122,7 @@ function pickUp() {
   g.v = { x: 0, y: 0 }; g.ball = null; newCup();
 }
 function sink(c) {
-  S.combo = S.comboT > 0 ? S.combo + 1 : 1; S.comboT = 3; host.cue?.('kill', c.x);
+  S.combo = S.comboT > 0 ? S.combo + 1 : 1; S.comboT = 3; host.cue?.('kill', c.x, c.y);
   const base = c.gold ? 500 : g.putts <= 1 ? 200 : 100, pts = base * fibMult(S.combo); host.add(pts); sunkN += 1;
   g.fx.push({ kind: 'text', x: c.x, y: c.y - 18, text: `${g.putts <= 1 ? 'ACE! ' : c.gold ? 'GOLDEN ' : ''}+${pts}`, life: 1.2, big: true, col: c.gold ? '#F5C542' : '#FFE08A' });
   for (let i = 0; i < 18; i++) { const a = Math.random() * 6.28, v = 40 + Math.random() * 120; g.fx.push({ kind: 'dot', x: c.x, y: c.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 60, c: ['#F2C14E', '#fff', '#7FD3F7'][i % 3], life: 0.8, r: 2 }); }

@@ -109,8 +109,37 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     organ: () => active?.key, activeBeat: () => active?.beat || 1, stage: () => stageOf() + 1,   // 🎚️ the run's stage, for organs that grow with it
     // 🟢 Fig in the corner watches the field from outside it: organs cue it on what happens and where (x in world units),
     // it turns to look that way and acts it out — a kill bounces it, a score winks, a near miss makes it flinch, a pickup is a gift
-    cue: (kind, x) => { if (x != null) pal.set({ face: x < host.W * 0.3 ? -1 : 1 }); if (kind === 'kill') pal.force('big', 0.9); else if (kind === 'score') pal.force('fib', 0.8); else if (kind === 'near') pal.force('peak', 0.6); else if (kind === 'pickup') pal.force('gift', 1.2); else if (kind === 'look') { /* just the glance */ } },
+    cue: (kind, x, y) => { if (x != null) pal.set({ face: x < host.W * 0.3 ? -1 : 1 }); if (kind === 'kill') pal.force('big', 0.9); else if (kind === 'score') pal.force('fib', 0.8); else if (kind === 'near') pal.force('peak', 0.6); else if (kind === 'pickup') pal.force('gift', 1.2);
+      if (x != null) { lunge(kind, x, y); if (kind !== 'look' && y != null) sparks(kind, x, y); } },
   };
+  // 🟢 Fig reaches into the field: the chip lunges toward the action (a nudge of its canvas toward where it happened, then
+  // back), and sparks fly from Fig across the board to the spot — gold stars for a kill, teal motes for a score, a red
+  // shock ring for a near miss, a heart for a pickup. Drawn by the shell over the organ, in device pixels.
+  let lungeT = null, figfx = [];
+  const palPt = () => { const r = $('spal').getBoundingClientRect(), c = cv.getBoundingClientRect(); return { x: (r.left + r.width / 2 - c.left) * (cv.width / c.width), y: (r.top + r.height * 0.56 - c.top) * (cv.height / c.height) }; };
+  function lunge(kind, x, y) {
+    const r = $('spal').getBoundingClientRect(), c = cv.getBoundingClientRect(), tx = c.left + ((x * host.k + host.ox) / host.dpr), ty = c.top + (((y ?? host.H * 0.5) * host.k + host.oy) / host.dpr);
+    const dx = tx - (r.left + r.width / 2), dy = ty - (r.top + r.height / 2), d = Math.hypot(dx, dy) || 1, amt = kind === 'look' ? 6 : kind === 'near' ? -10 : 16;
+    const el = $('spal'); el.style.transition = 'transform .12s ease-out'; el.style.transform = `translate(${(dx / d) * amt}px, ${(dy / d) * amt}px) scale(${kind === 'kill' ? 1.25 : kind === 'near' ? 0.9 : 1.1})`;
+    clearTimeout(lungeT); lungeT = setTimeout(() => { el.style.transition = 'transform .35s cubic-bezier(.3,1.6,.5,1)'; el.style.transform = ''; }, 140);
+  }
+  function sparks(kind, x, y) {
+    const from = palPt(), to = { x: x * host.k + host.ox, y: y * host.k + host.oy }, d = host.dpr;
+    const n = kind === 'kill' ? 9 : kind === 'score' ? 6 : kind === 'pickup' ? 1 : 1;
+    for (let i = 0; i < n; i++) figfx.push({ kind, x0: from.x, y0: from.y, x1: to.x, y1: to.y, t: -i * 0.03, dur: kind === 'near' ? 0.5 : 0.45 + Math.random() * 0.2, arc: (Math.random() - 0.5) * 140 * d, s: (kind === 'pickup' ? 14 : 4 + Math.random() * 4) * d, spin: Math.random() * 6 });
+  }
+  function drawFigfx(dt) {
+    if (!figfx.length) return; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+    figfx = figfx.filter((f) => { f.t += dt; if (f.t < 0) return true; const e = Math.min(1, f.t / f.dur), ee = e * e * (3 - 2 * e);
+      if (f.kind === 'near') { const r = 10 * host.dpr + ee * 60 * host.dpr; ctx.globalAlpha = 1 - e; ctx.strokeStyle = '#FF5A3A'; ctx.lineWidth = 3 * host.dpr; ctx.beginPath(); ctx.arc(f.x0, f.y0, r, 0, 7); ctx.stroke(); return e < 1; }
+      const x = f.x0 + (f.x1 - f.x0) * ee, y = f.y0 + (f.y1 - f.y0) * ee - Math.sin(e * Math.PI) * f.arc;
+      ctx.globalAlpha = e < 0.85 ? 1 : (1 - e) / 0.15; ctx.save(); ctx.translate(x, y); ctx.rotate(f.spin + e * 6);
+      if (f.kind === 'kill') { ctx.fillStyle = '#F5C542'; ctx.shadowColor = '#F5C542'; ctx.shadowBlur = 8 * host.dpr; ctx.beginPath(); for (let k = 0; k < 10; k++) { const a = (k / 10) * 6.28, rr = k % 2 ? f.s * 0.45 : f.s; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } ctx.closePath(); ctx.fill(); }
+      else if (f.kind === 'score') { ctx.fillStyle = '#3DD6C6'; ctx.shadowColor = '#3DD6C6'; ctx.shadowBlur = 6 * host.dpr; ctx.beginPath(); ctx.arc(0, 0, f.s * 0.6, 0, 7); ctx.fill(); }
+      else { ctx.fillStyle = '#FF5FB0'; ctx.font = `${Math.round(f.s)}px serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('💚', 0, 0); }
+      ctx.restore(); return e < 1; });
+    ctx.restore();
+  }
   // ---------------------------------------------------------------- sizing
   function size() {
     const fs = !!document.querySelector('#play.fs-on');
@@ -291,6 +320,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
       if (p >= 1) transition = null;
     }
     if (glitchT > 0) { glitchT -= dt; if (!reduceMotion) tear(); if (glitchT <= 0) { applyTheme(); active?.glitch?.(false); } }
+    if (!reduceMotion) drawFigfx(dt);
     if (lens?.kind === 'wire') wireframe();
     requestAnimationFrame(loop);
   }
@@ -328,7 +358,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   function showOver(html) { $('overCard').innerHTML = html; $('over').hidden = false; const a = $('again'); if (a) a.onclick = startRun; }
   // ---------------------------------------------------------------- input: the shell listens, the organ decides
   const toWorld = (e) => { const r = cv.getBoundingClientRect(); const sx = cv.width / r.width, sy = cv.height / r.height; let x = ((e.clientX - r.left) * sx - host.ox) / host.k; if (lens?.kind === 'mirror') x = host.W - x; return { x: Math.max(0, Math.min(host.W, x)), y: Math.max(0, Math.min(host.H, ((e.clientY - r.top) * sy - host.oy) / host.k)) }; };   // through the zoom-out (and a mirror lens), clamped to the world
-  const fwd = (type) => (e) => { if (type === 'down') e.preventDefault(); if (running && !S.over && active) { const p = toWorld(e); if (type === 'down') host.cue('look', p.x); active.pointer(type, p, e); } };   // Fig glances at where you touch
+  const fwd = (type) => (e) => { if (type === 'down') e.preventDefault(); if (running && !S.over && active) { const p = toWorld(e); if (type === 'down') host.cue('look', p.x, p.y); else if (type === 'move' && (e.buttons || e.touches)) pal.set({ face: p.x < host.W * 0.3 ? -1 : 1 }); active.pointer(type, p, e); } };   // Fig's eyes follow your finger
   cv.addEventListener('pointerdown', fwd('down')); cv.addEventListener('pointermove', fwd('move'));
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((ev) => cv.addEventListener(ev, fwd('up')));
   addEventListener('keydown', (e) => { if (running && !S.over) active?.keydown?.(e); });

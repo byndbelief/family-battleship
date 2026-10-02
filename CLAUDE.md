@@ -808,9 +808,13 @@ fractal.js `drone` obstacles in `g.obs` (killed by a dash, else `hurt('droned')`
 `planes`/`bombs`/`subs` (a sub pushes a real torpedo into `g.torps`; `fire()` tests them before the
 ammo path), putt.js `g.gopher` (`restT` counts the ball's stillness; `shoo()` from `pointer`). Each
 `__xx()` debug reports the counts. Tests: `t_wide`, `t_wide2`.
-**Fig watches the field (shell.js `host.cue(kind, x)`).** Organs call `host.cue?.('kill'|'score'|'near'|
-'pickup'|'look', x)` with x in world units; the shell turns the pal to face that side (`x < W × 0.3` → left)
-and forces a mood (`big`, `fib`, `peak`, `gift`). A pointer-down cues `look`. Hilltop: my shells also
+**Fig watches the field and reaches in (shell.js `host.cue(kind, x, y)`).** Organs call
+`host.cue?.('kill'|'score'|'near'|'pickup'|'look', x, y)` in world units; the shell turns the pal to face
+that side (`x < W × 0.3` → left), forces a mood (`big`, `fib`, `peak`, `gift`), `lunge()`s the `#spal`
+canvas a few px toward the spot (CSS transform, springs back after 140 ms) and, with a y, `sparks()`
+particles from the chip (`palPt()`, device px) to the spot, drawn by `drawFigfx` after the organ (stars /
+motes / a shock ring at Fig / a 💚). A pointer-down cues `look`; a drag/touch move sets the pal's face.
+Test: `t_fig` (a worm tap sets a translate+scale transform on `#spal`, cleared ~0.5 s later). Hilltop: my shells also
 intercept enemy shells within 22 (60 pts) and the target takes one on a tap within 34.
 **Fig is the player, notices go through Fig (shell.js, organs).** `banner(t, sub)` now shows `t` as a
 small pill beside the pal (`.sbanner`, left of the field under the score; `sub` only lands in the

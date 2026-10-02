@@ -64,7 +64,7 @@ function fire(x, y) {
   const b = BOAT();
   // a torpedo under your finger: blow it up, whatever you're doing
   const tp = g.torps.find((t) => { const q = torpPos(t); return Math.hypot(q.x - x, q.y - y) < 40; });
-  if (tp) { const q = torpPos(tp); g.torps.splice(g.torps.indexOf(tp), 1); host.add(25); host.cue?.('score', q.x); splash(q.x, q.y, '#FFE08A', 14); g.fx.push({ kind: 'text', x: q.x, y: q.y - 10, text: 'DEFUSED +25', life: 0.9 }); sfx('clack'); return; }
+  if (tp) { const q = torpPos(tp); g.torps.splice(g.torps.indexOf(tp), 1); host.add(25); host.cue?.('score', q.x, q.y); splash(q.x, q.y, '#FFE08A', 14); g.fx.push({ kind: 'text', x: q.x, y: q.y - 10, text: 'DEFUSED +25', life: 0.9 }); sfx('clack'); return; }
   const pl = g.planes?.find((p) => Math.hypot(p.x - x, p.y - y) < 40); if (pl) { g.planes.splice(g.planes.indexOf(pl), 1); host.add(150); splash(pl.x, pl.y, '#FFB07A', 16); g.fx.push({ kind: 'text', x: pl.x, y: pl.y - 10, text: 'SHOT DOWN +150', life: 0.9 }); sfx('boom', { size: 0.8 }); return; }
   const bm = g.bombs?.find((q) => Math.hypot(q.x - x, q.y - y) < 36); if (bm) { g.bombs.splice(g.bombs.indexOf(bm), 1); host.add(50); splash(bm.x, bm.y, '#FFE08A', 12); g.fx.push({ kind: 'text', x: bm.x, y: bm.y - 10, text: 'DEFUSED +50', life: 0.9 }); sfx('clack'); return; }
   const sub = g.subs?.find((s) => s.up > 0.5 && Math.hypot(s.x - x, s.y - y) < 44); if (sub) { g.subs.splice(g.subs.indexOf(sub), 1); host.add(250); splash(sub.x, sub.y, '#C9B8FF', 20); g.fx.push({ kind: 'text', x: sub.x, y: sub.y - 14, text: 'SUB SUNK +250', life: 1.1, big: true }); sfx('boom', { size: 1.1 }); return; }
@@ -88,7 +88,7 @@ function land(x, y) {
   if (s.hits[i]) { splash(x, y, '#FFB07A', 6); return; }
   s.hits[i] = true; splash(x, y, '#FF8A3D', 16); sfx('boom', { size: 0.8 });
   if (s.hits.every(Boolean)) {
-    g.ships.splice(g.ships.indexOf(s), 1); sunkN += 1; host.cue?.('kill', x);
+    g.ships.splice(g.ships.indexOf(s), 1); sunkN += 1; host.cue?.('kill', x, y);
     S.combo = S.comboT > 0 ? S.combo + 1 : 1; S.comboT = 2;
     const pts = (s.gold ? 500 : 100 * s.len) * fibMult(S.combo); host.add(pts);
     g.fx.push({ kind: 'text', x: s.x + s.len * CELL / 2, y: laneY(s.lane) - 14, text: `${s.gold ? 'GOLDEN ' : ''}SUNK +${pts}`, life: 1.2, big: true, col: s.gold ? '#F5C542' : '#FFE08A' });
@@ -108,7 +108,7 @@ function update(dt) {
   g.shells = g.shells.filter((s) => { s.t += dt; if (whirl) s.x += Math.sin(g.time * 3 + s.y) * 40 * dt; if (s.t >= s.tf) { land(s.x, s.y); return false; }
     // in flight: whatever the shell meets on the way takes it — a plane, a bomb, a torpedo, a surfaced sub, or an enemy ship it passes low over
     const e = s.t / s.tf, sx = s.x0 + (s.x - s.x0) * e, sy = s.y0 + (s.y - s.y0) * e - Math.sin(e * Math.PI) * 60;
-    const take = (x, y, pts, what) => { S.combo = S.comboT > 0 ? S.combo + 1 : 1; S.comboT = 2; const p = pts * fibMult(S.combo); host.add(p); host.cue?.('kill', x); splash(x, y, '#FFE08A', 14); g.fx.push({ kind: 'text', x, y: y - 12, text: `${what} +${p}`, life: 0.9 }); sfx('boom', { size: 0.6 }); };
+    const take = (x, y, pts, what) => { S.combo = S.comboT > 0 ? S.combo + 1 : 1; S.comboT = 2; const p = pts * fibMult(S.combo); host.add(p); host.cue?.('kill', x, y); splash(x, y, '#FFE08A', 14); g.fx.push({ kind: 'text', x, y: y - 12, text: `${what} +${p}`, life: 0.9 }); sfx('boom', { size: 0.6 }); };
     const pl = (g.planes || []).find((q) => Math.hypot(q.x - sx, q.y - sy) < 24); if (pl) { g.planes.splice(g.planes.indexOf(pl), 1); take(pl.x, pl.y, 150, 'SHOT DOWN'); return false; }
     const bm = (g.bombs || []).find((q) => Math.hypot(q.x - sx, q.y - sy) < 20); if (bm) { g.bombs.splice(g.bombs.indexOf(bm), 1); take(bm.x, bm.y, 50, 'DEFUSED'); return false; }
     const tp = g.torps.find((q) => { const t2 = torpPos(q); return Math.hypot(t2.x - sx, t2.y - sy) < 20; }); if (tp) { const t2 = torpPos(tp); g.torps.splice(g.torps.indexOf(tp), 1); take(t2.x, t2.y, 25, 'DEFUSED'); return false; }
