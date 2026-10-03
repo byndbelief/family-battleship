@@ -147,7 +147,8 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     const el = $('spal'), r = el.getBoundingClientRect(), c = cv.getBoundingClientRect();
     const dx = (c.left + c.width / 2) - (r.left + r.width / 2), dy = (c.top + c.height * 0.42) - (r.top + r.height / 2);
     clearTimeout(lungeT); clearTimeout(flyT);
-    el.style.transition = 'transform .3s cubic-bezier(.2,.9,.3,1.2)'; el.style.transform = `translate(${dx}px, ${dy}px) scale(2.6) rotate(360deg)`;
+    const m = S.curve.mood, spin = m === 'fig' ? 720 : m === 'kit' ? 0 : m === 'bit' ? 90 : m === 'phi' ? 360 : 180, flip = m === 'kit' ? ' scaleX(-1)' : '';   // Wild spins twice, Mirror flips, Boxy a quarter turn, Golden one turn
+    el.style.transition = 'transform .3s cubic-bezier(.2,.9,.3,1.2)'; el.style.transform = `translate(${dx}px, ${dy}px) scale(2.6) rotate(${spin}deg)${flip}`;
     flyT = setTimeout(() => { el.style.transition = 'transform .45s cubic-bezier(.3,1.4,.5,1)'; el.style.transform = ''; flyT = setTimeout(() => { flyT = null; }, 450); }, Math.max(300, dur * 1000 - 200));
   }
   // ---------------------------------------------------------------- sizing
@@ -259,7 +260,9 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     lastUsed.set(active, S.beats); prev = active; active = to; tenure = 0; S.morphs += 1;
     active.enter(prev.key, anchor);
     applyTheme(); openCalm();
-    transition = { t: 0, dur: reduceMotion ? 0.05 : (why === 'golden' ? 1.1 : 0.9), snap, why, anchor };
+    // 🟢 the morph is done in the mood Fig is in: Wild tears, Mirror folds, Boxy tiles, Golden spirals (calm: a plain pull-in)
+    const mood = S.curve.mood || 'calm', strips = Array.from({ length: 14 }, (_, i) => ({ i, vx: (Math.random() - 0.5) * 2.4, rot: (Math.random() - 0.5) * 0.9, col: ['#3DD6C6', '#FF5A4A', '#B9A6FF'][i % 3] }));
+    transition = { t: 0, dur: reduceMotion ? 0.05 : (mood === 'phi' ? 1.2 : mood === 'bit' ? 1.0 : 0.9), snap, why, anchor, mood, strips };
     if (!reduceMotion) fly(transition.dur); wave('morph', true); banner(`${to.icon} ${to.name.toUpperCase()}`, `${to.verb} · ${WHY[why]}`); sfx(why === 'golden' ? 'birdie' : 'twist');
   }
   function applyTheme(th = active?.theme) { if (!th) return; Object.entries(th).forEach(([k, v]) => stage.style.setProperty(`--${k}`, v)); }
@@ -325,9 +328,32 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
     (active || organs[0]).draw(t);
     if (transition) {   // the old world zooms away from where you were, and the new one is underneath
       transition.t += dt; const p = Math.min(1, transition.t / transition.dur), e = p * p * (3 - 2 * p);
-      // 🟢 Fig (the chip itself, flown into the middle of the field) pulls the old world into itself: it shrinks toward Fig and turns
-      const fx = cv.width / 2, fy = cv.height * 0.42, z = 1 - e * 0.94, rot = e * (transition.why === 'mirror' ? -0.7 : 0.7);
-      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1 - e * e; ctx.translate(fx, fy); ctx.rotate(rot); ctx.scale(z, z); ctx.translate(-fx, -fy); ctx.drawImage(transition.snap, 0, 0); ctx.restore();
+      // 🟢 Fig (the chip itself, flown into the middle of the field) takes the old world apart in its own way
+      const fx = cv.width / 2, fy = cv.height * 0.42, snap = transition.snap, Wd = cv.width, Hd = cv.height, PHI = 1.618;
+      ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+      if (transition.mood === 'fig') {   // 🌀 WILD: the world is torn into strips that fly off every which way, colour bands bleeding between them
+        const n = transition.strips.length, h = Hd / n;
+        transition.strips.forEach((st) => { const y = st.i * h, k = Math.max(0, e - st.i * 0.02), kk = k * k; ctx.save(); ctx.globalAlpha = 1 - kk; ctx.translate(fx + st.vx * Wd * kk, y + h / 2 + (fy - y - h / 2) * kk * 0.5); ctx.rotate(st.rot * kk); ctx.drawImage(snap, 0, y, Wd, h, -fx, -h / 2, Wd, h); ctx.restore();
+          if (k > 0 && k < 0.6) { ctx.globalCompositeOperation = 'difference'; ctx.globalAlpha = 0.5 * (1 - k); ctx.fillStyle = st.col; ctx.fillRect(0, y + (Math.random() - 0.5) * 8, Wd, h * 0.5); ctx.globalCompositeOperation = 'source-over'; } });
+      } else if (transition.mood === 'kit') {   // ✨ MIRROR: the world folds shut like a page on Fig's axis, its two halves meeting as mirror images, then thins to nothing
+        const fold = Math.cos(e * Math.PI / 2), wing = Wd / 2;
+        [-1, 1].forEach((side) => { ctx.save(); ctx.globalAlpha = 1 - e * e; ctx.translate(fx, 0); ctx.scale(Math.max(0.02, fold), 1); const sx = side < 0 ? 0 : wing; ctx.drawImage(snap, sx, 0, wing, Hd, side < 0 ? -wing : 0, 0, wing, Hd); ctx.restore(); });
+        ctx.globalAlpha = (1 - e) * 0.8; ctx.strokeStyle = '#C9B8FF'; ctx.lineWidth = 3 * host.dpr; ctx.beginPath(); ctx.moveTo(fx, 0); ctx.lineTo(fx, Hd); ctx.stroke();   // the seam
+        ctx.save(); ctx.translate(fx, 0); ctx.scale(-Math.max(0.02, fold), 1); ctx.globalAlpha = (1 - e) * 0.35; ctx.drawImage(snap, 0, 0, wing, Hd, -wing, 0, wing, Hd); ctx.restore();   // its reflection, fainter
+      } else if (transition.mood === 'bit') {   // 🔁 BOXY: the world tiles itself into copies of itself, 1 → 4 → 16 → 64, each smaller, each pulled toward Fig, pixel edges and all
+        const level = Math.min(3, Math.floor(e * 4)), f = e * 4 - level, n = 2 ** level, tw = Wd / n, th = Hd / n;
+        ctx.imageSmoothingEnabled = false;
+        for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) { const cx = (i + 0.5) * tw, cy = (j + 0.5) * th, pull = f * 0.5, z = 1 - f * 0.45; ctx.save(); ctx.globalAlpha = 1 - e * e * 0.9; ctx.translate(cx + (fx - cx) * pull, cy + (fy - cy) * pull); ctx.scale(z, z); ctx.drawImage(snap, 0, 0, Wd, Hd, -tw / 2, -th / 2, tw, th); ctx.restore(); }
+        ctx.imageSmoothingEnabled = true;
+        ctx.globalAlpha = (1 - e) * 0.6; ctx.strokeStyle = '#9BE7FF'; ctx.lineWidth = 1.5 * host.dpr; for (let i = 1; i < n; i++) { ctx.beginPath(); ctx.moveTo(i * tw, 0); ctx.lineTo(i * tw, Hd); ctx.moveTo(0, i * th); ctx.lineTo(Wd, i * th); ctx.stroke(); }
+      } else if (transition.mood === 'phi') {   // 🌻 GOLDEN: the world spirals into Fig, a turn for every φ of shrink, its golden rectangles drawn behind it
+        const turns = e * 2.2, z = Math.pow(PHI, -turns * 2.6);
+        ctx.globalAlpha = (1 - e) * 0.5; ctx.strokeStyle = '#F5C542'; ctx.lineWidth = 2 * host.dpr; for (let k = 0; k < 6; k++) { const w2 = Wd * 0.9 * Math.pow(PHI, -k) * (1 - e * 0.6), h2 = w2 / PHI; ctx.save(); ctx.translate(fx, fy); ctx.rotate(k * Math.PI / 2 + turns * 6.28 * 0.25); ctx.strokeRect(-w2 / 2, -h2 / 2, w2, h2); ctx.restore(); }
+        ctx.save(); ctx.globalAlpha = 1 - e * e; ctx.translate(fx, fy); ctx.rotate(turns * 6.28); ctx.scale(z, z); ctx.translate(-fx, -fy); ctx.drawImage(snap, 0, 0); ctx.restore();
+      } else {   // calm: a plain pull into Fig
+        const z = 1 - e * 0.94, rot = e * 0.7; ctx.save(); ctx.globalAlpha = 1 - e * e; ctx.translate(fx, fy); ctx.rotate(rot); ctx.scale(z, z); ctx.translate(-fx, -fy); ctx.drawImage(snap, 0, 0); ctx.restore();
+      }
+      ctx.restore();
       if (p >= 1) transition = null;
     }
     if (glitchT > 0) { glitchT -= dt; if (!reduceMotion) tear(); if (glitchT <= 0) { applyTheme(); active?.glitch?.(false); } }
@@ -375,7 +401,7 @@ export function runShell({ organs, key, title, icon, intro, again = 'Play again'
   addEventListener('keydown', (e) => { if (running && !S.over) active?.keydown?.(e); });
   addEventListener('keyup', (e) => { if (running && !S.over) active?.keyup?.(e); });
   window.__shell = () => ({ organ: active?.key, prev: prev?.key, calm, glitch: glitchT > 0, mood: S.curve.mood, stage: stageOf() + 1, zoom, widen, W: host.W, lens: lens?.kind || null, H: host.H, oy: host.oy, cw: cv.getBoundingClientRect().width, k: host.k, ox: host.ox, theme: stage.style.getPropertyValue('--bg'), score: S.score, hearts: S.hearts, combo: S.combo, beats: S.beats, morphs: S.morphs, r: S.curve.r, n: S.curve.n, window: S.curve.window, over: S.over, tenure, running, transition: !!transition, lives: { ...S.lives },
-    tally: { ...S.tally }, force: (why) => { if (why === 'glitch') return glitchRun(); if (why.startsWith('lens:')) return putLens(why.slice(5), 3); if (why === 'stage') { S.beats = STAGES[Math.min(3, stageOf() + 1)].beats; zoomTo = STAGES[stageOf()].zoom; widenTo = STAGES[stageOf()].widen; return; } const to = why === 'mirror' && prev ? prev : nextOrgan(); morphTo(to, why); }, over: S.over, end: (how) => over(how), hurt: () => host.hurt('test') });
+    tally: { ...S.tally }, force: (why) => { if (why === 'glitch') return glitchRun(); if (why.startsWith('lens:')) return putLens(why.slice(5), 3); if (why.startsWith('mood:')) { S.curve.mood = why.slice(5); S.curve.moodLeft = 3; applyPalTheme(S.curve.mood); return; } if (why === 'stage') { S.beats = STAGES[Math.min(3, stageOf() + 1)].beats; zoomTo = STAGES[stageOf()].zoom; widenTo = STAGES[stageOf()].widen; return; } const to = why === 'mirror' && prev ? prev : nextOrgan(); morphTo(to, why); }, over: S.over, end: (how) => over(how), hurt: () => host.hurt('test') });
   // ---------------------------------------------------------------- go
   (async () => {
     if (!(await signedIn())) return;

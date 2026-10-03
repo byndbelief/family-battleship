@@ -811,10 +811,15 @@ ammo path), putt.js `g.gopher` (`restT` counts the ball's stillness; `shoo()` fr
 **The chaos comes from Fig (shell.js).** `react(kind)` is the only thing that happens during play: a CSS scale
 (1.35, kill 1.5, glitch/stage/lens 1.9, near 0.8) and tilt on `#spal`, springing back after 240–360 ms;
 `wave(kind)` calls it and only pushes a board wave while `flyT` is set (a morph in progress). `host.cue(kind,
-x, y)` sets the face and mood and calls `react`; nothing is drawn in the field for a cue. `morphTo` calls
-`fly(dur)`: the chip is translated to the field's middle at 2.6× with a full turn for the transition's
-length, then springs back; the transition shrinks and turns the old snapshot toward that point (no separate
-big Fig); `drawWaves` draws the morph wave from there. Tests: `t_wave` (a glitch sets `scale(1.9)`; a morph
+x, y)` sets the face and mood and calls `react`; nothing is drawn in the field for a cue. `morphTo` records
+`mood` and `strips` on the transition and calls `fly(dur)`: the chip is translated to the field's middle at
+2.6× (spin by mood: fig 720°, kit 0° + `scaleX(-1)`, bit 90°, phi 360°, calm 180°) for the transition's
+length, then springs back. The transition draw switches on `transition.mood`: `fig` flings 14 horizontal
+strips of the snapshot with difference-composite colour bands; `kit` scales both halves toward the seam by
+`cos(e·π/2)` with a mirrored faint copy; `bit` tiles the snapshot 2^level per side (level = ⌊e·4⌋, smoothing
+off) pulling each tile toward Fig; `phi` rotates 2.2 turns and scales by φ^(−turns·2.6) over six golden
+rectangles; else the plain pull-in. `__shell().force('mood:<key>')` sets the mood for tests. Tests:
+`t_morphs` (one screenshot per mood mid-transition), `t_wave`, `t_fig`. Tests: `t_wave` (a glitch sets `scale(1.9)`; a morph
 sets a translate + `scale(2.6)` that clears after it), `t_fig`.
 **Fig is the player, notices go through Fig (shell.js, organs).** `banner(t, sub)` now shows `t` as a
 small pill beside the pal (`.sbanner`, left of the field under the score; `sub` only lands in the

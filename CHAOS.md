@@ -256,8 +256,14 @@ of the curve (a peak, the window, the mirror, the golden cut, a mood, a lens, a 
 the chip swell and turn, and what it causes on the board (the glitch tear, the lens, the twist itself) is the
 only trace of it in the field. It turns to look where things happen and flinches, bounces or beams, but it
 never reaches in. A morph is Fig's doing and the one time it leaves the corner: the chip flies into the middle
-of the field, grows, spins, and the old world is pulled into it, shrinking and turning, with a wave of the
-twist's colour, then Fig flies back to the corner as the new world surfaces underneath.
+of the field, grows, and takes the old world apart **in whichever personality it's in**, with a wave of that
+colour, then flies back to the corner as the new world surfaces underneath. 🌀 **Wild Fig** spins twice and
+tears the world into strips that fly off every which way, colour bands bleeding between them. ✨ **Mirror
+Fig** flips, and the world folds shut like a page on Fig's axis, its two halves meeting as mirror images with
+a fainter reflection behind, then thins to nothing. 🔁 **Boxy Fig** turns a quarter, and the world tiles
+itself into copies of itself, 1 → 4 → 16 → 64, each smaller and pulled toward Fig, pixel edges and all. 🌻
+**Golden Fig** turns once, and the world spirals into Fig, shrinking by φ as it turns, its golden rectangles
+drawn behind it. Calm Fig just pulls it in.
 
 **You are Fig.** In every organ the thing you steer is Fig, in the run's current mood: rolled up into
 Putt's ball, at the wheel of Hilltop's tank, working the stapler in Squirrel Chaos, running Fractal
