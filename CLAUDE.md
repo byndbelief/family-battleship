@@ -866,7 +866,13 @@ are drawn at `CAR` = 1.5×. The look is bright: warm planks, red-and-white kerbs
 label, a milk puddle with 🥛, a chrome toaster with toast, a green army man, a hazard-ringed pocket (`drawBox`,
 `drawMilk`, `drawToaster`, `drawSoldier`, `drawHole`; labels stand upright through `upright()`). 📦 A tap on a box
 smashes it (+30, crumbs): `toTable(p)` runs a screen point back through the chase camera, `boxAt` allows 22 screen
-px of slack; the touch still steers. `__rl()` has `boxes`, `smashed`, `boxScreen(i)`, `tap(p)`. `drive(c, dt, steer, brake,
+px of slack; the touch still steers. `__rl()` has `boxes`, `smashed`, `boxScreen(i)`, `tap(p)`. 🪂 **Open edges**: `g.edges` (one per course up to
+3, at s ≈ 0.25 / 0.68 / 0.84, 0.08–0.14 of the loop, on the loop's outside: `side` in spotOn's sense) are where
+the table stops at the tape. `edgeAt(s, side)`; `drive` measures the signed offset from the centreline and a car
+past `w/2 + 6` on an open side (not in the air) sets `c.fall` (0.7 s: shrinks, spins, fades), then `respawn`
+puts it back 0.02 behind; for you that's `host.hurt('fell off the edge')`. Drawn as a dark floor polygon under
+the tape (so a curving loop is never covered), then the wood rim over the kerb, a yellow dashed line and ⚠️.
+No boxes are placed on an open side. `__rl()` has `edges`, `fall`, `pushOff(i)`. `drive(c, dt, steer, brake,
 isMe)` is shared by you and the rivals (grip 0.25 on milk, 0.55 speed off the tape, boxes turn the car back
 along the tape, > w/2 + 90 from the centreline is "off the table"). Rivals steer at `at(s + 0.03)` with a
 rubber band on `gap`; `out` for 4 s then respawn 0.1 ahead of you, `outLap` stops a repeat. Laps need
