@@ -250,8 +250,9 @@ drains the milk, the **golden cut** lays eight pennies ahead (+161, 20 each), a 
 box on the road, **gift** is a bumper, **fib** a nitro, and a **glitch** puts Fig in every rival's seat.
 Twists: 🧲 fridge magnet (pulled sideways), 🌀 ceiling fan (wind), 🔦 lights out (headlights only), 🐈 the
 cat's paw (sweeps along the track and swats whoever it meets). Off the table's edge costs a life, and some stretches of tape run right along the rim: no kerb on the
-outside, a ⚠️ sign and a long drop to the floor (one stretch on course 1, up to three). Go over and Fig
-tumbles off, comes back on the tape, and the organ loses a life.
+outside, a ⚠️ sign and a long drop to the floor (one stretch on course 1, up to three). Go over and the car
+tumbles off; Fig hops out, flies down, hauls it back up and sets it on the tape (🪂 FIG TO THE RESCUE),
+and the organ loses a life.
 
 **A gentle start, in every organ.** The first stretch of a run teaches the organ before the world fills.
 Putt's ⛳ **courses** are corridors: a fairway of straight legs from the tee to the cup. Course 1 is one
@@ -281,7 +282,7 @@ and the bar bottom-right only shows it.
 of the curve (a peak, the window, the mirror, the golden cut, a mood, a lens, a glitch, a stage change) makes
 the chip swell and turn, and what it causes on the board (the glitch tear, the lens, the twist itself) is the
 only trace of it in the field. It turns to look where things happen and flinches, bounces or beams, but it
-never reaches in. A morph is Fig's doing and the one time it leaves the corner: the chip flies into the middle
+never reaches in (one exception besides a morph: in Rally, Fig carries a car that fell off the table back). A morph is Fig's doing and the one time it leaves the corner: the chip flies into the middle
 of the field, grows, and takes the old world apart **in whichever personality it's in**, with a wave of that
 colour, then flies back to the corner as the new world surfaces underneath. 🌀 **Wild Fig** spins twice and
 tears the world into strips that fly off every which way, colour bands bleeding between them. ✨ **Mirror

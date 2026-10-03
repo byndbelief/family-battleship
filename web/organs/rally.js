@@ -68,9 +68,22 @@ function newCourse() {
 }
 // an open edge at progress s on that side of the tape (side: +1 / -1, the same sense as spotOn's offset), or null
 function edgeAt(s, side) { return (g.edges || []).find((e) => e.side === Math.sign(side) && (((s - e.s0) % 1) + 1) % 1 <= e.s1 - e.s0) || null; }
+// 🪂 Fig to the rescue: Fig hops out of the tumbling car, flies down to it on the floor, hauls it back up and sets it
+// on the tape. The car is Fig's to carry for RESCUE seconds; the life is taken when it lands.
+const RESCUE = 1.3;
+function startRescue(c) {
+  const p = at(c.s - g.dir * 0.02);
+  c.rescue = { t: 0, x0: c.x, y0: c.y, a0: c.a, x1: p.x, y1: p.y, a1: p.a + (g.dir < 0 ? Math.PI : 0) }; c.v = 0; c.spin = 0;
+  host.banner('🪂 FIG TO THE RESCUE', 'over the edge: Fig hauls the car back up'); sfx('whistle', { dur: 0.4 });
+}
+function stepRescue(c, dt) {
+  const r = c.rescue; r.t += dt; const e = Math.min(1, r.t / RESCUE), k = e < 0.5 ? 2 * e * e : 1 - Math.pow(-2 * e + 2, 2) / 2;
+  c.x = r.x0 + (r.x1 - r.x0) * k; c.y = r.y0 + (r.y1 - r.y0) * k; c.a = r.a0 + ((((r.a1 - r.a0 + Math.PI * 3) % (Math.PI * 2)) - Math.PI)) * k;
+  if (e >= 1) { c.rescue = null; respawn(c, true); sfx('clack'); }
+}
 function respawn(c, isMe) {   // back on the tape a little behind where it went over
   const p = at(c.s - g.dir * 0.02); c.x = p.x; c.y = p.y; c.a = p.a + (g.dir < 0 ? Math.PI : 0); c.v = 0; c.fall = 0; c.spin = 0; c.s = c.prevS = nearest(c.x, c.y).s;
-  if (isMe) { S.combo = 0; if (!host.hurt('fell off the edge')) host.banner('🪂 OVER THE EDGE', `${S.hearts} ${S.hearts === 1 ? 'heart' : 'hearts'} left`); }
+  if (isMe) { S.combo = 0; host.cue?.('pickup', c.x, c.y); host.hurt('fell off the edge'); }
 }
 function onBeat(ev) {
   const x = ev.x, ahead = (s) => (g.me.s + g.dir * s + 1) % 1;
@@ -93,7 +106,8 @@ function twist() {
 
 // ---------------------------------------------------------------- the race
 function drive(c, dt, steer, brake, isMe) {
-  if (c.fall > 0) { c.fall -= dt; c.x += Math.cos(c.a) * c.v * dt * 0.5; c.y += Math.sin(c.a) * c.v * dt * 0.5; c.a += dt * 5; if (c.fall <= 0) respawn(c, isMe); return; }   // 🪂 tumbling off the table
+  if (c.fall > 0) { c.fall -= dt; c.x += Math.cos(c.a) * c.v * dt * 0.5; c.y += Math.sin(c.a) * c.v * dt * 0.5; c.a += dt * 5; if (c.fall <= 0) { if (isMe) startRescue(c); else respawn(c, false); } return; }   // 🪂 tumbling off the table
+  if (c.rescue) { stepRescue(c, dt); return; }
   const n = nearest(c.x, c.y), onTape = n.d < g.track.w / 2, milk = g.items.find((i) => i.kind === 'milk' && Math.hypot(i.x - c.x, i.y - c.y) < i.r);
   const vmax = topSpeed() * (isMe && g.nitro > 0 ? 1.5 : 1) * (onTape ? 1 : 0.55) * (isMe ? 1 : c.skill);
   if (c.spin > 0) { c.spin -= dt; c.a += dt * 9; c.v *= Math.pow(0.5, dt); } else {
@@ -130,14 +144,14 @@ function update(dt) {
   const me = g.me; me.spin = me.spin || 0;
   drive(me, dt, brake ? 0 : steer, brake, true); if (S.over) return;
   // 🪖 soldiers and 🕳️ the pocket, 🍞 the toaster, the pennies
-  g.obs = g.obs.filter((o) => { o.life -= dt; if (o.kind === 'soldier' && Math.hypot(o.x - me.x, o.y - me.y) < R + 10 && me.air <= 0 && !me.fall) { if (g.bumper) { g.bumper = 0; } else { me.spin = 0.8; S.combo = 0; } g.fx.push({ kind: 'text', x: o.x, y: o.y - 20, text: '🪖 BONK', life: 0.8 }); sfx('thud'); return false; } return o.life > 0; });
+  g.obs = g.obs.filter((o) => { o.life -= dt; if (o.kind === 'soldier' && Math.hypot(o.x - me.x, o.y - me.y) < R + 10 && me.air <= 0 && !me.fall && !me.rescue) { if (g.bumper) { g.bumper = 0; } else { me.spin = 0.8; S.combo = 0; } g.fx.push({ kind: 'text', x: o.x, y: o.y - 20, text: '🪖 BONK', life: 0.8 }); sfx('thud'); return false; } return o.life > 0; });
   g.items.forEach((i) => { const d = Math.hypot(i.x - me.x, i.y - me.y);
-    if (i.kind === 'hole' && d < i.r && me.air <= 0 && !me.fall) { me.spin = 0; me.v = 0; const p = at(me.s - g.dir * 0.03); me.x = p.x; me.y = p.y; me.a = p.a + (g.dir < 0 ? Math.PI : 0); S.combo = 0; host.cue?.('near', i.x, i.y); sfx('plunk');
+    if (i.kind === 'hole' && d < i.r && me.air <= 0 && !me.fall && !me.rescue) { me.spin = 0; me.v = 0; const p = at(me.s - g.dir * 0.03); me.x = p.x; me.y = p.y; me.a = p.a + (g.dir < 0 ? Math.PI : 0); S.combo = 0; host.cue?.('near', i.x, i.y); sfx('plunk');
       if (g.course >= 3) { if (!host.hurt('fell in the pocket')) host.banner('🕳️ THE POCKET', `${S.hearts} ${S.hearts === 1 ? 'heart' : 'hearts'} left`); } else { me.spin = 0.9; host.banner('🕳️ THE POCKET', 'fished out · from course 3 it costs a life'); } }
     if (i.kind === 'toaster' && d < 20 && me.air <= 0 && me.v > 60) { me.air = 0.7; me.v = Math.max(me.v, topSpeed() * 1.2); sfx('whistle', { dur: 0.3 }); g.fx.push({ kind: 'text', x: me.x, y: me.y - 24, text: '🍞 POP!', life: 0.8 }); } });
   g.pennies = g.pennies.filter((p) => { if (Math.hypot(p.x - me.x, p.y - me.y) < R + 8) { host.add(20); host.cue?.('score', p.x, p.y); g.fx.push({ kind: 'text', x: p.x, y: p.y - 14, text: '+20', life: 0.7 }); sfx('chime', { hi: true }); return false; } return true; });   // flat: the combo is for laps and rivals
   // 🐈 the paw sweeps along the track and swats whatever it meets
-  if (g.paw) { g.paw.t += dt; g.paw.s = (g.paw.s + g.dir * 0.06 * dt + 1) % 1; const p = at(g.paw.s); [me, ...g.rivals].forEach((c) => { if (Math.hypot(c.x - p.x, c.y - p.y) < 34 && c.spin <= 0) { c.spin = 0.7; c.x += Math.cos(p.a + Math.PI / 2) * 30; c.y += Math.sin(p.a + Math.PI / 2) * 30; if (c === me) { S.combo = 0; sfx('thud'); } } }); }
+  if (g.paw) { g.paw.t += dt; g.paw.s = (g.paw.s + g.dir * 0.06 * dt + 1) % 1; const p = at(g.paw.s); [me, ...g.rivals].forEach((c) => { if (Math.hypot(c.x - p.x, c.y - p.y) < 34 && c.spin <= 0 && !c.fall && !c.rescue) { c.spin = 0.7; c.x += Math.cos(p.a + Math.PI / 2) * 30; c.y += Math.sin(p.a + Math.PI / 2) * 30; if (c === me) { S.combo = 0; sfx('thud'); } } }); }
   // checkpoints and laps
   const ds = (me.s - me.prevS + 1.5) % 1 - 0.5; if (g.dir * ds > 0) { const q = Math.floor((g.dir > 0 ? me.s : 1 - me.s) * 4); if (q === g.cps + 1 && g.cps < 3) g.cps += 1; }
   if (g.cps >= 3 && ((g.dir > 0 && me.prevS > 0.9 && me.s < 0.1) || (g.dir < 0 && me.prevS < 0.1 && me.s > 0.9))) lapDone();
@@ -147,7 +161,7 @@ function update(dt) {
     r.skillNow = r.skill * (gap < -0.15 ? 1.18 : gap > 0.12 ? 0.9 : 1); const sk = r.skill; r.skill = r.skillNow; drive(r, dt, Math.max(-1, Math.min(1, da * 2.5)), false, false); r.skill = sk;
     if (gap < -0.2 && r.off < 40 && r.outLap !== g.lap) { r.out = 4; r.outLap = g.lap; outsN += 1; const pts = 150; host.add(pts); host.cue?.('kill', r.x, r.y); g.fx.push({ kind: 'text', x: me.x, y: me.y - 34, text: `🏁 LEFT BEHIND +${pts}`, life: 1.1, big: true }); sfx('cheer', { delay: 0.05 }); }   // once a lap per rival, flat
     // bumping
-    const dx = r.x - me.x, dy = r.y - me.y, d = Math.hypot(dx, dy); if (d < R * 2 && d > 0) { const push = (R * 2 - d) / 2, nx = dx / d, ny = dy / d; r.x += nx * push; r.y += ny * push; me.x -= nx * push; me.y -= ny * push; if (g.bumper) { r.spin = 0.5; g.bumper = 0; } } });
+    const dx = r.x - me.x, dy = r.y - me.y, d = Math.hypot(dx, dy); if (d < R * 2 && d > 0 && !me.rescue && !me.fall) { const push = (R * 2 - d) / 2, nx = dx / d, ny = dy / d; r.x += nx * push; r.y += ny * push; me.x -= nx * push; me.y -= ny * push; if (g.bumper) { r.spin = 0.5; g.bumper = 0; } } });
   for (let i = 0; i < g.rivals.length; i++) for (let j = i + 1; j < g.rivals.length; j++) { const a = g.rivals[i], b = g.rivals[j], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy); if (d < R * 2 && d > 0) { const push = (R * 2 - d) / 2; a.x -= dx / d * push; a.y -= dy / d * push; b.x += dx / d * push; b.y += dy / d * push; } }
   g.fx.forEach((f) => { f.life -= dt; if (f.kind === 'bit') { f.x += f.vx * dt; f.y += f.vy * dt; f.vx *= Math.pow(0.08, dt); f.vy *= Math.pow(0.08, dt); f.rot += f.vr * dt; } else f.y -= 24 * dt; }); g.fx = g.fx.filter((f) => f.life > 0);
 }
@@ -266,7 +280,9 @@ function draw(t) {
   g.pennies.forEach((p) => { const r = 6 + Math.sin(t / 150 + p.t) * 1; ctx.fillStyle = '#00000040'; ctx.beginPath(); ctx.arc(p.x + 1.5, p.y + 2, r, 0, 7); ctx.fill(); ctx.fillStyle = '#E08A3C'; ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 7); ctx.fill(); ctx.strokeStyle = '#FFD27A'; ctx.lineWidth = 1.8; ctx.stroke(); ctx.fillStyle = '#FFF3C4'; ctx.beginPath(); ctx.arc(p.x - r * 0.35, p.y - r * 0.35, r * 0.28, 0, 7); ctx.fill(); });
   if (g.paw) { const p = at(g.paw.s); ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a + Math.PI / 2); ctx.fillStyle = '#F29E4C'; ctx.fillRect(-30, 0, 60, 300); ctx.beginPath(); ctx.ellipse(0, 0, 30, 22, 0, 0, 7); ctx.fill(); ctx.fillStyle = '#C4621B'; for (let i = 0; i < 6; i++) ctx.fillRect(-30, 18 + i * 40, 60, 12); ctx.fillStyle = '#FF9EB5'; ctx.beginPath(); ctx.ellipse(0, 4, 12, 9, 0, 0, 7); ctx.fill(); for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.arc(i * 11, -11, 5.5, 0, 7); ctx.fill(); } ctx.fillStyle = '#fff'; for (let i = -1.5; i <= 1.5; i++) { ctx.beginPath(); ctx.moveTo(i * 9 - 2, -20); ctx.lineTo(i * 9, -28); ctx.lineTo(i * 9 + 2, -20); ctx.fill(); } ctx.restore(); }
   // the cars
-  const car = (c, hue, mine) => { ctx.save(); ctx.translate(c.x, c.y - (c.air > 0 ? 14 * Math.sin((0.7 - c.air) / 0.7 * Math.PI) : 0)); ctx.rotate(c.a); { const f = c.fall > 0 ? 0.25 + 0.75 * (c.fall / 0.7) : 1; ctx.scale(CAR * f, CAR * f); if (c.fall > 0) ctx.globalAlpha = 0.4 + 0.6 * (c.fall / 0.7); }
+  const th = g.camA + (g.turn || 0), upX = -Math.sin(th), upY = -Math.cos(th);   // screen-up, on the table
+  const car = (c, hue, mine) => { const re = c.rescue ? Math.min(1, c.rescue.t / RESCUE) : -1, lift = re >= 0 ? 34 * Math.sin(re * Math.PI) : 0;
+    ctx.save(); ctx.translate(c.x + upX * lift, c.y + upY * lift - (c.air > 0 ? 14 * Math.sin((0.7 - c.air) / 0.7 * Math.PI) : 0)); ctx.rotate(c.a); { const f = c.fall > 0 ? 0.25 + 0.75 * (c.fall / 0.7) : re >= 0 ? 0.25 + 0.75 * Math.min(1, re * 1.6) : 1; ctx.scale(CAR * f, CAR * f); if (c.fall > 0) ctx.globalAlpha = 0.4 + 0.6 * (c.fall / 0.7); }
     if (g.glitch && !mine) { drawPal(g.glitchPal || 'fig', ctx, { x: 0, y: 0, s: 9, t: t / 1000, r: 4, face: 1 }); ctx.restore(); ctx.globalAlpha = 1; return; }
     const body = mine ? '#22E0C8' : `hsl(${hue} 90% 56%)`, dark = mine ? '#0B8C7E' : `hsl(${hue} 80% 32%)`;
     ctx.fillStyle = '#00000050'; ctx.beginPath(); ctx.roundRect(-11, -7, 25, 17, 5); ctx.fill();   // shadow
@@ -276,9 +292,14 @@ function draw(t) {
     ctx.fillStyle = mine ? '#FFFFFF' : '#ffffffcc'; ctx.fillRect(-12, -1.5, 24, 3);   // racing stripe
     ctx.fillStyle = '#A8E4FF'; ctx.beginPath(); ctx.roundRect(4, -6, 4, 12, 1.5); ctx.fill();   // windscreen
     ctx.fillStyle = '#FFF2A8'; ctx.fillRect(11, -6, 2, 3); ctx.fillRect(11, 3, 2, 3); ctx.fillStyle = '#FF3B3B'; ctx.fillRect(-13, -6, 2, 3); ctx.fillRect(-13, 3, 2, 3);
-    if (mine) drawPal(g.glitch ? (g.glitchPal || 'fig') : (S.curve.mood || 'calm'), ctx, { x: -2, y: 0, s: 6, t: t / 1000, r: S.curve.r, face: 1, hurt: c.spin > 0 }); else { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-2, 0, 3.2, 0, 7); ctx.fill(); ctx.fillStyle = dark; ctx.beginPath(); ctx.arc(-2, 0, 1.6, 0, 7); ctx.fill(); }
+    if (mine && re >= 0) { ctx.fillStyle = '#15151B88'; ctx.beginPath(); ctx.arc(-2, 0, 3.5, 0, 7); ctx.fill(); } else if (mine) drawPal(g.glitch ? (g.glitchPal || 'fig') : (S.curve.mood || 'calm'), ctx, { x: -2, y: 0, s: 6, t: t / 1000, r: S.curve.r, face: 1, hurt: c.spin > 0 || c.fall > 0 }); else { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-2, 0, 3.2, 0, 7); ctx.fill(); ctx.fillStyle = dark; ctx.beginPath(); ctx.arc(-2, 0, 1.6, 0, 7); ctx.fill(); }
     if (mine && g.bumper) { ctx.strokeStyle = '#C9B8FF'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 16, 0, 7); ctx.stroke(); } if (mine && g.nitro > 0) { ctx.fillStyle = '#FF8A3D'; ctx.beginPath(); ctx.moveTo(-12, -3); ctx.lineTo(-23 - Math.random() * 8, 0); ctx.lineTo(-12, 3); ctx.fill(); ctx.fillStyle = '#FFE36B'; ctx.beginPath(); ctx.moveTo(-12, -1.5); ctx.lineTo(-18 - Math.random() * 4, 0); ctx.lineTo(-12, 1.5); ctx.fill(); }
-    ctx.restore(); ctx.globalAlpha = 1; };
+    ctx.restore(); ctx.globalAlpha = 1;
+    if (mine && re >= 0) {   // Fig, out of the car and big, carrying it: two little arms down to the roof
+      const fx = c.x + upX * (lift + 30), fy = c.y + upY * (lift + 30) + Math.sin(t / 70) * 1.5, cx = c.x + upX * lift, cy = c.y + upY * lift;
+      ctx.strokeStyle = '#2A1408'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(fx - upY * 8, fy + upX * 8); ctx.lineTo(cx - upY * 10, cy + upX * 10); ctx.moveTo(fx + upY * 8, fy - upX * 8); ctx.lineTo(cx + upY * 10, cy - upX * 10); ctx.stroke();
+      ctx.save(); ctx.translate(fx, fy); ctx.rotate(-th); drawPal(g.glitch ? (g.glitchPal || 'fig') : (S.curve.mood || 'calm'), ctx, { x: 0, y: 0, s: 15, t: t / 1000, r: S.curve.r, face: 1 }); ctx.restore();
+    } };
   g.rivals.forEach((r) => { if (r.out <= 0) car(r, r.hue, false); }); car(me, 0, true);
   g.fx.forEach((f) => { if (f.kind === 'bit') { ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, f.life * 2)); ctx.translate(f.x, f.y); ctx.rotate(f.rot); ctx.fillStyle = f.col; ctx.fillRect(-f.sz / 2, -f.sz / 2, f.sz, f.sz * 0.7); ctx.restore(); return; } ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(-(g.camA + (g.turn || 0))); ctx.translate(-f.x, -f.y); ctx.globalAlpha = Math.max(0, Math.min(1, f.life * 1.5)); ctx.font = f.big ? '400 18px Bungee, Impact, sans-serif' : '900 13px Nunito, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = f.col || '#FFE08A'; ctx.strokeStyle = '#2A1A0A'; ctx.lineWidth = 4; ctx.strokeText(f.text, f.x, f.y); ctx.fillText(f.text, f.x, f.y); ctx.restore(); }); ctx.globalAlpha = 1;
   ctx.restore();
@@ -304,6 +325,6 @@ const organ = {
   level: () => g?.course || 1,
   overText: (how) => (how === 'fell in the pocket' ? ['🕳️ POCKETED', 'Too many trips down the pocket.'] : how === 'off the table' ? ['🫳 OFF THE TABLE', 'The table is only so big.'] : how === 'fell off the edge' ? ['🪂 OVER THE EDGE', 'Mind the open edges.'] : ['RUN OVER', '']),
   endStats: () => (g ? `🏎️ ${lapsN} laps · ${outsN} rivals left behind` : ''),
-  debug: () => g && ({ auto: (on) => { g.auto = on; }, fx: g.fx.map((f) => f.text), me: { x: g.me.x, y: g.me.y, s: g.me.s, v: g.me.v, off: g.me.off }, lap: g.lap, cps: g.cps, course: g.course, rivals: g.rivals.map((r) => ({ s: r.s, out: r.out, off: r.off })), items: g.items.length, obs: g.obs.length, twist: g.twist?.kind || null, held: { ...held }, W, H: H(), track: { w: g.track.w, len: Math.round(g.track.len) }, zoom: g.zoom, camA: g.camA, top: Math.round(topSpeed()), edges: g.edges.map((e) => ({ s0: e.s0, s1: e.s1, side: e.side })), fall: g.me.fall || 0, pushOff: (i = 0) => { const e = g.edges[i], p = spotOn(e.c, e.side * (g.track.w / 2 + 14)); g.me.x = p.x; g.me.y = p.y; g.me.air = 0; }, hitBox: (i = 0) => { const b = [...g.items, ...g.obs].filter((x) => x.kind === 'box')[i]; if (b) b.hit = true; }, boxes: [...g.items, ...g.obs].filter((b) => b.kind === 'box').length, smashed: smashedN, boxScreen: (i = 0) => { const bs = [...g.items, ...g.obs].filter((b) => b.kind === 'box'), b = bs[i]; if (!b) return null; const th = g.camA + (g.turn || 0), dx = (b.x - g.me.x) * g.zoom, dy = (b.y - g.me.y) * g.zoom; return { x: W / 2 + Math.cos(th) * dx - Math.sin(th) * dy, y: H() * CAR_Y + Math.sin(th) * dx + Math.cos(th) * dy }; }, tap: (p) => { organ.pointer('down', p, { pointerId: 99 }); organ.pointer('up', p, { pointerId: 99 }); } }),
+  debug: () => g && ({ auto: (on) => { g.auto = on; }, fx: g.fx.map((f) => f.text), me: { x: g.me.x, y: g.me.y, s: g.me.s, v: g.me.v, off: g.me.off }, lap: g.lap, cps: g.cps, course: g.course, rivals: g.rivals.map((r) => ({ s: r.s, out: r.out, off: r.off })), items: g.items.length, obs: g.obs.length, twist: g.twist?.kind || null, held: { ...held }, W, H: H(), track: { w: g.track.w, len: Math.round(g.track.len) }, zoom: g.zoom, camA: g.camA, top: Math.round(topSpeed()), edges: g.edges.map((e) => ({ s0: e.s0, s1: e.s1, side: e.side })), fall: g.me.fall || 0, rescue: g.me.rescue ? g.me.rescue.t : null, pushOff: (i = 0) => { const e = g.edges[i], p = spotOn(e.c, e.side * (g.track.w / 2 + 14)); g.me.x = p.x; g.me.y = p.y; g.me.air = 0; }, hitBox: (i = 0) => { const b = [...g.items, ...g.obs].filter((x) => x.kind === 'box')[i]; if (b) b.hit = true; }, boxes: [...g.items, ...g.obs].filter((b) => b.kind === 'box').length, smashed: smashedN, boxScreen: (i = 0) => { const bs = [...g.items, ...g.obs].filter((b) => b.kind === 'box'), b = bs[i]; if (!b) return null; const th = g.camA + (g.turn || 0), dx = (b.x - g.me.x) * g.zoom, dy = (b.y - g.me.y) * g.zoom; return { x: W / 2 + Math.cos(th) * dx - Math.sin(th) * dy, y: H() * CAR_Y + Math.sin(th) * dx + Math.cos(th) * dy }; }, tap: (p) => { organ.pointer('down', p, { pointerId: 99 }); organ.pointer('up', p, { pointerId: 99 }); } }),
 };
 export default organ;

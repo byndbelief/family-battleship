@@ -870,10 +870,13 @@ on a tap (+30, crumbs); an untouched box ignores taps: `toTable(p)` runs a scree
 px of slack; the touch still steers. `__rl()` has `boxes`, `smashed`, `hitBox(i)`, `boxScreen(i)`, `tap(p)`. 🪂 **Open edges**: `g.edges` (one per course up to
 3, at s ≈ 0.25 / 0.68 / 0.84, 0.08–0.14 of the loop, on the loop's outside: `side` in spotOn's sense) are where
 the table stops at the tape. `edgeAt(s, side)`; `drive` measures the signed offset from the centreline and a car
-past `w/2 + 6` on an open side (not in the air) sets `c.fall` (0.7 s: shrinks, spins, fades), then `respawn`
-puts it back 0.02 behind; for you that's `host.hurt('fell off the edge')`. Drawn as a dark floor polygon under
+past `w/2 + 6` on an open side (not in the air) sets `c.fall` (0.7 s: shrinks, spins, fades), then rivals `respawn`
+0.02 behind; your car gets **Fig to the rescue** (`startRescue`/`stepRescue`, `RESCUE` 1.3 s): Fig hops out
+big (`drawPal` s 15, upright, two arms to the roof), lifts the car in screen-up (`upX/upY`) and eases it to
+the respawn spot while the seat sits empty; on landing `respawn` takes the life (`host.hurt('fell off the
+edge')`, a `pickup` cue). Soldiers, the pocket, the paw and rival bumps leave a falling or carried car alone. Drawn as a dark floor polygon under
 the tape (so a curving loop is never covered), then the wood rim over the kerb, a yellow dashed line and ⚠️.
-No boxes are placed on an open side. `__rl()` has `edges`, `fall`, `pushOff(i)`. `drive(c, dt, steer, brake,
+No boxes are placed on an open side. `__rl()` has `edges`, `fall`, `rescue`, `pushOff(i)`. `drive(c, dt, steer, brake,
 isMe)` is shared by you and the rivals (grip 0.25 on milk, 0.55 speed off the tape, boxes turn the car back
 along the tape, > w/2 + 90 from the centreline is "off the table"). Rivals steer at `at(s + 0.03)` with a
 rubber band on `gap`; `out` for 4 s then respawn 0.1 ahead of you, `outLap` stops a repeat. Laps need
