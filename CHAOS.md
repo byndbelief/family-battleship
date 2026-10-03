@@ -249,7 +249,8 @@ the **window** spins the table a quarter turn a beat, the **mirror** reverses th
 drains the milk, the **golden cut** lays eight pennies ahead (+161, 20 each), a **big hop** drops a cereal
 box on the road, **gift** is a bumper, **fib** a nitro, and a **glitch** puts Fig in every rival's seat.
 Twists: 🧲 fridge magnet (pulled sideways), 🌀 ceiling fan (wind), 🔦 lights out (headlights only), 🐈 the
-cat's paw (sweeps along the track and swats whoever it meets). Off the table's edge costs a life, and some stretches of tape run right along the rim: no kerb on the
+cat's paw (sweeps along the track and swats whoever it meets). The table's edge is always in view round the outside of the loop, the floor far below it. Most of it is
+guarded (a white railing, a row of books, toy bricks) and a car bounces off; some stretches of tape run right along the rim: no kerb on the
 outside, a ⚠️ sign and a long drop to the floor (one stretch on course 1, up to three). Go over and the car
 tumbles off; Fig hops out, flies down, hauls it back up and sets it on the tape (🪂 FIG TO THE RESCUE),
 and the organ loses a life.

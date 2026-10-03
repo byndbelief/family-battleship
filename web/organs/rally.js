@@ -62,8 +62,10 @@ function newCourse() {
   if (g.course >= 2) put('hole', 0.15 + hash(g.seed + 4) * 0.1, (hash(g.seed + 5) - 0.5) * g.track.w * 0.6, { r: 14 });
   if (g.course >= 3) put('hole', 0.85 + hash(g.seed + 6) * 0.08, (hash(g.seed + 7) - 0.5) * g.track.w * 0.6, { r: 14 });
   // 🪂 the table's edge: stretches where the tape runs along the rim, with no kerb on the outside and a drop to the floor
-  g.edges = []; [0.25, 0.68, 0.84].slice(0, Math.min(3, g.course)).forEach((c0, i) => { const c = c0 + hash(g.seed + 20 + i) * 0.05, half = (0.08 + 0.02 * Math.min(3, g.course - 1)) / 2, p = at(c), side = Math.sign(p.x * -Math.sin(p.a) + p.y * Math.cos(p.a)) || 1; g.edges.push({ s0: c - half, s1: c + half, c, side }); });
+  { let sum = 0; for (let k = 0; k < 24; k++) { const p = at(k / 24); sum += p.x * -Math.sin(p.a) + p.y * Math.cos(p.a); } g.outer = Math.sign(sum) || 1; }   // which side of the tape is the outside of the loop
+  g.edges = []; [0.25, 0.68, 0.84].slice(0, Math.min(3, g.course)).forEach((c0, i) => { const c = c0 + hash(g.seed + 20 + i) * 0.05, half = (0.08 + 0.02 * Math.min(3, g.course - 1)) / 2, p = at(c), side = g.outer; g.edges.push({ s0: c - half, s1: c + half, c, side }); });
   for (let i = 0; i < 3 + g.course; i++) { const s = hash(g.seed + 10 + i), side = i % 2 ? 1 : -1; if (edgeAt(s, side)) continue; put('box', s, side * (g.track.w / 2 + 16), { w: 26, h: 18 }); }
+  g.rim = buildRim();
   host.banner(`🏁 COURSE ${g.course}`, `${3} laps · ${g.rivals.length} rivals · hold a side to steer`);
 }
 // an open edge at progress s on that side of the tape (side: +1 / -1, the same sense as spotOn's offset), or null
@@ -80,6 +82,20 @@ function stepRescue(c, dt) {
   const r = c.rescue; r.t += dt; const e = Math.min(1, r.t / RESCUE), k = e < 0.5 ? 2 * e * e : 1 - Math.pow(-2 * e + 2, 2) / 2;
   c.x = r.x0 + (r.x1 - r.x0) * k; c.y = r.y0 + (r.y1 - r.y0) * k; c.a = r.a0 + ((((r.a1 - r.a0 + Math.PI * 3) % (Math.PI * 2)) - Math.PI)) * k;
   if (e >= 1) { c.rescue = null; respawn(c, true); sfx('clack'); }
+}
+// ---------------------------------------------------------------- the table's edge, all the way round
+// Outside the loop the table ends: right at the tape on an open stretch, MARGIN beyond it elsewhere, where it's guarded
+// (a railing, a row of books, toy bricks) and a car bounces off. The margin eases in and out by RAMP round each open stretch.
+const MARGIN = 46, RAMP = 0.025, GUARDS = ['rail', 'books', 'bricks'];
+function marginAt(s) {
+  let d = 1; (g.edges || []).forEach((e) => { const into = (((s - e.s0) % 1) + 1) % 1; if (into <= e.s1 - e.s0) d = 0; else d = Math.min(d, (((e.s0 - s) % 1) + 1) % 1, (((s - e.s1) % 1) + 1) % 1); });
+  const u = Math.min(1, d / RAMP); return MARGIN * u * u * (3 - 2 * u);
+}
+function buildRim() {   // 240 points on the table's edge, each with its outward normal and its guard ('open' on an open stretch)
+  const N = 240, out = [];
+  for (let k = 0; k < N; k++) { const sk = k / N, p = at(sk), nx = -Math.sin(p.a) * g.outer, ny = Math.cos(p.a) * g.outer, m = marginAt(sk), off = g.track.w / 2 + m;
+    out.push({ s: sk, x: p.x + nx * off, y: p.y + ny * off, nx, ny, m, guard: edgeAt(sk, g.outer) ? 'open' : GUARDS[Math.floor(hash(g.seed + 50 + Math.floor(sk * 9)) * 3)] }); }
+  return out;
 }
 function respawn(c, isMe) {   // back on the tape a little behind where it went over
   const p = at(c.s - g.dir * 0.02); c.x = p.x; c.y = p.y; c.a = p.a + (g.dir < 0 ? Math.PI : 0); c.v = 0; c.fall = 0; c.spin = 0; c.s = c.prevS = nearest(c.x, c.y).s;
@@ -130,7 +146,11 @@ function drive(c, dt, steer, brake, isMe) {
   const n2 = nearest(c.x, c.y); c.prevS = c.s; c.s = n2.s; c.off = n2.d;
   { const ta = at(n2.s).a, lat = (c.x - n2.px) * -Math.sin(ta) + (c.y - n2.py) * Math.cos(ta);   // past the tape's edge where the table ends: over you go
     if (c.air <= 0 && Math.abs(lat) > g.track.w / 2 + 6 && edgeAt(n2.s, lat)) { c.fall = 0.7; if (isMe) { host.cue?.('near', c.x, c.y); sfx('whistle', { dur: 0.5 }); g.fx.push({ kind: 'text', x: c.x, y: c.y - 24, text: '🪂 WHOOPS', life: 1 }); } return; } }
-  if (n2.d > g.track.w / 2 + 90) { c.x += (n2.px - c.x) * 0.5; c.y += (n2.py - c.y) * 0.5; c.v *= 0.5; if (isMe) { c.spin = 0.6; host.cue?.('near', c.x, c.y); if (host.hurt('off the table')) return; host.banner('OFF THE TABLE', `${S.hearts} ${S.hearts === 1 ? 'heart' : 'hearts'} left`); } }   // 🫳 off the table edge
+  { const ta = at(n2.s).a, nx = -Math.sin(ta), ny = Math.cos(ta), lat = (c.x - n2.px) * nx + (c.y - n2.py) * ny, lim = g.track.w / 2 + marginAt(n2.s) - R;
+    if (Math.sign(lat) === g.outer && Math.abs(lat) > lim && !edgeAt(n2.s, lat)) {   // 🧱 a guard on the table's edge: bounce back along the tape
+      c.x = n2.px + nx * g.outer * lim; c.y = n2.py + ny * g.outer * lim; const da = ta + (g.dir < 0 ? Math.PI : 0); c.a = da + (((c.a - da + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * 0.4; c.v = Math.max(c.v * 0.7, 40);
+      if (isMe && !c.bumpT) { c.bumpT = 0.4; sfx('clack'); } }
+    else if (Math.sign(lat) !== g.outer && Math.abs(lat) > g.track.w / 2 + 110) { c.x += (n2.px - c.x) * 0.1; c.y += (n2.py - c.y) * 0.1; c.v *= 0.9; } }   // the infield: eased back toward the tape
 }
 function update(dt) {
   W = host?.W || W;
@@ -193,6 +213,22 @@ function smash(b) {
 }
 
 // ---------------------------------------------------------------- drawing
+function drawGuards(t) {
+  const rim = g.rim, N = rim.length, BOOKS = ['#EE2B3B', '#2D7FF9', '#FFD23F', '#22C55E', '#A855F7', '#FF8A3D'], BRICKS = ['#EE2B3B', '#FFD23F', '#2D7FF9', '#22C55E'];
+  for (let k = 0; k < N; k++) { const a = rim[k], b = rim[(k + 1) % N]; if (a.guard === 'open' || b.guard === 'open' || a.m < 2) continue;
+    if (a.guard === 'books') {   // a row of book spines standing on the edge
+      ctx.fillStyle = BOOKS[k % BOOKS.length]; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(b.x - b.nx * 13, b.y - b.ny * 13); ctx.lineTo(a.x - a.nx * 13, a.y - a.ny * 13); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#00000055'; ctx.lineWidth = 1; ctx.stroke(); ctx.fillStyle = '#ffffff99'; const mx = (a.x + b.x) / 2 - a.nx * 6.5, my = (a.y + b.y) / 2 - a.ny * 6.5; ctx.fillRect(mx - 1, my - 1, 2, 2);
+    } else if (a.guard === 'bricks') {   // toy bricks, two-stud, in four colours
+      const col = BRICKS[(k >> 1) % BRICKS.length]; ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(b.x - b.nx * 11, b.y - b.ny * 11); ctx.lineTo(a.x - a.nx * 11, a.y - a.ny * 11); ctx.closePath(); ctx.fill();
+      if (k % 2 === 0) { ctx.strokeStyle = '#00000055'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(a.x - a.nx * 11, a.y - a.ny * 11); ctx.stroke(); }
+      ctx.fillStyle = '#ffffff66'; ctx.beginPath(); ctx.arc((a.x + b.x) / 2 - a.nx * 5.5, (a.y + b.y) / 2 - a.ny * 5.5, 2.4, 0, 7); ctx.fill();
+    } else {   // a white wooden railing: posts and a rail
+      ctx.strokeStyle = '#00000044'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(a.x - a.nx * 4 + 2, a.y - a.ny * 4 + 3); ctx.lineTo(b.x - b.nx * 4 + 2, b.y - b.ny * 4 + 3); ctx.stroke();
+      ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(a.x - a.nx * 4, a.y - a.ny * 4); ctx.lineTo(b.x - b.nx * 4, b.y - b.ny * 4); ctx.stroke();
+      if (k % 2 === 0) { ctx.fillStyle = '#F4F1EA'; ctx.beginPath(); ctx.arc(a.x - a.nx * 4, a.y - a.ny * 4, 3.6, 0, 7); ctx.fill(); ctx.strokeStyle = '#9A8F7A'; ctx.lineWidth = 1; ctx.stroke(); }
+    } }
+}
 function drawMilk(i, upright) {
   ctx.fillStyle = '#00000022'; ctx.beginPath(); ctx.ellipse(i.x + 2, i.y + 3, i.r, i.r * 0.72, 0.3, 0, 7); ctx.fill();
   ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); for (let k = 0; k <= 12; k++) { const a = (k / 12) * Math.PI * 2, rr = i.r * (0.85 + 0.2 * Math.sin(k * 2.7 + i.x)); ctx[k ? 'lineTo' : 'moveTo'](i.x + Math.cos(a) * rr, i.y + Math.sin(a) * rr * 0.72); } ctx.closePath(); ctx.fill();
@@ -248,16 +284,15 @@ function draw(t) {
   ctx.save(); ctx.translate(W / 2, Hh * CAR_Y); ctx.scale(g.zoom, g.zoom); ctx.rotate(g.camA + (g.turn || 0)); ctx.translate(-me.x, -me.y);
   // the table: warm planks with seams and grain, and a faint Sierpiński-carpet tablecloth (the fractal on the table)
   const Rv = Math.hypot(W, Hh) / g.zoom, gx0 = Math.floor((me.x - Rv) / 60) * 60, gy0 = Math.floor((me.y - Rv) / 60) * 60;   // the table under a turning camera: a disc's worth of grain
+  // the floor, a long way down, then the table clipped to its edge
+  ctx.fillStyle = '#1C1226'; ctx.fillRect(gx0, gy0, Rv * 2 + 120, Rv * 2 + 120); ctx.fillStyle = '#251A33'; for (let y = gy0; y < me.y + Rv; y += 80) for (let x = gx0 + (((y / 80) | 0) % 2) * 80; x < me.x + Rv; x += 160) ctx.fillRect(x, y, 80, 80);
+  const rimPath = () => { ctx.beginPath(); g.rim.forEach((p, k) => ctx[k ? 'lineTo' : 'moveTo'](p.x, p.y)); ctx.closePath(); };
+  ctx.save(); ctx.fillStyle = '#00000066'; ctx.translate(10, 16); rimPath(); ctx.fill(); ctx.restore();   // the table's shadow on the floor
+  ctx.save(); rimPath(); ctx.clip();
   for (let y = gy0; y < me.y + Rv; y += 60) { ctx.fillStyle = ((y / 60) | 0) % 2 ? '#C0702F' : '#B4662A'; ctx.fillRect(gx0, y, Rv * 2 + 60, 60); ctx.fillStyle = '#7A3E18'; ctx.fillRect(gx0, y, Rv * 2 + 60, 2); ctx.fillStyle = '#ffffff12'; for (let i = 0; i < 3; i++) ctx.fillRect(gx0, y + 12 + i * 15 + (hash(y + i) * 6 | 0), Rv * 2 + 60, 1.5); }
   ctx.fillStyle = '#ffffff0d'; for (let y = gy0; y < me.y + Rv; y += 60) for (let x = gx0; x < me.x + Rv; x += 60) { ctx.fillRect(x + 20, y + 20, 20, 20); for (let i = 0; i < 9; i++) if (i !== 4) ctx.fillRect(x + (i % 3) * 20 + 7, y + Math.floor(i / 3) * 20 + 7, 6, 6); }
-  // 🪂 the open edges: where the table stops, the floor a long way down (drawn under the tape, so a curving loop is never covered)
-  const edgeShapes = (g.edges || []).map((e) => { const N = 18, inner = [], outer = [];
-    for (let k = 0; k <= N; k++) { const s = e.s0 + (e.s1 - e.s0) * k / N, p = at(s), nx = -Math.sin(p.a) * e.side, ny = Math.cos(p.a) * e.side; inner.push([p.x + nx * (g.track.w / 2), p.y + ny * (g.track.w / 2)]); outer.push([p.x + nx * (g.track.w / 2 + 420), p.y + ny * (g.track.w / 2 + 420)]); }
-    const poly = (a, b) => { ctx.beginPath(); a.forEach(([x, y], k) => ctx[k ? 'lineTo' : 'moveTo'](x, y)); b.slice().reverse().forEach(([x, y]) => ctx.lineTo(x, y)); ctx.closePath(); };
-    const mid = (a, b, f) => a.map(([x, y], k) => [x + (b[k][0] - x) * f, y + (b[k][1] - y) * f]);
-    poly(inner, outer); ctx.fillStyle = '#1C1226'; ctx.fill();
-    poly(mid(inner, outer, 0.04), mid(inner, outer, 0.3)); ctx.fillStyle = '#2E1F3D'; ctx.fill();
-    return { inner, outer, poly, mid, N }; });
+  ctx.restore();
+  ctx.lineJoin = 'round'; ctx.strokeStyle = '#5E2E10'; ctx.lineWidth = 7; rimPath(); ctx.stroke(); ctx.strokeStyle = '#E9A060'; ctx.lineWidth = 1.5; rimPath(); ctx.stroke();   // the table's edge
   // the tape: shadow, red-and-white kerbs, the tape, the dashed centre, the finish line
   const way = () => { ctx.beginPath(); g.track.pts.forEach((p, i) => ctx[i ? 'lineTo' : 'moveTo'](p.x, p.y)); ctx.closePath(); };
   ctx.lineJoin = 'round'; ctx.lineCap = 'butt';
@@ -269,11 +304,13 @@ function draw(t) {
   ctx.strokeStyle = '#E0A93A'; ctx.lineWidth = 3; ctx.setLineDash([16, 12]); way(); ctx.stroke(); ctx.setLineDash([]);
   { const p = at(0), n = { x: Math.cos(p.a + Math.PI / 2), y: Math.sin(p.a + Math.PI / 2) }; for (let i = -4; i < 4; i++) for (let j = 0; j < 2; j++) { ctx.fillStyle = (i + j) % 2 ? '#fff' : '#111'; const w2 = g.track.w / 8; ctx.save(); ctx.translate(p.x + n.x * (i + 0.5) * w2 + Math.cos(p.a) * (j - 0.5) * 8, p.y + n.y * (i + 0.5) * w2 + Math.sin(p.a) * (j - 0.5) * 8); ctx.rotate(p.a); ctx.fillRect(-4, -w2 / 2, 8, w2); ctx.restore(); } }
   const upright = (x, y, ch, size) => { ctx.save(); ctx.translate(x, y); ctx.rotate(-(g.camA + (g.turn || 0))); ctx.font = `${size}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ch, 0, 0); ctx.restore(); };
-  // 🪂 the open edges, over the floor drawn under the tape: the table's rim, a hazard line and a warning sign
-  edgeShapes.forEach(({ inner, outer, poly, mid, N }) => {
-    poly(inner, mid(inner, outer, 0.035)); ctx.fillStyle = '#7A3E18'; ctx.fill();   // the table's rim, over the kerb
-    ctx.strokeStyle = '#FFD23F'; ctx.lineWidth = 3; ctx.setLineDash([10, 8]); ctx.beginPath(); inner.forEach(([x, y], k) => ctx[k ? 'lineTo' : 'moveTo'](x, y)); ctx.stroke(); ctx.setLineDash([]);
-    const m = inner[N >> 1], o = outer[N >> 1]; upright(m[0] + (o[0] - m[0]) * 0.07, m[1] + (o[1] - m[1]) * 0.07, '⚠️', 16); });
+  // 🪂 the open stretches: the rim right at the tape (over the kerb), a hazard line and a warning sign
+  (g.edges || []).forEach((e) => { const N = 18, line = []; for (let k = 0; k <= N; k++) { const sk = e.s0 + (e.s1 - e.s0) * k / N, p = at(sk), nx = -Math.sin(p.a) * e.side, ny = Math.cos(p.a) * e.side; line.push([p.x + nx * g.track.w / 2, p.y + ny * g.track.w / 2, nx, ny]); }
+    const pl = (o) => { ctx.beginPath(); line.forEach(([x, y, nx, ny], k) => ctx[k ? 'lineTo' : 'moveTo'](x + nx * o, y + ny * o)); };
+    ctx.lineCap = 'butt'; ctx.strokeStyle = '#5E2E10'; ctx.lineWidth = 10; pl(4); ctx.stroke(); ctx.strokeStyle = '#FFD23F'; ctx.lineWidth = 3; ctx.setLineDash([10, 8]); pl(0); ctx.stroke(); ctx.setLineDash([]);
+    const [mx, my, nx, ny] = line[N >> 1]; upright(mx + nx * 30, my + ny * 30, '⚠️', 16); });
+  // 🧱 the guards along the rest of the edge
+  drawGuards(t);
   // hazards, each drawn as the thing it is (a label stands upright on the milk and the boxes, whichever way the table turns)
   g.items.forEach((i) => { if (i.kind === 'milk') drawMilk(i, upright); else if (i.kind === 'hole') drawHole(i); else if (i.kind === 'toaster') drawToaster(i); else if (i.kind === 'box') drawBox(i, upright, t); });
   g.obs.forEach((o) => { if (o.kind === 'box') drawBox(o, upright, t); else drawSoldier(o); });
@@ -325,6 +362,6 @@ const organ = {
   level: () => g?.course || 1,
   overText: (how) => (how === 'fell in the pocket' ? ['🕳️ POCKETED', 'Too many trips down the pocket.'] : how === 'off the table' ? ['🫳 OFF THE TABLE', 'The table is only so big.'] : how === 'fell off the edge' ? ['🪂 OVER THE EDGE', 'Mind the open edges.'] : ['RUN OVER', '']),
   endStats: () => (g ? `🏎️ ${lapsN} laps · ${outsN} rivals left behind` : ''),
-  debug: () => g && ({ auto: (on) => { g.auto = on; }, fx: g.fx.map((f) => f.text), me: { x: g.me.x, y: g.me.y, s: g.me.s, v: g.me.v, off: g.me.off }, lap: g.lap, cps: g.cps, course: g.course, rivals: g.rivals.map((r) => ({ s: r.s, out: r.out, off: r.off })), items: g.items.length, obs: g.obs.length, twist: g.twist?.kind || null, held: { ...held }, W, H: H(), track: { w: g.track.w, len: Math.round(g.track.len) }, zoom: g.zoom, camA: g.camA, top: Math.round(topSpeed()), edges: g.edges.map((e) => ({ s0: e.s0, s1: e.s1, side: e.side })), fall: g.me.fall || 0, rescue: g.me.rescue ? g.me.rescue.t : null, pushOff: (i = 0) => { const e = g.edges[i], p = spotOn(e.c, e.side * (g.track.w / 2 + 14)); g.me.x = p.x; g.me.y = p.y; g.me.air = 0; }, hitBox: (i = 0) => { const b = [...g.items, ...g.obs].filter((x) => x.kind === 'box')[i]; if (b) b.hit = true; }, boxes: [...g.items, ...g.obs].filter((b) => b.kind === 'box').length, smashed: smashedN, boxScreen: (i = 0) => { const bs = [...g.items, ...g.obs].filter((b) => b.kind === 'box'), b = bs[i]; if (!b) return null; const th = g.camA + (g.turn || 0), dx = (b.x - g.me.x) * g.zoom, dy = (b.y - g.me.y) * g.zoom; return { x: W / 2 + Math.cos(th) * dx - Math.sin(th) * dy, y: H() * CAR_Y + Math.sin(th) * dx + Math.cos(th) * dy }; }, tap: (p) => { organ.pointer('down', p, { pointerId: 99 }); organ.pointer('up', p, { pointerId: 99 }); } }),
+  debug: () => g && ({ auto: (on) => { g.auto = on; }, fx: g.fx.map((f) => f.text), me: { x: g.me.x, y: g.me.y, s: g.me.s, v: g.me.v, off: g.me.off }, lap: g.lap, cps: g.cps, course: g.course, rivals: g.rivals.map((r) => ({ s: r.s, out: r.out, off: r.off })), items: g.items.length, obs: g.obs.length, twist: g.twist?.kind || null, held: { ...held }, W, H: H(), track: { w: g.track.w, len: Math.round(g.track.len) }, zoom: g.zoom, camA: g.camA, top: Math.round(topSpeed()), edges: g.edges.map((e) => ({ s0: e.s0, s1: e.s1, side: e.side })), fall: g.me.fall || 0, rescue: g.me.rescue ? g.me.rescue.t : null, guards: g.rim.reduce((o, p) => { o[p.guard] = (o[p.guard] || 0) + 1; return o; }, {}), outer: g.outer, pushOut: (sk = 0.5, d = 80) => { const p = at(sk); g.me.x = p.x - Math.sin(p.a) * g.outer * (g.track.w / 2 + d); g.me.y = p.y + Math.cos(p.a) * g.outer * (g.track.w / 2 + d); g.me.air = 0; }, pushOff: (i = 0) => { const e = g.edges[i], p = spotOn(e.c, e.side * (g.track.w / 2 + 14)); g.me.x = p.x; g.me.y = p.y; g.me.air = 0; }, hitBox: (i = 0) => { const b = [...g.items, ...g.obs].filter((x) => x.kind === 'box')[i]; if (b) b.hit = true; }, boxes: [...g.items, ...g.obs].filter((b) => b.kind === 'box').length, smashed: smashedN, boxScreen: (i = 0) => { const bs = [...g.items, ...g.obs].filter((b) => b.kind === 'box'), b = bs[i]; if (!b) return null; const th = g.camA + (g.turn || 0), dx = (b.x - g.me.x) * g.zoom, dy = (b.y - g.me.y) * g.zoom; return { x: W / 2 + Math.cos(th) * dx - Math.sin(th) * dy, y: H() * CAR_Y + Math.sin(th) * dx + Math.cos(th) * dy }; }, tap: (p) => { organ.pointer('down', p, { pointerId: 99 }); organ.pointer('up', p, { pointerId: 99 }); } }),
 };
 export default organ;

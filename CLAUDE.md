@@ -876,9 +876,14 @@ big (`drawPal` s 15, upright, two arms to the roof), lifts the car in screen-up 
 the respawn spot while the seat sits empty; on landing `respawn` takes the life (`host.hurt('fell off the
 edge')`, a `pickup` cue). Soldiers, the pocket, the paw and rival bumps leave a falling or carried car alone. Drawn as a dark floor polygon under
 the tape (so a curving loop is never covered), then the wood rim over the kerb, a yellow dashed line and ⚠️.
-No boxes are placed on an open side. `__rl()` has `edges`, `fall`, `rescue`, `pushOff(i)`. `drive(c, dt, steer, brake,
+No boxes are placed on an open side. `__rl()` has `edges`, `fall`, `rescue`, `pushOff(i)`. 🧱 **The table's edge, all the way round** (`buildRim`, `g.rim`, 240 points
+on the loop's outside, `g.outer` its side): `marginAt(s)` = `MARGIN` (46) beyond the tape, eased to 0 over `RAMP`
+(0.025) into each open stretch. The floor is drawn first, then the table clipped to the rim (with its shadow and
+a wood lip); guarded points (`GUARDS`: a white railing, a row of book spines, toy bricks; nine chunks round the
+loop, by seed) are drawn by `drawGuards` and bounce a car in `drive` at `w/2 + margin − R` (turned back along the
+tape, ×0.7 speed, a clack). `__rl()` has `guards`, `outer`, `pushOut(s, d)`. `drive(c, dt, steer, brake,
 isMe)` is shared by you and the rivals (grip 0.25 on milk, 0.55 speed off the tape, boxes turn the car back
-along the tape, > w/2 + 90 from the centreline is "off the table"). Rivals steer at `at(s + 0.03)` with a
+along the tape, the outside ends at the table's edge, the infield eases you back past w/2 + 110). Rivals steer at `at(s + 0.03)` with a
 rubber band on `gap`; `out` for 4 s then respawn 0.1 ahead of you, `outLap` stops a repeat. Laps need
 `cps` 1→3 then a crossing of s = 0; `lapDone` → course after 3. `pointer` tracks `held.left/right` by
 `e.pointerId` (a finger sliding across the middle swaps sides). `__rl()` has `auto(on)` (a test autopilot
