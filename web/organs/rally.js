@@ -21,6 +21,10 @@ const FIB = [3, 5, 8, 13, 21];
 let host, ctx, S, sfx, g = null, lapsN = 0, outsN = 0, held = {};
 const H = () => host.H;
 const stage = () => host.stage?.() || 1;
+// 🏎️ the cars get faster as the run goes on: by course and by stage (230 at the start, ~1.7× by course 4 at Stage 4)
+const topSpeed = () => VMAX * (1 + 0.12 * ((g?.course || 1) - 1) + 0.09 * (stage() - 1));
+// 🔍 the camera starts close in and pulls back as the stages come (on top of the shell's own zoom-out)
+const camZoom = () => 1.55 / (1 + 0.22 * (stage() - 1));
 const hash = (i) => { let x = (Math.imul(i | 0, 374761393) + 668265263) | 0; x = Math.imul(x ^ (x >>> 13), 1274126177); return ((x ^ (x >>> 16)) >>> 0) / 4294967296; };
 
 // ---------------------------------------------------------------- the track
@@ -34,7 +38,7 @@ function makeTrack(course, seed) {
     pts.push({ x: Math.cos(th) * rx * f, y: Math.sin(th) * ry * f });
   }
   let len = 0; const cum = [0]; for (let i = 1; i <= n; i++) { const a = pts[i - 1], b = pts[i % n]; len += Math.hypot(b.x - a.x, b.y - a.y); cum.push(len); }
-  return { pts, cum, len, w: Math.max(54, 96 - 8 * course), n };
+  return { pts, cum, len, w: Math.max(90, 150 - 10 * course), n };   // wide tape: 140 on course 1, down to 90
 }
 const at = (s) => { const t = g.track; s = ((s % 1) + 1) % 1; const L = s * t.len; let i = 0; while (i < t.n && t.cum[i + 1] < L) i++; const a = t.pts[i], b = t.pts[(i + 1) % t.n], u = (L - t.cum[i]) / (t.cum[i + 1] - t.cum[i] || 1); return { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u, a: Math.atan2(b.y - a.y, b.x - a.x) }; };
 function nearest(x, y) {   // the nearest point of the centreline: its progress s (0..1) and the distance d
@@ -81,7 +85,7 @@ function twist() {
 // ---------------------------------------------------------------- the race
 function drive(c, dt, steer, brake, isMe) {
   const n = nearest(c.x, c.y), onTape = n.d < g.track.w / 2, milk = g.items.find((i) => i.kind === 'milk' && Math.hypot(i.x - c.x, i.y - c.y) < i.r);
-  const vmax = VMAX * (isMe && g.nitro > 0 ? 1.5 : 1) * (onTape ? 1 : 0.55) * (isMe ? 1 : c.skill);
+  const vmax = topSpeed() * (isMe && g.nitro > 0 ? 1.5 : 1) * (onTape ? 1 : 0.55) * (isMe ? 1 : c.skill);
   if (c.spin > 0) { c.spin -= dt; c.a += dt * 9; c.v *= Math.pow(0.5, dt); } else {
     const grip = milk ? 0.25 : 1; c.a += steer * TURN * grip * dt * Math.min(1, c.v / 80 + 0.3);
     c.v += (brake ? -400 : (vmax - c.v) * 2.4) * dt; if (c.v < 0) c.v = 0; if (milk) c.v = Math.max(c.v, vmax * 0.6);
@@ -117,7 +121,7 @@ function update(dt) {
   g.items.forEach((i) => { const d = Math.hypot(i.x - me.x, i.y - me.y);
     if (i.kind === 'hole' && d < i.r && me.air <= 0) { me.spin = 0; me.v = 0; const p = at(me.s - g.dir * 0.03); me.x = p.x; me.y = p.y; me.a = p.a + (g.dir < 0 ? Math.PI : 0); S.combo = 0; host.cue?.('near', i.x, i.y); sfx('plunk');
       if (g.course >= 3) { if (!host.hurt('fell in the pocket')) host.banner('🕳️ THE POCKET', `${S.hearts} ${S.hearts === 1 ? 'heart' : 'hearts'} left`); } else { me.spin = 0.9; host.banner('🕳️ THE POCKET', 'fished out · from course 3 it costs a life'); } }
-    if (i.kind === 'toaster' && d < 20 && me.air <= 0 && me.v > 60) { me.air = 0.7; me.v = Math.max(me.v, VMAX * 1.2); sfx('whistle', { dur: 0.3 }); g.fx.push({ kind: 'text', x: me.x, y: me.y - 24, text: '🍞 POP!', life: 0.8 }); } });
+    if (i.kind === 'toaster' && d < 20 && me.air <= 0 && me.v > 60) { me.air = 0.7; me.v = Math.max(me.v, topSpeed() * 1.2); sfx('whistle', { dur: 0.3 }); g.fx.push({ kind: 'text', x: me.x, y: me.y - 24, text: '🍞 POP!', life: 0.8 }); } });
   g.pennies = g.pennies.filter((p) => { if (Math.hypot(p.x - me.x, p.y - me.y) < R + 8) { host.add(20); host.cue?.('score', p.x, p.y); g.fx.push({ kind: 'text', x: p.x, y: p.y - 14, text: '+20', life: 0.7 }); sfx('chime', { hi: true }); return false; } return true; });   // flat: the combo is for laps and rivals
   // 🐈 the paw sweeps along the track and swats whatever it meets
   if (g.paw) { g.paw.t += dt; g.paw.s = (g.paw.s + g.dir * 0.06 * dt + 1) % 1; const p = at(g.paw.s); [me, ...g.rivals].forEach((c) => { if (Math.hypot(c.x - p.x, c.y - p.y) < 34 && c.spin <= 0) { c.spin = 0.7; c.x += Math.cos(p.a + Math.PI / 2) * 30; c.y += Math.sin(p.a + Math.PI / 2) * 30; if (c === me) { S.combo = 0; sfx('thud'); } } }); }
@@ -149,7 +153,8 @@ function draw(t) {
   ctx.fillStyle = '#6B4A2B'; ctx.fillRect(0, 0, W, Hh);
   if (!g) return;
   // the camera: on you, the table turning under the window
-  ctx.save(); ctx.translate(W / 2, Hh / 2); if (g.turn) ctx.rotate(g.turn); ctx.translate(-me.x, -me.y);
+  g.zoom = g.zoom ? g.zoom + (camZoom() - g.zoom) * 0.02 : camZoom();
+  ctx.save(); ctx.translate(W / 2, Hh / 2); ctx.scale(g.zoom, g.zoom); if (g.turn) ctx.rotate(g.turn); ctx.translate(-me.x, -me.y);
   // the table: wood grain, and a faint Sierpiński-carpet tablecloth (the fractal on the table)
   const gx0 = Math.floor((me.x - W) / 60) * 60, gy0 = Math.floor((me.y - Hh) / 60) * 60;
   for (let y = gy0; y < me.y + Hh; y += 60) { ctx.fillStyle = ((y / 60) | 0) % 2 ? '#6E4C2D' : '#67472A'; ctx.fillRect(gx0, y, W * 2.5, 60); }
@@ -180,7 +185,7 @@ function draw(t) {
   g.fx.forEach((f) => { ctx.globalAlpha = Math.max(0, Math.min(1, f.life * 1.5)); ctx.font = f.big ? '400 18px Bungee, Impact, sans-serif' : '900 13px Nunito, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = f.col || '#FFE08A'; ctx.strokeStyle = '#2A1A0A'; ctx.lineWidth = 4; ctx.strokeText(f.text, f.x, f.y); ctx.fillText(f.text, f.x, f.y); }); ctx.globalAlpha = 1;
   ctx.restore();
   // 🔦 lights out: only the headlights
-  if (g.dark > 0.02) { const dg = ctx.createRadialGradient(W / 2, Hh / 2, 20, W / 2, Hh / 2, 130); dg.addColorStop(0, '#0000'); dg.addColorStop(1, `rgba(4,3,8,${0.96 * g.dark})`); ctx.fillStyle = dg; ctx.fillRect(0, 0, W, Hh); }
+  if (g.dark > 0.02) { const dg = ctx.createRadialGradient(W / 2, Hh / 2, 20 * g.zoom, W / 2, Hh / 2, 130 * g.zoom); dg.addColorStop(0, '#0000'); dg.addColorStop(1, `rgba(4,3,8,${0.96 * g.dark})`); ctx.fillStyle = dg; ctx.fillRect(0, 0, W, Hh); }
   // the steer zones, faint, and the position
   ctx.fillStyle = held.left ? '#ffffff22' : '#ffffff08'; ctx.fillRect(0, Hh * 0.5, W / 2, Hh * 0.5); ctx.fillStyle = held.right ? '#ffffff22' : '#ffffff08'; ctx.fillRect(W / 2, Hh * 0.5, W / 2, Hh * 0.5);
   ctx.fillStyle = '#FFE08A'; ctx.font = '900 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText(`lap ${Math.min(3, g.lap + 1)} of 3 · ${position()}${g.rivals.length + 1}`, W / 2, Hh - 16);
@@ -201,6 +206,6 @@ const organ = {
   level: () => g?.course || 1,
   overText: (how) => (how === 'fell in the pocket' ? ['🕳️ POCKETED', 'Too many trips down the pocket.'] : how === 'off the table' ? ['🫳 OFF THE TABLE', 'The table is only so big.'] : ['RUN OVER', '']),
   endStats: () => (g ? `🏎️ ${lapsN} laps · ${outsN} rivals left behind` : ''),
-  debug: () => g && ({ auto: (on) => { g.auto = on; }, fx: g.fx.map((f) => f.text), me: { x: g.me.x, y: g.me.y, s: g.me.s, v: g.me.v, off: g.me.off }, lap: g.lap, cps: g.cps, course: g.course, rivals: g.rivals.map((r) => ({ s: r.s, out: r.out, off: r.off })), items: g.items.length, obs: g.obs.length, twist: g.twist?.kind || null, held: { ...held }, W, H: H(), track: { w: g.track.w, len: Math.round(g.track.len) } }),
+  debug: () => g && ({ auto: (on) => { g.auto = on; }, fx: g.fx.map((f) => f.text), me: { x: g.me.x, y: g.me.y, s: g.me.s, v: g.me.v, off: g.me.off }, lap: g.lap, cps: g.cps, course: g.course, rivals: g.rivals.map((r) => ({ s: r.s, out: r.out, off: r.off })), items: g.items.length, obs: g.obs.length, twist: g.twist?.kind || null, held: { ...held }, W, H: H(), track: { w: g.track.w, len: Math.round(g.track.len) }, zoom: g.zoom, top: Math.round(topSpeed()) }),
 };
 export default organ;

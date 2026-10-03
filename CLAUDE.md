@@ -851,8 +851,9 @@ are forgiving (30/28, landing 24); a tap within 30 × `crateScale(c)` of a crate
 `dropScale` likewise, on `g.drops`). `renderBar()` is a disabled readout of `game.weapon` + rounds; `openCrate`
 sets the weapon, `spend()` drops back to the stapler at zero.
 **Rally (organs/rally.js).** `makeTrack(course, seed)`: 120 points, `r(θ) = base × (1 + Σ rough × k^−0.8 ×
-1.6 × sin(kθ + φ))` over `FIB = [3, 5, 8, 13, 21]`, `rough = 0.05 + 0.1 (course − 1)`, width `max(54, 96 −
-8 course)`; `at(s)` / `nearest(x, y)` / `spotOn(s, off)` on the cumulative length. The camera is on the car
+1.6 × sin(kθ + φ))` over `FIB = [3, 5, 8, 13, 21]`, `rough = 0.05 + 0.1 (course − 1)`, width `max(90, 150 −
+10 course)`; `topSpeed()` = 230 × (1 + 0.12 (course − 1) + 0.09 (stage − 1)); `camZoom()` = 1.55 / (1 + 0.22 (stage −
+1)), eased into `g.zoom` and applied around the screen centre before the camera translate; `at(s)` / `nearest(x, y)` / `spotOn(s, off)` on the cumulative length. The camera is on the car
 (`translate(W/2 − me.x, H/2 − me.y)`, rotated by `g.turn` under the window). `drive(c, dt, steer, brake,
 isMe)` is shared by you and the rivals (grip 0.25 on milk, 0.55 speed off the tape, boxes turn the car back
 along the tape, > w/2 + 90 from the centreline is "off the table"). Rivals steer at `at(s + 0.03)` with a
