@@ -24,7 +24,8 @@ const stage = () => host.stage?.() || 1;
 // 🏎️ the cars get faster as the run goes on: by course and by stage (230 at the start, ~1.7× by course 4 at Stage 4)
 const topSpeed = () => VMAX * (1 + 0.12 * ((g?.course || 1) - 1) + 0.09 * (stage() - 1));
 // 🔍 the camera starts close in and pulls back as the stages come (on top of the shell's own zoom-out)
-const camZoom = () => 1.55 / (1 + 0.22 * (stage() - 1));
+const camZoom = () => 2.4 / (1 + 0.25 * (stage() - 1));
+const CAR_Y = 0.66;   // the car sits low on the screen: the road ahead is what you see
 const hash = (i) => { let x = (Math.imul(i | 0, 374761393) + 668265263) | 0; x = Math.imul(x ^ (x >>> 13), 1274126177); return ((x ^ (x >>> 16)) >>> 0) / 4294967296; };
 
 // ---------------------------------------------------------------- the track
@@ -154,11 +155,14 @@ function draw(t) {
   if (!g) return;
   // the camera: on you, the table turning under the window
   g.zoom = g.zoom ? g.zoom + (camZoom() - g.zoom) * 0.02 : camZoom();
-  ctx.save(); ctx.translate(W / 2, Hh / 2); ctx.scale(g.zoom, g.zoom); if (g.turn) ctx.rotate(g.turn); ctx.translate(-me.x, -me.y);
+  // 🎥 the chase camera: top-down, but turned so the car always points up the screen, following it from behind (eased, so a
+  // spin doesn't whirl the whole table); the window's table spin adds its own turn on top
+  { const want = -(me.a + Math.PI / 2); if (g.camA == null) g.camA = want; const da = ((want - g.camA + Math.PI * 3) % (Math.PI * 2)) - Math.PI; g.camA += da * Math.min(1, 0.12); }
+  ctx.save(); ctx.translate(W / 2, Hh * CAR_Y); ctx.scale(g.zoom, g.zoom); ctx.rotate(g.camA + (g.turn || 0)); ctx.translate(-me.x, -me.y);
   // the table: wood grain, and a faint Sierpiński-carpet tablecloth (the fractal on the table)
-  const gx0 = Math.floor((me.x - W) / 60) * 60, gy0 = Math.floor((me.y - Hh) / 60) * 60;
-  for (let y = gy0; y < me.y + Hh; y += 60) { ctx.fillStyle = ((y / 60) | 0) % 2 ? '#6E4C2D' : '#67472A'; ctx.fillRect(gx0, y, W * 2.5, 60); }
-  ctx.fillStyle = '#ffffff0a'; for (let y = gy0; y < me.y + Hh; y += 60) for (let x = gx0; x < me.x + W; x += 60) { ctx.fillRect(x + 20, y + 20, 20, 20); for (let i = 0; i < 9; i++) if (i !== 4) ctx.fillRect(x + (i % 3) * 20 + 7, y + Math.floor(i / 3) * 20 + 7, 6, 6); }
+  const Rv = Math.hypot(W, Hh) / g.zoom, gx0 = Math.floor((me.x - Rv) / 60) * 60, gy0 = Math.floor((me.y - Rv) / 60) * 60;   // the table under a turning camera: a disc's worth of grain
+  for (let y = gy0; y < me.y + Rv; y += 60) { ctx.fillStyle = ((y / 60) | 0) % 2 ? '#6E4C2D' : '#67472A'; ctx.fillRect(gx0, y, Rv * 2 + 60, 60); }
+  ctx.fillStyle = '#ffffff0a'; for (let y = gy0; y < me.y + Rv; y += 60) for (let x = gx0; x < me.x + Rv; x += 60) { ctx.fillRect(x + 20, y + 20, 20, 20); for (let i = 0; i < 9; i++) if (i !== 4) ctx.fillRect(x + (i % 3) * 20 + 7, y + Math.floor(i / 3) * 20 + 7, 6, 6); }
   // the tape: shadow, tape, edges, the dashed centre, the finish line
   const way = () => { ctx.beginPath(); g.track.pts.forEach((p, i) => ctx[i ? 'lineTo' : 'moveTo'](p.x, p.y)); ctx.closePath(); };
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -182,10 +186,10 @@ function draw(t) {
     if (mine && g.bumper) { ctx.strokeStyle = '#C9B8FF'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 15, 0, 7); ctx.stroke(); } if (mine && g.nitro > 0) { ctx.fillStyle = '#FF8A3D'; ctx.beginPath(); ctx.moveTo(-11, -3); ctx.lineTo(-22 - Math.random() * 8, 0); ctx.lineTo(-11, 3); ctx.fill(); }
     ctx.restore(); };
   g.rivals.forEach((r) => { if (r.out <= 0) car(r, r.hue, false); }); car(me, 0, true);
-  g.fx.forEach((f) => { ctx.globalAlpha = Math.max(0, Math.min(1, f.life * 1.5)); ctx.font = f.big ? '400 18px Bungee, Impact, sans-serif' : '900 13px Nunito, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = f.col || '#FFE08A'; ctx.strokeStyle = '#2A1A0A'; ctx.lineWidth = 4; ctx.strokeText(f.text, f.x, f.y); ctx.fillText(f.text, f.x, f.y); }); ctx.globalAlpha = 1;
+  g.fx.forEach((f) => { ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(-(g.camA + (g.turn || 0))); ctx.translate(-f.x, -f.y); ctx.globalAlpha = Math.max(0, Math.min(1, f.life * 1.5)); ctx.font = f.big ? '400 18px Bungee, Impact, sans-serif' : '900 13px Nunito, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = f.col || '#FFE08A'; ctx.strokeStyle = '#2A1A0A'; ctx.lineWidth = 4; ctx.strokeText(f.text, f.x, f.y); ctx.fillText(f.text, f.x, f.y); ctx.restore(); }); ctx.globalAlpha = 1;
   ctx.restore();
   // 🔦 lights out: only the headlights
-  if (g.dark > 0.02) { const dg = ctx.createRadialGradient(W / 2, Hh / 2, 20 * g.zoom, W / 2, Hh / 2, 130 * g.zoom); dg.addColorStop(0, '#0000'); dg.addColorStop(1, `rgba(4,3,8,${0.96 * g.dark})`); ctx.fillStyle = dg; ctx.fillRect(0, 0, W, Hh); }
+  if (g.dark > 0.02) { const dg = ctx.createRadialGradient(W / 2, Hh * CAR_Y, 20 * g.zoom, W / 2, Hh * CAR_Y, 130 * g.zoom); dg.addColorStop(0, '#0000'); dg.addColorStop(1, `rgba(4,3,8,${0.96 * g.dark})`); ctx.fillStyle = dg; ctx.fillRect(0, 0, W, Hh); }
   // the steer zones, faint, and the position
   ctx.fillStyle = held.left ? '#ffffff22' : '#ffffff08'; ctx.fillRect(0, Hh * 0.5, W / 2, Hh * 0.5); ctx.fillStyle = held.right ? '#ffffff22' : '#ffffff08'; ctx.fillRect(W / 2, Hh * 0.5, W / 2, Hh * 0.5);
   ctx.fillStyle = '#FFE08A'; ctx.font = '900 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText(`lap ${Math.min(3, g.lap + 1)} of 3 · ${position()}${g.rivals.length + 1}`, W / 2, Hh - 16);
@@ -206,6 +210,6 @@ const organ = {
   level: () => g?.course || 1,
   overText: (how) => (how === 'fell in the pocket' ? ['🕳️ POCKETED', 'Too many trips down the pocket.'] : how === 'off the table' ? ['🫳 OFF THE TABLE', 'The table is only so big.'] : ['RUN OVER', '']),
   endStats: () => (g ? `🏎️ ${lapsN} laps · ${outsN} rivals left behind` : ''),
-  debug: () => g && ({ auto: (on) => { g.auto = on; }, fx: g.fx.map((f) => f.text), me: { x: g.me.x, y: g.me.y, s: g.me.s, v: g.me.v, off: g.me.off }, lap: g.lap, cps: g.cps, course: g.course, rivals: g.rivals.map((r) => ({ s: r.s, out: r.out, off: r.off })), items: g.items.length, obs: g.obs.length, twist: g.twist?.kind || null, held: { ...held }, W, H: H(), track: { w: g.track.w, len: Math.round(g.track.len) }, zoom: g.zoom, top: Math.round(topSpeed()) }),
+  debug: () => g && ({ auto: (on) => { g.auto = on; }, fx: g.fx.map((f) => f.text), me: { x: g.me.x, y: g.me.y, s: g.me.s, v: g.me.v, off: g.me.off }, lap: g.lap, cps: g.cps, course: g.course, rivals: g.rivals.map((r) => ({ s: r.s, out: r.out, off: r.off })), items: g.items.length, obs: g.obs.length, twist: g.twist?.kind || null, held: { ...held }, W, H: H(), track: { w: g.track.w, len: Math.round(g.track.len) }, zoom: g.zoom, camA: g.camA, top: Math.round(topSpeed()) }),
 };
 export default organ;
