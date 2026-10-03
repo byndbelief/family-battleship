@@ -864,9 +864,10 @@ is drawn over a disc of radius `hypot(W, H) / zoom` and the fx texts are counter
 version lived for one commit, 3225041, and was reverted: it reads badly with flat sprites.) `R` = 13, cars
 are drawn at `CAR` = 1.5×. The look is bright: warm planks, red-and-white kerbs, a red cereal box with a 🥣
 label, a milk puddle with 🥛, a chrome toaster with toast, a green army man, a hazard-ringed pocket (`drawBox`,
-`drawMilk`, `drawToaster`, `drawSoldier`, `drawHole`; labels stand upright through `upright()`). 📦 A tap on a box
-smashes it (+30, crumbs): `toTable(p)` runs a screen point back through the chase camera, `boxAt` allows 22 screen
-px of slack; the touch still steers. `__rl()` has `boxes`, `smashed`, `boxScreen(i)`, `tap(p)`. 🪂 **Open edges**: `g.edges` (one per course up to
+`drawMilk`, `drawToaster`, `drawSoldier`, `drawHole`; labels stand upright through `upright()`). 📦 A box your car has hit
+(`b.hit`, set in `drive`'s wall bump for you only; drawn with a crack and a pulsing yellow outline) smashes
+on a tap (+30, crumbs); an untouched box ignores taps: `toTable(p)` runs a screen point back through the chase camera, `boxAt` allows 22 screen
+px of slack; the touch still steers. `__rl()` has `boxes`, `smashed`, `hitBox(i)`, `boxScreen(i)`, `tap(p)`. 🪂 **Open edges**: `g.edges` (one per course up to
 3, at s ≈ 0.25 / 0.68 / 0.84, 0.08–0.14 of the loop, on the loop's outside: `side` in spotOn's sense) are where
 the table stops at the tape. `edgeAt(s, side)`; `drive` measures the signed offset from the centreline and a car
 past `w/2 + 6` on an open side (not in the air) sets `c.fall` (0.7 s: shrinks, spins, fades), then `respawn`

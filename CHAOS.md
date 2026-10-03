@@ -244,7 +244,7 @@ points up the screen and sits low in it, following from behind, close in at the 
 as the stages come. The window's table spin turns it further. The cars are big (1.5× sprites) and the tape
 is wide: 180 on course 1, down to 120. Hazards: 🥛 spilled milk (ice),
 🍞 a toaster (a ramp), 🕳️ the pocket (from course 2; a life from course 3), 📦 cereal boxes (walls that turn
-you back onto the tape; tap one and it smashes, +30). The nine events: a **peak** stands a 🪖 toy soldier on the road (a bonk and a spin),
+you back onto the tape; once your car has hit one it cracks, and a tap smashes it, +30). The nine events: a **peak** stands a 🪖 toy soldier on the road (a bonk and a spin),
 the **window** spins the table a quarter turn a beat, the **mirror** reverses the circuit, the **balance**
 drains the milk, the **golden cut** lays eight pennies ahead (+161, 20 each), a **big hop** drops a cereal
 box on the road, **gift** is a bumper, **fib** a nitro, and a **glitch** puts Fig in every rival's seat.
