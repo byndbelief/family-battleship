@@ -10,7 +10,7 @@
 import { fibMult } from '../chaos.js';
 import { drawPal } from '../pals.js';
 
-let W = 400, R = 9, VMAX = 230, TURN = 3.1;
+let W = 400, R = 13, VMAX = 230, TURN = 3.1, CAR = 1.5;   // R: a car's radius; CAR: how big the cars are drawn
 const TWISTS = [
   ['🧲 FRIDGE MAGNET', 'the cars are pulled sideways', 'magnet'],
   ['🌀 CEILING FAN', 'a wind across the table', 'fan'],
@@ -24,7 +24,7 @@ const stage = () => host.stage?.() || 1;
 // 🏎️ the cars get faster as the run goes on: by course and by stage (230 at the start, ~1.7× by course 4 at Stage 4)
 const topSpeed = () => VMAX * (1 + 0.12 * ((g?.course || 1) - 1) + 0.09 * (stage() - 1));
 // 🔍 the camera starts close in and pulls back as the stages come (on top of the shell's own zoom-out)
-const camZoom = () => 2.4 / (1 + 0.25 * (stage() - 1));
+const camZoom = () => 2.0 / (1 + 0.25 * (stage() - 1));
 const CAR_Y = 0.66;   // the car sits low on the screen: the road ahead is what you see
 const hash = (i) => { let x = (Math.imul(i | 0, 374761393) + 668265263) | 0; x = Math.imul(x ^ (x >>> 13), 1274126177); return ((x ^ (x >>> 16)) >>> 0) / 4294967296; };
 
@@ -39,7 +39,7 @@ function makeTrack(course, seed) {
     pts.push({ x: Math.cos(th) * rx * f, y: Math.sin(th) * ry * f });
   }
   let len = 0; const cum = [0]; for (let i = 1; i <= n; i++) { const a = pts[i - 1], b = pts[i % n]; len += Math.hypot(b.x - a.x, b.y - a.y); cum.push(len); }
-  return { pts, cum, len, w: Math.max(90, 150 - 10 * course), n };   // wide tape: 140 on course 1, down to 90
+  return { pts, cum, len, w: Math.max(120, 190 - 10 * course), n };   // wide tape: 180 on course 1, down to 120
 }
 const at = (s) => { const t = g.track; s = ((s % 1) + 1) % 1; const L = s * t.len; let i = 0; while (i < t.n && t.cum[i + 1] < L) i++; const a = t.pts[i], b = t.pts[(i + 1) % t.n], u = (L - t.cum[i]) / (t.cum[i + 1] - t.cum[i] || 1); return { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u, a: Math.atan2(b.y - a.y, b.x - a.x) }; };
 function nearest(x, y) {   // the nearest point of the centreline: its progress s (0..1) and the distance d
@@ -147,67 +147,49 @@ function lapDone() {
 }
 
 // ---------------------------------------------------------------- drawing
-// 🎥 The chase camera, tilted: the table is drawn top-down and turned so the car points up (into an offscreen
-// canvas), then projected row by row onto the screen like a camera 45° behind and above the car — rows ahead
-// shrink toward a horizon, rows behind stay wide — so the road narrows into the distance and the far table fogs.
-let off = null, octx = null;
-const CAM = { horizon: 0.18, L: 150, fog: '#3A2616' };   // horizon: where the far table fades, as a share of the car's row; L: the depth scale
-function drawWorld(t) {
-  const Hh = H(), me = g.me, OH = Math.round(Hh * 1.4), OW = Math.round(W * 1.6);
-  if (!off || off.width !== OW || off.height !== OH) { off = document.createElement('canvas'); off.width = OW; off.height = OH; octx = off.getContext('2d'); }
-  const c = octx, z0 = g.zoom * 0.5, cx = OW / 2, cy = OH * 0.62;
-  c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = '#6B4A2B'; c.fillRect(0, 0, OW, OH);
-  c.save(); c.translate(cx, cy); c.scale(z0, z0); c.rotate(g.camA + (g.turn || 0)); c.translate(-me.x, -me.y);
-  const Rv = Math.hypot(OW, OH) / z0, gx0 = Math.floor((me.x - Rv) / 60) * 60, gy0 = Math.floor((me.y - Rv) / 60) * 60;
-  for (let y = gy0; y < me.y + Rv; y += 60) { c.fillStyle = ((y / 60) | 0) % 2 ? '#6E4C2D' : '#67472A'; c.fillRect(gx0, y, Rv * 2 + 60, 60); }
-  c.fillStyle = '#ffffff0a'; for (let y = gy0; y < me.y + Rv; y += 60) for (let x = gx0; x < me.x + Rv; x += 60) { c.fillRect(x + 20, y + 20, 20, 20); for (let i = 0; i < 9; i++) if (i !== 4) c.fillRect(x + (i % 3) * 20 + 7, y + Math.floor(i / 3) * 20 + 7, 6, 6); }
-  const way = () => { c.beginPath(); g.track.pts.forEach((p, i) => c[i ? 'lineTo' : 'moveTo'](p.x, p.y)); c.closePath(); };
-  c.lineJoin = 'round'; c.lineCap = 'round';
-  c.strokeStyle = '#00000033'; c.lineWidth = g.track.w + 10; c.save(); c.translate(3, 5); way(); c.stroke(); c.restore();
-  c.strokeStyle = '#E8D9A8'; c.lineWidth = g.track.w; way(); c.stroke();
-  c.strokeStyle = '#B9A36E'; c.lineWidth = 2; c.setLineDash([10, 8]); way(); c.stroke(); c.setLineDash([]);
-  { const p = at(0), n = { x: Math.cos(p.a + Math.PI / 2), y: Math.sin(p.a + Math.PI / 2) }; for (let i = -4; i < 4; i++) for (let j = 0; j < 2; j++) { c.fillStyle = (i + j) % 2 ? '#fff' : '#222'; const w2 = g.track.w / 8; c.save(); c.translate(p.x + n.x * (i + 0.5) * w2 + Math.cos(p.a) * (j - 0.5) * 6, p.y + n.y * (i + 0.5) * w2 + Math.sin(p.a) * (j - 0.5) * 6); c.rotate(p.a); c.fillRect(-3, -w2 / 2, 6, w2); c.restore(); } }
-  g.items.forEach((i) => { if (i.kind === 'milk') { c.fillStyle = '#F4F4F0'; c.beginPath(); c.ellipse(i.x, i.y, i.r, i.r * 0.7, 0.3, 0, 7); c.fill(); c.fillStyle = '#ffffff'; c.beginPath(); c.ellipse(i.x - 6, i.y - 4, i.r * 0.4, i.r * 0.25, 0.3, 0, 7); c.fill(); }
-    else if (i.kind === 'hole') { c.fillStyle = '#0A0806'; c.beginPath(); c.arc(i.x, i.y, i.r, 0, 7); c.fill(); c.strokeStyle = '#3A2A1A'; c.lineWidth = 3; c.stroke(); }
-    else if (i.kind === 'toaster') { c.save(); c.translate(i.x, i.y); c.rotate(i.a); c.fillStyle = '#C0C4CC'; c.fillRect(-16, -14, 32, 28); c.fillStyle = '#2B2B33'; c.fillRect(-12, -10, 24, 5); c.fillRect(-12, 5, 24, 5); c.fillStyle = '#E4572E'; c.fillRect(10, -3, 5, 6); c.restore(); }
-    else if (i.kind === 'box') { c.fillStyle = '#E4A33A'; c.fillRect(i.x - i.w / 2, i.y - i.h / 2, i.w, i.h); c.strokeStyle = '#8A5A2B'; c.lineWidth = 2; c.strokeRect(i.x - i.w / 2, i.y - i.h / 2, i.w, i.h); c.fillStyle = '#fff'; c.fillRect(i.x - 8, i.y - 4, 16, 8); } });
-  g.obs.forEach((o) => { if (o.kind === 'box') { c.fillStyle = '#E4A33A'; c.fillRect(o.x - o.w / 2, o.y - o.h / 2, o.w, o.h); c.strokeStyle = '#8A5A2B'; c.lineWidth = 2; c.strokeRect(o.x - o.w / 2, o.y - o.h / 2, o.w, o.h); } else { c.fillStyle = '#3E7A3E'; c.beginPath(); c.arc(o.x, o.y - 8, 5, 0, 7); c.fill(); c.fillRect(o.x - 4, o.y - 4, 8, 12); c.fillRect(o.x - 8, o.y + 8, 16, 3); } });
-  g.pennies.forEach((p) => { c.fillStyle = '#C8772C'; c.beginPath(); c.arc(p.x, p.y, 5 + Math.sin(t / 150 + p.t) * 1, 0, 7); c.fill(); c.strokeStyle = '#F5C542'; c.lineWidth = 1.5; c.stroke(); });
-  if (g.paw) { const p = at(g.paw.s); c.save(); c.translate(p.x, p.y); c.rotate(p.a + Math.PI / 2); c.fillStyle = '#4A4A52'; c.beginPath(); c.ellipse(0, 0, 30, 22, 0, 0, 7); c.fill(); c.fillStyle = '#F2B8C6'; c.beginPath(); c.ellipse(0, 4, 12, 9, 0, 0, 7); c.fill(); for (let i = -1; i <= 1; i++) { c.beginPath(); c.arc(i * 11, -10, 5, 0, 7); c.fill(); } c.fillStyle = '#4A4A52'; c.fillRect(-30, 0, 60, 300); c.restore(); }
-  const car = (cr, hue, mine) => { c.save(); c.translate(cr.x, cr.y - (cr.air > 0 ? 14 * Math.sin((0.7 - cr.air) / 0.7 * Math.PI) : 0)); c.rotate(cr.a);
-    if (g.glitch && !mine) { drawPal(g.glitchPal || 'fig', c, { x: 0, y: 0, s: 9, t: t / 1000, r: 4, face: 1 }); c.restore(); return; }
-    c.fillStyle = '#00000044'; c.fillRect(-10, -6, 22, 14); c.fillStyle = mine ? '#3DD6C6' : `hsl(${hue} 70% 50%)`; c.beginPath(); c.roundRect(-11, -7, 22, 14, 4); c.fill(); c.fillStyle = '#1B1B22'; [[-7, -8], [-7, 6], [5, -8], [5, 6]].forEach(([x, y]) => c.fillRect(x, y, 5, 2)); c.fillStyle = '#FFE08A'; c.fillRect(9, -5, 2, 3); c.fillRect(9, 2, 2, 3);
-    if (mine) drawPal(g.glitch ? (g.glitchPal || 'fig') : (S.curve.mood || 'calm'), c, { x: -1, y: 0, s: 6, t: t / 1000, r: S.curve.r, face: 1, hurt: cr.spin > 0 }); else { c.fillStyle = '#fff'; c.beginPath(); c.arc(-1, 0, 3, 0, 7); c.fill(); }
-    if (mine && g.bumper) { c.strokeStyle = '#C9B8FF'; c.lineWidth = 2; c.beginPath(); c.arc(0, 0, 15, 0, 7); c.stroke(); } if (mine && g.nitro > 0) { c.fillStyle = '#FF8A3D'; c.beginPath(); c.moveTo(-11, -3); c.lineTo(-22 - Math.random() * 8, 0); c.lineTo(-11, 3); c.fill(); }
-    c.restore(); };
-  g.rivals.forEach((r) => { if (r.out <= 0) car(r, r.hue, false); }); car(me, 0, true);
-  g.fx.forEach((f) => { c.save(); c.translate(f.x, f.y); c.rotate(-(g.camA + (g.turn || 0))); c.scale(1 / z0, 1 / z0); c.globalAlpha = Math.max(0, Math.min(1, f.life * 1.5)); c.font = f.big ? '400 18px Bungee, Impact, sans-serif' : '900 13px Nunito, system-ui, sans-serif'; c.textAlign = 'center'; c.fillStyle = f.col || '#FFE08A'; c.strokeStyle = '#2A1A0A'; c.lineWidth = 4; c.strokeText(f.text, 0, 0); c.fillText(f.text, 0, 0); c.restore(); });
-  c.restore();
-  return { cx, cy, OW, OH };
-}
 function draw(t) {
   W = host?.W || W;
   const k = host.k, Hh = H(), me = g?.me;
   ctx.setTransform(k, 0, 0, k, host.ox || 0, host.oy || 0);
   ctx.fillStyle = '#6B4A2B'; ctx.fillRect(0, 0, W, Hh);
   if (!g) return;
+  // the camera: on you, the table turning under the window
   g.zoom = g.zoom ? g.zoom + (camZoom() - g.zoom) * 0.02 : camZoom();
+  // 🎥 the chase camera: top-down, but turned so the car always points up the screen, following it from behind (eased, so a
+  // spin doesn't whirl the whole table); the window's table spin adds its own turn on top
   { const want = -(me.a + Math.PI / 2); if (g.camA == null) g.camA = want; const da = ((want - g.camA + Math.PI * 3) % (Math.PI * 2)) - Math.PI; g.camA += da * Math.min(1, 0.12); }
-  const { cx, cy, OW } = drawWorld(t);
-  // the projection: the car's screen row is CAR_Y; a screen row y above it is depth d = (y − hz) / (carRow − hz), it shows the
-  // plane row cy − L (1/d − 1) at horizontal scale S0 · d; rows below the car are the plane behind, at S0
-  const carRow = Hh * CAR_Y, hz = carRow * CAM.horizon, S0 = 2, L = CAM.L;
-  ctx.fillStyle = CAM.fog; ctx.fillRect(0, 0, W, hz + 2);
-  ctx.imageSmoothingEnabled = true;
-  for (let y = Math.ceil(hz); y < Hh; y += 2) {
-    const d = y <= carRow ? (y - hz) / (carRow - hz) : 1, sy = y <= carRow ? cy - L * (1 / d - 1) : cy + (y - carRow) / S0, sc = S0 * Math.max(d, 0.02), sw = W / sc;
-    if (sy < 0 || sy >= off.height - 1) continue;
-    ctx.drawImage(off, cx - sw / 2, sy, sw, Math.max(1, 2 / sc), 0, y, W, 2);
-  }
-  // the far table fogs out toward the horizon
-  const fg = ctx.createLinearGradient(0, hz, 0, carRow * 0.6); fg.addColorStop(0, CAM.fog); fg.addColorStop(1, CAM.fog + '00'); ctx.fillStyle = fg; ctx.fillRect(0, hz, W, carRow * 0.6 - hz);
+  ctx.save(); ctx.translate(W / 2, Hh * CAR_Y); ctx.scale(g.zoom, g.zoom); ctx.rotate(g.camA + (g.turn || 0)); ctx.translate(-me.x, -me.y);
+  // the table: wood grain, and a faint Sierpiński-carpet tablecloth (the fractal on the table)
+  const Rv = Math.hypot(W, Hh) / g.zoom, gx0 = Math.floor((me.x - Rv) / 60) * 60, gy0 = Math.floor((me.y - Rv) / 60) * 60;   // the table under a turning camera: a disc's worth of grain
+  for (let y = gy0; y < me.y + Rv; y += 60) { ctx.fillStyle = ((y / 60) | 0) % 2 ? '#6E4C2D' : '#67472A'; ctx.fillRect(gx0, y, Rv * 2 + 60, 60); }
+  ctx.fillStyle = '#ffffff0a'; for (let y = gy0; y < me.y + Rv; y += 60) for (let x = gx0; x < me.x + Rv; x += 60) { ctx.fillRect(x + 20, y + 20, 20, 20); for (let i = 0; i < 9; i++) if (i !== 4) ctx.fillRect(x + (i % 3) * 20 + 7, y + Math.floor(i / 3) * 20 + 7, 6, 6); }
+  // the tape: shadow, tape, edges, the dashed centre, the finish line
+  const way = () => { ctx.beginPath(); g.track.pts.forEach((p, i) => ctx[i ? 'lineTo' : 'moveTo'](p.x, p.y)); ctx.closePath(); };
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.strokeStyle = '#00000033'; ctx.lineWidth = g.track.w + 10; ctx.save(); ctx.translate(3, 5); way(); ctx.stroke(); ctx.restore();
+  ctx.strokeStyle = '#E8D9A8'; ctx.lineWidth = g.track.w; way(); ctx.stroke();
+  ctx.strokeStyle = '#B9A36E'; ctx.lineWidth = 2; ctx.setLineDash([10, 8]); way(); ctx.stroke(); ctx.setLineDash([]);
+  { const p = at(0), n = { x: Math.cos(p.a + Math.PI / 2), y: Math.sin(p.a + Math.PI / 2) }; for (let i = -4; i < 4; i++) for (let j = 0; j < 2; j++) { ctx.fillStyle = (i + j) % 2 ? '#fff' : '#222'; const w2 = g.track.w / 8; ctx.save(); ctx.translate(p.x + n.x * (i + 0.5) * w2 + Math.cos(p.a) * (j - 0.5) * 6, p.y + n.y * (i + 0.5) * w2 + Math.sin(p.a) * (j - 0.5) * 6); ctx.rotate(p.a); ctx.fillRect(-3, -w2 / 2, 6, w2); ctx.restore(); } }
+  // hazards
+  g.items.forEach((i) => { if (i.kind === 'milk') { ctx.fillStyle = '#F4F4F0'; ctx.beginPath(); ctx.ellipse(i.x, i.y, i.r, i.r * 0.7, 0.3, 0, 7); ctx.fill(); ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.ellipse(i.x - 6, i.y - 4, i.r * 0.4, i.r * 0.25, 0.3, 0, 7); ctx.fill(); }
+    else if (i.kind === 'hole') { ctx.fillStyle = '#0A0806'; ctx.beginPath(); ctx.arc(i.x, i.y, i.r, 0, 7); ctx.fill(); ctx.strokeStyle = '#3A2A1A'; ctx.lineWidth = 3; ctx.stroke(); }
+    else if (i.kind === 'toaster') { ctx.save(); ctx.translate(i.x, i.y); ctx.rotate(i.a); ctx.fillStyle = '#C0C4CC'; ctx.fillRect(-16, -14, 32, 28); ctx.fillStyle = '#2B2B33'; ctx.fillRect(-12, -10, 24, 5); ctx.fillRect(-12, 5, 24, 5); ctx.fillStyle = '#E4572E'; ctx.fillRect(10, -3, 5, 6); ctx.restore(); }
+    else if (i.kind === 'box') { ctx.fillStyle = '#E4A33A'; ctx.fillRect(i.x - i.w / 2, i.y - i.h / 2, i.w, i.h); ctx.strokeStyle = '#8A5A2B'; ctx.lineWidth = 2; ctx.strokeRect(i.x - i.w / 2, i.y - i.h / 2, i.w, i.h); ctx.fillStyle = '#fff'; ctx.fillRect(i.x - 8, i.y - 4, 16, 8); } });
+  g.obs.forEach((o) => { if (o.kind === 'box') { ctx.fillStyle = '#E4A33A'; ctx.fillRect(o.x - o.w / 2, o.y - o.h / 2, o.w, o.h); ctx.strokeStyle = '#8A5A2B'; ctx.lineWidth = 2; ctx.strokeRect(o.x - o.w / 2, o.y - o.h / 2, o.w, o.h); } else { ctx.fillStyle = '#3E7A3E'; ctx.beginPath(); ctx.arc(o.x, o.y - 8, 5, 0, 7); ctx.fill(); ctx.fillRect(o.x - 4, o.y - 4, 8, 12); ctx.fillRect(o.x - 8, o.y + 8, 16, 3); } });
+  g.pennies.forEach((p) => { ctx.fillStyle = '#C8772C'; ctx.beginPath(); ctx.arc(p.x, p.y, 5 + Math.sin(t / 150 + p.t) * 1, 0, 7); ctx.fill(); ctx.strokeStyle = '#F5C542'; ctx.lineWidth = 1.5; ctx.stroke(); });
+  if (g.paw) { const p = at(g.paw.s); ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a + Math.PI / 2); ctx.fillStyle = '#4A4A52'; ctx.beginPath(); ctx.ellipse(0, 0, 30, 22, 0, 0, 7); ctx.fill(); ctx.fillStyle = '#F2B8C6'; ctx.beginPath(); ctx.ellipse(0, 4, 12, 9, 0, 0, 7); ctx.fill(); for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.arc(i * 11, -10, 5, 0, 7); ctx.fill(); } ctx.fillStyle = '#4A4A52'; ctx.fillRect(-30, 0, 60, 300); ctx.restore(); }
+  // the cars
+  const car = (c, hue, mine) => { ctx.save(); ctx.translate(c.x, c.y - (c.air > 0 ? 14 * Math.sin((0.7 - c.air) / 0.7 * Math.PI) : 0)); ctx.rotate(c.a); ctx.scale(CAR, CAR);
+    if (g.glitch && !mine) { drawPal(g.glitchPal || 'fig', ctx, { x: 0, y: 0, s: 9, t: t / 1000, r: 4, face: 1 }); ctx.restore(); return; }
+    ctx.fillStyle = '#00000044'; ctx.fillRect(-10, -6, 22, 14); ctx.fillStyle = mine ? '#3DD6C6' : `hsl(${hue} 70% 50%)`; ctx.beginPath(); ctx.roundRect(-11, -7, 22, 14, 4); ctx.fill(); ctx.fillStyle = '#1B1B22'; [[-7, -8], [-7, 6], [5, -8], [5, 6]].forEach(([x, y]) => ctx.fillRect(x, y, 5, 2)); ctx.fillStyle = '#FFE08A'; ctx.fillRect(9, -5, 2, 3); ctx.fillRect(9, 2, 2, 3);
+    if (mine) drawPal(g.glitch ? (g.glitchPal || 'fig') : (S.curve.mood || 'calm'), ctx, { x: -1, y: 0, s: 6, t: t / 1000, r: S.curve.r, face: 1, hurt: c.spin > 0 }); else { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-1, 0, 3, 0, 7); ctx.fill(); }
+    if (mine && g.bumper) { ctx.strokeStyle = '#C9B8FF'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 15, 0, 7); ctx.stroke(); } if (mine && g.nitro > 0) { ctx.fillStyle = '#FF8A3D'; ctx.beginPath(); ctx.moveTo(-11, -3); ctx.lineTo(-22 - Math.random() * 8, 0); ctx.lineTo(-11, 3); ctx.fill(); }
+    ctx.restore(); };
+  g.rivals.forEach((r) => { if (r.out <= 0) car(r, r.hue, false); }); car(me, 0, true);
+  g.fx.forEach((f) => { ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(-(g.camA + (g.turn || 0))); ctx.translate(-f.x, -f.y); ctx.globalAlpha = Math.max(0, Math.min(1, f.life * 1.5)); ctx.font = f.big ? '400 18px Bungee, Impact, sans-serif' : '900 13px Nunito, system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = f.col || '#FFE08A'; ctx.strokeStyle = '#2A1A0A'; ctx.lineWidth = 4; ctx.strokeText(f.text, f.x, f.y); ctx.fillText(f.text, f.x, f.y); ctx.restore(); }); ctx.globalAlpha = 1;
+  ctx.restore();
   // 🔦 lights out: only the headlights
-  if (g.dark > 0.02) { const dg = ctx.createRadialGradient(W / 2, carRow, 20 * g.zoom, W / 2, carRow, 130 * g.zoom); dg.addColorStop(0, '#0000'); dg.addColorStop(1, `rgba(4,3,8,${0.96 * g.dark})`); ctx.fillStyle = dg; ctx.fillRect(0, 0, W, Hh); }
+  if (g.dark > 0.02) { const dg = ctx.createRadialGradient(W / 2, Hh * CAR_Y, 20 * g.zoom, W / 2, Hh * CAR_Y, 130 * g.zoom); dg.addColorStop(0, '#0000'); dg.addColorStop(1, `rgba(4,3,8,${0.96 * g.dark})`); ctx.fillStyle = dg; ctx.fillRect(0, 0, W, Hh); }
   // the steer zones, faint, and the position
   ctx.fillStyle = held.left ? '#ffffff22' : '#ffffff08'; ctx.fillRect(0, Hh * 0.5, W / 2, Hh * 0.5); ctx.fillStyle = held.right ? '#ffffff22' : '#ffffff08'; ctx.fillRect(W / 2, Hh * 0.5, W / 2, Hh * 0.5);
   ctx.fillStyle = '#FFE08A'; ctx.font = '900 13px system-ui'; ctx.textAlign = 'center'; ctx.fillText(`lap ${Math.min(3, g.lap + 1)} of 3 · ${position()}${g.rivals.length + 1}`, W / 2, Hh - 16);
