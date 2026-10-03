@@ -483,6 +483,11 @@ username. A new account only becomes a robot once it's in `public.bots`.
 
 ## Deploying
 
+- **There is no "deploy" step for the site.** Pushing to `main` is the deploy: GitHub Pages
+  rebuilds and r4box.com serves the new files within minutes. Don't end a round by suggesting,
+  asking about or waiting for a deploy, and don't put "rebuilds from main" in recaps — the owner
+  gets a stray "deploy" suggestion from it. Say "pushed" and stop. (The LeanBrokers repo this
+  session happens to run from has a manual deploy workflow; that is not this project.)
 - **Site:** pushing to `main` publishes via `.github/workflows/pages.yml`. The workflow
   stamps `?v=<sha>` onto every script import/link so phones never mix cached old and new
   modules — keep imports as plain `from './x.js'` and `src="x.js"`; don't hand-version.
