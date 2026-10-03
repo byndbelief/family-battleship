@@ -197,7 +197,7 @@ function fire(x, y) {
   const cone = game.cones?.find((c) => Math.hypot(c.x - x, c.y - y) < 28); if (cone) { game.cones.splice(game.cones.indexOf(cone), 1); add(60, cone, 'SWAT!'); burst(cone.x, cone.y, ['#8A5A2B', '#5A3B1F'], 8); sfx('clack'); return; }
   const snake = game.snakes?.find((s) => Math.abs(s.x - x) < 44 && Math.abs(st.y - 12 - y) < 40); if (snake) { game.snakes.splice(game.snakes.indexOf(snake), 1); add(120, { x: snake.x, y: st.y - 14 }, 'SHOO!'); burst(snake.x, st.y - 8, ['#5CB85C', '#2E7D4F'], 10); sfx('thud'); return; }
   // 📦 a crate under your finger opens on the tap itself, no staple spent; acorns and pinecones go on a near miss too
-  const crate = game.crates.find((c) => Math.hypot(c.x - x, c.y - y) < 30); if (crate) { openCrate(crate); return; }
+  const crate = game.crates.find((c) => Math.hypot(c.x - x, c.y - y) < 30 * crateScale(c)); if (crate) { openCrate(crate); return; }
   const target = game.acorns.some((a) => { const q = acornPos(a); return Math.hypot(q.x - x, q.y - y) < 30; });
   if (!target && Math.hypot(x - st.x, y - st.y) < 34) return reload();
   const acorn = game.acorns.find((a) => { const q = acornPos(a); return Math.hypot(q.x - x, q.y - y) < 30; });
@@ -250,7 +250,7 @@ function reload() { if (game.reloadT > 0 || game.ammo === AMMO) return; game.rel
 function land(s) { if (!hitAt(s.x, s.y, s.nail ? 8 : 12)) { const onTree = forest.segs.some((sg) => segDist(s.x, s.y, sg) < sg.w / 2 + 3); if (onTree) game.stuck.push({ x: s.x, y: s.y, a: Math.random() * 3, life: 4 }); S.combo = 0; burst(s.x, s.y, ['#E9E4D0', '#9AA7B0'], 6); } }
 function hitAt(x, y, slack, quiet = false) {
   if (!game || S.over) return false;
-  const crate = game.crates.find((c) => Math.hypot(c.x - x, c.y - y) < 26);   // a staple near a crate opens it too
+  const crate = game.crates.find((c) => Math.hypot(c.x - x, c.y - y) < 26 * crateScale(c));   // a staple near a crate opens it too
   if (crate) { openCrate(crate); return true; }
   const acorn = game.acorns.find((a) => { const q = acornPos(a); return Math.hypot(q.x - x, q.y - y) < 24; });
   if (acorn) { const q = acornPos(acorn); game.acorns.splice(game.acorns.indexOf(acorn), 1); add(25, q, 'CRACK!'); burst(q.x, q.y, ['#8A5A2B', '#C98B4A'], 10); sfx('clack'); return true; }
@@ -488,9 +488,11 @@ function drawGlitch() {   // 📻 a tear in the picture: slices slip sideways, c
   ctx.globalAlpha = 1;
   if (Math.random() < 0.08) { ctx.globalCompositeOperation = 'difference'; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.globalCompositeOperation = 'source-over'; }
 }
+// 📦 a crate's size: it breathes as it falls, and grows with the stage, so it stays an easy tap as the board zooms out
+const crateScale = (c) => { const st = host.stage?.() || 1, falling = c.y < forest.ground - 16; return (1 + 0.18 * (st - 1)) * (falling ? 1 + 0.22 * Math.sin(c.sway * 3) : 1); };
 function drawCrate(c, t) {
-  const sw = Math.sin(c.sway * 2) * (c.y < forest.ground - 16 ? 6 : 0), blink = c.life < 3 && Math.sin(t / 80) > 0;
-  ctx.save(); ctx.translate(c.x + sw, c.y); if (blink) ctx.globalAlpha = 0.5;
+  const sw = Math.sin(c.sway * 2) * (c.y < forest.ground - 16 ? 6 : 0), blink = c.life < 3 && Math.sin(t / 80) > 0, sc = crateScale(c);
+  ctx.save(); ctx.translate(c.x + sw, c.y); ctx.scale(sc, sc); if (blink) ctx.globalAlpha = 0.5;
   if (c.y < forest.ground - 16) { ctx.strokeStyle = '#ffffffaa'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-10, -8); ctx.lineTo(-16, -30); ctx.moveTo(10, -8); ctx.lineTo(16, -30); ctx.stroke();
     ctx.fillStyle = '#E4572E'; ctx.beginPath(); ctx.arc(0, -30, 18, Math.PI, 0); ctx.fill(); ctx.fillStyle = '#FFF'; ctx.beginPath(); ctx.arc(0, -30, 18, Math.PI * 1.35, Math.PI * 1.65); ctx.lineTo(0, -30); ctx.fill(); }
   ctx.fillStyle = '#A06A35'; ctx.fillRect(-11, -9, 22, 18); ctx.strokeStyle = '#6B4423'; ctx.lineWidth = 2; ctx.strokeRect(-11, -9, 22, 18);
@@ -547,9 +549,9 @@ function drawStapler() {
 // The weapon bar: the stapler and whatever you've picked up, with rounds left. Tap to load.
 function renderBar() {
   if (!bar || !game) return;
-  bar.innerHTML = Object.entries(WEAPONS).filter(([k]) => k === 'staple' || game.arsenal[k]).map(([k, w]) =>
-    `<button type="button" data-w="${k}" class="${game.weapon === k ? 'on' : ''}" aria-label="${w.name}${k === 'staple' ? '' : `, ${game.arsenal[k]} left`}">${w.icon}${k === 'staple' ? '' : `<b>${game.arsenal[k]}</b>`}</button>`).join('');
-  bar.querySelectorAll('[data-w]').forEach((b) => { b.onclick = (e) => { e.stopPropagation(); game.weapon = b.dataset.w; renderBar(); sfx('click'); }; });
+  // a readout, not a picker: the last weapon you picked up is the one in your hand until its rounds are gone
+  const k = game.weapon, w = WEAPONS[k];
+  bar.innerHTML = k === 'staple' ? '' : `<button type="button" class="on" disabled aria-label="${w.name}, ${game.arsenal[k]} left" title="${w.desc}">${w.icon}<b>${game.arsenal[k]}</b></button>`;
 }
 
 // ---------------------------------------------------------------- the organ

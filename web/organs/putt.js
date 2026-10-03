@@ -24,7 +24,7 @@ const hash = (i) => { let x = (Math.imul(i | 0, 374761393) + 668265263) | 0; x =
 // with bumpers (course 3+), sand (2+) and water (5+) on the way. The par is the bends + 1 (+1 for two or more
 // bumpers, +1 for water). Make the course's par and you move up; miss it and you play that course again.
 const bendsOf = (c) => (c <= 1 ? 0 : c === 2 ? 1 : c === 3 ? 2 : Math.min(4, 2 + Math.floor(Math.random() * 2) + (c >= 5 ? 1 : 0)));
-const widthOf = (c) => Math.min(150, 44 + 16 * (c - 1));   // the fairway widens a lot as the courses go on (44, 60, 76 … 150), and the legs get longer
+const widthOf = (c) => Math.min(190, 44 + 22 * (c - 1));   // the fairway widens a lot as the courses go on (44, 66, 88 … 190), and the legs get longer
 function corridor(bends, c) {   // legs from the bottom middle, turning 60–105° at each bend; retried with shorter legs until it fits the world
   // the map widens with the courses: the walk may use a wider and wider slice of the field, and later courses lean sideways
   const m = widthOf(c) / 2 + 10, span = Math.min(1, 0.4 + 0.12 * c), B = { x0: Math.max(m, W / 2 - (W / 2 - m) * span), x1: Math.min(W - m, W / 2 + (W / 2 - m) * span), y0: 60 + m, y1: H() - 50 - m };   // the bounds keep the whole band inside the field
@@ -61,7 +61,7 @@ function newCup(three = false) {
   g.sand = []; if (g.course >= 2 && Math.random() < 0.6) { const sp = spot(8); g.sand.push({ x: sp.x, y: sp.y, rx: 26, ry: 16 }); }
   g.water = []; if (g.course >= 5) { const sp = spot(10); g.water.push({ x: sp.x, y: sp.y, rx: 22, ry: 14 }); }
   g.par = parOf(); g.courseHole += 1; g.coursePar += g.par;
-  g.fixes = g.course <= 1 ? 0 : g.course <= 3 ? 1 : g.course <= 5 ? 2 : 3;   // 🔧 repairs a hole: tap a hazard to fix it
+  g.fixes = g.course <= 1 ? 0 : g.course === 2 ? 2 : g.course <= 4 ? 3 : g.course <= 6 ? 4 : 5;   // 🔧 repairs a hole: tap a hazard to fix it
   if (g.courseHole === 1) host.banner(`⛳ COURSE ${g.course}`, `three holes · make par to move up`);
 }
 // after a cup: the hole's score against par, and the course's
