@@ -846,7 +846,10 @@ cue. `host.heal()` refills the organ's lives. `host.hurt()` now always returns f
 are dead code kept for the shape). The HUD hearts line carries `<small>` with the organ's icon and
 ●/○ lives. `__shell().lives`. Test: `t_lives`. squirrel.js: the staples filter checks each flight frame
 for a squirrel within `RAD + 5` (nail 3) of the staple and `strike`s it; tap radii for acorns and cones
-are forgiving (30/28, landing 24); a tap within 30 of a crate opens it outright in `fire()`, a staple within 26.
+are forgiving (30/28, landing 24); a tap within 30 × `crateScale(c)` of a crate opens it outright in `fire()`, a staple within 26 ×;
+`crateScale` = (1 + 0.18 (stage − 1)) × a ±22% breath while falling, applied to the drawing too (hilltop's
+`dropScale` likewise, on `g.drops`). `renderBar()` is a disabled readout of `game.weapon` + rounds; `openCrate`
+sets the weapon, `spend()` drops back to the stapler at zero.
 **Fractal Dash's ground (fractal.js `groundY`).** A base bulb every `BULB_P` (260) px along the track
 (radius 80–150, centre 0.72 r below `base = H × 0.72` so only the cap shows), each with 2–3 children on
 its rim at 0.2–0.32 r, recursively to `levels = 2 + min(3, round(rough × 1.6))`; the ground is the
@@ -876,12 +879,12 @@ crate (`g.drops`, falls at 110/s to the ridge, waits 20 s) within 140 of you; `p
 `g.arty = {kind, n}` and `renderBar()` shows it in `host.ui`'s `.wbar` (empty when nothing is loaded);
 `fire()` spends a round: cluster → three shots, heavy → `big`, napalm → `boom` r 52 + embers, guided →
 `homing` (shells lean toward the nearest tank once falling). `__ht()` has `wormsAt`, `arty`, `drops`,
-`tap`. putt.js: `g.fixes` per hole (0/1/2/3 by course), `fix(x, y)` on a pointer-up that moved < 8 removes
+`tap`. putt.js: `g.fixes` per hole (0/2/3/3/4/4/5 by course), `fix(x, y)` on a pointer-up that moved < 8 removes
 the hazard under it and re-runs `parOf()`; `__pt()` has `fix`, `bumps`. Tests: `t_arty`, `t_arms`.
 **A gentle start** (organs read `host.stage()` and their own level): putt.js fairways are corridors
 (`g.path` polyline, `g.pw` width; `corridor(bends, course)` retries a turning walk inside the world,
 `nearest()` gives the wall for the bounce and the gopher's drop, `spot(margin)` places hazards on the
-fairway, `tee()`), `centred()` moves the walk to the field's middle, `bendsOf(course)` 0/1/2/2–4, `widthOf` 44 + 16/course to 150 (the walk's bounds inset by half of it) and legs
+fairway, `tee()`), `centred()` moves the walk to the field's middle, `bendsOf(course)` 0/1/2/2–4, `widthOf` 44 + 22/course to 190 (the walk's bounds inset by half of it) and legs
 130 → 300 (shrunk on retries until the walk fits), `parOf()` = bends + 1 (+ hazards, +1 from course 4),
 so course 1 is par 1; squirrel.js `grow()` plants `min(3, lvl)` trunks and `onBeat`/`spawn` hold Day 1
 to one small squirrel, no acorns, caps 1/4/8/16; hilltop `addTank` cap 2 in Stage 1, `fireT` runs at

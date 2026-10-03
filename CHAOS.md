@@ -228,13 +228,14 @@ still works on everything. From Stage 2 an ally drone crosses now and then and d
 to pick up a few rounds of artillery the cannon then fires: 🧨 cluster (three shells a shot), 💣 heavy (a
 bigger crater), 🔥 napalm (a wide burn), 🎯 guided (steers to the nearest tank). The bar bottom-right shows
 what's loaded and how many rounds are left.
-**Putt repairs.** From course 2 each hole comes with repairs (🔧 1, then 2 from course 4, 3 from course 6):
+**Putt repairs.** From course 2 each hole comes with repairs (🔧 2, then 3 from course 3, 4 from course 5, 5 from
+course 7):
 tap a bumper, a sand trap or a pond to fix it; the par is re-estimated.
 
 **A gentle start, in every organ.** The first stretch of a run teaches the organ before the world fills.
 Putt's ⛳ **courses** are corridors: a fairway of straight legs from the tee to the cup. Course 1 is one
 short straight leg, a single putt (par 1); Course 2 adds a bend, Course 3 is an S, then more bends, longer
-legs and a much wider fairway (44, 60, 76 … 150), with bumpers (course 3+), sand (2+) and water (5+) on the way. Every
+legs and a much wider fairway (44, 66, 88 … 190), with bumpers (course 3+), sand (2+) and water (5+) on the way. Every
 fairway sits centred in the field. Par is the bends + 1 (+1 for two
 or more bumpers, +1 for water), par + 2 putts allowed; make the course's par over three holes and you move
 up, miss it and you play it again; birdies and eagles pay, and a course made pays 300 × the course.
@@ -249,7 +250,11 @@ Depth 1, two tanks, three ships) and the run pays one of its own three hearts; t
 hearts are gone. Healing (a dive, a new day, the mirror) refills the organ's lives, not the run's hearts.
 In Squirrel Chaos a staple takes the first squirrel in its path, not just the one where it lands; a
 near miss takes an acorn or a pinecone too; 📦 crates are easy: they drift down slowly,
+breathe bigger and smaller as they fall and grow with the stage (so they stay an easy tap as the board zooms
+out),
 wait a while, and a tap on one opens it with no staple spent.
+There is no weapon picker: the last weapon you picked up is the one in your hand until its rounds are gone,
+and the bar bottom-right only shows it.
 
 **The chaos comes from Fig, visibly.** During play Fig stays in its corner and reacts there, big: every twist
 of the curve (a peak, the window, the mirror, the golden cut, a mood, a lens, a glitch, a stage change) makes
