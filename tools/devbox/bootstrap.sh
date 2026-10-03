@@ -84,7 +84,13 @@ ClientAliveCountMax 10
 CONF
 sshd -t && systemctl reload ssh
 ufw default deny incoming; ufw default allow outgoing
-ufw allow OpenSSH            # closed later by:  sudo ./bootstrap.sh --lock-ssh
+# Open public SSH only until it has been locked down (sudo ./bootstrap.sh --lock-ssh); once a
+# tailscale0 rule for port 22 exists, a re-run must not reopen it.
+if ufw status | grep -qE "^22/tcp on tailscale0 +ALLOW"; then
+  echo "  public SSH already locked to Tailscale: leaving the firewall rule alone"
+else
+  ufw allow OpenSSH
+fi
 ufw --force enable
 systemctl enable --now fail2ban
 
