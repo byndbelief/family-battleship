@@ -858,11 +858,15 @@ sets the weapon, `spend()` drops back to the stapler at zero.
 **Rally (organs/rally.js).** `makeTrack(course, seed)`: 120 points, `r(θ) = base × (1 + Σ rough × k^−0.8 ×
 1.6 × sin(kθ + φ))` over `FIB = [3, 5, 8, 13, 21]`, `rough = 0.05 + 0.1 (course − 1)`, width `max(120, 190 −
 10 course)`; `topSpeed()` = 230 × (1 + 0.12 (course − 1) + 0.09 (stage − 1)); `camZoom()` = 2.0 / (1 + 0.25 (stage − 1)),
-eased into `g.zoom`; the camera is `translate(W/2, H × CAR_Y=0.66) · scale(zoom) · rotate(camA + turn) ·
+eased into `g.zoom`; the camera is `translate(W/2, H × CAR_Y=0.8) · scale(zoom) · rotate(camA + turn) ·
 translate(−me)`, with `g.camA` eased toward `−(me.a + π/2)` so the car points up the screen; the table grain
 is drawn over a disc of radius `hypot(W, H) / zoom` and the fx texts are counter-rotated. (A 45° projected
 version lived for one commit, 3225041, and was reverted: it reads badly with flat sprites.) `R` = 13, cars
-are drawn at `CAR` = 1.5×. `drive(c, dt, steer, brake,
+are drawn at `CAR` = 1.5×. The look is bright: warm planks, red-and-white kerbs, a red cereal box with a 🥣
+label, a milk puddle with 🥛, a chrome toaster with toast, a green army man, a hazard-ringed pocket (`drawBox`,
+`drawMilk`, `drawToaster`, `drawSoldier`, `drawHole`; labels stand upright through `upright()`). 📦 A tap on a box
+smashes it (+30, crumbs): `toTable(p)` runs a screen point back through the chase camera, `boxAt` allows 22 screen
+px of slack; the touch still steers. `__rl()` has `boxes`, `smashed`, `boxScreen(i)`, `tap(p)`. `drive(c, dt, steer, brake,
 isMe)` is shared by you and the rivals (grip 0.25 on milk, 0.55 speed off the tape, boxes turn the car back
 along the tape, > w/2 + 90 from the centreline is "off the table"). Rivals steer at `at(s + 0.03)` with a
 rubber band on `gap`; `out` for 4 s then respawn 0.1 ahead of you, `outLap` stops a repeat. Laps need
