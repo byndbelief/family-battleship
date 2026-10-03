@@ -49,7 +49,7 @@ export const CHAOS = Object.freeze({
 // Server kinds hold HOLD moves (074); run organs hold RUN_HOLD beats (shell.js); WARN beats before
 // the end the warning goes up. The between-round jump into a calm game waits BREATH seconds.
 // GLITCH: while held, a beat whose x lands above it is a ⚡ glitch: the rules don't change, the world flickers.
-export const CALM = Object.freeze({ kinds: ['golf', 'cards', 'duel'], organs: ['putt', 'hilltop'], HOLD: 8, RUN_HOLD: 10, WARN: 3, BREATH: 12, GLITCH: 0.7 });
+export const CALM = Object.freeze({ kinds: ['golf', 'cards', 'duel'], organs: ['putt', 'hilltop', 'rally'], HOLD: 8, RUN_HOLD: 10, WARN: 3, BREATH: 12, GLITCH: 0.7 });
 export const isCalm = (key) => CALM.kinds.includes(key) || CALM.organs.includes(key);
 // 🟢 FIG'S MOOD BENDS THE CURVE'S EDGES (079/080; the server's _chaos_edge says the same). The mood is
 // the curve's own (moodOf, below), the same rule on the server, so everyone at a table sees one Fig:

@@ -232,6 +232,21 @@ what's loaded and how many rounds are left.
 course 7):
 tap a bumper, a sand trap or a pond to fix it; the par is re-estimated.
 
+**🏎️ Rally** (an organ of the run, calm category): Micro Machines on a kitchen table. Fig drives a toy car
+around a loop of masking tape; hold the left or right half of the screen to steer (the car always goes),
+hold both to brake. Rivals (two at Stage 1, up to five) race the same loop, rubber-banded to you; a rival
+pushed far enough behind the camera is out of the lap and pays 150 (once a lap each). Three laps a course,
+200 + 60 per rival behind a lap (× a capped Fibonacci combo), 300 × course for a course won, then a new
+course: the track is a fractal, a loop whose radius is a sum of Fibonacci harmonics (3, 5, 8, 13, 21 bumps,
+amplitudes falling like 1/k^0.8), rougher and narrower course by course. Hazards: 🥛 spilled milk (ice),
+🍞 a toaster (a ramp), 🕳️ the pocket (from course 2; a life from course 3), 📦 cereal boxes (walls that turn
+you back onto the tape). The nine events: a **peak** stands a 🪖 toy soldier on the road (a bonk and a spin),
+the **window** spins the table a quarter turn a beat, the **mirror** reverses the circuit, the **balance**
+drains the milk, the **golden cut** lays eight pennies ahead (+161, 20 each), a **big hop** drops a cereal
+box on the road, **gift** is a bumper, **fib** a nitro, and a **glitch** puts Fig in every rival's seat.
+Twists: 🧲 fridge magnet (pulled sideways), 🌀 ceiling fan (wind), 🔦 lights out (headlights only), 🐈 the
+cat's paw (sweeps along the track and swats whoever it meets). Off the table's edge costs a life.
+
 **A gentle start, in every organ.** The first stretch of a run teaches the organ before the world fills.
 Putt's ⛳ **courses** are corridors: a fairway of straight legs from the tee to the cup. Course 1 is one
 short straight leg, a single putt (par 1); Course 2 adds a bend, Course 3 is an S, then more bends, longer

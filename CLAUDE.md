@@ -850,6 +850,17 @@ are forgiving (30/28, landing 24); a tap within 30 × `crateScale(c)` of a crate
 `crateScale` = (1 + 0.18 (stage − 1)) × a ±22% breath while falling, applied to the drawing too (hilltop's
 `dropScale` likewise, on `g.drops`). `renderBar()` is a disabled readout of `game.weapon` + rounds; `openCrate`
 sets the weapon, `spend()` drops back to the stapler at zero.
+**Rally (organs/rally.js).** `makeTrack(course, seed)`: 120 points, `r(θ) = base × (1 + Σ rough × k^−0.8 ×
+1.6 × sin(kθ + φ))` over `FIB = [3, 5, 8, 13, 21]`, `rough = 0.05 + 0.1 (course − 1)`, width `max(54, 96 −
+8 course)`; `at(s)` / `nearest(x, y)` / `spotOn(s, off)` on the cumulative length. The camera is on the car
+(`translate(W/2 − me.x, H/2 − me.y)`, rotated by `g.turn` under the window). `drive(c, dt, steer, brake,
+isMe)` is shared by you and the rivals (grip 0.25 on milk, 0.55 speed off the tape, boxes turn the car back
+along the tape, > w/2 + 90 from the centreline is "off the table"). Rivals steer at `at(s + 0.03)` with a
+rubber band on `gap`; `out` for 4 s then respawn 0.1 ahead of you, `outLap` stops a repeat. Laps need
+`cps` 1→3 then a crossing of s = 0; `lapDone` → course after 3. `pointer` tracks `held.left/right` by
+`e.pointerId` (a finger sliding across the middle swaps sides). `__rl()` has `auto(on)` (a test autopilot
+steering like a rival), `fx`, `held`. `CALM.organs` includes `rally`. Test: `t_rally2` (autopilot: three laps
+to course 2 with all lives, score in the low thousands), `t_rally`.
 **Fractal Dash's ground (fractal.js `groundY`).** A base bulb every `BULB_P` (260) px along the track
 (radius 80–150, centre 0.72 r below `base = H × 0.72` so only the cap shows), each with 2–3 children on
 its rim at 0.2–0.32 r, recursively to `levels = 2 + min(3, round(rough × 1.6))`; the ground is the
