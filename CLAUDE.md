@@ -854,8 +854,12 @@ sets the weapon, `spend()` drops back to the stapler at zero.
 1.6 × sin(kθ + φ))` over `FIB = [3, 5, 8, 13, 21]`, `rough = 0.05 + 0.1 (course − 1)`, width `max(90, 150 −
 10 course)`; `topSpeed()` = 230 × (1 + 0.12 (course − 1) + 0.09 (stage − 1)); `camZoom()` = 2.4 / (1 + 0.25 (stage − 1)),
 eased into `g.zoom`; the camera is `translate(W/2, H × CAR_Y=0.66) · scale(zoom) · rotate(camA + turn) ·
-translate(−me)`, with `g.camA` eased toward `−(me.a + π/2)` so the car points up the screen; the table grain
-is drawn over a disc of radius `hypot(W, H) / zoom` and the fx texts are counter-rotated; `at(s)` / `nearest(x, y)` / `spotOn(s, off)` on the cumulative length. The camera is on the car
+translate(−me)`, with `g.camA` eased toward `−(me.a + π/2)` so the car points up the screen; `drawWorld(t)` renders that top-down view (at `zoom × 0.5`, car at
+`(OW/2, OH × 0.62)` of a 1.6 W × 1.4 H offscreen `off`) and `draw` projects it row by row (2 px rows): for a
+screen row y above the car's row (`H × CAR_Y`) the depth is `d = (y − hz) / (carRow − hz)` with `hz = carRow
+× CAM.horizon`, the source row is `cy − CAM.L (1/d − 1)` at horizontal scale `S0 d` (S0 = 2); rows below the
+car are the plane behind at S0; above `hz` is fog, with a gradient down to 60% of the car's row. The fx
+texts are counter-rotated and unscaled in the offscreen; `at(s)` / `nearest(x, y)` / `spotOn(s, off)` on the cumulative length. The camera is on the car
 (`translate(W/2 − me.x, H/2 − me.y)`, rotated by `g.turn` under the window). `drive(c, dt, steer, brake,
 isMe)` is shared by you and the rivals (grip 0.25 on milk, 0.55 speed off the tape, boxes turn the car back
 along the tape, > w/2 + 90 from the centreline is "off the table"). Rivals steer at `at(s + 0.03)` with a
