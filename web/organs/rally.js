@@ -65,8 +65,9 @@ function newCourse() {
   // 🪂 the table's edge: stretches where the tape runs along the rim, with no kerb on the outside and a drop to the floor
   { let sum = 0; for (let k = 0; k < 24; k++) { const p = at(k / 24); sum += p.x * -Math.sin(p.a) + p.y * Math.cos(p.a); } g.outer = Math.sign(sum) || 1; }   // which side of the tape is the outside of the loop
   g.edges = []; [0.25, 0.68, 0.84].slice(0, Math.min(3, g.course)).forEach((c0, i) => { const c = c0 + hash(g.seed + 20 + i) * 0.05, half = (0.08 + 0.02 * Math.min(3, g.course - 1)) / 2, p = at(c), side = g.outer; g.edges.push({ s0: c - half, s1: c + half, c, side }); });
-  for (let i = 0; i < 3 + g.course; i++) { const s = hash(g.seed + 10 + i), side = i % 2 ? 1 : -1; if (edgeAt(s, side)) continue; put('box', s, side * (g.track.w / 2 + 16), { w: 26, h: 18 }); }
-  g.rim = buildRim();
+  // boxes stand on the outside of the loop: the inside is the crayon wall
+  for (let i = 0; i < 3 + g.course; i++) { const s = hash(g.seed + 10 + i), side = g.outer; if (edgeAt(s, side)) continue; put('box', s, side * (g.track.w / 2 + 16), { w: 26, h: 18 }); }
+  g.rim = buildRim(); g.inner = buildInner();
   host.banner(`🏁 COURSE ${g.course}`, `${3} laps · ${g.rivals.length} rivals · hold a side to steer`);
 }
 // an open edge at progress s on that side of the tape (side: +1 / -1, the same sense as spotOn's offset), or null
@@ -87,6 +88,9 @@ function stepRescue(c, dt) {
 // ---------------------------------------------------------------- the table's edge, all the way round
 // Outside the loop the table ends: right at the tape on an open stretch, MARGIN beyond it elsewhere, where it's guarded
 // (a railing, a row of books, toy bricks) and a car bounces off. The margin eases in and out by RAMP round each open stretch.
+// The inside of the loop is guarded harder: a solid wall of crayons right at the kerb, all the way round, so
+// nobody cuts across the middle (INNER: how far past the tape's edge it stands).
+const INNER = 12, CRAYONS = ['#EE2B3B', '#FF8A3D', '#FFD23F', '#22C55E', '#2D7FF9', '#A855F7', '#FF5DA2'];
 const MARGIN = 46, RAMP = 0.025, GUARDS = ['rail', 'books', 'bricks'];
 function marginAt(s) {
   let d = 1; (g.edges || []).forEach((e) => { const into = (((s - e.s0) % 1) + 1) % 1; if (into <= e.s1 - e.s0) d = 0; else d = Math.min(d, (((e.s0 - s) % 1) + 1) % 1, (((s - e.s1) % 1) + 1) % 1); });
@@ -97,6 +101,13 @@ function buildRim() {   // 240 points on the table's edge, each with its outward
   for (let k = 0; k < N; k++) { const sk = k / N, p = at(sk), nx = -Math.sin(p.a) * g.outer, ny = Math.cos(p.a) * g.outer, m = marginAt(sk), off = g.track.w / 2 + m;
     out.push({ s: sk, x: p.x + nx * off, y: p.y + ny * off, nx, ny, m, guard: edgeAt(sk, g.outer) ? 'open' : GUARDS[Math.floor(hash(g.seed + 50 + Math.floor(sk * 9)) * 3)] }); }
   return out;
+}
+function buildInner() {   // the crayon wall's line, on the inside of the loop
+  const N = 240, out = [];
+  for (let k = 0; k < N; k++) { const sk = k / N, p = at(sk), nx = Math.sin(p.a) * g.outer, ny = -Math.cos(p.a) * g.outer, off = g.track.w / 2 + INNER; out.push({ s: sk, x: p.x + nx * off, y: p.y + ny * off, nx, ny, tx: Math.cos(p.a), ty: Math.sin(p.a) }); }
+  // on a tight bend the offset line loops back on itself: keep only points that move on along the track (twice, for the second row too)
+  const clean = []; out.forEach((p) => { const l = clean[clean.length - 1]; if (!l || (p.x - l.x) * l.tx + (p.y - l.y) * l.ty > 3) clean.push(p); });
+  return clean.length > 8 ? clean : out;
 }
 function respawn(c, isMe) {   // back on the tape a little behind where it went over
   const p = at(c.s - g.dir * 0.02); c.x = p.x; c.y = p.y; c.a = p.a + (g.dir < 0 ? Math.PI : 0); c.v = 0; c.fall = 0; c.spin = 0; c.s = c.prevS = nearest(c.x, c.y).s;
@@ -151,7 +162,9 @@ function drive(c, dt, steer, brake, isMe) {
     if (Math.sign(lat) === g.outer && Math.abs(lat) > lim && !edgeAt(n2.s, lat)) {   // 🧱 a guard on the table's edge: bounce back along the tape
       c.x = n2.px + nx * g.outer * lim; c.y = n2.py + ny * g.outer * lim; const da = ta + (g.dir < 0 ? Math.PI : 0); c.a = da + (((c.a - da + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * 0.4; c.v = Math.max(c.v * 0.7, 40);
       if (isMe && !c.bumpT) { c.bumpT = 0.4; sfx('clack'); } }
-    else if (Math.sign(lat) !== g.outer && Math.abs(lat) > g.track.w / 2 + 110) { c.x += (n2.px - c.x) * 0.1; c.y += (n2.py - c.y) * 0.1; c.v *= 0.9; } }   // the infield: eased back toward the tape
+    else if (Math.sign(lat) !== g.outer && Math.abs(lat) > g.track.w / 2 + INNER - R) {   // 🖍️ the crayon wall: no cutting through the middle
+      const li = g.track.w / 2 + INNER - R; c.x = n2.px - nx * g.outer * li; c.y = n2.py - ny * g.outer * li; const da = ta + (g.dir < 0 ? Math.PI : 0); c.a = da + (((c.a - da + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * 0.4; c.v = Math.max(c.v * 0.7, 40);
+      if (isMe && !c.bumpT) { c.bumpT = 0.4; sfx('clack'); } } }
 }
 function update(dt) {
   W = host?.W || W;
@@ -214,6 +227,20 @@ function smash(b) {
 }
 
 // ---------------------------------------------------------------- drawing
+function drawCrayons() {   // two rows of crayons laid end to end along the inside: each crayon spans 4 points, a wrapper band and a tip
+  const L = g.inner, N = L.length;
+  for (let row = 0; row < 2; row++) { const d0 = row * 9, d1 = d0 + 8, shift = row * 2;
+    for (let k = 0; k < N; k++) { const a = L[k], b = L[(k + 1) % N], j = Math.floor((k + shift) / 4), u = (k + shift) % 4, col = CRAYONS[(j + row * 3) % CRAYONS.length];
+      const q = (p, d) => [p.x + p.nx * d, p.y + p.ny * d];
+      const [ax0, ay0] = q(a, d0), [ax1, ay1] = q(a, d1), [bx0, by0] = q(b, d0), [bx1, by1] = q(b, d1);
+      if ((bx1 - ax1) * a.tx + (by1 - ay1) * a.ty <= 0.5 || Math.hypot(bx0 - ax0, by0 - ay0) > 40) continue;   // a piece still folded on a tight bend, or the jump where one was cut: leave it out
+      ctx.fillStyle = col; ctx.beginPath();
+      if (u === 3) { const mx = (bx0 + bx1) / 2, my = (by0 + by1) / 2; ctx.moveTo(ax0, ay0); ctx.lineTo(mx, my); ctx.lineTo(ax1, ay1); }   // the sharpened tip
+      else { ctx.moveTo(ax0, ay0); ctx.lineTo(bx0, by0); ctx.lineTo(bx1, by1); ctx.lineTo(ax1, ay1); }
+      ctx.closePath(); ctx.fill();
+      if (u === 1) { ctx.fillStyle = '#00000038'; ctx.fill(); ctx.fillStyle = '#ffffffaa'; ctx.fillRect((ax0 + bx1) / 2 - 1, (ay0 + by1) / 2 - 1, 2, 2); }   // the paper wrapper
+      if (u === 0) { ctx.strokeStyle = '#00000055'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(ax0, ay0); ctx.lineTo(ax1, ay1); ctx.stroke(); } } }
+}
 function drawGuards(t) {
   const rim = g.rim, N = rim.length, BOOKS = ['#EE2B3B', '#2D7FF9', '#FFD23F', '#22C55E', '#A855F7', '#FF8A3D'], BRICKS = ['#EE2B3B', '#FFD23F', '#2D7FF9', '#22C55E'];
   for (let k = 0; k < N; k++) { const a = rim[k], b = rim[(k + 1) % N]; if (a.guard === 'open' || b.guard === 'open' || a.m < 2) continue;
@@ -318,7 +345,7 @@ function draw(t) {
     ctx.lineCap = 'butt'; ctx.strokeStyle = '#5E2E10'; ctx.lineWidth = 10; pl(4); ctx.stroke(); ctx.strokeStyle = '#FFD23F'; ctx.lineWidth = 3; ctx.setLineDash([10, 8]); pl(0); ctx.stroke(); ctx.setLineDash([]);
     const [mx, my, nx, ny] = line[N >> 1]; upright(mx + nx * 30, my + ny * 30, '⚠️', 16); });
   // 🧱 the guards along the rest of the edge
-  drawGuards(t);
+  drawGuards(t); drawCrayons();
   // hazards, each drawn as the thing it is (a label stands upright on the milk and the boxes, whichever way the table turns)
   g.items.forEach((i) => { if (i.kind === 'milk') drawMilk(i, upright); else if (i.kind === 'hole') drawHole(i); else if (i.kind === 'toaster') drawToaster(i); else if (i.kind === 'box') drawBox(i, upright, t); });
   g.obs.forEach((o) => { if (o.kind === 'box') drawBox(o, upright, t); else drawSoldier(o); });
@@ -370,6 +397,6 @@ const organ = {
   level: () => g?.course || 1,
   overText: (how) => (how === 'fell in the pocket' ? ['🕳️ POCKETED', 'Too many trips down the pocket.'] : how === 'off the table' ? ['🫳 OFF THE TABLE', 'The table is only so big.'] : how === 'fell off the edge' ? ['🪂 OVER THE EDGE', 'Mind the open edges.'] : ['RUN OVER', '']),
   endStats: () => (g ? `🏎️ ${lapsN} laps · ${outsN} rivals left behind` : ''),
-  debug: () => g && ({ auto: (on) => { g.auto = on; }, fx: g.fx.map((f) => f.text), me: { x: g.me.x, y: g.me.y, s: g.me.s, v: g.me.v, off: g.me.off }, lap: g.lap, cps: g.cps, course: g.course, rivals: g.rivals.map((r) => ({ s: r.s, out: r.out, off: r.off })), items: g.items.length, obs: g.obs.length, twist: g.twist?.kind || null, held: { ...held }, W, H: H(), track: { w: g.track.w, len: Math.round(g.track.len) }, zoom: g.zoom, camA: g.camA, guideA: g.guideA, heading: g.me.a, top: Math.round(topSpeed()), edges: g.edges.map((e) => ({ s0: e.s0, s1: e.s1, side: e.side })), fall: g.me.fall || 0, rescue: g.me.rescue ? g.me.rescue.t : null, guards: g.rim.reduce((o, p) => { o[p.guard] = (o[p.guard] || 0) + 1; return o; }, {}), outer: g.outer, pushOut: (sk = 0.5, d = 80) => { const p = at(sk); g.me.x = p.x - Math.sin(p.a) * g.outer * (g.track.w / 2 + d); g.me.y = p.y + Math.cos(p.a) * g.outer * (g.track.w / 2 + d); g.me.air = 0; }, pushOff: (i = 0) => { const e = g.edges[i], p = spotOn(e.c, e.side * (g.track.w / 2 + 14)); g.me.x = p.x; g.me.y = p.y; g.me.air = 0; }, hitBox: (i = 0) => { const b = [...g.items, ...g.obs].filter((x) => x.kind === 'box')[i]; if (b) b.hit = true; }, boxes: [...g.items, ...g.obs].filter((b) => b.kind === 'box').length, smashed: smashedN, boxScreen: (i = 0) => { const bs = [...g.items, ...g.obs].filter((b) => b.kind === 'box'), b = bs[i]; if (!b) return null; const th = g.camA + (g.turn || 0), dx = (b.x - g.me.x) * g.zoom, dy = (b.y - g.me.y) * g.zoom; return { x: W / 2 + Math.cos(th) * dx - Math.sin(th) * dy, y: H() * CAR_Y + Math.sin(th) * dx + Math.cos(th) * dy }; }, tap: (p) => { organ.pointer('down', p, { pointerId: 99 }); organ.pointer('up', p, { pointerId: 99 }); } }),
+  debug: () => g && ({ auto: (on) => { g.auto = on; }, fx: g.fx.map((f) => f.text), me: { x: g.me.x, y: g.me.y, s: g.me.s, v: g.me.v, off: g.me.off }, lap: g.lap, cps: g.cps, course: g.course, rivals: g.rivals.map((r) => ({ s: r.s, out: r.out, off: r.off })), items: g.items.length, obs: g.obs.length, twist: g.twist?.kind || null, held: { ...held }, W, H: H(), track: { w: g.track.w, len: Math.round(g.track.len) }, zoom: g.zoom, camA: g.camA, guideA: g.guideA, heading: g.me.a, top: Math.round(topSpeed()), edges: g.edges.map((e) => ({ s0: e.s0, s1: e.s1, side: e.side })), fall: g.me.fall || 0, rescue: g.me.rescue ? g.me.rescue.t : null, guards: g.rim.reduce((o, p) => { o[p.guard] = (o[p.guard] || 0) + 1; return o; }, {}), outer: g.outer, pushIn: (sk = 0.5, d = 60) => { const p = at(sk); g.me.x = p.x + Math.sin(p.a) * g.outer * (g.track.w / 2 + d); g.me.y = p.y - Math.cos(p.a) * g.outer * (g.track.w / 2 + d); g.me.air = 0; }, pushOut: (sk = 0.5, d = 80) => { const p = at(sk); g.me.x = p.x - Math.sin(p.a) * g.outer * (g.track.w / 2 + d); g.me.y = p.y + Math.cos(p.a) * g.outer * (g.track.w / 2 + d); g.me.air = 0; }, pushOff: (i = 0) => { const e = g.edges[i], p = spotOn(e.c, e.side * (g.track.w / 2 + 14)); g.me.x = p.x; g.me.y = p.y; g.me.air = 0; }, hitBox: (i = 0) => { const b = [...g.items, ...g.obs].filter((x) => x.kind === 'box')[i]; if (b) b.hit = true; }, boxes: [...g.items, ...g.obs].filter((b) => b.kind === 'box').length, smashed: smashedN, boxScreen: (i = 0) => { const bs = [...g.items, ...g.obs].filter((b) => b.kind === 'box'), b = bs[i]; if (!b) return null; const th = g.camA + (g.turn || 0), dx = (b.x - g.me.x) * g.zoom, dy = (b.y - g.me.y) * g.zoom; return { x: W / 2 + Math.cos(th) * dx - Math.sin(th) * dy, y: H() * CAR_Y + Math.sin(th) * dx + Math.cos(th) * dy }; }, tap: (p) => { organ.pointer('down', p, { pointerId: 99 }); organ.pointer('up', p, { pointerId: 99 }); } }),
 };
 export default organ;

@@ -883,9 +883,13 @@ on the loop's outside, `g.outer` its side): `marginAt(s)` = `MARGIN` (46) beyond
 (0.025) into each open stretch. The floor is drawn first, then the table clipped to the rim (with its shadow and
 a wood lip); guarded points (`GUARDS`: a white railing, a row of book spines, toy bricks; nine chunks round the
 loop, by seed) are drawn by `drawGuards` and bounce a car in `drive` at `w/2 + margin − R` (turned back along the
-tape, ×0.7 speed, a clack). `__rl()` has `guards`, `outer`, `pushOut(s, d)`. `drive(c, dt, steer, brake,
+tape, ×0.7 speed, a clack). `__rl()` has `guards`, `outer`, `pushOut(s, d)`. 🖍️ **The inside is guarded harder**: a solid wall of crayons right past the
+inner kerb all the way round (`INNER` 12, `buildInner` → `g.inner`, points that would loop back on a tight bend
+dropped; `drawCrayons`: two rows, 4 points a crayon, wrapper and tip, `CRAYONS` colours), so nobody cuts
+across the middle; `drive` bounces a car at `w/2 + INNER − R` on the inner side like the outer guards. Edge
+boxes now stand only on the outside. `__rl()` has `pushIn(s, d)`. `drive(c, dt, steer, brake,
 isMe)` is shared by you and the rivals (grip 0.25 on milk, 0.55 speed off the tape, boxes turn the car back
-along the tape, the outside ends at the table's edge, the infield eases you back past w/2 + 110). Rivals steer at `at(s + 0.03)` with a
+along the tape, the outside ends at the table's edge, the inside at the crayon wall). Rivals steer at `at(s + 0.03)` with a
 rubber band on `gap`; `out` for 4 s then respawn 0.1 ahead of you, `outLap` stops a repeat. Laps need
 `cps` 1→3 then a crossing of s = 0; `lapDone` → course after 3. `pointer` tracks `held.left/right` by
 `e.pointerId` (a finger sliding across the middle swaps sides). `__rl()` has `auto(on)` (a test autopilot
