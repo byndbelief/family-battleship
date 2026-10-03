@@ -863,7 +863,9 @@ along the tape, > w/2 + 90 from the centreline is "off the table"). Rivals steer
 rubber band on `gap`; `out` for 4 s then respawn 0.1 ahead of you, `outLap` stops a repeat. Laps need
 `cps` 1→3 then a crossing of s = 0; `lapDone` → course after 3. `pointer` tracks `held.left/right` by
 `e.pointerId` (a finger sliding across the middle swaps sides). `__rl()` has `auto(on)` (a test autopilot
-steering like a rival), `fx`, `held`. `CALM.organs` includes `rally`. Test: `t_rally2` (autopilot: three laps
+steering like a rival), `fx`, `held`. `CALM.organs` includes `rally`. `rally.html` runs it alone (key `rally`; 083 lets `solo_submit`
+and the `solo_scores` check take 'rally', applied to production 2026-10-03), linked from the lobby's quick
+entries beside Fractal Dash. Tests: `t_rallysolo` (the page, a save, the board), `t_rally2` (autopilot: three laps
 to course 2 with all lives, score in the low thousands), `t_rally`.
 **Fractal Dash's ground (fractal.js `groundY`).** A base bulb every `BULB_P` (260) px along the track
 (radius 80–150, centre 0.72 r below `base = H × 0.72` so only the cap shows), each with 2–3 children on

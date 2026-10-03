@@ -459,6 +459,7 @@ async function lobby() {
         <a class="quickentry" href="#quick"><span class="qicons" aria-hidden="true">⚓⛳💥🃏</span><span><strong>A game against someone</strong><span class="muted small">Battleship, Putt Post, Hilltop Duel or Chaos Cards</span></span><span class="qgo" aria-hidden="true">›</span></a>
         <a class="quickentry" href="squirrel.html"><span class="qicons" aria-hidden="true">🐿️📎</span><span><strong>Squirrel Chaos</strong><span class="muted small">Solo: staple the squirrels in a fractal forest before the chaos swarms</span></span><span class="qgo" aria-hidden="true">›</span></a>
         <a class="quickentry" href="fractal.html"><span class="qicons" aria-hidden="true">🔺✨</span><span><strong>Fractal Dash</strong><span class="muted small">Solo: jump and dash over a fractal ridge as the chaos curve climbs</span></span><span class="qgo" aria-hidden="true">›</span></a>
+        <a class="quickentry" href="rally.html"><span class="qicons" aria-hidden="true">🏎️🧵</span><span><strong>Rally</strong><span class="muted small">Micro Machines on a kitchen table · solo</span></span><span class="qgo" aria-hidden="true">›</span></a>
       </details>
       <section class="stack">
         <div class="row between"><h2>Your games</h2><span class="row" style="gap:14px"><button type="button" class="link" id="gamesMore" hidden></button><span class="live" id="live">Live</span></span></div>

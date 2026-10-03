@@ -232,7 +232,7 @@ what's loaded and how many rounds are left.
 course 7):
 tap a bumper, a sand trap or a pond to fix it; the par is re-estimated.
 
-**🏎️ Rally** (an organ of the run, calm category): Micro Machines on a kitchen table. Fig drives a toy car
+**🏎️ Rally** (an organ of the run, calm category, and a solo game of its own at `rally.html`): Micro Machines on a kitchen table. Fig drives a toy car
 around a loop of masking tape; hold the left or right half of the screen to steer (the car always goes),
 hold both to brake. Rivals (two at Stage 1, up to five) race the same loop, rubber-banded to you; a rival
 pushed far enough behind the camera is out of the lap and pays 150 (once a lap each). Three laps a course,

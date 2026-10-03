@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="r4box">
+  <title>Rally</title>
+  <meta name="theme-color" content="#6B4A2B">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700;800&family=Sora:wght@400;600;800&display=swap">
+  <style>
+  /* One look: a kitchen table, masking tape, toy cars. The HUD comes from shell.js. */
+  :root{color-scheme:dark;--bg:#3A2616;--panel:#4E341F;--line:#8A5A2B;--ink:#FFF4E0;--muted:#E0C9A8;--gold:#F5C542;--cyan:#3DD6C6;--bannerc:#FFE08A;
+    --display:"Bungee","Arial Black",Impact,sans-serif;--body:"Nunito",system-ui,-apple-system,"Segoe UI",sans-serif}
+  *{box-sizing:border-box}
+  html,body{background:var(--bg);margin:0;height:100%}
+  body{color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.4;padding:calc(10px + env(safe-area-inset-top,0px)) 12px 0;overscroll-behavior:none}
+  [hidden]{display:none!important}
+  .wrap{max-width:620px;margin:0 auto;display:flex;flex-direction:column;gap:8px}
+  .topnav{display:flex;align-items:center;gap:10px;min-height:40px}
+  .topnav a{color:var(--cyan);font-weight:800;text-decoration:none}
+  h1,h2{font-family:var(--display);font-weight:400;margin:0;line-height:1.05}
+  h1{font-size:clamp(20px,5.5vw,30px)}
+  button{font:inherit;font-weight:800;cursor:pointer;border-radius:12px;border:1.5px solid var(--line);background:var(--panel);color:var(--ink);padding:10px 16px}
+  button.go{background:var(--cyan);border-color:var(--cyan);color:#002A26;font-size:18px;padding:12px 22px}
+  #play{position:relative}
+  .stage{position:relative;border-radius:16px;overflow:hidden;box-shadow:0 14px 34px #0009;touch-action:none;user-select:none;-webkit-user-select:none;background:var(--bg)}
+  #cv{display:block;width:100%;cursor:pointer}
+  #play.fs-on{position:fixed;inset:0;z-index:60;background:var(--bg);padding:0}
+  #play.fs-on .stage{border-radius:0;height:100%}
+  </style>
+  <link rel="stylesheet" href="theme.css">
+</head>
+<body>
+<div class="wrap">
+  <nav class="topnav gtop"><a href="./">← r4box</a><h1 class="intop">🏎️ Rally</h1></nav>
+  <section id="play"><div class="stage" id="stage"><canvas id="cv" aria-label="A toy car on a kitchen-table track: hold a side to steer"></canvas></div></section>
+</div>
+<script type="module">
+  import { runShell } from './shell.js';
+  import rally from './organs/rally.js';
+  runShell({
+    organs: [rally], key: 'rally', title: 'Rally', icon: '🏎️', again: 'Race again',
+    intro: `<p><b>Hold the left or right half of the screen to steer</b>; the car always goes. <b>Hold both to brake.</b> Three laps a course, then a rougher, narrower one.</p>
+      <p class="muted small">Micro Machines on a kitchen table: a loop of masking tape whose bumps are Fibonacci harmonics. Rivals race you, and one pushed far enough behind the camera is out of the lap. 🥛 milk is ice, 🍞 the toaster is a ramp, 🕳️ the pocket swallows you, 📦 cereal boxes are walls. The chaos curve's beats bring soldiers, a spinning table, a reversed circuit, pennies, a bumper, a nitro, and twists: 🧲 magnet, 🌀 fan, 🔦 lights out, 🐈 the cat.</p>`,
+  });
+</script>
+</body>
+</html>
