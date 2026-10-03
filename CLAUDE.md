@@ -855,48 +855,47 @@ are forgiving (30/28, landing 24); a tap within 30 × `crateScale(c)` of a crate
 `crateScale` = (1 + 0.18 (stage − 1)) × a ±22% breath while falling, applied to the drawing too (hilltop's
 `dropScale` likewise, on `g.drops`). `renderBar()` is a disabled readout of `game.weapon` + rounds; `openCrate`
 sets the weapon, `spend()` drops back to the stapler at zero.
-**Rally (organs/rally.js).** `makeTrack(course, seed)`: 120 points, `r(θ) = base × (1 + Σ rough × k^−0.8 ×
-1.6 × sin(kθ + φ))` over `FIB = [3, 5, 8, 13, 21]`, `rough = 0.05 + 0.1 (course − 1)`, width `max(120, 190 −
-10 course)`; `topSpeed()` = 230 × (1 + 0.12 (course − 1) + 0.09 (stage − 1)); `camZoom()` = 2.0 / (1 + 0.25 (stage − 1)),
-eased into `g.zoom`; the camera is `translate(W/2, H × CAR_Y=0.8) · scale(zoom) · rotate(camA + turn) ·
-translate(−me)`, with `g.camA` eased (0.07 a frame) toward the **guide**: a blend of the directions to two spots up the tape
-(`GUIDE` near 130 / far 340 table units, 45/55) and 20% of the car's heading (none while it spins, falls or is
-carried), so the top of the screen already leans into a coming bend (`guideA` in `__rl()`); the table grain
-is drawn over a disc of radius `hypot(W, H) / zoom` and the fx texts are counter-rotated. (A 45° projected
-version lived for one commit, 3225041, and was reverted: it reads badly with flat sprites.) `R` = 13, cars
-are drawn at `CAR` = 1.5×. The look is bright: warm planks, red-and-white kerbs, a red cereal box with a 🥣
-label, a milk puddle with 🥛, a chrome toaster with toast, a green army man, a hazard-ringed pocket (`drawBox`,
-`drawMilk`, `drawToaster`, `drawSoldier`, `drawHole`; labels stand upright through `upright()`). 📦 A box your car has hit
-(`b.hit`, set in `drive`'s wall bump for you only; drawn with a crack and a pulsing yellow outline) smashes
-on a tap (+30, crumbs); an untouched box ignores taps: `toTable(p)` runs a screen point back through the chase camera, `boxAt` allows 22 screen
-px of slack; the touch still steers. `__rl()` has `boxes`, `smashed`, `hitBox(i)`, `boxScreen(i)`, `tap(p)`. 🪂 **Open edges**: `g.edges` (one per course up to
-3, at s ≈ 0.25 / 0.68 / 0.84, 0.08–0.14 of the loop, on the loop's outside: `side` in spotOn's sense) are where
-the table stops at the tape. `edgeAt(s, side)`; `drive` measures the signed offset from the centreline and a car
-past `w/2 + 6` on an open side (not in the air) sets `c.fall` (0.7 s: shrinks, spins, fades), then rivals `respawn`
-0.02 behind; your car gets **Fig to the rescue** (`startRescue`/`stepRescue`, `RESCUE` 1.3 s): Fig hops out
-big (`drawPal` s 15, upright, two arms to the roof), lifts the car in screen-up (`upX/upY`) and eases it to
-the respawn spot while the seat sits empty; on landing `respawn` takes the life (`host.hurt('fell off the
-edge')`, a `pickup` cue). Soldiers, the pocket, the paw and rival bumps leave a falling or carried car alone. Drawn as a dark floor polygon under
-the tape (so a curving loop is never covered), then the wood rim over the kerb, a yellow dashed line and ⚠️.
-No boxes are placed on an open side. `__rl()` has `edges`, `fall`, `rescue`, `pushOff(i)`. 🧱 **The table's edge, all the way round** (`buildRim`, `g.rim`, 240 points
-on the loop's outside, `g.outer` its side): `marginAt(s)` = `MARGIN` (46) beyond the tape, eased to 0 over `RAMP`
-(0.025) into each open stretch. The floor is drawn first, then the table clipped to the rim (with its shadow and
-a wood lip); guarded points (`GUARDS`: a white railing, a row of book spines, toy bricks; nine chunks round the
-loop, by seed) are drawn by `drawGuards` and bounce a car in `drive` at `w/2 + margin − R` (turned back along the
-tape, ×0.7 speed, a clack). `__rl()` has `guards`, `outer`, `pushOut(s, d)`. 🖍️ **The inside is guarded harder**: a solid wall of crayons right past the
-inner kerb all the way round (`INNER` 12, `buildInner` → `g.inner`, points that would loop back on a tight bend
-dropped; `drawCrayons`: two rows, 4 points a crayon, wrapper and tip, `CRAYONS` colours), so nobody cuts
-across the middle; `drive` bounces a car at `w/2 + INNER − R` on the inner side like the outer guards. Edge
-boxes now stand only on the outside. `__rl()` has `pushIn(s, d)`. `drive(c, dt, steer, brake,
-isMe)` is shared by you and the rivals (grip 0.25 on milk, 0.55 speed off the tape, boxes turn the car back
-along the tape, the outside ends at the table's edge, the inside at the crayon wall). Rivals steer at `at(s + 0.03)` with a
-rubber band on `gap`; `out` for 4 s then respawn 0.1 ahead of you, `outLap` stops a repeat. Laps need
-`cps` 1→3 then a crossing of s = 0; `lapDone` → course after 3. `pointer` tracks `held.left/right` by
-`e.pointerId` (a finger sliding across the middle swaps sides). `__rl()` has `auto(on)` (a test autopilot
-steering like a rival), `fx`, `held`. `CALM.organs` includes `rally`. `rally.html` runs it alone (key `rally`; 083 lets `solo_submit`
-and the `solo_scores` check take 'rally', applied to production 2026-10-03), linked from the lobby's quick
-entries beside Fractal Dash. Tests: `t_rallysolo` (the page, a save, the board), `t_rally2` (autopilot: three laps
-to course 2 with all lives, score in the low thousands), `t_rally`.
+**Rally (organs/rally.js): a race from start to finish, no laps.** `makeTrack(course, seed)` lays an **open road** in
+20-unit steps, length `3200 + 500 (course − 1)` (course capped at 7): its heading is "up" plus `Σ rough × 1.1 × k^−0.8 ×
+sin(2π · 0.6k · len/3200 · u + φ)` over `FIB = [3, 5, 8, 13, 21]`, `rough = 0.35 + 0.12 (course − 1)`, eased in over the
+first eighth and capped at ±1.3 rad, so the road always makes headway and never crosses itself; width `max(120, 190 −
+10 course)`. `at(s)` clamps s to [0, 1]; `nearest` walks the open polyline; `sOf(units)` turns table units into
+progress. The grid is `GRID` (70) up the road: you at the back, rivals in pairs ahead; a chequered start line just
+behind you and a wall of bricks closing the road at s = 0 (`drive` bounces a car that backs past it). **🚦 3-2-1-GO**:
+`g.go` = `COUNT` (2.4 s) holds every car and the beats; the digits are drawn big mid-screen, then GO!. **Start slower**:
+`topSpeed()` = 150 × (1 + 0.15 (course − 1) + 0.1 (stage − 1)), `ACCEL` 1.5. **🏁 The finish** at `FINISH` (0.975): a
+big chequered band and 🏁 flags; `finish()` pays `PLACE_PTS[place − 1] + 60 × cars behind` × a capped Fibonacci combo,
++ 300 × course, banners the place (🏆 for 1st), heals the organ and starts the next course. Rivals that reach it are
+`done` (they count ahead of you). A rival more than 520 units behind you is out (+150) and comes back 300 ahead of you
+unless the finish is near. The bottom line and the HUD show `% to the finish` (`progress()`) and your place. ✨ The
+**mirror** now swaps you with the rival just ahead within 400 units (`mirrorSwap`: position, heading, speed, progress),
+or pays 250 when nobody's close; the 🐈 paw sweeps back down the road toward you. `camZoom()` = 2.0 / (1 + 0.25 (stage − 1)),
+eased into `g.zoom`; the camera is `translate(W/2, H × CAR_Y=0.8) · scale(zoom) · rotate(camA + turn) · translate(−me)`,
+with `g.camA` eased (0.07 a frame) toward the **guide**: a blend of the directions to two spots up the road (`GUIDE`
+near 130 / far 340 table units, 45/55) and 20% of the car's heading (none while it spins, falls or is carried).
+`R` = 13, cars drawn at `CAR` = 1.5×. The look: warm planks, red-and-white kerbs, a red cereal box with a 🥣 label, a
+milk puddle with 🥛, a chrome toaster with toast, a green army man, a hazard-ringed pocket (`drawBox`, `drawMilk`,
+`drawToaster`, `drawSoldier`, `drawHole`; labels stand upright through `upright()`). 📦 A box your car has hit (`b.hit`)
+smashes on a tap (+30, crumbs): `toTable(p)` runs a screen point back through the chase camera, `boxAt` allows 22
+screen px of slack; the touch still steers. **🧱 The table's edge, both sides**: the table follows the road (its
+outline is `g.rims[1]` up one side and `g.rims[-1]` back down the other, `buildRim(side)`, points that would fold back
+on a tight bend dropped), the floor drawn under it with its shadow. Each side ends `MARGIN` (46) past the tape, guarded
+in chunks of a tenth of the road by `GUARDS` (a white railing, book spines, toy bricks, two rows of crayons;
+`drawGuards`); `drive` bounces a car at `w/2 + marginAt(s, side) − R` (`bounceAlong`: turned back along the road, ×0.7
+speed, a clack). **🪂 Open stretches** (`g.edges`, one per course up to 3, at s ≈ 0.25 / 0.55 / 0.8, 0.05–0.074 of the
+road, on a seeded side): the margin eases to 0 over `RAMP` (0.02), the rim sits right on the tape with a yellow dashed
+line and ⚠️, and a car past `w/2 + 6` there (not in the air) falls (`c.fall`, 0.7 s); rivals `respawn` 0.02 behind,
+your car gets **Fig to the rescue** (`startRescue`/`stepRescue`, `RESCUE` 1.3 s: Fig hops out big, lifts the car and
+sets it back; on landing `respawn` takes the life, `host.hurt('fell off the edge')`). Soldiers, the pocket, the paw
+and rival bumps leave a falling or carried car alone. `drive(c, dt, steer, brake, isMe)` is shared by you and the
+rivals (grip 0.25 on milk, 0.55 speed off the tape). Rivals steer at 70 units up the road with a rubber band on the
+gap. `pointer` tracks `held.left/right` by `e.pointerId`. `__rl()` has `auto(on)` (a test autopilot), `skipGo()`,
+`jump(s)`, `swap()`, `progress`, `finishes`, `go`, `edges`, `guards`, `fall`, `rescue`, `pushOut(s, d, side)`,
+`pushOff(i)`, `boxes`, `smashed`, `hitBox(i)`, `boxScreen(i)`, `tap(p)`, `guideA`, `heading`. `CALM.organs` includes
+`rally`. `rally.html` runs it alone (key `rally`; 083 lets `solo_submit` and the `solo_scores` check take 'rally',
+applied to production 2026-10-03), linked from the lobby's quick entries beside Fractal Dash. Tests (scratch):
+`t_p2p` (countdown holds the cars, the autopilot finishes course 1 in ~21 s with all lives and moves to course 2,
+a swap, a guard bounce, an edge fall and Fig's rescue), `t_runrally` (Rally inside the run).
 **Fractal Dash's ground (fractal.js `groundY`).** A base bulb every `BULB_P` (260) px along the track
 (radius 80–150, centre 0.72 r below `base = H × 0.72` so only the cap shows), each with 2–3 children on
 its rim at 0.2–0.32 r, recursively to `levels = 2 + min(3, round(rough × 1.6))`; the ground is the

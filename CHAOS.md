@@ -232,29 +232,27 @@ what's loaded and how many rounds are left.
 course 7):
 tap a bumper, a sand trap or a pond to fix it; the par is re-estimated.
 
-**🏎️ Rally** (an organ of the run, calm category, and a solo game of its own at `rally.html`): Micro Machines on a kitchen table. Fig drives a toy car
-around a loop of masking tape; hold the left or right half of the screen to steer (the car always goes),
-hold both to brake. Rivals (two at Stage 1, up to five) race the same loop, rubber-banded to you; a rival
-pushed far enough behind the camera is out of the lap and pays 150 (once a lap each). Three laps a course,
-200 + 60 per rival behind a lap (× a capped Fibonacci combo), 300 × course for a course won, then a new
-course: the track is a fractal, a loop whose radius is a sum of Fibonacci harmonics (3, 5, 8, 13, 21 bumps,
-amplitudes falling like 1/k^0.8), rougher and narrower course by course (see the camera note below for the widths), the cars faster by
-course and by stage (230 at the start, about 1.7× by course 4 at Stage 4), and a chase camera: top-down, turned toward where the road goes
-(so a coming bend already leans the top of the screen into it), the car low in it, following from behind, close in at the start (2×) and pulling back
-as the stages come. The window's table spin turns it further. The cars are big (1.5× sprites) and the tape
-is wide: 180 on course 1, down to 120. Hazards: 🥛 spilled milk (ice),
-🍞 a toaster (a ramp), 🕳️ the pocket (from course 2; a life from course 3), 📦 cereal boxes (walls that turn
-you back onto the tape; once your car has hit one it cracks, and a tap smashes it, +30). The nine events: a **peak** stands a 🪖 toy soldier on the road (a bonk and a spin),
-the **window** spins the table a quarter turn a beat, the **mirror** reverses the circuit, the **balance**
-drains the milk, the **golden cut** lays eight pennies ahead (+161, 20 each), a **big hop** drops a cereal
-box on the road, **gift** is a bumper, **fib** a nitro, and a **glitch** puts Fig in every rival's seat.
-Twists: 🧲 fridge magnet (pulled sideways), 🌀 ceiling fan (wind), 🔦 lights out (headlights only), 🐈 the
-cat's paw (sweeps along the track and swats whoever it meets). The inside of the loop is walled off with a solid row of crayons, so there's no cutting across the middle.
-The table's edge is always in view round the outside of the loop, the floor far below it. Most of it is
-guarded (a white railing, a row of books, toy bricks) and a car bounces off; some stretches of tape run right along the rim: no kerb on the
-outside, a ⚠️ sign and a long drop to the floor (one stretch on course 1, up to three). Go over and the car
-tumbles off; Fig hops out, flies down, hauls it back up and sets it on the tape (🪂 FIG TO THE RESCUE),
-and the organ loses a life.
+**🏎️ Rally** (an organ of the run, calm category, and a solo game of its own at `rally.html`): Micro Machines on a
+kitchen table, a race from the start grid to the chequered flag, no laps. Fig drives a toy car along a winding road of
+masking tape; hold the left or right half of the screen to steer (the car always goes), hold both to brake. A 3-2-1-GO
+holds everyone on the grid, and the cars start gentle (150, faster by course and by stage). Rivals (two at Stage 1, up
+to five) race the same road, rubber-banded to you; a rival pushed far enough behind the camera is out of the race and
+pays 150. Your place at the finish pays (600 for 1st down to 60, + 60 for each car behind you, × a capped Fibonacci
+combo, + 300 × course), then a new course. The road is a fractal: its heading wanders by a sum of Fibonacci waves (3, 5,
+8, 13, 21 along it, amplitudes falling like 1/k^0.8), never more than 75° off "up", so it always makes headway; each
+course is longer (3200, +500 a course), rougher and narrower (the tape 180 on course 1, down to 120). The camera chases
+from behind, low on the screen and turned toward where the road goes (so a coming bend already leans the top of the
+screen into it), close in at the start (2×) and pulling back as the stages come; the window's table spin turns it
+further. The table follows the road and ends on both sides: guarded by a white railing, a row of books, toy bricks or
+two rows of crayons (you bounce off), or **open** for a stretch (a ⚠️ and a yellow line, one stretch on course 1, up to
+three), where the car tumbles to the floor and Fig hauls it back up (🪂 FIG TO THE RESCUE) for a life. Hazards: 🥛
+spilled milk (ice), 🍞 a toaster (a ramp), 🕳️ the pocket (from course 2; a life from course 3), 📦 cereal boxes (walls;
+once your car has hit one it cracks, and a tap smashes it, +30). The nine events: a **peak** stands a 🪖 toy soldier on
+the road (a bonk and a spin), the **window** spins the table a quarter turn a beat, the **mirror** swaps you with the
+rival just ahead (or pays 250), the **balance** drains the milk, the **golden cut** lays eight pennies ahead (+161, 20
+each), a **big hop** drops a cereal box on the road, **gift** is a bumper, **fib** a nitro, and a **glitch** puts Fig in
+every rival's seat. Twists: 🧲 fridge magnet (pulled sideways), 🌀 ceiling fan (wind), 🔦 lights out (headlights only),
+🐈 the cat's paw (sweeps back down the road and swats whoever it meets).
 
 **A gentle start, in every organ.** The first stretch of a run teaches the organ before the world fills.
 Putt's ⛳ **courses** are corridors: a fairway of straight legs from the tee to the cup. Course 1 is one
