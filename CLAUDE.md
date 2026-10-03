@@ -859,7 +859,9 @@ sets the weapon, `spend()` drops back to the stapler at zero.
 1.6 × sin(kθ + φ))` over `FIB = [3, 5, 8, 13, 21]`, `rough = 0.05 + 0.1 (course − 1)`, width `max(120, 190 −
 10 course)`; `topSpeed()` = 230 × (1 + 0.12 (course − 1) + 0.09 (stage − 1)); `camZoom()` = 2.0 / (1 + 0.25 (stage − 1)),
 eased into `g.zoom`; the camera is `translate(W/2, H × CAR_Y=0.8) · scale(zoom) · rotate(camA + turn) ·
-translate(−me)`, with `g.camA` eased toward `−(me.a + π/2)` so the car points up the screen; the table grain
+translate(−me)`, with `g.camA` eased (0.07 a frame) toward the **guide**: a blend of the directions to two spots up the tape
+(`GUIDE` near 130 / far 340 table units, 45/55) and 20% of the car's heading (none while it spins, falls or is
+carried), so the top of the screen already leans into a coming bend (`guideA` in `__rl()`); the table grain
 is drawn over a disc of radius `hypot(W, H) / zoom` and the fx texts are counter-rotated. (A 45° projected
 version lived for one commit, 3225041, and was reverted: it reads badly with flat sprites.) `R` = 13, cars
 are drawn at `CAR` = 1.5×. The look is bright: warm planks, red-and-white kerbs, a red cereal box with a 🥣

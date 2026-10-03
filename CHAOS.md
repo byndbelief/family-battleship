@@ -239,8 +239,8 @@ pushed far enough behind the camera is out of the lap and pays 150 (once a lap e
 200 + 60 per rival behind a lap (× a capped Fibonacci combo), 300 × course for a course won, then a new
 course: the track is a fractal, a loop whose radius is a sum of Fibonacci harmonics (3, 5, 8, 13, 21 bumps,
 amplitudes falling like 1/k^0.8), rougher and narrower course by course (see the camera note below for the widths), the cars faster by
-course and by stage (230 at the start, about 1.7× by course 4 at Stage 4), and a chase camera: top-down, but turned so the car always
-points up the screen and sits low in it, following from behind, close in at the start (2×) and pulling back
+course and by stage (230 at the start, about 1.7× by course 4 at Stage 4), and a chase camera: top-down, turned toward where the road goes
+(so a coming bend already leans the top of the screen into it), the car low in it, following from behind, close in at the start (2×) and pulling back
 as the stages come. The window's table spin turns it further. The cars are big (1.5× sprites) and the tape
 is wide: 180 on course 1, down to 120. Hazards: 🥛 spilled milk (ice),
 🍞 a toaster (a ramp), 🕳️ the pocket (from course 2; a life from course 3), 📦 cereal boxes (walls that turn
